@@ -1,36 +1,571 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Marathon Command Center API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: plan
+  - name: workouts
+  - name: measurements
+  - name: dashboard
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
-      summary: Health check
-      description: Returns server health status
       responses:
         "200":
-          description: Healthy
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HealthStatus" }
+
+  /plan/overview:
+    get:
+      operationId: getPlanOverview
+      tags: [plan]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlanOverview" }
+
+  /plan/weeks:
+    get:
+      operationId: listPlanWeeks
+      tags: [plan]
+      responses:
+        "200":
+          description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/HealthStatus"
+                type: array
+                items: { $ref: "#/components/schemas/PlanWeek" }
+
+  /plan/weeks/{week}:
+    get:
+      operationId: getPlanWeek
+      tags: [plan]
+      parameters:
+        - in: path
+          name: week
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlanWeekDetail" }
+
+  /plan/today:
+    get:
+      operationId: getTodayPlan
+      tags: [plan]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TodayPlan" }
+
+  /workouts:
+    get:
+      operationId: listWorkouts
+      tags: [workouts]
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer }
+        - in: query
+          name: from
+          schema: { type: string }
+        - in: query
+          name: to
+          schema: { type: string }
+        - in: query
+          name: equipment
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Workout" }
+    post:
+      operationId: createWorkout
+      tags: [workouts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateWorkoutBody" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Workout" }
+
+  /workouts/{id}:
+    patch:
+      operationId: updateWorkout
+      tags: [workouts]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateWorkoutBody" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Workout" }
+    delete:
+      operationId: deleteWorkout
+      tags: [workouts]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: No Content }
+
+  /measurements:
+    get:
+      operationId: listMeasurements
+      tags: [measurements]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Measurement" }
+    post:
+      operationId: createMeasurement
+      tags: [measurements]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateMeasurementBody" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Measurement" }
+
+  /measurements/{id}:
+    patch:
+      operationId: updateMeasurement
+      tags: [measurements]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateMeasurementBody" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Measurement" }
+    delete:
+      operationId: deleteMeasurement
+      tags: [measurements]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: No Content }
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DashboardSummary" }
+
+  /dashboard/weight-trend:
+    get:
+      operationId: getWeightTrend
+      tags: [dashboard]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/WeightPoint" }
+
+  /dashboard/weekly-mileage:
+    get:
+      operationId: getWeeklyMileage
+      tags: [dashboard]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/WeeklyMileagePoint" }
+
+  /dashboard/equipment-usage:
+    get:
+      operationId: getEquipmentUsage
+      tags: [dashboard]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/EquipmentUsage" }
+
+  /dashboard/long-run-progression:
+    get:
+      operationId: getLongRunProgression
+      tags: [dashboard]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/LongRunPoint" }
+
+  /dashboard/recent-activity:
+    get:
+      operationId: getRecentActivity
+      tags: [dashboard]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Workout" }
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
-        status:
-          type: string
-      required:
-        - status
+        status: { type: string }
 
+    PlanDay:
+      type: object
+      required:
+        [
+          id,
+          week,
+          phase,
+          date,
+          day,
+          equipment,
+          description,
+          sessionType,
+          isRest,
+          totalLoad,
+        ]
+      properties:
+        id: { type: integer }
+        week: { type: integer }
+        phase: { type: string }
+        date: { type: string }
+        day: { type: string }
+        strengthLoad: { type: number, nullable: true }
+        equipment: { type: string }
+        description: { type: string }
+        cardioMin: { type: number, nullable: true }
+        distanceMi: { type: number, nullable: true }
+        pace: { type: string, nullable: true }
+        sessionType: { type: string }
+        isRest: { type: boolean }
+        totalLoad: { type: number }
+
+    PlanWeek:
+      type: object
+      required:
+        [
+          week,
+          phase,
+          startDate,
+          endDate,
+          plannedTotalLoad,
+          plannedMiles,
+          longRunMi,
+        ]
+      properties:
+        week: { type: integer }
+        phase: { type: string }
+        startDate: { type: string }
+        endDate: { type: string }
+        plannedStrength: { type: number, nullable: true }
+        plannedCardio: { type: number, nullable: true }
+        plannedTotalLoad: { type: number }
+        plannedMiles: { type: number }
+        longRunMi: { type: number }
+        actualMiles: { type: number, nullable: true }
+        completedSessions: { type: integer, nullable: true }
+        totalSessions: { type: integer, nullable: true }
+
+    PlanWeekDetail:
+      allOf:
+        - $ref: "#/components/schemas/PlanWeek"
+        - type: object
+          required: [days]
+          properties:
+            days:
+              type: array
+              items: { $ref: "#/components/schemas/PlanDay" }
+
+    PlanOverview:
+      type: object
+      required:
+        [
+          currentWeek,
+          currentPhase,
+          totalWeeks,
+          weeksRemaining,
+          raceDate,
+          startDate,
+          startWeight,
+          currentWeight,
+          goalWeight,
+        ]
+      properties:
+        currentWeek: { type: integer }
+        currentPhase: { type: string }
+        totalWeeks: { type: integer }
+        weeksRemaining: { type: integer }
+        raceDate: { type: string }
+        startDate: { type: string }
+        startWeight: { type: number }
+        currentWeight: { type: number, nullable: true }
+        goalWeight: { type: number }
+        weeklyMilesTarget: { type: number }
+        longRunTarget: { type: number }
+
+    TodayPlan:
+      type: object
+      required: [date, hasPlan]
+      properties:
+        date: { type: string }
+        hasPlan: { type: boolean }
+        plan:
+          allOf:
+            - $ref: "#/components/schemas/PlanDay"
+          nullable: true
+        loggedWorkout:
+          allOf:
+            - $ref: "#/components/schemas/Workout"
+          nullable: true
+
+    Workout:
+      type: object
+      required: [id, date, equipment, sessionType, createdAt]
+      properties:
+        id: { type: integer }
+        planDayId: { type: integer, nullable: true }
+        date: { type: string }
+        equipment: { type: string }
+        sessionType: { type: string }
+        durationMin: { type: number, nullable: true }
+        distanceMi: { type: number, nullable: true }
+        pace: { type: string, nullable: true }
+        avgHr: { type: integer, nullable: true }
+        rpe: { type: integer, nullable: true }
+        strengthLoad: { type: number, nullable: true }
+        totalLoad: { type: number, nullable: true }
+        notes: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    CreateWorkoutBody:
+      type: object
+      required: [date, equipment, sessionType]
+      properties:
+        planDayId: { type: integer, nullable: true }
+        date: { type: string }
+        equipment: { type: string }
+        sessionType: { type: string }
+        durationMin: { type: number, nullable: true }
+        distanceMi: { type: number, nullable: true }
+        pace: { type: string, nullable: true }
+        avgHr: { type: integer, nullable: true }
+        rpe: { type: integer, nullable: true }
+        strengthLoad: { type: number, nullable: true }
+        totalLoad: { type: number, nullable: true }
+        notes: { type: string, nullable: true }
+
+    UpdateWorkoutBody:
+      type: object
+      properties:
+        date: { type: string }
+        equipment: { type: string }
+        sessionType: { type: string }
+        durationMin: { type: number, nullable: true }
+        distanceMi: { type: number, nullable: true }
+        pace: { type: string, nullable: true }
+        avgHr: { type: integer, nullable: true }
+        rpe: { type: integer, nullable: true }
+        strengthLoad: { type: number, nullable: true }
+        totalLoad: { type: number, nullable: true }
+        notes: { type: string, nullable: true }
+
+    Measurement:
+      type: object
+      required: [id, date, createdAt]
+      properties:
+        id: { type: integer }
+        date: { type: string }
+        weight: { type: number, nullable: true }
+        lArm: { type: number, nullable: true }
+        rArm: { type: number, nullable: true }
+        lLeg: { type: number, nullable: true }
+        rLeg: { type: number, nullable: true }
+        belly: { type: number, nullable: true }
+        chest: { type: number, nullable: true }
+        notes: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    CreateMeasurementBody:
+      type: object
+      required: [date]
+      properties:
+        date: { type: string }
+        weight: { type: number, nullable: true }
+        lArm: { type: number, nullable: true }
+        rArm: { type: number, nullable: true }
+        lLeg: { type: number, nullable: true }
+        rLeg: { type: number, nullable: true }
+        belly: { type: number, nullable: true }
+        chest: { type: number, nullable: true }
+        notes: { type: string, nullable: true }
+
+    UpdateMeasurementBody:
+      type: object
+      properties:
+        date: { type: string }
+        weight: { type: number, nullable: true }
+        lArm: { type: number, nullable: true }
+        rArm: { type: number, nullable: true }
+        lLeg: { type: number, nullable: true }
+        rLeg: { type: number, nullable: true }
+        belly: { type: number, nullable: true }
+        chest: { type: number, nullable: true }
+        notes: { type: string, nullable: true }
+
+    DashboardSummary:
+      type: object
+      required:
+        [
+          currentWeek,
+          currentPhase,
+          weekProgressPct,
+          weeklyMilesActual,
+          weeklyMilesPlanned,
+          weeklyLoadActual,
+          weeklyLoadPlanned,
+          weeklySessionsCompleted,
+          weeklySessionsPlanned,
+          totalMilesAllTime,
+          longestRunMi,
+          weightStart,
+          weightCurrent,
+          weightGoal,
+          weightLost,
+          weightToGoal,
+          adherencePct,
+          daysToRace,
+        ]
+      properties:
+        currentWeek: { type: integer }
+        currentPhase: { type: string }
+        weekProgressPct: { type: number }
+        weeklyMilesActual: { type: number }
+        weeklyMilesPlanned: { type: number }
+        weeklyLoadActual: { type: number }
+        weeklyLoadPlanned: { type: number }
+        weeklySessionsCompleted: { type: integer }
+        weeklySessionsPlanned: { type: integer }
+        totalMilesAllTime: { type: number }
+        longestRunMi: { type: number }
+        weightStart: { type: number }
+        weightCurrent: { type: number, nullable: true }
+        weightGoal: { type: number }
+        weightLost: { type: number }
+        weightToGoal: { type: number }
+        adherencePct: { type: number }
+        daysToRace: { type: integer }
+
+    WeightPoint:
+      type: object
+      required: [date, weight]
+      properties:
+        date: { type: string }
+        weight: { type: number }
+
+    WeeklyMileagePoint:
+      type: object
+      required: [week, plannedMiles, actualMiles]
+      properties:
+        week: { type: integer }
+        startDate: { type: string }
+        phase: { type: string }
+        plannedMiles: { type: number }
+        actualMiles: { type: number }
+
+    EquipmentUsage:
+      type: object
+      required: [equipment, sessions, totalMinutes, totalLoad]
+      properties:
+        equipment: { type: string }
+        sessions: { type: integer }
+        totalMinutes: { type: number }
+        totalLoad: { type: number }
+        totalDistance: { type: number }
+
+    LongRunPoint:
+      type: object
+      required: [week, plannedMi, actualMi]
+      properties:
+        week: { type: integer }
+        date: { type: string }
+        plannedMi: { type: number }
+        actualMi: { type: number }

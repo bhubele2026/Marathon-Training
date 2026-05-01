@@ -1,27 +1,60 @@
-# Workspace
+# Marathon Command Center
 
 ## Overview
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+Personal 1-year half-marathon training tracker. Goal: 281.6 lbs → 210 lbs by race day **2027-03-06**. Plan starts **2026-03-08** and runs 52 weeks (4 phases: Foundation Build, Aerobic Engine, Race Sharpening, Taper).
+
+UI is an orange-on-dark "mission control" theme. No emojis anywhere.
+
+## Artifacts
+
+- `artifacts/api-server` (`/api`, port 8080) — Express + Drizzle + Postgres backend.
+- `artifacts/command-center` (`/`, web) — React + Vite frontend (wouter, shadcn/ui, recharts, react-hook-form + zod).
+- `artifacts/mockup-sandbox` (`/__mockup`) — design preview only.
+
+## Pages
+
+- `/` Dashboard — mission status, weekly snapshot, body mass, today's mission, recent activity, equipment usage.
+- `/today` Today's mission with workout log dialog.
+- `/plan` 52-week plan grouped by phase.
+- `/plan/:week` Week detail with 7 day cards.
+- `/log` Workouts list with equipment filter + log dialog.
+- `/measurements` Body weight trend + check-in dialog.
+- `/equipment` Per-equipment session counts and recent activity.
+
+## Data
+
+- Plan + days + body baselines seeded from `.local/data/plan.json` via `pnpm --filter @workspace/scripts run seed`.
+- Tables (lib/db): `plan_weeks`, `plan_days`, `workouts`, `body_measurements`.
+- Seed reseeds plan/day/measurement tables on every run; `workouts` is preserved.
 
 ## Stack
 
-- **Monorepo tool**: pnpm workspaces
-- **Node.js version**: 24
-- **Package manager**: pnpm
-- **TypeScript version**: 5.9
-- **API framework**: Express 5
-- **Database**: PostgreSQL + Drizzle ORM
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
-- **Build**: esbuild (CJS bundle)
+- pnpm workspaces, Node 24, TypeScript 5.9
+- Express 5, Drizzle ORM, Postgres
+- Zod (`zod/v4`), `drizzle-zod`
+- OpenAPI codegen via Orval (`pnpm --filter @workspace/api-spec run codegen`)
+- React 18 + Vite, wouter, @tanstack/react-query, shadcn/ui, recharts, date-fns
 
-## Key Commands
+## Key commands
 
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- `pnpm --filter @workspace/api-server run dev` — run API server locally
+- `pnpm run typecheck` — typecheck everything
+- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks/zod from `lib/api-spec/openapi.yaml`
+- `pnpm --filter @workspace/db run push` — push schema (dev)
+- `pnpm --filter @workspace/scripts run seed` — reseed plan + baseline measurements
 
-See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+## Codegen note
+
+After every codegen, `lib/api-zod/src/index.ts` is rewritten to re-export both `./generated/api` and `./generated/api-types`, which causes duplicate-export errors. Reset it back to a single line:
+
+```ts
+export * from "./generated/api";
+```
+
+## Deployment notes
+
+- Personal-use app: no auth/authz layer; do not expose the published URL publicly.
+- CORS is permissive by default — restrict via env if needed.
+- "Today" is computed in UTC; tasks near midnight may shift by a day.
+
+See the `pnpm-workspace` skill for monorepo conventions.
