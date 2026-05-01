@@ -22,7 +22,15 @@ export function toPlanDay(r: PlanDayRow) {
   };
 }
 
-export function toPlanWeek(r: PlanWeekRow, extras?: { actualMiles?: number; completedSessions?: number; totalSessions?: number }) {
+export function toPlanWeek(
+  r: PlanWeekRow,
+  extras?: {
+    actualMiles?: number;
+    completedSessions?: number;
+    totalSessions?: number;
+    missedSessions?: number;
+  },
+) {
   return {
     week: r.week,
     phase: r.phase,
@@ -36,6 +44,7 @@ export function toPlanWeek(r: PlanWeekRow, extras?: { actualMiles?: number; comp
     actualMiles: extras?.actualMiles ?? null,
     completedSessions: extras?.completedSessions ?? null,
     totalSessions: extras?.totalSessions ?? null,
+    missedSessions: extras?.missedSessions ?? null,
   };
 }
 

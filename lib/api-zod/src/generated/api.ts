@@ -38,6 +38,7 @@ export const ListPlanWeeksResponseItem = zod.object({
   actualMiles: zod.number().nullish(),
   completedSessions: zod.number().nullish(),
   totalSessions: zod.number().nullish(),
+  missedSessions: zod.number().nullish(),
 });
 export const ListPlanWeeksResponse = zod.array(ListPlanWeeksResponseItem);
 
@@ -59,6 +60,7 @@ export const GetPlanWeekResponse = zod
     actualMiles: zod.number().nullish(),
     completedSessions: zod.number().nullish(),
     totalSessions: zod.number().nullish(),
+    missedSessions: zod.number().nullish(),
   })
   .and(
     zod.object({

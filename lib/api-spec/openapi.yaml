@@ -425,6 +425,7 @@ components:
         actualMiles: { type: number, nullable: true }
         completedSessions: { type: integer, nullable: true }
         totalSessions: { type: integer, nullable: true }
+        missedSessions: { type: integer, nullable: true }
 
     PlanDayWithSuggestions:
       allOf:

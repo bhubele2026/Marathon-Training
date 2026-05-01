@@ -4,7 +4,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistance, formatDate } from "@/lib/format";
 import { useLocation } from "wouter";
-import { CalendarDays, Target, Activity } from "lucide-react";
+import { CalendarDays, Target, Activity, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function Plan() {
@@ -113,9 +113,20 @@ export default function Plan() {
                       </div>
 
                       <div className="space-y-1.5 mt-4 pt-4 border-t border-border">
-                        <div className="flex justify-between text-[10px] uppercase font-bold text-muted-foreground">
+                        <div className="flex justify-between items-center text-[10px] uppercase font-bold text-muted-foreground">
                           <span>Adherence</span>
-                          <span>{week.completedSessions || 0}/{week.totalSessions || 0}</span>
+                          <div className="flex items-center gap-2">
+                            {(week.missedSessions ?? 0) > 0 && (
+                              <span
+                                className="flex items-center gap-1 bg-destructive/15 text-destructive px-1.5 py-0.5 rounded font-bold uppercase tracking-wider"
+                                data-testid={`badge-missed-week-${week.week}`}
+                              >
+                                <AlertTriangle className="h-2.5 w-2.5" />
+                                {week.missedSessions} Missed
+                              </span>
+                            )}
+                            <span>{week.completedSessions || 0}/{week.totalSessions || 0}</span>
+                          </div>
                         </div>
                         <Progress value={completedPct} className="h-1.5 bg-muted" />
                       </div>

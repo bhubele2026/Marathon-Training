@@ -60,6 +60,7 @@ export interface PlanWeek {
   actualMiles?: number | null;
   completedSessions?: number | null;
   totalSessions?: number | null;
+  missedSessions?: number | null;
 }
 
 /**

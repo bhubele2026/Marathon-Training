@@ -55,14 +55,31 @@ router.get("/plan/overview", async (_req, res) => {
 });
 
 router.get("/plan/weeks", async (_req, res) => {
+  const today = todayISO();
   const weeks = await db.select().from(planWeeksTable).orderBy(asc(planWeeksTable.week));
   // Aggregate actuals per week
-  const actuals = await db.execute<{ week: number; actual_miles: number; completed_sessions: number; total_sessions: number }>(
+  const actuals = await db.execute<{
+    week: number;
+    actual_miles: number;
+    completed_sessions: number;
+    total_sessions: number;
+    missed_sessions: number;
+  }>(
     sql`
       SELECT pw.week,
         COALESCE(SUM(w.distance_mi) FILTER (WHERE w.session_type <> 'Skipped'), 0)::float AS actual_miles,
         COUNT(DISTINCT w.id) FILTER (WHERE w.session_type <> 'Skipped')::int AS completed_sessions,
-        (SELECT COUNT(*) FROM plan_days pd WHERE pd.week = pw.week AND pd.is_rest = false)::int AS total_sessions
+        (SELECT COUNT(*) FROM plan_days pd WHERE pd.week = pw.week AND pd.is_rest = false)::int AS total_sessions,
+        (
+          SELECT COUNT(*)
+          FROM plan_days pd
+          WHERE pd.week = pw.week
+            AND pd.is_rest = false
+            AND pd.date < ${today}
+            AND NOT EXISTS (
+              SELECT 1 FROM workouts w2 WHERE w2.date = pd.date
+            )
+        )::int AS missed_sessions
       FROM plan_weeks pw
       LEFT JOIN workouts w ON w.date BETWEEN pw.start_date AND pw.end_date
       GROUP BY pw.week
@@ -76,6 +93,7 @@ router.get("/plan/weeks", async (_req, res) => {
         actualMiles: a?.actual_miles ?? 0,
         completedSessions: a?.completed_sessions ?? 0,
         totalSessions: a?.total_sessions ?? 0,
+        missedSessions: a?.missed_sessions ?? 0,
       });
     }),
   );

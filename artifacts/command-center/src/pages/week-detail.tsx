@@ -4,8 +4,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistance, formatLoad, formatDate, formatDuration } from "@/lib/format";
-import { ChevronLeft, ChevronRight, Activity, Play, Edit, Trash2, CheckCircle2, Zap, XCircle, Pencil } from "lucide-react";
+import { ChevronLeft, ChevronRight, Activity, Play, Edit, Trash2, CheckCircle2, Zap, XCircle, Pencil, AlertTriangle } from "lucide-react";
 import { useMissionActions } from "@/hooks/use-mission-actions";
+import { cn } from "@/lib/utils";
+
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 export default function WeekDetail() {
   const params = useParams();
@@ -43,6 +48,10 @@ export default function WeekDetail() {
       workoutByDate.set(w.date, w);
     }
   }
+
+  const today = todayISO();
+  const isMissedDay = (day: PlanDayWithSuggestions) =>
+    !day.isRest && day.date < today && !workoutByDate.get(day.date);
 
   const ctxFor = (day: PlanDayWithSuggestions) => ({
     date: day.date,
@@ -147,12 +156,27 @@ export default function WeekDetail() {
 
           const logged = workoutByDate.get(day.date) ?? null;
           const ctx = ctxFor(day);
+          const missed = isMissedDay(day);
 
           return (
-            <Card key={day.id} className="border-border hover:border-primary/30 transition-colors">
+            <Card
+              key={day.id}
+              className={cn(
+                "transition-colors",
+                missed
+                  ? "border-destructive/40 bg-destructive/5 hover:border-destructive/60"
+                  : "border-border hover:border-primary/30",
+              )}
+              data-testid={`day-card-${day.date}`}
+            >
               <CardContent className="p-0">
                 <div className="flex flex-col md:flex-row">
-                  <div className="w-full md:w-48 bg-muted/30 p-4 border-b md:border-b-0 md:border-r border-border flex flex-col justify-center">
+                  <div
+                    className={cn(
+                      "w-full md:w-48 p-4 border-b md:border-b-0 md:border-r flex flex-col justify-center",
+                      missed ? "bg-destructive/10 border-destructive/30" : "bg-muted/30 border-border",
+                    )}
+                  >
                     <div className="text-sm font-black uppercase tracking-wider">{day.day}</div>
                     <div className="text-xs text-muted-foreground mb-3">{formatDate(day.date)}</div>
                     <div className="mt-auto flex flex-wrap items-center gap-2">
@@ -162,6 +186,14 @@ export default function WeekDetail() {
                       {logged && (
                         <span className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider flex items-center gap-1">
                           <CheckCircle2 className="h-3 w-3" /> Logged
+                        </span>
+                      )}
+                      {missed && (
+                        <span
+                          className="text-[10px] bg-destructive/15 text-destructive px-2 py-1 rounded font-bold uppercase tracking-wider flex items-center gap-1"
+                          data-testid={`badge-missed-${day.date}`}
+                        >
+                          <AlertTriangle className="h-3 w-3" /> Missed
                         </span>
                       )}
                     </div>
