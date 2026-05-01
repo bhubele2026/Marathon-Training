@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { Sparkles } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +20,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -26,6 +28,7 @@ import {
   useCreateWorkout,
   useUpdateWorkout,
   Workout,
+  WorkoutSuggestions,
 } from "@workspace/api-client-react";
 import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
 
@@ -50,10 +53,11 @@ interface WorkoutFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initial?: Partial<Workout & { planDayId?: number | null }>;
+  suggestions?: WorkoutSuggestions | null;
   workoutId?: number;
 }
 
-export function WorkoutForm({ open, onOpenChange, initial, workoutId }: WorkoutFormProps) {
+export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutId }: WorkoutFormProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const createWorkout = useCreateWorkout();
@@ -85,6 +89,27 @@ export function WorkoutForm({ open, onOpenChange, initial, workoutId }: WorkoutF
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initial?.date, initial?.equipment, initial?.sessionType, initial?.planDayId, workoutId]);
+
+  const isEditMode = !!workoutId;
+  const dirtyFields = form.formState.dirtyFields;
+  const suggestionHelperText = suggestions?.sampleSize
+    ? `Based on your last ${suggestions.sampleSize} ${
+        suggestions.sampleSize === 1 ? "session" : "sessions"
+      }`
+    : null;
+  const showSuggestion = (fieldName: "rpe" | "avgHr" | "pace") =>
+    !isEditMode && suggestions?.[fieldName] != null && !dirtyFields[fieldName];
+
+  const SuggestedHint = () =>
+    suggestionHelperText ? (
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
+        <Badge variant="secondary" className="gap-1 px-1.5 py-0 h-4 text-[10px] font-medium">
+          <Sparkles className="h-2.5 w-2.5" />
+          Suggested
+        </Badge>
+        <span>{suggestionHelperText}</span>
+      </div>
+    ) : null;
 
   const invalidateData = () => invalidateMissionRelatedQueries(queryClient);
 
@@ -249,6 +274,7 @@ export function WorkoutForm({ open, onOpenChange, initial, workoutId }: WorkoutF
                     <FormControl>
                       <Input placeholder="8:30" {...field} value={field.value ?? ""} />
                     </FormControl>
+                    {showSuggestion("pace") && <SuggestedHint />}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -262,6 +288,7 @@ export function WorkoutForm({ open, onOpenChange, initial, workoutId }: WorkoutF
                     <FormControl>
                       <Input type="number" placeholder="140" {...field} value={field.value ?? ""} />
                     </FormControl>
+                    {showSuggestion("avgHr") && <SuggestedHint />}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -275,6 +302,7 @@ export function WorkoutForm({ open, onOpenChange, initial, workoutId }: WorkoutF
                     <FormControl>
                       <Input type="number" min={1} max={10} placeholder="5" {...field} value={field.value ?? ""} />
                     </FormControl>
+                    {showSuggestion("rpe") && <SuggestedHint />}
                     <FormMessage />
                   </FormItem>
                 )}

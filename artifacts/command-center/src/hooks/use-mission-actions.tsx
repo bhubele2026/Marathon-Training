@@ -54,6 +54,7 @@ export function useMissionActions() {
                 }
               : { date: logCtx.date }
           }
+          suggestions={logCtx.suggestions}
         />
       )}
       {editCtx?.loggedWorkout && (
