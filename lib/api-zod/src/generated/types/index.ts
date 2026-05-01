@@ -15,6 +15,7 @@ export * from "./listWorkoutsParams";
 export * from "./longRunPoint";
 export * from "./measurement";
 export * from "./planDay";
+export * from "./planDayWithSuggestions";
 export * from "./planOverview";
 export * from "./planWeek";
 export * from "./planWeekDetail";

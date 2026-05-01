@@ -63,22 +63,41 @@ export const GetPlanWeekResponse = zod
   .and(
     zod.object({
       days: zod.array(
-        zod.object({
-          id: zod.number(),
-          week: zod.number(),
-          phase: zod.string(),
-          date: zod.string(),
-          day: zod.string(),
-          strengthLoad: zod.number().nullish(),
-          equipment: zod.string(),
-          description: zod.string(),
-          cardioMin: zod.number().nullish(),
-          distanceMi: zod.number().nullish(),
-          pace: zod.string().nullish(),
-          sessionType: zod.string(),
-          isRest: zod.boolean(),
-          totalLoad: zod.number(),
-        }),
+        zod
+          .object({
+            id: zod.number(),
+            week: zod.number(),
+            phase: zod.string(),
+            date: zod.string(),
+            day: zod.string(),
+            strengthLoad: zod.number().nullish(),
+            equipment: zod.string(),
+            description: zod.string(),
+            cardioMin: zod.number().nullish(),
+            distanceMi: zod.number().nullish(),
+            pace: zod.string().nullish(),
+            sessionType: zod.string(),
+            isRest: zod.boolean(),
+            totalLoad: zod.number(),
+          })
+          .and(
+            zod.object({
+              suggestions: zod
+                .object({
+                  rpe: zod.number().nullish(),
+                  avgHr: zod.number().nullish(),
+                  pace: zod.string().nullish(),
+                  paceSource: zod
+                    .enum(["plan", "history"])
+                    .nullish()
+                    .describe(
+                      'Where the suggested pace came from. \"plan\" if it was prescribed by the plan day, \"history\" if it was averaged from recent comparable sessions. Null when no pace suggestion is available.',
+                    ),
+                  sampleSize: zod.number(),
+                })
+                .nullish(),
+            }),
+          ),
       ),
     }),
   );

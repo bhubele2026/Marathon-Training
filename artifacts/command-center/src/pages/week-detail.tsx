@@ -1,4 +1,4 @@
-import { useGetPlanWeek, getGetPlanWeekQueryKey, useListWorkouts, getListWorkoutsQueryKey, Workout, PlanDay } from "@workspace/api-client-react";
+import { useGetPlanWeek, getGetPlanWeekQueryKey, useListWorkouts, getListWorkoutsQueryKey, Workout, PlanDayWithSuggestions } from "@workspace/api-client-react";
 import { useParams, useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,10 +43,11 @@ export default function WeekDetail() {
     }
   }
 
-  const ctxFor = (day: PlanDay): { date: string; plan: PlanDay; loggedWorkout: Workout | null } => ({
+  const ctxFor = (day: PlanDayWithSuggestions) => ({
     date: day.date,
     plan: day,
     loggedWorkout: workoutByDate.get(day.date) ?? null,
+    suggestions: day.suggestions ?? null,
   });
 
   return (

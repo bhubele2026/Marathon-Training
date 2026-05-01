@@ -93,13 +93,22 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
     sql`SELECT COALESCE(SUM(distance_mi), 0)::float AS actual_miles, COUNT(*)::int AS completed FROM workouts WHERE date BETWEEN ${weekRow.startDate} AND ${weekRow.endDate}`,
   );
   const totalSessions = days.filter((d) => !d.isRest).length;
+  const today = todayISO();
+  const daysWithSuggestions = await Promise.all(
+    days.map(async (d) => {
+      const base = toPlanDay(d);
+      if (d.isRest) return { ...base, suggestions: null };
+      const suggestions = await suggestionsForPlan(d, today);
+      return { ...base, suggestions };
+    }),
+  );
   res.json({
     ...toPlanWeek(weekRow, {
       actualMiles: actuals.rows[0]?.actual_miles ?? 0,
       completedSessions: actuals.rows[0]?.completed ?? 0,
       totalSessions,
     }),
-    days: days.map(toPlanDay),
+    days: daysWithSuggestions,
   });
 });
 

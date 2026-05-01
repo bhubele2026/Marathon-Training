@@ -345,6 +345,16 @@ components:
         completedSessions: { type: integer, nullable: true }
         totalSessions: { type: integer, nullable: true }
 
+    PlanDayWithSuggestions:
+      allOf:
+        - $ref: "#/components/schemas/PlanDay"
+        - type: object
+          properties:
+            suggestions:
+              allOf:
+                - $ref: "#/components/schemas/WorkoutSuggestions"
+              nullable: true
+
     PlanWeekDetail:
       allOf:
         - $ref: "#/components/schemas/PlanWeek"
@@ -353,7 +363,7 @@ components:
           properties:
             days:
               type: array
-              items: { $ref: "#/components/schemas/PlanDay" }
+              items: { $ref: "#/components/schemas/PlanDayWithSuggestions" }
 
     PlanOverview:
       type: object

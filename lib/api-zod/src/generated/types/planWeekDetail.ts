@@ -5,9 +5,9 @@
  * Marathon Command Center API
  * OpenAPI spec version: 0.1.0
  */
-import type { PlanDay } from "./planDay";
+import type { PlanDayWithSuggestions } from "./planDayWithSuggestions";
 import type { PlanWeek } from "./planWeek";
 
 export type PlanWeekDetail = PlanWeek & {
-  days: PlanDay[];
+  days: PlanDayWithSuggestions[];
 };
