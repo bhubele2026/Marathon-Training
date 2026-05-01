@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistance, formatLoad, formatDuration } from "@/lib/format";
 import { CheckCircle2, Activity, Trash2, Edit, Zap, Pencil, XCircle } from "lucide-react";
 import { useMissionActions } from "@/hooks/use-mission-actions";
+import { QuickLogActivity } from "@/components/quick-log-activity";
 
 export default function Today() {
   const { data: today, isLoading } = useGetTodayPlan();
@@ -39,7 +40,11 @@ export default function Today() {
             <p>Recover and rebuild. No planned session today.</p>
           </CardContent>
         </Card>
-      ) : (
+      ) : null}
+
+      <QuickLogActivity testIdSuffix="today" />
+
+      {today.hasPlan && (
         <div className="grid gap-6">
           <Card className="border-primary/20 bg-primary/5">
             <CardHeader>

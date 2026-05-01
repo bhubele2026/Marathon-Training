@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { 
   useGetDashboardSummary, 
   useGetWeightTrend, 
@@ -19,32 +18,11 @@ import { formatDistance, formatLoad, formatWeight, formatDate, formatDuration } 
 import { format } from "date-fns";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Activity, CalendarDays, CheckCircle2, TrendingDown, Target, Clock, Zap, Play, Edit, Trash2, ExternalLink, Dog, Trees, Home, Mountain, Plus, Pencil, XCircle } from "lucide-react";
+import { Activity, CalendarDays, CheckCircle2, TrendingDown, Target, Zap, Edit, Trash2, ExternalLink, Pencil, XCircle } from "lucide-react";
 import { useMissionActions } from "@/hooks/use-mission-actions";
-import { WorkoutForm } from "@/components/workout-form";
-
-type LifestylePreset = {
-  label: string;
-  icon: typeof Dog;
-  sessionType: string;
-};
-
-const LIFESTYLE_PRESETS: LifestylePreset[] = [
-  { label: "Walk Dogs", icon: Dog, sessionType: "Dog Walk" },
-  { label: "Mow Lawn", icon: Trees, sessionType: "Yard Work" },
-  { label: "Yard Work", icon: Home, sessionType: "Yard Work" },
-  { label: "Hike", icon: Mountain, sessionType: "Hike" },
-];
+import { QuickLogActivity } from "@/components/quick-log-activity";
 
 export default function Dashboard() {
-  const [quickLogOpen, setQuickLogOpen] = useState(false);
-  const [quickLogPreset, setQuickLogPreset] = useState<{ sessionType: string } | null>(null);
-
-  const openQuickLog = (sessionType: string | null) => {
-    setQuickLogPreset(sessionType ? { sessionType } : null);
-    setQuickLogOpen(true);
-  };
-
   const { data: summary, isLoading: loadingSummary } = useGetDashboardSummary();
   const { data: weightTrend, isLoading: loadingWeight } = useGetWeightTrend();
   const { data: mileage, isLoading: loadingMileage } = useGetWeeklyMileage();
@@ -318,39 +296,7 @@ export default function Dashboard() {
         <div className="space-y-6">
 
           {/* Quick Log Activity */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg uppercase tracking-wider">Quick Log Activity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-2">
-                {LIFESTYLE_PRESETS.map((preset) => {
-                  const Icon = preset.icon;
-                  return (
-                    <Button
-                      key={preset.label}
-                      variant="outline"
-                      className="h-auto py-3 flex flex-col gap-1 uppercase font-bold tracking-wider text-xs"
-                      onClick={() => openQuickLog(preset.sessionType)}
-                      data-testid={`button-quick-log-${preset.sessionType.toLowerCase().replace(/\s+/g, '-')}`}
-                    >
-                      <Icon className="h-5 w-5" />
-                      {preset.label}
-                    </Button>
-                  );
-                })}
-              </div>
-              <Button
-                variant="ghost"
-                className="w-full mt-2 uppercase font-bold tracking-wider text-xs"
-                onClick={() => openQuickLog(null)}
-                data-testid="button-quick-log-custom"
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                Custom Activity
-              </Button>
-            </CardContent>
-          </Card>
+          <QuickLogActivity />
 
           {/* Weight Trend */}
           <Card>
@@ -439,15 +385,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <WorkoutForm
-        open={quickLogOpen}
-        onOpenChange={setQuickLogOpen}
-        initial={{
-          date: new Date().toISOString().split('T')[0],
-          equipment: "Lifestyle",
-          sessionType: quickLogPreset?.sessionType ?? "",
-        }}
-      />
     </div>
   );
 }
