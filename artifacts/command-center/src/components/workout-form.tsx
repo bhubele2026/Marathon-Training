@@ -212,6 +212,7 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
                         <SelectGroup>
                           <SelectLabel>Lifestyle</SelectLabel>
                           <SelectItem value="Dog Walk">Dog Walk</SelectItem>
+                          <SelectItem value="Mow Lawn">Mow Lawn</SelectItem>
                           <SelectItem value="Yard Work">Yard Work</SelectItem>
                           <SelectItem value="House Work">House Work</SelectItem>
                           <SelectItem value="Hike">Hike</SelectItem>

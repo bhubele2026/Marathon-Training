@@ -12,7 +12,7 @@ type LifestylePreset = {
 
 const LIFESTYLE_PRESETS: LifestylePreset[] = [
   { label: "Walk Dogs", icon: Dog, sessionType: "Dog Walk" },
-  { label: "Mow Lawn", icon: Trees, sessionType: "Yard Work" },
+  { label: "Mow Lawn", icon: Trees, sessionType: "Mow Lawn" },
   { label: "Yard Work", icon: Home, sessionType: "Yard Work" },
   { label: "Hike", icon: Mountain, sessionType: "Hike" },
 ];
