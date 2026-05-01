@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db, planDaysTable, planWeeksTable, workoutsTable, type PlanDayRow } from "@workspace/db";
-import { eq, asc, desc, sql, and, gte, lte, lt } from "drizzle-orm";
+import { db, planDaysTable, planWeeksTable, workoutsTable, type PlanDayRow, type WorkoutRow } from "@workspace/db";
+import { eq, asc, sql, and, gte, lte } from "drizzle-orm";
 import { toPlanDay, toPlanWeek, toWorkout } from "../lib/transforms";
 
 const router: IRouter = Router();
@@ -94,14 +94,14 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
   );
   const totalSessions = days.filter((d) => !d.isRest).length;
   const today = todayISO();
-  const daysWithSuggestions = await Promise.all(
-    days.map(async (d) => {
-      const base = toPlanDay(d);
-      if (d.isRest) return { ...base, suggestions: null };
-      const suggestions = await suggestionsForPlan(d, today);
-      return { ...base, suggestions };
-    }),
-  );
+  const nonRestDays = days.filter((d) => !d.isRest);
+  const recentByPair = await fetchRecentWorkoutsByPair(nonRestDays, today);
+  const daysWithSuggestions = days.map((d) => {
+    const base = toPlanDay(d);
+    if (d.isRest) return { ...base, suggestions: null };
+    const recent = recentByPair.get(pairKey(d.sessionType, d.equipment)) ?? [];
+    return { ...base, suggestions: buildSuggestions(d, recent) };
+  });
   res.json({
     ...toPlanWeek(weekRow, {
       actualMiles: actuals.rows[0]?.actual_miles ?? 0,
@@ -129,20 +129,14 @@ function formatSecondsAsPace(totalSeconds: number): string {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
-async function suggestionsForPlan(plan: PlanDayRow, today: string) {
-  const recent = await db
-    .select()
-    .from(workoutsTable)
-    .where(
-      and(
-        eq(workoutsTable.sessionType, plan.sessionType),
-        eq(workoutsTable.equipment, plan.equipment),
-        lt(workoutsTable.date, today),
-      ),
-    )
-    .orderBy(desc(workoutsTable.date), desc(workoutsTable.createdAt))
-    .limit(5);
+function pairKey(sessionType: string, equipment: string): string {
+  return `${sessionType}\u0000${equipment}`;
+}
 
+// Build the suggestions payload for a plan day from a pre-fetched list of its
+// recent comparable workouts (already filtered to the same session_type +
+// equipment, ordered most-recent first, capped to N).
+function buildSuggestions(plan: PlanDayRow, recent: readonly WorkoutRow[]) {
   const rpeValues = recent.map((r) => r.rpe).filter((v): v is number => v != null);
   const hrValues = recent.map((r) => r.avgHr).filter((v): v is number => v != null);
   const paceSeconds = recent
@@ -170,6 +164,98 @@ async function suggestionsForPlan(plan: PlanDayRow, today: string) {
   }
 
   return { rpe, avgHr, pace, paceSource, sampleSize: recent.length };
+}
+
+const RECENT_LIMIT = 5;
+
+// Fetch the most-recent RECENT_LIMIT workouts per (session_type, equipment)
+// pair represented by `days`, in a single round-trip. Uses ROW_NUMBER() so we
+// only ship the rows we'll actually average over, regardless of total history
+// size. Returns a Map keyed by pairKey(sessionType, equipment).
+async function fetchRecentWorkoutsByPair(
+  days: readonly PlanDayRow[],
+  today: string,
+): Promise<Map<string, WorkoutRow[]>> {
+  const result = new Map<string, WorkoutRow[]>();
+  if (days.length === 0) return result;
+
+  const uniquePairs = new Map<string, { sessionType: string; equipment: string }>();
+  for (const d of days) {
+    const key = pairKey(d.sessionType, d.equipment);
+    if (!uniquePairs.has(key)) {
+      uniquePairs.set(key, { sessionType: d.sessionType, equipment: d.equipment });
+    }
+  }
+  for (const key of uniquePairs.keys()) result.set(key, []);
+
+  const pairValues = sql.join(
+    Array.from(uniquePairs.values()).map((p) => sql`(${p.sessionType}, ${p.equipment})`),
+    sql`, `,
+  );
+
+  const rows = await db.execute<{
+    id: number;
+    plan_day_id: number | null;
+    date: string;
+    equipment: string;
+    session_type: string;
+    duration_min: number | null;
+    distance_mi: number | null;
+    pace: string | null;
+    avg_hr: number | null;
+    rpe: number | null;
+    strength_load: number | null;
+    total_load: number | null;
+    notes: string | null;
+    created_at: Date;
+  }>(sql`
+    WITH ranked AS (
+      SELECT
+        w.*,
+        ROW_NUMBER() OVER (
+          PARTITION BY w.session_type, w.equipment
+          ORDER BY w.date DESC, w.created_at DESC
+        ) AS rn
+      FROM workouts w
+      WHERE w.date < ${today}
+        AND (w.session_type, w.equipment) IN (${pairValues})
+    )
+    SELECT id, plan_day_id, date, equipment, session_type, duration_min,
+           distance_mi, pace, avg_hr, rpe, strength_load, total_load, notes, created_at
+    FROM ranked
+    WHERE rn <= ${RECENT_LIMIT}
+    ORDER BY session_type, equipment, date DESC, created_at DESC
+  `);
+
+  for (const r of rows.rows) {
+    const key = pairKey(r.session_type, r.equipment);
+    const list = result.get(key);
+    if (!list) continue;
+    list.push({
+      id: r.id,
+      planDayId: r.plan_day_id,
+      date: r.date,
+      equipment: r.equipment,
+      sessionType: r.session_type,
+      durationMin: r.duration_min,
+      distanceMi: r.distance_mi,
+      pace: r.pace,
+      avgHr: r.avg_hr,
+      rpe: r.rpe,
+      strengthLoad: r.strength_load,
+      totalLoad: r.total_load,
+      notes: r.notes,
+      createdAt: r.created_at instanceof Date ? r.created_at : new Date(r.created_at),
+    });
+  }
+
+  return result;
+}
+
+async function suggestionsForPlan(plan: PlanDayRow, today: string) {
+  const byPair = await fetchRecentWorkoutsByPair([plan], today);
+  const recent = byPair.get(pairKey(plan.sessionType, plan.equipment)) ?? [];
+  return buildSuggestions(plan, recent);
 }
 
 router.get("/plan/today", async (_req, res) => {
