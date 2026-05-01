@@ -43,14 +43,6 @@ UI is an orange-on-dark "mission control" theme. No emojis anywhere.
 - `pnpm --filter @workspace/db run push` — push schema (dev)
 - `pnpm --filter @workspace/scripts run seed` — reseed plan + baseline measurements
 
-## Codegen note
-
-After every codegen, `lib/api-zod/src/index.ts` is rewritten to re-export both `./generated/api` and `./generated/api-types`, which causes duplicate-export errors. Reset it back to a single line:
-
-```ts
-export * from "./generated/api";
-```
-
 ## Deployment notes
 
 - Personal-use app: no auth/authz layer; do not expose the published URL publicly.
