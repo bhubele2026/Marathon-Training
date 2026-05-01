@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useListWorkouts, useDeleteWorkout, getListWorkoutsQueryKey, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
+import { useListWorkouts, useDeleteWorkout } from "@workspace/api-client-react";
+import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,8 +55,7 @@ export default function Log() {
     deleteWorkout.mutate({ id }, {
       onSuccess: () => {
         toast({ title: "Workout deleted" });
-        queryClient.invalidateQueries({ queryKey: getListWorkoutsQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+        invalidateMissionRelatedQueries(queryClient);
       }
     });
   };

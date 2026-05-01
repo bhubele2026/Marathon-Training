@@ -8,7 +8,10 @@ import { useMissionActions } from "@/hooks/use-mission-actions";
 
 export default function Today() {
   const { data: today, isLoading } = useGetTodayPlan();
-  const { openLog, openEdit, requestDelete, isDeleting, dialogs } = useMissionActions(today);
+  const { openLog, openEdit, requestDelete, isDeleting, dialogs } = useMissionActions();
+  const ctx = today
+    ? { date: today.date, plan: today.plan, loggedWorkout: today.loggedWorkout }
+    : null;
 
   if (isLoading) {
     return <div className="space-y-6"><Skeleton className="h-64" /></div>;
@@ -82,7 +85,7 @@ export default function Today() {
 
                   {!today.loggedWorkout && (
                     <div className="shrink-0 flex items-center justify-center border-t md:border-t-0 md:border-l border-border pt-6 md:pt-0 md:pl-6">
-                      <Button size="lg" className="w-full md:w-auto h-16 px-8 text-lg uppercase font-black tracking-widest group" onClick={openLog}>
+                      <Button size="lg" className="w-full md:w-auto h-16 px-8 text-lg uppercase font-black tracking-widest group" onClick={() => ctx && openLog(ctx)}>
                         <Play className="mr-2 h-6 w-6 group-hover:scale-110 transition-transform" />
                         Log Mission
                       </Button>
@@ -101,10 +104,10 @@ export default function Today() {
                   Mission Accomplished
                 </CardTitle>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={openEdit}>
+                  <Button variant="outline" size="sm" onClick={() => ctx && openEdit(ctx)}>
                     <Edit className="h-4 w-4 mr-2" /> Edit
                   </Button>
-                  <Button variant="destructive" size="sm" onClick={requestDelete} disabled={isDeleting}>
+                  <Button variant="destructive" size="sm" onClick={() => ctx && requestDelete(ctx)} disabled={isDeleting}>
                     <Trash2 className="h-4 w-4 mr-2" /> Delete
                   </Button>
                 </div>

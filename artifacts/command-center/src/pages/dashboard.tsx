@@ -52,7 +52,10 @@ export default function Dashboard() {
   const { data: longRun, isLoading: loadingLongRun } = useGetLongRunProgression();
   const { data: activity, isLoading: loadingActivity } = useGetRecentActivity();
   const { data: today, isLoading: loadingToday } = useGetTodayPlan();
-  const { openLog, openEdit, requestDelete, isDeleting, dialogs } = useMissionActions(today);
+  const { openLog, openEdit, requestDelete, isDeleting, dialogs } = useMissionActions();
+  const todayCtx = today
+    ? { date: today.date, plan: today.plan, loggedWorkout: today.loggedWorkout }
+    : null;
 
   if (loadingSummary) return <DashboardSkeleton />;
 
@@ -175,16 +178,16 @@ export default function Dashboard() {
                             MISSION COMPLETE
                           </div>
                           <div className="flex gap-2 justify-end">
-                            <Button variant="outline" size="sm" onClick={openEdit}>
+                            <Button variant="outline" size="sm" onClick={() => todayCtx && openEdit(todayCtx)}>
                               <Edit className="h-4 w-4 mr-1" /> Edit
                             </Button>
-                            <Button variant="destructive" size="sm" onClick={requestDelete} disabled={isDeleting}>
+                            <Button variant="destructive" size="sm" onClick={() => todayCtx && requestDelete(todayCtx)} disabled={isDeleting}>
                               <Trash2 className="h-4 w-4 mr-1" /> Delete
                             </Button>
                           </div>
                         </>
                       ) : (
-                        <Button size="lg" className="w-full md:w-auto uppercase font-bold tracking-wider" onClick={openLog}>
+                        <Button size="lg" className="w-full md:w-auto uppercase font-bold tracking-wider" onClick={() => todayCtx && openLog(todayCtx)}>
                           <Play className="mr-2 h-4 w-4" />
                           Log Mission
                         </Button>
