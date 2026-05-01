@@ -207,6 +207,7 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
                           <SelectItem value="Freshness">Freshness</SelectItem>
                           <SelectItem value="Cross Training">Cross Training</SelectItem>
                           <SelectItem value="Rest">Rest</SelectItem>
+                          <SelectItem value="Skipped">Skipped</SelectItem>
                         </SelectGroup>
                         <SelectGroup>
                           <SelectLabel>Lifestyle</SelectLabel>

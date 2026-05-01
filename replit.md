@@ -29,9 +29,9 @@ Bike/row sessions are always 20–30 min max. Big run days (Fri quality, Sun lon
 ## Pages
 
 - `/` Dashboard — mission status, weekly snapshot, body mass, today's mission, recent activity, equipment usage.
-- `/today` Today's mission with workout log dialog.
+- `/today` Today's mission with three quick actions (Crushed It / Log Actual / Skipped).
 - `/plan` 52-week plan grouped by phase.
-- `/plan/:week` Week detail with 7 day cards.
+- `/plan/:week` Week detail with 7 day cards. Each non-rest card has three quick actions: **Crushed It** (one-click logs a workout matching the planned values + hype toast), **Log Actual** (opens the form pre-filled), **Skipped** (confirm dialog → logs `sessionType="Skipped"` + roast toast). Sass copy lives in `src/lib/sass.ts`; mutation logic in `src/hooks/use-mission-actions.tsx`. Skipped workouts are excluded from adherence/completion counts and weekly mileage in `dashboard.ts` / `plan.ts`.
 - `/log` Workouts list with equipment filter + log dialog.
 - `/measurements` Body weight trend + check-in dialog.
 - `/equipment` Per-equipment session counts and recent activity.

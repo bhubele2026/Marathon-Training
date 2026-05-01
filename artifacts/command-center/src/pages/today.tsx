@@ -3,12 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistance, formatLoad, formatDuration } from "@/lib/format";
-import { CheckCircle2, Activity, Play, Trash2, Edit } from "lucide-react";
+import { CheckCircle2, Activity, Trash2, Edit, Zap, Pencil, XCircle } from "lucide-react";
 import { useMissionActions } from "@/hooks/use-mission-actions";
 
 export default function Today() {
   const { data: today, isLoading } = useGetTodayPlan();
-  const { openLog, openEdit, requestDelete, isDeleting, dialogs } = useMissionActions();
+  const { openLog, openEdit, requestDelete, requestSkip, crushIt, isDeleting, isCrushing, dialogs } =
+    useMissionActions();
   const ctx = today
     ? { date: today.date, plan: today.plan, loggedWorkout: today.loggedWorkout, suggestions: today.suggestions }
     : null;
@@ -84,10 +85,36 @@ export default function Today() {
                   </div>
 
                   {!today.loggedWorkout && (
-                    <div className="shrink-0 flex items-center justify-center border-t md:border-t-0 md:border-l border-border pt-6 md:pt-0 md:pl-6">
-                      <Button size="lg" className="w-full md:w-auto h-16 px-8 text-lg uppercase font-black tracking-widest group" onClick={() => ctx && openLog(ctx)}>
-                        <Play className="mr-2 h-6 w-6 group-hover:scale-110 transition-transform" />
-                        Log Mission
+                    <div className="shrink-0 flex flex-col items-stretch justify-center gap-3 border-t md:border-t-0 md:border-l border-border pt-6 md:pt-0 md:pl-6 md:w-56">
+                      <Button
+                        size="lg"
+                        className="h-14 px-6 text-base uppercase font-black tracking-widest group"
+                        onClick={() => ctx && crushIt(ctx)}
+                        disabled={isCrushing}
+                        data-testid="button-crush-today"
+                      >
+                        <Zap className="mr-2 h-5 w-5 group-hover:scale-110 transition-transform" />
+                        Crushed It
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        className="uppercase font-bold tracking-wider"
+                        onClick={() => ctx && openLog(ctx)}
+                        disabled={isCrushing}
+                        data-testid="button-log-today"
+                      >
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Log Actual
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="uppercase font-bold tracking-wider text-destructive hover:text-destructive border-destructive/40"
+                        onClick={() => ctx && requestSkip(ctx)}
+                        disabled={isCrushing}
+                        data-testid="button-skip-today"
+                      >
+                        <XCircle className="mr-2 h-4 w-4" />
+                        Skipped
                       </Button>
                     </div>
                   )}

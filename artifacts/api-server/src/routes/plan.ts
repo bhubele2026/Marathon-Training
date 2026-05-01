@@ -60,8 +60,8 @@ router.get("/plan/weeks", async (_req, res) => {
   const actuals = await db.execute<{ week: number; actual_miles: number; completed_sessions: number; total_sessions: number }>(
     sql`
       SELECT pw.week,
-        COALESCE(SUM(w.distance_mi), 0)::float AS actual_miles,
-        COUNT(DISTINCT w.id)::int AS completed_sessions,
+        COALESCE(SUM(w.distance_mi) FILTER (WHERE w.session_type <> 'Skipped'), 0)::float AS actual_miles,
+        COUNT(DISTINCT w.id) FILTER (WHERE w.session_type <> 'Skipped')::int AS completed_sessions,
         (SELECT COUNT(*) FROM plan_days pd WHERE pd.week = pw.week AND pd.is_rest = false)::int AS total_sessions
       FROM plan_weeks pw
       LEFT JOIN workouts w ON w.date BETWEEN pw.start_date AND pw.end_date
@@ -90,7 +90,10 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
   }
   const days = await db.select().from(planDaysTable).where(eq(planDaysTable.week, week)).orderBy(asc(planDaysTable.date));
   const actuals = await db.execute<{ actual_miles: number; completed: number }>(
-    sql`SELECT COALESCE(SUM(distance_mi), 0)::float AS actual_miles, COUNT(*)::int AS completed FROM workouts WHERE date BETWEEN ${weekRow.startDate} AND ${weekRow.endDate}`,
+    sql`SELECT
+          COALESCE(SUM(distance_mi) FILTER (WHERE session_type <> 'Skipped'), 0)::float AS actual_miles,
+          COUNT(*) FILTER (WHERE session_type <> 'Skipped')::int AS completed
+        FROM workouts WHERE date BETWEEN ${weekRow.startDate} AND ${weekRow.endDate}`,
   );
   const totalSessions = days.filter((d) => !d.isRest).length;
   const today = todayISO();

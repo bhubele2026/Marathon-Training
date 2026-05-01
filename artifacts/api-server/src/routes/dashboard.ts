@@ -54,7 +54,10 @@ router.get("/dashboard/summary", async (_req, res) => {
       (SELECT COUNT(*)::int FROM plan_days WHERE date <= ${today} AND is_rest = false) AS planned,
       (SELECT COUNT(DISTINCT pd.date)::int FROM plan_days pd
         WHERE pd.date <= ${today} AND pd.is_rest = false
-          AND EXISTS (SELECT 1 FROM workouts w WHERE w.date = pd.date)
+          AND EXISTS (
+            SELECT 1 FROM workouts w
+            WHERE w.date = pd.date AND w.session_type <> 'Skipped'
+          )
       ) AS completed`,
   );
   const planned = adherence.rows[0]?.planned ?? 0;

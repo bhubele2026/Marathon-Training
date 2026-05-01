@@ -19,7 +19,7 @@ import { formatDistance, formatLoad, formatWeight, formatDate, formatDuration } 
 import { format } from "date-fns";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Activity, CalendarDays, CheckCircle2, TrendingDown, Target, Clock, Zap, Play, Edit, Trash2, ExternalLink, Dog, Trees, Home, Mountain, Plus } from "lucide-react";
+import { Activity, CalendarDays, CheckCircle2, TrendingDown, Target, Clock, Zap, Play, Edit, Trash2, ExternalLink, Dog, Trees, Home, Mountain, Plus, Pencil, XCircle } from "lucide-react";
 import { useMissionActions } from "@/hooks/use-mission-actions";
 import { WorkoutForm } from "@/components/workout-form";
 
@@ -52,7 +52,8 @@ export default function Dashboard() {
   const { data: longRun, isLoading: loadingLongRun } = useGetLongRunProgression();
   const { data: activity, isLoading: loadingActivity } = useGetRecentActivity();
   const { data: today, isLoading: loadingToday } = useGetTodayPlan();
-  const { openLog, openEdit, requestDelete, isDeleting, dialogs } = useMissionActions();
+  const { openLog, openEdit, requestDelete, requestSkip, crushIt, isDeleting, isCrushing, dialogs } =
+    useMissionActions();
   const todayCtx = today
     ? { date: today.date, plan: today.plan, loggedWorkout: today.loggedWorkout, suggestions: today.suggestions }
     : null;
@@ -187,10 +188,39 @@ export default function Dashboard() {
                           </div>
                         </>
                       ) : (
-                        <Button size="lg" className="w-full md:w-auto uppercase font-bold tracking-wider" onClick={() => todayCtx && openLog(todayCtx)}>
-                          <Play className="mr-2 h-4 w-4" />
-                          Log Mission
-                        </Button>
+                        <div className="flex flex-col gap-2 w-full md:w-44">
+                          <Button
+                            className="uppercase font-black tracking-wider"
+                            onClick={() => todayCtx && crushIt(todayCtx)}
+                            disabled={isCrushing}
+                            data-testid="button-crush-dashboard"
+                          >
+                            <Zap className="mr-2 h-4 w-4" />
+                            Crushed It
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="uppercase font-bold tracking-wider"
+                            onClick={() => todayCtx && openLog(todayCtx)}
+                            disabled={isCrushing}
+                            data-testid="button-log-dashboard"
+                          >
+                            <Pencil className="mr-2 h-3.5 w-3.5" />
+                            Log Actual
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="uppercase font-bold tracking-wider text-destructive hover:text-destructive border-destructive/40"
+                            onClick={() => todayCtx && requestSkip(todayCtx)}
+                            disabled={isCrushing}
+                            data-testid="button-skip-dashboard"
+                          >
+                            <XCircle className="mr-2 h-3.5 w-3.5" />
+                            Skipped
+                          </Button>
+                        </div>
                       )}
                     </div>
                   </div>

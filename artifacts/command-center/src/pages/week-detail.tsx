@@ -4,14 +4,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistance, formatLoad, formatDate, formatDuration } from "@/lib/format";
-import { ChevronLeft, ChevronRight, Activity, Play, Edit, Trash2, CheckCircle2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Activity, Play, Edit, Trash2, CheckCircle2, Zap, XCircle, Pencil } from "lucide-react";
 import { useMissionActions } from "@/hooks/use-mission-actions";
 
 export default function WeekDetail() {
   const params = useParams();
   const weekNum = parseInt(params.week || "1", 10);
   const [, setLocation] = useLocation();
-  const { openLog, openEdit, requestDelete, isDeleting, dialogs } = useMissionActions();
+  const { openLog, openEdit, requestDelete, requestSkip, crushIt, isDeleting, isCrushing, dialogs } =
+    useMissionActions();
 
   const { data: week, isLoading } = useGetPlanWeek(weekNum, {
     query: {
@@ -214,7 +215,7 @@ export default function WeekDetail() {
                         )}
                       </div>
                     </div>
-                    <div className="flex md:flex-col items-stretch justify-end gap-2 shrink-0">
+                    <div className="flex md:flex-col items-stretch justify-end gap-2 shrink-0 md:w-44">
                       {logged ? (
                         <>
                           <Button
@@ -236,14 +237,34 @@ export default function WeekDetail() {
                           </Button>
                         </>
                       ) : (
-                        <Button
-                          variant="secondary"
-                          className="w-full md:w-auto uppercase font-bold text-xs"
-                          onClick={() => openLog(ctx)}
-                          data-testid={`button-log-${day.date}`}
-                        >
-                          <Play className="h-3 w-3 mr-2" /> Log
-                        </Button>
+                        <>
+                          <Button
+                            className="uppercase font-black text-xs bg-primary hover:bg-primary/90"
+                            onClick={() => crushIt(ctx)}
+                            disabled={isCrushing}
+                            data-testid={`button-crush-${day.date}`}
+                          >
+                            <Zap className="h-3 w-3 mr-2" /> Crushed It
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            className="uppercase font-bold text-xs"
+                            onClick={() => openLog(ctx)}
+                            disabled={isCrushing}
+                            data-testid={`button-log-${day.date}`}
+                          >
+                            <Pencil className="h-3 w-3 mr-2" /> Log Actual
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="uppercase font-bold text-xs text-destructive hover:text-destructive border-destructive/30"
+                            onClick={() => requestSkip(ctx)}
+                            disabled={isCrushing}
+                            data-testid={`button-skip-${day.date}`}
+                          >
+                            <XCircle className="h-3 w-3 mr-2" /> Skipped
+                          </Button>
+                        </>
                       )}
                     </div>
                   </div>
