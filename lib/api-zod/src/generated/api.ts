@@ -125,24 +125,28 @@ export const GetTodayPlanResponse = zod.object({
       totalLoad: zod.number(),
     })
     .nullish(),
-  loggedWorkout: zod
-    .object({
-      id: zod.number(),
-      planDayId: zod.number().nullish(),
-      date: zod.string(),
-      equipment: zod.string(),
-      sessionType: zod.string(),
-      durationMin: zod.number().nullish(),
-      distanceMi: zod.number().nullish(),
-      pace: zod.string().nullish(),
-      avgHr: zod.number().nullish(),
-      rpe: zod.number().nullish(),
-      strengthLoad: zod.number().nullish(),
-      totalLoad: zod.number().nullish(),
-      notes: zod.string().nullish(),
-      createdAt: zod.coerce.date(),
-    })
-    .nullish(),
+  loggedWorkouts: zod
+    .array(
+      zod.object({
+        id: zod.number(),
+        planDayId: zod.number().nullish(),
+        date: zod.string(),
+        equipment: zod.string(),
+        sessionType: zod.string(),
+        durationMin: zod.number().nullish(),
+        distanceMi: zod.number().nullish(),
+        pace: zod.string().nullish(),
+        avgHr: zod.number().nullish(),
+        rpe: zod.number().nullish(),
+        strengthLoad: zod.number().nullish(),
+        totalLoad: zod.number().nullish(),
+        notes: zod.string().nullish(),
+        createdAt: zod.coerce.date(),
+      }),
+    )
+    .describe(
+      "All workouts logged for today, ordered by createdAt ascending. Empty when nothing has been logged yet.",
+    ),
   suggestions: zod
     .object({
       rpe: zod.number().nullish(),

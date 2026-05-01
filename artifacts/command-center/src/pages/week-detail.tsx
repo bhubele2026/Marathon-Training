@@ -40,23 +40,25 @@ export default function WeekDetail() {
 
   if (!week) return <div>Week not found</div>;
 
-  // Map: date -> latest logged workout for that date
-  const workoutByDate = new Map<string, Workout>();
+  // Map: date -> all workouts logged for that date, ordered by createdAt ascending.
+  const workoutsByDate = new Map<string, Workout[]>();
   for (const w of workouts ?? []) {
-    const existing = workoutByDate.get(w.date);
-    if (!existing || (w.createdAt > existing.createdAt)) {
-      workoutByDate.set(w.date, w);
-    }
+    const list = workoutsByDate.get(w.date);
+    if (list) list.push(w);
+    else workoutsByDate.set(w.date, [w]);
+  }
+  for (const list of workoutsByDate.values()) {
+    list.sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
   }
 
   const today = todayISO();
   const isMissedDay = (day: PlanDayWithSuggestions) =>
-    !day.isRest && day.date < today && !workoutByDate.get(day.date);
+    !day.isRest && day.date < today && (workoutsByDate.get(day.date)?.length ?? 0) === 0;
 
-  const ctxFor = (day: PlanDayWithSuggestions) => ({
+  const ctxFor = (day: PlanDayWithSuggestions, loggedWorkout: Workout | null) => ({
     date: day.date,
     plan: day,
-    loggedWorkout: workoutByDate.get(day.date) ?? null,
+    loggedWorkout,
     suggestions: day.suggestions ?? null,
   });
 
@@ -97,47 +99,22 @@ export default function WeekDetail() {
 
       <div className="space-y-4">
         {week.days.map((day) => {
+          const sessions = workoutsByDate.get(day.date) ?? [];
+
           if (day.isRest) {
-            const restWorkout = workoutByDate.get(day.date) ?? null;
             return (
               <Card key={day.id} className="border-dashed border-2 bg-muted/20">
-                <CardContent className="p-4 flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-bold uppercase tracking-wider">{day.day}</div>
-                    <div className="text-xs text-muted-foreground">{formatDate(day.date)}</div>
-                  </div>
-                  <div className="text-sm text-muted-foreground font-medium uppercase tracking-wider flex items-center gap-2">
-                    <Activity className="h-4 w-4 opacity-50" />
-                    Rest / Recovery
-                  </div>
-                  <div className="flex gap-2 ml-auto">
-                    {restWorkout ? (
-                      <>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-xs uppercase font-bold"
-                          onClick={() =>
-                            openEdit({ date: day.date, plan: day, loggedWorkout: restWorkout })
-                          }
-                          data-testid={`button-edit-${day.date}`}
-                        >
-                          <Edit className="h-3 w-3 mr-1" /> Edit
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-xs uppercase font-bold text-destructive hover:text-destructive"
-                          onClick={() =>
-                            requestDelete({ date: day.date, plan: day, loggedWorkout: restWorkout })
-                          }
-                          disabled={isDeleting}
-                          data-testid={`button-delete-${day.date}`}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </>
-                    ) : (
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-bold uppercase tracking-wider">{day.day}</div>
+                      <div className="text-xs text-muted-foreground">{formatDate(day.date)}</div>
+                    </div>
+                    <div className="text-sm text-muted-foreground font-medium uppercase tracking-wider flex items-center gap-2">
+                      <Activity className="h-4 w-4 opacity-50" />
+                      Rest / Recovery
+                    </div>
+                    <div className="ml-auto">
                       <Button
                         variant="ghost"
                         size="sm"
@@ -147,15 +124,52 @@ export default function WeekDetail() {
                       >
                         <Play className="h-3 w-3 mr-1" /> Log
                       </Button>
-                    )}
+                    </div>
                   </div>
+                  {sessions.length > 0 && (
+                    <div className="space-y-2 pl-1">
+                      {sessions.map((session) => (
+                        <div
+                          key={session.id}
+                          className="flex items-center justify-between gap-3 bg-background/60 border border-border rounded px-3 py-2"
+                          data-testid={`session-${day.date}-${session.id}`}
+                        >
+                          <div className="text-xs font-mono">
+                            <span className="font-bold uppercase tracking-wider mr-2">{session.sessionType}</span>
+                            {session.distanceMi != null && <span className="mr-2">{formatDistance(session.distanceMi)}</span>}
+                            {session.durationMin != null && <span className="mr-2">{formatDuration(session.durationMin)}</span>}
+                          </div>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs uppercase font-bold"
+                              onClick={() => openEdit({ date: day.date, plan: day, loggedWorkout: session })}
+                              data-testid={`button-edit-${day.date}-${session.id}`}
+                            >
+                              <Edit className="h-3 w-3 mr-1" /> Edit
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs uppercase font-bold text-destructive hover:text-destructive"
+                              onClick={() => requestDelete({ date: day.date, plan: day, loggedWorkout: session })}
+                              disabled={isDeleting}
+                              data-testid={`button-delete-${day.date}-${session.id}`}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );
           }
 
-          const logged = workoutByDate.get(day.date) ?? null;
-          const ctx = ctxFor(day);
+          const hasSessions = sessions.length > 0;
           const missed = isMissedDay(day);
 
           return (
@@ -183,9 +197,10 @@ export default function WeekDetail() {
                       <span className="text-[10px] bg-secondary text-secondary-foreground px-2 py-1 rounded font-bold uppercase tracking-wider">
                         {day.equipment}
                       </span>
-                      {logged && (
+                      {hasSessions && (
                         <span className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider flex items-center gap-1">
-                          <CheckCircle2 className="h-3 w-3" /> Logged
+                          <CheckCircle2 className="h-3 w-3" />
+                          {sessions.length > 1 ? `${sessions.length} Logged` : "Logged"}
                         </span>
                       )}
                       {missed && (
@@ -198,105 +213,117 @@ export default function WeekDetail() {
                       )}
                     </div>
                   </div>
-                  <div className="flex-1 p-6 flex flex-col md:flex-row justify-between gap-6">
-                    <div className="space-y-3 flex-1">
+                  <div className="flex-1 p-6 space-y-4">
+                    <div className="space-y-3">
                       <h4 className="text-xl font-black uppercase tracking-tight">{day.sessionType}</h4>
                       <p className="text-sm text-muted-foreground line-clamp-2">{day.description}</p>
                       <div className="flex flex-wrap gap-4 text-sm pt-2">
                         {day.distanceMi != null && (
                           <div>
-                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">Distance</span>
-                            <span className="font-mono font-medium">
-                              {logged?.distanceMi != null
-                                ? `${formatDistance(logged.distanceMi)} / ${formatDistance(day.distanceMi)}`
-                                : formatDistance(day.distanceMi)}
-                            </span>
+                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">Planned Distance</span>
+                            <span className="font-mono font-medium">{formatDistance(day.distanceMi)}</span>
                           </div>
                         )}
                         {day.cardioMin != null && (
                           <div>
-                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">Duration</span>
-                            <span className="font-mono font-medium">
-                              {logged?.durationMin != null
-                                ? `${formatDuration(logged.durationMin)} / ${formatDuration(day.cardioMin)}`
-                                : formatDuration(day.cardioMin)}
-                            </span>
+                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">Planned Duration</span>
+                            <span className="font-mono font-medium">{formatDuration(day.cardioMin)}</span>
                           </div>
                         )}
                         {day.totalLoad != null && day.totalLoad > 0 && (
                           <div>
-                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">Load</span>
-                            <span className="font-mono font-medium">
-                              {logged?.totalLoad != null
-                                ? `${formatLoad(logged.totalLoad)} / ${formatLoad(day.totalLoad)}`
-                                : formatLoad(day.totalLoad)}
-                            </span>
-                          </div>
-                        )}
-                        {logged?.pace && (
-                          <div>
-                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">Pace</span>
-                            <span className="font-mono font-medium">{logged.pace}/mi</span>
-                          </div>
-                        )}
-                        {logged?.rpe != null && (
-                          <div>
-                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">RPE</span>
-                            <span className="font-mono font-medium">{logged.rpe}/10</span>
+                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">Planned Load</span>
+                            <span className="font-mono font-medium">{formatLoad(day.totalLoad)}</span>
                           </div>
                         )}
                       </div>
                     </div>
-                    <div className="flex md:flex-col items-stretch justify-end gap-2 shrink-0 md:w-44">
-                      {logged ? (
-                        <>
-                          <Button
-                            variant="secondary"
-                            className="uppercase font-bold text-xs"
-                            onClick={() => openEdit(ctx)}
-                            data-testid={`button-edit-${day.date}`}
-                          >
-                            <Edit className="h-3 w-3 mr-2" /> Edit
-                          </Button>
-                          <Button
-                            variant="outline"
-                            className="uppercase font-bold text-xs text-destructive hover:text-destructive border-destructive/30"
-                            onClick={() => requestDelete(ctx)}
-                            disabled={isDeleting}
-                            data-testid={`button-delete-${day.date}`}
-                          >
-                            <Trash2 className="h-3 w-3 mr-2" /> Delete
-                          </Button>
-                        </>
-                      ) : (
-                        <>
-                          <Button
-                            className="uppercase font-black text-xs bg-primary hover:bg-primary/90"
-                            onClick={() => crushIt(ctx)}
-                            disabled={isCrushing}
-                            data-testid={`button-crush-${day.date}`}
-                          >
-                            <Zap className="h-3 w-3 mr-2" /> Crushed It
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            className="uppercase font-bold text-xs"
-                            onClick={() => openLog(ctx)}
-                            disabled={isCrushing}
-                            data-testid={`button-log-${day.date}`}
-                          >
-                            <Pencil className="h-3 w-3 mr-2" /> Log Actual
-                          </Button>
-                          <Button
-                            variant="outline"
-                            className="uppercase font-bold text-xs text-destructive hover:text-destructive border-destructive/30"
-                            onClick={() => requestSkip(ctx)}
-                            disabled={isCrushing}
-                            data-testid={`button-skip-${day.date}`}
-                          >
-                            <XCircle className="h-3 w-3 mr-2" /> Skipped
-                          </Button>
-                        </>
+
+                    {hasSessions && (
+                      <div className="space-y-2 pt-2 border-t border-border">
+                        {sessions.map((session) => {
+                          const sessionCtx = ctxFor(day, session);
+                          return (
+                            <div
+                              key={session.id}
+                              className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-muted/30 border border-border rounded p-3"
+                              data-testid={`session-${day.date}-${session.id}`}
+                            >
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs font-mono">
+                                <span className="font-bold uppercase tracking-wider">{session.sessionType}</span>
+                                {session.distanceMi != null && (
+                                  <span><span className="text-muted-foreground">Dist</span> {formatDistance(session.distanceMi)}</span>
+                                )}
+                                {session.durationMin != null && (
+                                  <span><span className="text-muted-foreground">Dur</span> {formatDuration(session.durationMin)}</span>
+                                )}
+                                {session.pace && (
+                                  <span><span className="text-muted-foreground">Pace</span> {session.pace}/mi</span>
+                                )}
+                                {session.rpe != null && (
+                                  <span><span className="text-muted-foreground">RPE</span> {session.rpe}/10</span>
+                                )}
+                                {session.totalLoad != null && (
+                                  <span><span className="text-muted-foreground">Load</span> {formatLoad(session.totalLoad)}</span>
+                                )}
+                              </div>
+                              <div className="flex gap-2 shrink-0">
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  className="uppercase font-bold text-xs"
+                                  onClick={() => openEdit(sessionCtx)}
+                                  data-testid={`button-edit-${day.date}-${session.id}`}
+                                >
+                                  <Edit className="h-3 w-3 mr-1" /> Edit
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="uppercase font-bold text-xs text-destructive hover:text-destructive border-destructive/30"
+                                  onClick={() => requestDelete(sessionCtx)}
+                                  disabled={isDeleting}
+                                  data-testid={`button-delete-${day.date}-${session.id}`}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      <Button
+                        className="uppercase font-black text-xs bg-primary hover:bg-primary/90"
+                        onClick={() => crushIt(ctxFor(day, null))}
+                        disabled={isCrushing}
+                        data-testid={`button-crush-${day.date}`}
+                      >
+                        <Zap className="h-3 w-3 mr-2" />
+                        {hasSessions ? "Crushed Another" : "Crushed It"}
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        className="uppercase font-bold text-xs"
+                        onClick={() => openLog(ctxFor(day, null))}
+                        disabled={isCrushing}
+                        data-testid={`button-log-${day.date}`}
+                      >
+                        <Pencil className="h-3 w-3 mr-2" />
+                        {hasSessions ? "Log Another" : "Log Actual"}
+                      </Button>
+                      {!hasSessions && (
+                        <Button
+                          variant="outline"
+                          className="uppercase font-bold text-xs text-destructive hover:text-destructive border-destructive/30"
+                          onClick={() => requestSkip(ctxFor(day, null))}
+                          disabled={isCrushing}
+                          data-testid={`button-skip-${day.date}`}
+                        >
+                          <XCircle className="h-3 w-3 mr-2" /> Skipped
+                        </Button>
                       )}
                     </div>
                   </div>

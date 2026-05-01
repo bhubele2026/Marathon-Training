@@ -127,7 +127,8 @@ export interface TodayPlan {
   date: string;
   hasPlan: boolean;
   plan?: PlanDay | null;
-  loggedWorkout?: Workout | null;
+  /** All workouts logged for today, ordered by createdAt ascending. Empty when nothing has been logged yet. */
+  loggedWorkouts: Workout[];
   suggestions?: WorkoutSuggestions | null;
 }
 

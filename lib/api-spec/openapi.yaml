@@ -533,7 +533,7 @@ components:
 
     TodayPlan:
       type: object
-      required: [date, hasPlan]
+      required: [date, hasPlan, loggedWorkouts]
       properties:
         date: { type: string }
         hasPlan: { type: boolean }
@@ -541,10 +541,10 @@ components:
           allOf:
             - $ref: "#/components/schemas/PlanDay"
           nullable: true
-        loggedWorkout:
-          allOf:
-            - $ref: "#/components/schemas/Workout"
-          nullable: true
+        loggedWorkouts:
+          type: array
+          description: All workouts logged for today, ordered by createdAt ascending. Empty when nothing has been logged yet.
+          items: { $ref: "#/components/schemas/Workout" }
         suggestions:
           allOf:
             - $ref: "#/components/schemas/WorkoutSuggestions"

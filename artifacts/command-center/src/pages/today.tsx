@@ -11,8 +11,8 @@ export default function Today() {
   const { data: today, isLoading } = useGetTodayPlan();
   const { openLog, openEdit, requestDelete, requestSkip, crushIt, isDeleting, isCrushing, dialogs } =
     useMissionActions();
-  const ctx = today
-    ? { date: today.date, plan: today.plan, loggedWorkout: today.loggedWorkout, suggestions: today.suggestions }
+  const baseCtx = today
+    ? { date: today.date, plan: today.plan, suggestions: today.suggestions }
     : null;
 
   if (isLoading) {
@@ -22,6 +22,9 @@ export default function Today() {
   if (!today) {
     return <div>Failed to load plan</div>;
   }
+
+  const sessions = today.loggedWorkouts ?? [];
+  const hasSessions = sessions.length > 0;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
@@ -58,9 +61,9 @@ export default function Today() {
                       <span className="font-black text-2xl uppercase tracking-tight">{today.plan?.sessionType}</span>
                       <span className="px-3 py-1 bg-secondary text-secondary-foreground rounded text-sm uppercase font-bold tracking-wider">{today.plan?.equipment}</span>
                     </div>
-                    
+
                     <p className="text-foreground text-lg leading-relaxed">{today.plan?.description}</p>
-                    
+
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-border">
                       {today.plan?.distanceMi && (
                         <div>
@@ -89,109 +92,123 @@ export default function Today() {
                     </div>
                   </div>
 
-                  {!today.loggedWorkout && (
-                    <div className="shrink-0 flex flex-col items-stretch justify-center gap-3 border-t md:border-t-0 md:border-l border-border pt-6 md:pt-0 md:pl-6 md:w-56">
-                      <Button
-                        size="lg"
-                        className="h-14 px-6 text-base uppercase font-black tracking-widest group"
-                        onClick={() => ctx && crushIt(ctx)}
-                        disabled={isCrushing}
-                        data-testid="button-crush-today"
-                      >
-                        <Zap className="mr-2 h-5 w-5 group-hover:scale-110 transition-transform" />
-                        Crushed It
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        className="uppercase font-bold tracking-wider"
-                        onClick={() => ctx && openLog(ctx)}
-                        disabled={isCrushing}
-                        data-testid="button-log-today"
-                      >
-                        <Pencil className="mr-2 h-4 w-4" />
-                        Log Actual
-                      </Button>
+                  <div className="shrink-0 flex flex-col items-stretch justify-center gap-3 border-t md:border-t-0 md:border-l border-border pt-6 md:pt-0 md:pl-6 md:w-56">
+                    <Button
+                      size="lg"
+                      className="h-14 px-6 text-base uppercase font-black tracking-widest group"
+                      onClick={() => baseCtx && crushIt({ ...baseCtx, loggedWorkout: null })}
+                      disabled={isCrushing}
+                      data-testid="button-crush-today"
+                    >
+                      <Zap className="mr-2 h-5 w-5 group-hover:scale-110 transition-transform" />
+                      {hasSessions ? "Crushed Another" : "Crushed It"}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      className="uppercase font-bold tracking-wider"
+                      onClick={() => baseCtx && openLog({ ...baseCtx, loggedWorkout: null })}
+                      disabled={isCrushing}
+                      data-testid="button-log-today"
+                    >
+                      <Pencil className="mr-2 h-4 w-4" />
+                      {hasSessions ? "Log Another" : "Log Mission"}
+                    </Button>
+                    {!hasSessions && (
                       <Button
                         variant="outline"
                         className="uppercase font-bold tracking-wider text-destructive hover:text-destructive border-destructive/40"
-                        onClick={() => ctx && requestSkip(ctx)}
+                        onClick={() => baseCtx && requestSkip({ ...baseCtx, loggedWorkout: null })}
                         disabled={isCrushing}
                         data-testid="button-skip-today"
                       >
                         <XCircle className="mr-2 h-4 w-4" />
                         Skipped
                       </Button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {today.loggedWorkout && (
-            <Card className="border-border">
+          {sessions.map((session) => (
+            <Card key={session.id} className="border-border" data-testid={`session-today-${session.id}`}>
               <CardHeader className="bg-muted/30 border-b border-border pb-4 flex flex-row items-center justify-between space-y-0">
                 <CardTitle className="text-lg uppercase tracking-wider flex items-center gap-2">
                   <CheckCircle2 className="h-5 w-5 text-primary" />
                   Mission Accomplished
+                  <span className="text-xs font-mono normal-case tracking-normal text-muted-foreground ml-2">
+                    {session.sessionType} · {session.equipment}
+                  </span>
                 </CardTitle>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => ctx && openEdit(ctx)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => baseCtx && openEdit({ ...baseCtx, loggedWorkout: session })}
+                    data-testid={`button-edit-today-${session.id}`}
+                  >
                     <Edit className="h-4 w-4 mr-2" /> Edit
                   </Button>
-                  <Button variant="destructive" size="sm" onClick={() => ctx && requestDelete(ctx)} disabled={isDeleting}>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => baseCtx && requestDelete({ ...baseCtx, loggedWorkout: session })}
+                    disabled={isDeleting}
+                    data-testid={`button-delete-today-${session.id}`}
+                  >
                     <Trash2 className="h-4 w-4 mr-2" /> Delete
                   </Button>
                 </div>
               </CardHeader>
               <CardContent className="p-6">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
-                  {today.loggedWorkout.distanceMi != null && (
+                  {session.distanceMi != null && (
                     <div>
                       <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Distance</p>
-                      <p className="text-xl font-black">{formatDistance(today.loggedWorkout.distanceMi)}</p>
+                      <p className="text-xl font-black">{formatDistance(session.distanceMi)}</p>
                     </div>
                   )}
-                  {today.loggedWorkout.durationMin != null && (
+                  {session.durationMin != null && (
                     <div>
                       <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Duration</p>
-                      <p className="text-xl font-black">{formatDuration(today.loggedWorkout.durationMin)}</p>
+                      <p className="text-xl font-black">{formatDuration(session.durationMin)}</p>
                     </div>
                   )}
-                  {today.loggedWorkout.pace && (
+                  {session.pace && (
                     <div>
                       <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Pace</p>
-                      <p className="text-xl font-black">{today.loggedWorkout.pace}/mi</p>
+                      <p className="text-xl font-black">{session.pace}/mi</p>
                     </div>
                   )}
-                  {today.loggedWorkout.rpe != null && (
+                  {session.rpe != null && (
                     <div>
                       <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">RPE</p>
-                      <p className="text-xl font-black">{today.loggedWorkout.rpe}/10</p>
+                      <p className="text-xl font-black">{session.rpe}/10</p>
                     </div>
                   )}
-                  {today.loggedWorkout.avgHr != null && (
+                  {session.avgHr != null && (
                     <div>
                       <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Avg HR</p>
-                      <p className="text-xl font-black">{today.loggedWorkout.avgHr} bpm</p>
+                      <p className="text-xl font-black">{session.avgHr} bpm</p>
                     </div>
                   )}
-                  {today.loggedWorkout.totalLoad != null && (
+                  {session.totalLoad != null && (
                     <div>
                       <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Total Load</p>
-                      <p className="text-xl font-black">{formatLoad(today.loggedWorkout.totalLoad)}</p>
+                      <p className="text-xl font-black">{formatLoad(session.totalLoad)}</p>
                     </div>
                   )}
                 </div>
-                {today.loggedWorkout.notes && (
+                {session.notes && (
                   <div className="mt-6 pt-6 border-t border-border">
                     <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-2">Notes</p>
-                    <p className="text-sm">{today.loggedWorkout.notes}</p>
+                    <p className="text-sm">{session.notes}</p>
                   </div>
                 )}
               </CardContent>
             </Card>
-          )}
+          ))}
         </div>
       )}
 

@@ -33,9 +33,11 @@ export default function Dashboard() {
   const { data: today, isLoading: loadingToday } = useGetTodayPlan();
   const { openLog, openEdit, requestDelete, requestSkip, crushIt, isDeleting, isCrushing, dialogs } =
     useMissionActions();
-  const todayCtx = today
-    ? { date: today.date, plan: today.plan, loggedWorkout: today.loggedWorkout, suggestions: today.suggestions }
+  const todayBaseCtx = today
+    ? { date: today.date, plan: today.plan, suggestions: today.suggestions }
     : null;
+  const todaySessions = today?.loggedWorkouts ?? [];
+  const hasTodaySessions = todaySessions.length > 0;
 
   if (loadingSummary) return <DashboardSkeleton />;
 
@@ -134,75 +136,100 @@ export default function Dashboard() {
                         {today.plan?.strengthLoad ? <span>Load: {today.plan.strengthLoad}</span> : null}
                       </div>
 
-                      {today.loggedWorkout && (
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 pt-3 border-t border-border text-sm">
-                          <span className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Logged:</span>
-                          {today.loggedWorkout.distanceMi != null && (
-                            <span><span className="text-muted-foreground">Dist</span> <span className="font-bold">{formatDistance(today.loggedWorkout.distanceMi)}</span></span>
-                          )}
-                          {today.loggedWorkout.durationMin != null && (
-                            <span><span className="text-muted-foreground">Dur</span> <span className="font-bold">{formatDuration(today.loggedWorkout.durationMin)}</span></span>
-                          )}
-                          {today.loggedWorkout.pace && (
-                            <span><span className="text-muted-foreground">Pace</span> <span className="font-bold">{today.loggedWorkout.pace}/mi</span></span>
-                          )}
-                          {today.loggedWorkout.rpe != null && (
-                            <span><span className="text-muted-foreground">RPE</span> <span className="font-bold">{today.loggedWorkout.rpe}/10</span></span>
-                          )}
+                      {hasTodaySessions && (
+                        <div className="mt-3 pt-3 border-t border-border space-y-2">
+                          <div className="text-xs uppercase tracking-wider text-muted-foreground font-bold">
+                            {todaySessions.length > 1 ? `${todaySessions.length} Sessions Logged` : "Logged"}
+                          </div>
+                          {todaySessions.map((session) => (
+                            <div
+                              key={session.id}
+                              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-background border border-border rounded px-3 py-2"
+                              data-testid={`session-dashboard-${session.id}`}
+                            >
+                              <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
+                                <span className="text-xs uppercase font-bold tracking-wider text-muted-foreground">
+                                  {session.sessionType}
+                                </span>
+                                {session.distanceMi != null && (
+                                  <span><span className="text-muted-foreground">Dist</span> <span className="font-bold">{formatDistance(session.distanceMi)}</span></span>
+                                )}
+                                {session.durationMin != null && (
+                                  <span><span className="text-muted-foreground">Dur</span> <span className="font-bold">{formatDuration(session.durationMin)}</span></span>
+                                )}
+                                {session.pace && (
+                                  <span><span className="text-muted-foreground">Pace</span> <span className="font-bold">{session.pace}/mi</span></span>
+                                )}
+                                {session.rpe != null && (
+                                  <span><span className="text-muted-foreground">RPE</span> <span className="font-bold">{session.rpe}/10</span></span>
+                                )}
+                              </div>
+                              <div className="flex gap-2 shrink-0">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => todayBaseCtx && openEdit({ ...todayBaseCtx, loggedWorkout: session })}
+                                  data-testid={`button-edit-dashboard-${session.id}`}
+                                >
+                                  <Edit className="h-3 w-3 mr-1" /> Edit
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => todayBaseCtx && requestDelete({ ...todayBaseCtx, loggedWorkout: session })}
+                                  disabled={isDeleting}
+                                  data-testid={`button-delete-dashboard-${session.id}`}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>
                     <div className="shrink-0 flex flex-col items-stretch md:items-end gap-2">
-                      {today.loggedWorkout ? (
-                        <>
-                          <div className="flex items-center gap-2 text-primary font-bold bg-primary/10 px-4 py-2 rounded-md justify-center">
-                            <CheckCircle2 className="h-5 w-5" />
-                            MISSION COMPLETE
-                          </div>
-                          <div className="flex gap-2 justify-end">
-                            <Button variant="outline" size="sm" onClick={() => todayCtx && openEdit(todayCtx)}>
-                              <Edit className="h-4 w-4 mr-1" /> Edit
-                            </Button>
-                            <Button variant="destructive" size="sm" onClick={() => todayCtx && requestDelete(todayCtx)} disabled={isDeleting}>
-                              <Trash2 className="h-4 w-4 mr-1" /> Delete
-                            </Button>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="flex flex-col gap-2 w-full md:w-44">
-                          <Button
-                            className="uppercase font-black tracking-wider"
-                            onClick={() => todayCtx && crushIt(todayCtx)}
-                            disabled={isCrushing}
-                            data-testid="button-crush-dashboard"
-                          >
-                            <Zap className="mr-2 h-4 w-4" />
-                            Crushed It
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="uppercase font-bold tracking-wider"
-                            onClick={() => todayCtx && openLog(todayCtx)}
-                            disabled={isCrushing}
-                            data-testid="button-log-dashboard"
-                          >
-                            <Pencil className="mr-2 h-3.5 w-3.5" />
-                            Log Actual
-                          </Button>
+                      {hasTodaySessions && (
+                        <div className="flex items-center gap-2 text-primary font-bold bg-primary/10 px-4 py-2 rounded-md justify-center">
+                          <CheckCircle2 className="h-5 w-5" />
+                          MISSION COMPLETE
+                        </div>
+                      )}
+                      <div className="flex flex-col gap-2 w-full md:w-44">
+                        <Button
+                          className="uppercase font-black tracking-wider"
+                          onClick={() => todayBaseCtx && crushIt({ ...todayBaseCtx, loggedWorkout: null })}
+                          disabled={isCrushing}
+                          data-testid="button-crush-dashboard"
+                        >
+                          <Zap className="mr-2 h-4 w-4" />
+                          {hasTodaySessions ? "Crushed Another" : "Crushed It"}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="uppercase font-bold tracking-wider"
+                          onClick={() => todayBaseCtx && openLog({ ...todayBaseCtx, loggedWorkout: null })}
+                          disabled={isCrushing}
+                          data-testid="button-log-dashboard"
+                        >
+                          <Pencil className="mr-2 h-3.5 w-3.5" />
+                          {hasTodaySessions ? "Log Another" : "Log Mission"}
+                        </Button>
+                        {!hasTodaySessions && (
                           <Button
                             variant="outline"
                             size="sm"
                             className="uppercase font-bold tracking-wider text-destructive hover:text-destructive border-destructive/40"
-                            onClick={() => todayCtx && requestSkip(todayCtx)}
+                            onClick={() => todayBaseCtx && requestSkip({ ...todayBaseCtx, loggedWorkout: null })}
                             disabled={isCrushing}
                             data-testid="button-skip-dashboard"
                           >
                             <XCircle className="mr-2 h-3.5 w-3.5" />
                             Skipped
                           </Button>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   </div>
                 ) : (

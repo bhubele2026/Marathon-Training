@@ -282,13 +282,17 @@ async function suggestionsForPlan(plan: PlanDayRow, today: string) {
 router.get("/plan/today", async (_req, res) => {
   const today = todayISO();
   const planRow = (await db.select().from(planDaysTable).where(eq(planDaysTable.date, today)).limit(1))[0];
-  const loggedRow = (await db.select().from(workoutsTable).where(eq(workoutsTable.date, today)).orderBy(sql`${workoutsTable.createdAt} DESC`).limit(1))[0];
+  const loggedRows = await db
+    .select()
+    .from(workoutsTable)
+    .where(eq(workoutsTable.date, today))
+    .orderBy(asc(workoutsTable.createdAt));
   const suggestions = planRow && !planRow.isRest ? await suggestionsForPlan(planRow, today) : null;
   res.json({
     date: today,
     hasPlan: !!planRow,
     plan: planRow ? toPlanDay(planRow) : null,
-    loggedWorkout: loggedRow ? toWorkout(loggedRow) : null,
+    loggedWorkouts: loggedRows.map(toWorkout),
     suggestions,
   });
 });

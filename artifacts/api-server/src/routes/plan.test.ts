@@ -326,6 +326,47 @@ describe("GET /api/plan/today", () => {
       paceSource: "history",
       sampleSize: 2,
     });
-    expect(res.body.loggedWorkout).toBeNull();
+    expect(res.body.loggedWorkouts).toEqual([]);
+  });
+
+  it("returns every workout logged for today, ordered by createdAt ascending", async () => {
+    const today = "2099-06-03";
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(`${today}T12:00:00.000Z`));
+
+    const week = 8012;
+    const phase = "Today Double";
+    await insertWeek(week, { startDate: today, endDate: today, phase });
+    await insertPlanDay(week, phase, {
+      date: today,
+      day: "Tue",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+    });
+
+    const first = await insertWorkout({
+      date: today,
+      sessionType: T_STRENGTH,
+      equipment: E_GYM,
+      durationMin: 30,
+      notes: "AM strength",
+    });
+    const second = await insertWorkout({
+      date: today,
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      durationMin: 45,
+      distanceMi: 5,
+      notes: "PM run",
+    });
+
+    const res = await request(app).get("/api/plan/today");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetTodayPlanResponse, res.body);
+    expect(res.body.loggedWorkouts).toHaveLength(2);
+    // Postgres NOW() is independent of vi.useFakeTimers, and two sequential
+    // awaited inserts produce monotonically increasing created_at values.
+    const ids = res.body.loggedWorkouts.map((w: { id: number }) => w.id);
+    expect(ids).toEqual([first.id, second.id]);
   });
 });
