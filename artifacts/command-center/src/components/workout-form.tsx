@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -19,7 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -59,23 +59,32 @@ export function WorkoutForm({ open, onOpenChange, initial, workoutId }: WorkoutF
   const createWorkout = useCreateWorkout();
   const updateWorkout = useUpdateWorkout();
 
+  const buildDefaults = (): FormValues => ({
+    date: initial?.date || new Date().toISOString().split('T')[0],
+    equipment: initial?.equipment || "None",
+    sessionType: initial?.sessionType || "",
+    durationMin: initial?.durationMin ?? null,
+    distanceMi: initial?.distanceMi ?? null,
+    pace: initial?.pace || "",
+    avgHr: initial?.avgHr ?? null,
+    rpe: initial?.rpe ?? null,
+    strengthLoad: initial?.strengthLoad ?? null,
+    totalLoad: initial?.totalLoad ?? null,
+    notes: initial?.notes || "",
+    planDayId: initial?.planDayId ?? null,
+  });
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      date: initial?.date || new Date().toISOString().split('T')[0],
-      equipment: initial?.equipment || "None",
-      sessionType: initial?.sessionType || "Run",
-      durationMin: initial?.durationMin || null,
-      distanceMi: initial?.distanceMi || null,
-      pace: initial?.pace || "",
-      avgHr: initial?.avgHr || null,
-      rpe: initial?.rpe || null,
-      strengthLoad: initial?.strengthLoad || null,
-      totalLoad: initial?.totalLoad || null,
-      notes: initial?.notes || "",
-      planDayId: initial?.planDayId || null,
-    },
+    defaultValues: buildDefaults(),
   });
+
+  useEffect(() => {
+    if (open) {
+      form.reset(buildDefaults());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initial?.date, initial?.equipment, initial?.sessionType, initial?.planDayId, workoutId]);
 
   const invalidateData = () => invalidateMissionRelatedQueries(queryClient);
 
@@ -140,27 +149,39 @@ export function WorkoutForm({ open, onOpenChange, initial, workoutId }: WorkoutF
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Session Type</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select type" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="Aerobic Base">Aerobic Base</SelectItem>
-                        <SelectItem value="Aerobic">Aerobic</SelectItem>
-                        <SelectItem value="Aerobic / Shakeout">Aerobic / Shakeout</SelectItem>
-                        <SelectItem value="Long Run">Long Run</SelectItem>
-                        <SelectItem value="Long Run/Walk">Long Run/Walk</SelectItem>
-                        <SelectItem value="Long Session">Long Session</SelectItem>
-                        <SelectItem value="Time on Feet">Time on Feet</SelectItem>
-                        <SelectItem value="Strength">Strength</SelectItem>
-                        <SelectItem value="Durability">Durability</SelectItem>
-                        <SelectItem value="Workout">Workout</SelectItem>
-                        <SelectItem value="Recovery">Recovery</SelectItem>
-                        <SelectItem value="Freshness">Freshness</SelectItem>
-                        <SelectItem value="Cross Training">Cross Training</SelectItem>
-                        <SelectItem value="Rest">Rest</SelectItem>
+                        <SelectGroup>
+                          <SelectLabel>Training</SelectLabel>
+                          <SelectItem value="Aerobic Base">Aerobic Base</SelectItem>
+                          <SelectItem value="Aerobic">Aerobic</SelectItem>
+                          <SelectItem value="Aerobic / Shakeout">Aerobic / Shakeout</SelectItem>
+                          <SelectItem value="Long Run">Long Run</SelectItem>
+                          <SelectItem value="Long Run/Walk">Long Run/Walk</SelectItem>
+                          <SelectItem value="Long Session">Long Session</SelectItem>
+                          <SelectItem value="Time on Feet">Time on Feet</SelectItem>
+                          <SelectItem value="Strength">Strength</SelectItem>
+                          <SelectItem value="Durability">Durability</SelectItem>
+                          <SelectItem value="Workout">Workout</SelectItem>
+                          <SelectItem value="Recovery">Recovery</SelectItem>
+                          <SelectItem value="Freshness">Freshness</SelectItem>
+                          <SelectItem value="Cross Training">Cross Training</SelectItem>
+                          <SelectItem value="Rest">Rest</SelectItem>
+                        </SelectGroup>
+                        <SelectGroup>
+                          <SelectLabel>Lifestyle</SelectLabel>
+                          <SelectItem value="Dog Walk">Dog Walk</SelectItem>
+                          <SelectItem value="Yard Work">Yard Work</SelectItem>
+                          <SelectItem value="House Work">House Work</SelectItem>
+                          <SelectItem value="Hike">Hike</SelectItem>
+                          <SelectItem value="Manual Labor">Manual Labor</SelectItem>
+                          <SelectItem value="Other Activity">Other Activity</SelectItem>
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -173,7 +194,7 @@ export function WorkoutForm({ open, onOpenChange, initial, workoutId }: WorkoutF
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Equipment</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select equipment" />
@@ -185,6 +206,7 @@ export function WorkoutForm({ open, onOpenChange, initial, workoutId }: WorkoutF
                         <SelectItem value="Peloton Bike">Peloton Bike</SelectItem>
                         <SelectItem value="Peloton Row">Peloton Row</SelectItem>
                         <SelectItem value="Outdoor">Outdoor</SelectItem>
+                        <SelectItem value="Lifestyle">Lifestyle</SelectItem>
                         <SelectItem value="None">None / Rest</SelectItem>
                       </SelectContent>
                     </Select>

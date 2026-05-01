@@ -86,6 +86,7 @@ export default function Log() {
               <SelectItem value="Peloton Bike">Peloton Bike</SelectItem>
               <SelectItem value="Peloton Row">Peloton Row</SelectItem>
               <SelectItem value="Outdoor">Outdoor</SelectItem>
+              <SelectItem value="Lifestyle">Lifestyle</SelectItem>
               <SelectItem value="None">None / Rest</SelectItem>
             </SelectContent>
           </Select>
