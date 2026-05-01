@@ -1,7 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import request from "supertest";
+import {
+  ListMeasurementsResponse,
+  UpdateMeasurementResponse,
+} from "@workspace/api-zod";
 import app from "../app";
-import { cleanTestData, insertMeasurement } from "../test-helpers";
+import {
+  cleanTestData,
+  expectMatchesSchema,
+  insertMeasurement,
+} from "../test-helpers";
 
 beforeEach(async () => {
   await cleanTestData();
@@ -26,6 +34,8 @@ describe("POST /api/measurements", () => {
     });
 
     expect(res.status).toBe(201);
+    // Create returns the canonical Measurement shape (same as Update/List items).
+    expectMatchesSchema(UpdateMeasurementResponse, res.body);
     expect(res.body).toEqual(
       expect.objectContaining({
         id: expect.any(Number),
@@ -47,6 +57,7 @@ describe("POST /api/measurements", () => {
   it("accepts a measurement with only required fields", async () => {
     const res = await request(app).post("/api/measurements").send({ date: "2099-03-16" });
     expect(res.status).toBe(201);
+    expectMatchesSchema(UpdateMeasurementResponse, res.body);
     expect(res.body).toEqual(
       expect.objectContaining({
         date: "2099-03-16",
@@ -77,6 +88,7 @@ describe("GET /api/measurements", () => {
 
     const res = await request(app).get("/api/measurements");
     expect(res.status).toBe(200);
+    expectMatchesSchema(ListMeasurementsResponse, res.body);
     const rows = res.body as Array<{ date: string; weight: number | null }>;
     // Filter to the test band so we don't depend on real data.
     const ours = rows.filter((r) => r.date.startsWith("2099-"));
@@ -94,6 +106,7 @@ describe("PATCH /api/measurements/:id", () => {
       .send({ weight: 238.5, notes: "after" });
 
     expect(res.status).toBe(200);
+    expectMatchesSchema(UpdateMeasurementResponse, res.body);
     expect(res.body).toEqual(
       expect.objectContaining({
         id,
@@ -137,6 +150,7 @@ describe("DELETE /api/measurements/:id", () => {
     expect(del.body).toEqual({});
 
     const list = await request(app).get("/api/measurements");
+    expectMatchesSchema(ListMeasurementsResponse, list.body);
     const ours = (list.body as Array<{ id: number }>).filter((m) => m.id === id);
     expect(ours).toHaveLength(0);
   });

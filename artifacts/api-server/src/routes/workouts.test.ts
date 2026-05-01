@@ -1,8 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import request from "supertest";
+import {
+  ListWorkoutsResponse,
+  UpdateWorkoutResponse,
+} from "@workspace/api-zod";
 import app from "../app";
 import {
   cleanTestData,
+  expectMatchesSchema,
   insertWorkout,
   E_OUTDOOR,
   E_TREADMILL,
@@ -37,6 +42,8 @@ describe("POST /api/workouts", () => {
       });
 
     expect(res.status).toBe(201);
+    // Create returns the canonical Workout shape (same as Update/List items).
+    expectMatchesSchema(UpdateWorkoutResponse, res.body);
     expect(res.body).toEqual(
       expect.objectContaining({
         id: expect.any(Number),
@@ -81,6 +88,7 @@ describe("GET /api/workouts", () => {
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
+    expectMatchesSchema(ListWorkoutsResponse, res.body);
     const dates = (res.body as Array<{ date: string }>).map((w) => w.date);
     expect(dates).toEqual(["2099-04-03", "2099-04-02", "2099-04-01"]);
   });
@@ -94,6 +102,7 @@ describe("GET /api/workouts", () => {
       .query({ from: "2099-01-01", to: "2099-12-31", equipment: E_TREADMILL });
 
     expect(res.status).toBe(200);
+    expectMatchesSchema(ListWorkoutsResponse, res.body);
     const rows = res.body as Array<{ equipment: string; distanceMi: number }>;
     expect(rows).toHaveLength(1);
     expect(rows[0]!.equipment).toBe(E_TREADMILL);
@@ -115,6 +124,7 @@ describe("GET /api/workouts", () => {
       .get("/api/workouts")
       .query({ from: "2099-05-01", to: "2099-05-31", limit: 2 });
     expect(res.status).toBe(200);
+    expectMatchesSchema(ListWorkoutsResponse, res.body);
     const rows = res.body as Array<{ date: string }>;
     expect(rows).toHaveLength(2);
     // Limit is applied after the desc-by-date ordering, so we get the two newest.
@@ -143,6 +153,7 @@ describe("PATCH /api/workouts/:id", () => {
       .send({ rpe: 8, distanceMi: 5.5, notes: "felt strong" });
 
     expect(res.status).toBe(200);
+    expectMatchesSchema(UpdateWorkoutResponse, res.body);
     expect(res.body).toEqual(
       expect.objectContaining({
         id,
@@ -202,6 +213,7 @@ describe("DELETE /api/workouts/:id", () => {
       .get("/api/workouts")
       .query({ from: "2099-07-01", to: "2099-07-31" });
     expect(list.status).toBe(200);
+    expectMatchesSchema(ListWorkoutsResponse, list.body);
     expect((list.body as unknown[])).toHaveLength(0);
   });
 

@@ -1,8 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import request from "supertest";
+import {
+  GetDashboardSummaryResponse,
+  GetEquipmentUsageResponse,
+  GetLongRunProgressionResponse,
+  GetRecentActivityResponse,
+  GetWeeklyMileageResponse,
+  GetWeightTrendResponse,
+} from "@workspace/api-zod";
 import app from "../app";
 import {
   cleanTestData,
+  expectMatchesSchema,
   insertMeasurement,
   insertPlanDay,
   insertWeek,
@@ -73,6 +82,7 @@ describe("GET /api/dashboard/summary", () => {
 
     const res = await request(app).get("/api/dashboard/summary");
     expect(res.status).toBe(200);
+    expectMatchesSchema(GetDashboardSummaryResponse, res.body);
 
     expect(res.body).toEqual(
       expect.objectContaining({
@@ -119,6 +129,7 @@ describe("GET /api/dashboard/weight-trend", () => {
 
     const res = await request(app).get("/api/dashboard/weight-trend");
     expect(res.status).toBe(200);
+    expectMatchesSchema(GetWeightTrendResponse, res.body);
 
     const rows = res.body as Array<{ date: string; weight: number }>;
     const ours = rows.filter((r) => r.date.startsWith("2099-02-"));
@@ -148,6 +159,7 @@ describe("GET /api/dashboard/weekly-mileage", () => {
 
     const res = await request(app).get("/api/dashboard/weekly-mileage");
     expect(res.status).toBe(200);
+    expectMatchesSchema(GetWeeklyMileageResponse, res.body);
 
     const rows = res.body as Array<{
       week: number;
@@ -196,6 +208,7 @@ describe("GET /api/dashboard/equipment-usage", () => {
 
     const res = await request(app).get("/api/dashboard/equipment-usage");
     expect(res.status).toBe(200);
+    expectMatchesSchema(GetEquipmentUsageResponse, res.body);
 
     const rows = res.body as Array<{
       equipment: string;
@@ -258,6 +271,7 @@ describe("GET /api/dashboard/long-run-progression", () => {
 
     const res = await request(app).get("/api/dashboard/long-run-progression");
     expect(res.status).toBe(200);
+    expectMatchesSchema(GetLongRunProgressionResponse, res.body);
 
     const rows = res.body as Array<{
       week: number;
@@ -286,6 +300,7 @@ describe("GET /api/dashboard/recent-activity", () => {
 
     const res = await request(app).get("/api/dashboard/recent-activity");
     expect(res.status).toBe(200);
+    expectMatchesSchema(GetRecentActivityResponse, res.body);
     const rows = res.body as Array<{ date: string; equipment: string; distanceMi: number | null }>;
     expect(rows).toHaveLength(10);
     // Top of the list should be our newest 2099 inserts in date-desc order.

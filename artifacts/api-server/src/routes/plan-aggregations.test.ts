@@ -1,8 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import request from "supertest";
+import {
+  GetPlanOverviewResponse,
+  ListPlanWeeksResponse,
+} from "@workspace/api-zod";
 import app from "../app";
 import {
   cleanTestData,
+  expectMatchesSchema,
   insertMeasurement,
   insertPlanDay,
   insertWeek,
@@ -44,6 +49,7 @@ describe("GET /api/plan/overview", () => {
 
     const res = await request(app).get("/api/plan/overview");
     expect(res.status).toBe(200);
+    expectMatchesSchema(GetPlanOverviewResponse, res.body);
 
     expect(res.body).toEqual(
       expect.objectContaining({
@@ -115,6 +121,7 @@ describe("GET /api/plan/weeks", () => {
     const res = await request(app).get("/api/plan/weeks");
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
+    expectMatchesSchema(ListPlanWeeksResponse, res.body);
 
     type WeekRow = {
       week: number;
@@ -160,6 +167,7 @@ describe("GET /api/plan/weeks", () => {
 
     const res = await request(app).get("/api/plan/weeks");
     expect(res.status).toBe(200);
+    expectMatchesSchema(ListPlanWeeksResponse, res.body);
     const rows = res.body as Array<{
       week: number;
       actualMiles: number;

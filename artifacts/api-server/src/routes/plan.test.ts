@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import request from "supertest";
+import { GetPlanWeekResponse, GetTodayPlanResponse } from "@workspace/api-zod";
 import app from "../app";
 import {
   TEST_WEEK_MAX,
@@ -13,6 +14,7 @@ import {
   E_GYM,
   E_NONE,
   cleanTestData,
+  expectMatchesSchema,
   insertWeek,
   insertPlanDay,
   insertWorkout,
@@ -68,6 +70,7 @@ describe("GET /api/plan/weeks/:week", () => {
 
     const res = await request(app).get(`/api/plan/weeks/${week}`);
     expect(res.status).toBe(200);
+    expectMatchesSchema(GetPlanWeekResponse, res.body);
     expect(res.body.week).toBe(week);
     expect(res.body.totalSessions).toBe(2);
 
@@ -149,6 +152,7 @@ describe("GET /api/plan/weeks/:week", () => {
 
     const res = await request(app).get(`/api/plan/weeks/${week}`);
     expect(res.status).toBe(200);
+    expectMatchesSchema(GetPlanWeekResponse, res.body);
 
     const days = res.body.days as Array<{ date: string; suggestions: { rpe: number | null; avgHr: number | null; pace: string | null; paceSource: string | null; sampleSize: number } | null }>;
 
@@ -228,6 +232,7 @@ describe("GET /api/plan/weeks/:week", () => {
 
     const res = await request(app).get(`/api/plan/weeks/${week}`);
     expect(res.status).toBe(200);
+    expectMatchesSchema(GetPlanWeekResponse, res.body);
 
     const days = res.body.days as Array<{ date: string; suggestions: { rpe: number | null; avgHr: number | null; pace: string | null; paceSource: string | null; sampleSize: number } }>;
 
@@ -277,6 +282,7 @@ describe("GET /api/plan/today", () => {
 
     const res = await request(app).get("/api/plan/today");
     expect(res.status).toBe(200);
+    expectMatchesSchema(GetTodayPlanResponse, res.body);
     expect(res.body.date).toBe(today);
     expect(res.body.hasPlan).toBe(true);
     expect(res.body.plan).not.toBeNull();
@@ -304,6 +310,7 @@ describe("GET /api/plan/today", () => {
 
     const res = await request(app).get("/api/plan/today");
     expect(res.status).toBe(200);
+    expectMatchesSchema(GetTodayPlanResponse, res.body);
     expect(res.body.date).toBe(today);
     expect(res.body.hasPlan).toBe(true);
     expect(res.body.plan.isRest).toBe(false);

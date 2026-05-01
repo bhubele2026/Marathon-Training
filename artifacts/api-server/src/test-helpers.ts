@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { expect } from "vitest";
 import {
   db,
   measurementsTable,
@@ -6,6 +7,65 @@ import {
   planWeeksTable,
   workoutsTable,
 } from "@workspace/db";
+
+// Structural type for the generated `@workspace/api-zod` schemas so this
+// helper can stay schema-library-agnostic and the api-server package does
+// not need a direct zod dependency just for testing.
+interface SchemaLike<T> {
+  parse(data: unknown): T;
+}
+
+interface ZodIssue {
+  path: Array<string | number>;
+  message: string;
+  code?: string;
+}
+
+function isZodError(err: unknown): err is { issues: ZodIssue[] } {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    Array.isArray((err as { issues?: unknown }).issues)
+  );
+}
+
+/**
+ * Parse `body` through the matching generated `@workspace/api-zod` schema
+ * and fail the current test with a readable diff if validation fails.
+ *
+ * This catches drift between the OpenAPI contract (the source of truth the
+ * React client and Zod validators are generated from) and what the Express
+ * routes actually return on the wire. Use this in every integration test
+ * that hits a real endpoint:
+ *
+ *   const res = await request(app).get("/api/dashboard/summary");
+ *   expect(res.status).toBe(200);
+ *   expectMatchesSchema(GetDashboardSummaryResponse, res.body);
+ *
+ * Returns the parsed value so callers can chain on a typed result if they
+ * want to, but the original `body` is never mutated.
+ */
+export function expectMatchesSchema<T>(
+  schema: SchemaLike<T>,
+  body: unknown,
+): T {
+  try {
+    return schema.parse(body);
+  } catch (err) {
+    if (isZodError(err)) {
+      const formatted = err.issues
+        .map((i) => {
+          const path = i.path.length > 0 ? i.path.join(".") : "<root>";
+          return `  - ${path}: ${i.message}${i.code ? ` (${i.code})` : ""}`;
+        })
+        .join("\n");
+      expect.fail(
+        `Response body did not match the generated OpenAPI schema:\n${formatted}\n\nReceived body:\n${JSON.stringify(body, null, 2)}`,
+      );
+    }
+    throw err;
+  }
+}
 
 // Test fixtures live in clearly-namespaced ranges so cleanup can never delete
 // real data and pre-existing real data can never contaminate test averages.
