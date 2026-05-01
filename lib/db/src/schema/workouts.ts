@@ -17,6 +17,12 @@ export const workoutsTable = pgTable("workouts", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   dateIdx: index("workouts_date_idx").on(t.date),
+  sessionEquipmentRecentIdx: index("workouts_session_equipment_recent_idx").on(
+    t.sessionType,
+    t.equipment,
+    t.date.desc(),
+    t.createdAt.desc(),
+  ),
 }));
 
 export type WorkoutRow = typeof workoutsTable.$inferSelect;
