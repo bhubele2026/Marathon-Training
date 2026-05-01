@@ -113,6 +113,8 @@ router.get("/dashboard/weekly-mileage", async (_req, res) => {
   })));
 });
 
+const ARSENAL = ["Tonal", "Peloton Tread", "Peloton Bike", "Peloton Row"] as const;
+
 router.get("/dashboard/equipment-usage", async (_req, res) => {
   const rows = await db.execute<{ equipment: string; sessions: number; total_minutes: number; total_load: number; total_distance: number }>(
     sql`SELECT equipment,
@@ -120,15 +122,30 @@ router.get("/dashboard/equipment-usage", async (_req, res) => {
       COALESCE(SUM(duration_min), 0)::float AS total_minutes,
       COALESCE(SUM(total_load), 0)::float AS total_load,
       COALESCE(SUM(distance_mi), 0)::float AS total_distance
-      FROM workouts GROUP BY equipment ORDER BY sessions DESC`,
+      FROM workouts GROUP BY equipment`,
   );
-  res.json(rows.rows.map((r) => ({
-    equipment: r.equipment,
-    sessions: r.sessions,
-    totalMinutes: r.total_minutes,
-    totalLoad: r.total_load,
-    totalDistance: r.total_distance,
-  })));
+  const byName = new Map(rows.rows.map((r) => [r.equipment, r]));
+  const arsenal = ARSENAL.map((name) => {
+    const r = byName.get(name);
+    byName.delete(name);
+    return {
+      equipment: name,
+      sessions: r?.sessions ?? 0,
+      totalMinutes: r?.total_minutes ?? 0,
+      totalLoad: r?.total_load ?? 0,
+      totalDistance: r?.total_distance ?? 0,
+    };
+  });
+  const extras = Array.from(byName.values())
+    .map((r) => ({
+      equipment: r.equipment,
+      sessions: r.sessions,
+      totalMinutes: r.total_minutes,
+      totalLoad: r.total_load,
+      totalDistance: r.total_distance,
+    }))
+    .sort((a, b) => b.sessions - a.sessions);
+  res.json([...arsenal, ...extras]);
 });
 
 router.get("/dashboard/long-run-progression", async (_req, res) => {
