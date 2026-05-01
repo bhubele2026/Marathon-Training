@@ -614,6 +614,7 @@ components:
           weeklyLoadPlanned,
           weeklySessionsCompleted,
           weeklySessionsPlanned,
+          weeklyLifestyleMinutes,
           totalMilesAllTime,
           longestRunMi,
           weightStart,
@@ -634,6 +635,7 @@ components:
         weeklyLoadPlanned: { type: number }
         weeklySessionsCompleted: { type: integer }
         weeklySessionsPlanned: { type: integer }
+        weeklyLifestyleMinutes: { type: number }
         totalMilesAllTime: { type: number }
         longestRunMi: { type: number }
         weightStart: { type: number }

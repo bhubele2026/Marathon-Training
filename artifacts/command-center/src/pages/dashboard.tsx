@@ -239,6 +239,13 @@ export default function Dashboard() {
                 </div>
                 <Progress value={(summary.weeklySessionsCompleted / Math.max(summary.weeklySessionsPlanned, 1)) * 100} className="h-3" />
               </div>
+              <div
+                className="flex items-center justify-between border-t border-border pt-4 text-sm font-bold uppercase text-muted-foreground"
+                data-testid="row-lifestyle-minutes"
+              >
+                <span>Lifestyle Minutes</span>
+                <span className="font-mono text-foreground">{formatDuration(summary.weeklyLifestyleMinutes)}</span>
+              </div>
             </CardContent>
           </Card>
 

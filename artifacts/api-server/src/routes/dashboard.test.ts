@@ -75,8 +75,14 @@ describe("GET /api/dashboard/summary", () => {
     // Workouts in-range contribute to weekly actuals.
     await insertWorkout({ date: "2099-06-01", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 5, totalLoad: 300 });
     await insertWorkout({ date: "2099-06-02", sessionType: T_STRENGTH, equipment: E_GYM, distanceMi: null, totalLoad: 500 });
+    // In-range Lifestyle entries must NOT pollute training mileage / load /
+    // sessions, but their durations should sum into weeklyLifestyleMinutes.
+    await insertWorkout({ date: "2099-06-03", sessionType: "Dog Walk", equipment: "Lifestyle", distanceMi: 1.2, durationMin: 25, totalLoad: 50 });
+    await insertWorkout({ date: "2099-06-05", sessionType: "Yard Work", equipment: "Lifestyle", distanceMi: null, durationMin: 45, totalLoad: 80 });
     // Out-of-range workout must not count toward weekly actuals.
     await insertWorkout({ date: "2099-06-30", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 7, totalLoad: 400 });
+    // Out-of-range Lifestyle entry must not count toward weeklyLifestyleMinutes.
+    await insertWorkout({ date: "2099-06-30", sessionType: "Hike", equipment: "Lifestyle", durationMin: 90 });
     // Latest weight comes from our 2099 measurement (newer than any real row).
     await insertMeasurement({ date: "2099-05-30", weight: 232.5 });
 
@@ -88,12 +94,13 @@ describe("GET /api/dashboard/summary", () => {
       expect.objectContaining({
         currentWeek: week,
         currentPhase: phase,
-        weeklyMilesActual: 5, // only the in-range run contributes a distance
+        weeklyMilesActual: 5, // only the in-range run; Lifestyle 1.2mi excluded
         weeklyMilesPlanned: 30,
-        weeklyLoadActual: 800, // 300 + 500
+        weeklyLoadActual: 800, // 300 + 500; Lifestyle loads (50, 80) excluded
         weeklyLoadPlanned: 2000,
-        weeklySessionsCompleted: 2, // 2 in-range workouts
+        weeklySessionsCompleted: 2, // 2 in-range training workouts; 2 Lifestyle excluded
         weeklySessionsPlanned: 2, // 2 non-rest plan days
+        weeklyLifestyleMinutes: 70, // 25 + 45; out-of-range 90 excluded
         weightStart: 281.6,
         weightGoal: 210,
         weightCurrent: 232.5,

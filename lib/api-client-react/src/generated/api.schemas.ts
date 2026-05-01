@@ -208,6 +208,7 @@ export interface DashboardSummary {
   weeklyLoadPlanned: number;
   weeklySessionsCompleted: number;
   weeklySessionsPlanned: number;
+  weeklyLifestyleMinutes: number;
   totalMilesAllTime: number;
   longestRunMi: number;
   weightStart: number;

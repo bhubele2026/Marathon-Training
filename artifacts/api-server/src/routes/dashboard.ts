@@ -23,7 +23,10 @@ router.get("/dashboard/summary", async (_req, res) => {
   const endDate = weekRow?.endDate ?? today;
 
   const weekActuals = await db.execute<{ miles: number; load: number; sessions: number }>(
-    sql`SELECT COALESCE(SUM(distance_mi), 0)::float AS miles, COALESCE(SUM(total_load), 0)::float AS load, COUNT(*)::int AS sessions FROM workouts WHERE date BETWEEN ${startDate} AND ${endDate}`,
+    sql`SELECT COALESCE(SUM(distance_mi), 0)::float AS miles, COALESCE(SUM(total_load), 0)::float AS load, COUNT(*)::int AS sessions FROM workouts WHERE date BETWEEN ${startDate} AND ${endDate} AND equipment <> 'Lifestyle'`,
+  );
+  const weekLifestyle = await db.execute<{ minutes: number }>(
+    sql`SELECT COALESCE(SUM(duration_min), 0)::float AS minutes FROM workouts WHERE date BETWEEN ${startDate} AND ${endDate} AND equipment = 'Lifestyle'`,
   );
   const weekPlanned = await db.execute<{ planned_sessions: number }>(
     sql`SELECT COUNT(*)::int AS planned_sessions FROM plan_days WHERE week = ${weekRow?.week ?? 0} AND is_rest = false`,
@@ -76,6 +79,7 @@ router.get("/dashboard/summary", async (_req, res) => {
     weeklyLoadPlanned: weekRow?.plannedTotalLoad ?? 0,
     weeklySessionsCompleted: weekActuals.rows[0]?.sessions ?? 0,
     weeklySessionsPlanned: weekPlanned.rows[0]?.planned_sessions ?? 0,
+    weeklyLifestyleMinutes: weekLifestyle.rows[0]?.minutes ?? 0,
     totalMilesAllTime: allTime.rows[0]?.total_miles ?? 0,
     longestRunMi: longestRunActual.rows[0]?.longest ?? 0,
     weightStart: START_WEIGHT,

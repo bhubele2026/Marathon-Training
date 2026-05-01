@@ -309,6 +309,7 @@ export const GetDashboardSummaryResponse = zod.object({
   weeklyLoadPlanned: zod.number(),
   weeklySessionsCompleted: zod.number(),
   weeklySessionsPlanned: zod.number(),
+  weeklyLifestyleMinutes: zod.number(),
   totalMilesAllTime: zod.number(),
   longestRunMi: zod.number(),
   weightStart: zod.number(),
