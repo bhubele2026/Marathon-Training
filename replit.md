@@ -39,6 +39,8 @@ UI is an orange-on-dark "mission control" theme. No emojis anywhere.
 ## Key commands
 
 - `pnpm run typecheck` — typecheck everything
+- `pnpm run test` — run every workspace package's `test` script (currently the api-server vitest suite). Also wired up as a validation step so it runs before tasks are marked complete.
+- `pnpm --filter @workspace/api-server run test` — run just the api-server vitest suite
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks/zod from `lib/api-spec/openapi.yaml`
 - `pnpm --filter @workspace/db run push` — push schema (dev)
 - `pnpm --filter @workspace/scripts run seed` — reseed plan + baseline measurements
