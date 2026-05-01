@@ -1,8 +1,8 @@
-import { useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useEffect, useState } from "react";
+import { useForm, type Path } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Sparkles } from "lucide-react";
+import { AlertCircle, Sparkles } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,6 +32,10 @@ import {
   WorkoutSuggestions,
 } from "@workspace/api-client-react";
 import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
+import {
+  applyValidationErrorsToForm,
+  extractValidationError,
+} from "@/lib/api-errors";
 
 const formSchema = z.object({
   date: z.string().min(1, "Date is required"),
@@ -57,11 +62,27 @@ interface WorkoutFormProps {
   workoutId?: number;
 }
 
+const KNOWN_FIELDS = [
+  "date",
+  "equipment",
+  "sessionType",
+  "durationMin",
+  "distanceMi",
+  "pace",
+  "avgHr",
+  "rpe",
+  "strengthLoad",
+  "totalLoad",
+  "notes",
+  "planDayId",
+] as const satisfies ReadonlyArray<Path<FormValues>>;
+
 export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutId }: WorkoutFormProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const createWorkout = useCreateWorkout();
   const updateWorkout = useUpdateWorkout();
+  const [serverFormErrors, setServerFormErrors] = useState<string[]>([]);
 
   const buildDefaults = (): FormValues => ({
     date: initial?.date || new Date().toISOString().split('T')[0],
@@ -86,9 +107,28 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
   useEffect(() => {
     if (open) {
       form.reset(buildDefaults());
+      setServerFormErrors([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initial?.date, initial?.equipment, initial?.sessionType, initial?.planDayId, workoutId]);
+
+  const handleMutationError = (error: unknown, fallbackTitle: string) => {
+    const envelope = extractValidationError(error);
+    if (envelope) {
+      const { formErrors } = applyValidationErrorsToForm(envelope, form, KNOWN_FIELDS);
+      setServerFormErrors(formErrors);
+      toast({
+        title: "Please fix the highlighted fields",
+        description:
+          formErrors[0] ??
+          "The server rejected this workout. Check the form for details.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setServerFormErrors([]);
+    toast({ title: fallbackTitle, variant: "destructive" });
+  };
 
   const isEditMode = !!workoutId;
   const dirtyFields = form.formState.dirtyFields;
@@ -124,6 +164,7 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
   const invalidateData = () => invalidateMissionRelatedQueries(queryClient);
 
   const onSubmit = (data: FormValues) => {
+    setServerFormErrors([]);
     const payload = {
       ...data,
       planDayId: data.planDayId ?? undefined,
@@ -137,8 +178,8 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
           onOpenChange(false);
           form.reset();
         },
-        onError: () => {
-          toast({ title: "Failed to update workout", variant: "destructive" });
+        onError: (error) => {
+          handleMutationError(error, "Failed to update workout");
         }
       });
     } else {
@@ -149,8 +190,8 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
           onOpenChange(false);
           form.reset();
         },
-        onError: () => {
-          toast({ title: "Failed to log workout", variant: "destructive" });
+        onError: (error) => {
+          handleMutationError(error, "Failed to log workout");
         }
       });
     }
@@ -164,6 +205,19 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {serverFormErrors.length > 0 && (
+              <Alert variant="destructive" data-testid="workout-form-errors">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>We couldn't save this workout</AlertTitle>
+                <AlertDescription>
+                  <ul className="list-disc pl-4 space-y-1">
+                    {serverFormErrors.map((message, idx) => (
+                      <li key={idx}>{message}</li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}

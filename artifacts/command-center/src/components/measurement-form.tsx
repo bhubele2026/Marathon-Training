@@ -1,6 +1,8 @@
-import { useForm } from "react-hook-form";
+import { useEffect, useState } from "react";
+import { useForm, type Path } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { AlertCircle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +17,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,6 +31,10 @@ import {
   getGetWeightTrendQueryKey,
   Measurement,
 } from "@workspace/api-client-react";
+import {
+  applyValidationErrorsToForm,
+  extractValidationError,
+} from "@/lib/api-errors";
 
 const formSchema = z.object({
   date: z.string().min(1, "Date is required"),
@@ -43,6 +50,18 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+const KNOWN_FIELDS = [
+  "date",
+  "weight",
+  "lArm",
+  "rArm",
+  "lLeg",
+  "rLeg",
+  "belly",
+  "chest",
+  "notes",
+] as const satisfies ReadonlyArray<Path<FormValues>>;
+
 interface MeasurementFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -50,36 +69,37 @@ interface MeasurementFormProps {
   measurementId?: number;
 }
 
-// NOTE: We'll add the generated hooks above, assuming they exist
-// Let's check API later if they differ, but we can assume standard naming
-// Wait, the hook for creating a measurement is `useCreateMeasurement` - wait, I need to make sure the hook is there.
-// If it's not exported, the tsc will fail and I'll fix it.
-
 export function MeasurementForm({ open, onOpenChange, initial, measurementId }: MeasurementFormProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
-  // We'll cast them to any if they are missing or use generated ones. Let's assume standard Orval names.
-  // Actually, I can check lib/api-client-react/src/generated/api.ts for measurement hooks.
-  // `useCreateMeasurement` should be there.
-  
-  const createMeasurement = (useCreateMeasurement as any)();
-  const updateMeasurement = (useUpdateMeasurement as any)();
+  const createMeasurement = useCreateMeasurement();
+  const updateMeasurement = useUpdateMeasurement();
+  const [serverFormErrors, setServerFormErrors] = useState<string[]>([]);
+
+  const buildDefaults = (): FormValues => ({
+    date: initial?.date || new Date().toISOString().split('T')[0],
+    weight: initial?.weight ?? null,
+    lArm: initial?.lArm ?? null,
+    rArm: initial?.rArm ?? null,
+    lLeg: initial?.lLeg ?? null,
+    rLeg: initial?.rLeg ?? null,
+    belly: initial?.belly ?? null,
+    chest: initial?.chest ?? null,
+    notes: initial?.notes || "",
+  });
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      date: initial?.date || new Date().toISOString().split('T')[0],
-      weight: initial?.weight || null,
-      lArm: initial?.lArm || null,
-      rArm: initial?.rArm || null,
-      lLeg: initial?.lLeg || null,
-      rLeg: initial?.rLeg || null,
-      belly: initial?.belly || null,
-      chest: initial?.chest || null,
-      notes: initial?.notes || "",
-    },
+    defaultValues: buildDefaults(),
   });
+
+  useEffect(() => {
+    if (open) {
+      form.reset(buildDefaults());
+      setServerFormErrors([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initial?.date, measurementId]);
 
   const invalidateData = () => {
     queryClient.invalidateQueries({ queryKey: getListMeasurementsQueryKey() });
@@ -87,7 +107,26 @@ export function MeasurementForm({ open, onOpenChange, initial, measurementId }: 
     queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
   };
 
+  const handleMutationError = (error: unknown, fallbackTitle: string) => {
+    const envelope = extractValidationError(error);
+    if (envelope) {
+      const { formErrors } = applyValidationErrorsToForm(envelope, form, KNOWN_FIELDS);
+      setServerFormErrors(formErrors);
+      toast({
+        title: "Please fix the highlighted fields",
+        description:
+          formErrors[0] ??
+          "The server rejected this measurement. Check the form for details.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setServerFormErrors([]);
+    toast({ title: fallbackTitle, variant: "destructive" });
+  };
+
   const onSubmit = (data: FormValues) => {
+    setServerFormErrors([]);
     if (measurementId) {
       updateMeasurement.mutate({ id: measurementId, data }, {
         onSuccess: () => {
@@ -96,8 +135,8 @@ export function MeasurementForm({ open, onOpenChange, initial, measurementId }: 
           onOpenChange(false);
           form.reset();
         },
-        onError: () => {
-          toast({ title: "Error updating measurement", variant: "destructive" });
+        onError: (error) => {
+          handleMutationError(error, "Error updating measurement");
         }
       });
     } else {
@@ -108,8 +147,8 @@ export function MeasurementForm({ open, onOpenChange, initial, measurementId }: 
           onOpenChange(false);
           form.reset();
         },
-        onError: () => {
-          toast({ title: "Error adding measurement", variant: "destructive" });
+        onError: (error) => {
+          handleMutationError(error, "Error adding measurement");
         }
       });
     }
@@ -123,6 +162,19 @@ export function MeasurementForm({ open, onOpenChange, initial, measurementId }: 
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {serverFormErrors.length > 0 && (
+              <Alert variant="destructive" data-testid="measurement-form-errors">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>We couldn't save this measurement</AlertTitle>
+                <AlertDescription>
+                  <ul className="list-disc pl-4 space-y-1">
+                    {serverFormErrors.map((message, idx) => (
+                      <li key={idx}>{message}</li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
             <FormField
               control={form.control}
               name="date"
