@@ -6,7 +6,7 @@ import { toPlanDay, toPlanWeek, toWorkout } from "../lib/transforms";
 const router: IRouter = Router();
 
 const RACE_DATE = "2027-05-01";
-const START_DATE = "2026-05-04";
+const START_DATE = "2026-05-01";
 const START_WEIGHT = 281.6;
 const GOAL_WEIGHT = 210;
 

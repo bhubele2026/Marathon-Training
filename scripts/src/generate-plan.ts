@@ -42,7 +42,7 @@ export type BodyRow = {
   notes: string;
 };
 
-export const PLAN_START_ISO = "2026-05-04";
+export const PLAN_START_ISO = "2026-05-01";
 export const RACE_DATE_ISO = "2027-05-01";
 export const TOTAL_WEEKS = 52;
 
