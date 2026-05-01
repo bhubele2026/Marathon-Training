@@ -25,16 +25,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useCreateWorkout,
   useUpdateWorkout,
-  getGetDashboardSummaryQueryKey,
-  getGetTodayPlanQueryKey,
-  getListWorkoutsQueryKey,
-  getGetWeeklyMileageQueryKey,
-  getGetEquipmentUsageQueryKey,
-  getGetLongRunProgressionQueryKey,
-  getGetRecentActivityQueryKey,
-  getListPlanWeeksQueryKey,
   Workout,
 } from "@workspace/api-client-react";
+import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
 
 const formSchema = z.object({
   date: z.string().min(1, "Date is required"),
@@ -84,18 +77,7 @@ export function WorkoutForm({ open, onOpenChange, initial, workoutId }: WorkoutF
     },
   });
 
-  const invalidateData = () => {
-    queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getGetTodayPlanQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getListWorkoutsQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getGetWeeklyMileageQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getGetEquipmentUsageQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getGetLongRunProgressionQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getGetRecentActivityQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getListPlanWeeksQueryKey() });
-    // Invalidate individual weeks as well
-    queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === '/api/plan/weeks' });
-  };
+  const invalidateData = () => invalidateMissionRelatedQueries(queryClient);
 
   const onSubmit = (data: FormValues) => {
     const payload = {

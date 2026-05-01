@@ -18,7 +18,8 @@ import { formatDistance, formatLoad, formatWeight, formatDate, formatDuration } 
 import { format } from "date-fns";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Activity, CalendarDays, CheckCircle2, TrendingDown, Target, Clock, Zap } from "lucide-react";
+import { Activity, CalendarDays, CheckCircle2, TrendingDown, Target, Clock, Zap, Play, Edit, Trash2, ExternalLink } from "lucide-react";
+import { useMissionActions } from "@/hooks/use-mission-actions";
 
 export default function Dashboard() {
   const { data: summary, isLoading: loadingSummary } = useGetDashboardSummary();
@@ -28,6 +29,7 @@ export default function Dashboard() {
   const { data: longRun, isLoading: loadingLongRun } = useGetLongRunProgression();
   const { data: activity, isLoading: loadingActivity } = useGetRecentActivity();
   const { data: today, isLoading: loadingToday } = useGetTodayPlan();
+  const { openLog, openEdit, requestDelete, isDeleting, dialogs } = useMissionActions(today);
 
   if (loadingSummary) return <DashboardSkeleton />;
 
@@ -100,35 +102,69 @@ export default function Dashboard() {
           
           {/* Today's Mission */}
           <Card className="border-primary/20 bg-primary/5">
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-lg uppercase tracking-wider text-primary">Today's Mission</CardTitle>
+              <Link href="/today">
+                <Button variant="ghost" size="sm" className="text-xs uppercase tracking-wider text-muted-foreground hover:text-primary">
+                  Open Today <ExternalLink className="ml-1 h-3 w-3" />
+                </Button>
+              </Link>
             </CardHeader>
             <CardContent>
               {loadingToday ? <Skeleton className="h-16" /> : (
                 today?.hasPlan ? (
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-background p-4 rounded-md border border-border">
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-bold text-lg">{today.plan?.sessionType}</span>
                         <span className="text-xs px-2 py-0.5 bg-secondary text-secondary-foreground rounded uppercase font-bold">{today.plan?.equipment}</span>
                       </div>
                       <p className="text-sm text-muted-foreground line-clamp-2">{today.plan?.description}</p>
-                      <div className="flex gap-4 mt-3 text-sm font-medium">
+                      <div className="flex flex-wrap gap-4 mt-3 text-sm font-medium">
                         {today.plan?.distanceMi ? <span>{formatDistance(today.plan.distanceMi)}</span> : null}
                         {today.plan?.cardioMin ? <span>{today.plan.cardioMin} min</span> : null}
                         {today.plan?.strengthLoad ? <span>Load: {today.plan.strengthLoad}</span> : null}
                       </div>
-                    </div>
-                    <div>
-                      {today.loggedWorkout ? (
-                        <div className="flex items-center gap-2 text-primary font-bold bg-primary/10 px-4 py-2 rounded-md">
-                          <CheckCircle2 className="h-5 w-5" />
-                          MISSION COMPLETE
+
+                      {today.loggedWorkout && (
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 pt-3 border-t border-border text-sm">
+                          <span className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Logged:</span>
+                          {today.loggedWorkout.distanceMi != null && (
+                            <span><span className="text-muted-foreground">Dist</span> <span className="font-bold">{formatDistance(today.loggedWorkout.distanceMi)}</span></span>
+                          )}
+                          {today.loggedWorkout.durationMin != null && (
+                            <span><span className="text-muted-foreground">Dur</span> <span className="font-bold">{formatDuration(today.loggedWorkout.durationMin)}</span></span>
+                          )}
+                          {today.loggedWorkout.pace && (
+                            <span><span className="text-muted-foreground">Pace</span> <span className="font-bold">{today.loggedWorkout.pace}/mi</span></span>
+                          )}
+                          {today.loggedWorkout.rpe != null && (
+                            <span><span className="text-muted-foreground">RPE</span> <span className="font-bold">{today.loggedWorkout.rpe}/10</span></span>
+                          )}
                         </div>
+                      )}
+                    </div>
+                    <div className="shrink-0 flex flex-col items-stretch md:items-end gap-2">
+                      {today.loggedWorkout ? (
+                        <>
+                          <div className="flex items-center gap-2 text-primary font-bold bg-primary/10 px-4 py-2 rounded-md justify-center">
+                            <CheckCircle2 className="h-5 w-5" />
+                            MISSION COMPLETE
+                          </div>
+                          <div className="flex gap-2 justify-end">
+                            <Button variant="outline" size="sm" onClick={openEdit}>
+                              <Edit className="h-4 w-4 mr-1" /> Edit
+                            </Button>
+                            <Button variant="destructive" size="sm" onClick={requestDelete} disabled={isDeleting}>
+                              <Trash2 className="h-4 w-4 mr-1" /> Delete
+                            </Button>
+                          </div>
+                        </>
                       ) : (
-                        <Link href="/today">
-                          <Button size="lg" className="w-full md:w-auto uppercase font-bold tracking-wider">Execute</Button>
-                        </Link>
+                        <Button size="lg" className="w-full md:w-auto uppercase font-bold tracking-wider" onClick={openLog}>
+                          <Play className="mr-2 h-4 w-4" />
+                          Log Mission
+                        </Button>
                       )}
                     </div>
                   </div>
@@ -140,6 +176,7 @@ export default function Dashboard() {
               )}
             </CardContent>
           </Card>
+          {dialogs}
 
           {/* Current Week Progress */}
           <Card>

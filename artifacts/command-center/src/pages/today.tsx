@@ -1,44 +1,14 @@
-import { useState } from "react";
-import { useGetTodayPlan, useDeleteWorkout, getGetDashboardSummaryQueryKey, getGetTodayPlanQueryKey, getListWorkoutsQueryKey, getGetWeeklyMileageQueryKey, getGetEquipmentUsageQueryKey, getGetLongRunProgressionQueryKey, getGetRecentActivityQueryKey, getListPlanWeeksQueryKey } from "@workspace/api-client-react";
+import { useGetTodayPlan } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistance, formatLoad, formatDuration } from "@/lib/format";
 import { CheckCircle2, Activity, Play, Trash2, Edit } from "lucide-react";
-import { WorkoutForm } from "@/components/workout-form";
-import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { useMissionActions } from "@/hooks/use-mission-actions";
 
 export default function Today() {
   const { data: today, isLoading } = useGetTodayPlan();
-  const [formOpen, setFormOpen] = useState(false);
-  const [editFormOpen, setEditFormOpen] = useState(false);
-  const deleteWorkout = useDeleteWorkout();
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-
-  const invalidateData = () => {
-    queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getGetTodayPlanQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getListWorkoutsQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getGetWeeklyMileageQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getGetEquipmentUsageQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getGetLongRunProgressionQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getGetRecentActivityQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getListPlanWeeksQueryKey() });
-    queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === '/api/plan/weeks' });
-  };
+  const { openLog, openEdit, requestDelete, isDeleting, dialogs } = useMissionActions(today);
 
   if (isLoading) {
     return <div className="space-y-6"><Skeleton className="h-64" /></div>;
@@ -112,7 +82,7 @@ export default function Today() {
 
                   {!today.loggedWorkout && (
                     <div className="shrink-0 flex items-center justify-center border-t md:border-t-0 md:border-l border-border pt-6 md:pt-0 md:pl-6">
-                      <Button size="lg" className="w-full md:w-auto h-16 px-8 text-lg uppercase font-black tracking-widest group" onClick={() => setFormOpen(true)}>
+                      <Button size="lg" className="w-full md:w-auto h-16 px-8 text-lg uppercase font-black tracking-widest group" onClick={openLog}>
                         <Play className="mr-2 h-6 w-6 group-hover:scale-110 transition-transform" />
                         Log Mission
                       </Button>
@@ -131,39 +101,12 @@ export default function Today() {
                   Mission Accomplished
                 </CardTitle>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setEditFormOpen(true)}>
+                  <Button variant="outline" size="sm" onClick={openEdit}>
                     <Edit className="h-4 w-4 mr-2" /> Edit
                   </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="destructive" size="sm">
-                        <Trash2 className="h-4 w-4 mr-2" /> Delete
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will permanently delete this workout log.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => {
-                            deleteWorkout.mutate({ id: today.loggedWorkout!.id }, {
-                              onSuccess: () => {
-                                toast({ title: "Workout deleted" });
-                                invalidateData();
-                              }
-                            });
-                          }}
-                        >
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                  <Button variant="destructive" size="sm" onClick={requestDelete} disabled={isDeleting}>
+                    <Trash2 className="h-4 w-4 mr-2" /> Delete
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent className="p-6">
@@ -217,30 +160,7 @@ export default function Today() {
         </div>
       )}
 
-      {today.plan && (
-        <WorkoutForm 
-          open={formOpen} 
-          onOpenChange={setFormOpen} 
-          initial={{
-            date: today.date,
-            equipment: today.plan.equipment,
-            sessionType: today.plan.sessionType,
-            distanceMi: today.plan.distanceMi,
-            durationMin: today.plan.cardioMin,
-            totalLoad: today.plan.totalLoad,
-            planDayId: today.plan.id,
-          }} 
-        />
-      )}
-
-      {today.loggedWorkout && (
-        <WorkoutForm
-          open={editFormOpen}
-          onOpenChange={setEditFormOpen}
-          workoutId={today.loggedWorkout.id}
-          initial={today.loggedWorkout}
-        />
-      )}
+      {dialogs}
     </div>
   );
 }
