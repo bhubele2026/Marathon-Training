@@ -408,6 +408,11 @@ components:
         rpe: { type: integer, nullable: true }
         avgHr: { type: integer, nullable: true }
         pace: { type: string, nullable: true }
+        paceSource:
+          type: string
+          enum: [plan, history]
+          nullable: true
+          description: Where the suggested pace came from. "plan" if it was prescribed by the plan day, "history" if it was averaged from recent comparable sessions. Null when no pace suggestion is available.
         sampleSize: { type: integer }
 
     Workout:

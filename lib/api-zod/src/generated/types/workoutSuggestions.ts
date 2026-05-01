@@ -5,10 +5,13 @@
  * Marathon Command Center API
  * OpenAPI spec version: 0.1.0
  */
+import type { WorkoutSuggestionsPaceSource } from "./workoutSuggestionsPaceSource";
 
 export interface WorkoutSuggestions {
   rpe?: number | null;
   avgHr?: number | null;
   pace?: string | null;
+  /** Where the suggested pace came from. "plan" if it was prescribed by the plan day, "history" if it was averaged from recent comparable sessions. Null when no pace suggestion is available. */
+  paceSource?: WorkoutSuggestionsPaceSource;
   sampleSize: number;
 }

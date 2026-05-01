@@ -76,10 +76,24 @@ export interface Workout {
   createdAt: string;
 }
 
+/**
+ * Where the suggested pace came from. "plan" if it was prescribed by the plan day, "history" if it was averaged from recent comparable sessions. Null when no pace suggestion is available.
+ */
+export type WorkoutSuggestionsPaceSource =
+  | (typeof WorkoutSuggestionsPaceSource)[keyof typeof WorkoutSuggestionsPaceSource]
+  | null;
+
+export const WorkoutSuggestionsPaceSource = {
+  plan: "plan",
+  history: "history",
+} as const;
+
 export interface WorkoutSuggestions {
   rpe?: number | null;
   avgHr?: number | null;
   pace?: string | null;
+  /** Where the suggested pace came from. "plan" if it was prescribed by the plan day, "history" if it was averaged from recent comparable sessions. Null when no pace suggestion is available. */
+  paceSource?: WorkoutSuggestionsPaceSource;
   sampleSize: number;
 }
 

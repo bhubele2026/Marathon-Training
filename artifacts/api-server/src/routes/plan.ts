@@ -145,14 +145,22 @@ async function suggestionsForPlan(plan: PlanDayRow, today: string) {
   const rpe = rpeValues.length ? Math.round(avg(rpeValues)) : null;
   const avgHr = hrValues.length ? Math.round(avg(hrValues)) : null;
   // Prefer the planned pace (e.g. from the session prescription) when available;
-  // otherwise fall back to the average of recent comparable sessions.
-  const pace = plan.pace
-    ? plan.pace
-    : paceSeconds.length
-      ? formatSecondsAsPace(avg(paceSeconds))
-      : null;
+  // otherwise fall back to the average of recent comparable sessions. Surface
+  // which source produced the pace so the UI can label it accurately.
+  let pace: string | null;
+  let paceSource: "plan" | "history" | null;
+  if (plan.pace) {
+    pace = plan.pace;
+    paceSource = "plan";
+  } else if (paceSeconds.length) {
+    pace = formatSecondsAsPace(avg(paceSeconds));
+    paceSource = "history";
+  } else {
+    pace = null;
+    paceSource = null;
+  }
 
-  return { rpe, avgHr, pace, sampleSize: recent.length };
+  return { rpe, avgHr, pace, paceSource, sampleSize: recent.length };
 }
 
 router.get("/plan/today", async (_req, res) => {

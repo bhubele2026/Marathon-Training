@@ -127,6 +127,12 @@ export const GetTodayPlanResponse = zod.object({
       rpe: zod.number().nullish(),
       avgHr: zod.number().nullish(),
       pace: zod.string().nullish(),
+      paceSource: zod
+        .enum(["plan", "history"])
+        .nullish()
+        .describe(
+          'Where the suggested pace came from. \"plan\" if it was prescribed by the plan day, \"history\" if it was averaged from recent comparable sessions. Null when no pace suggestion is available.',
+        ),
       sampleSize: zod.number(),
     })
     .nullish(),

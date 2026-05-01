@@ -92,7 +92,7 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
 
   const isEditMode = !!workoutId;
   const dirtyFields = form.formState.dirtyFields;
-  const suggestionHelperText = suggestions?.sampleSize
+  const historyHelperText = suggestions?.sampleSize
     ? `Based on your last ${suggestions.sampleSize} ${
         suggestions.sampleSize === 1 ? "session" : "sessions"
       }`
@@ -100,16 +100,26 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
   const showSuggestion = (fieldName: "rpe" | "avgHr" | "pace") =>
     !isEditMode && suggestions?.[fieldName] != null && !dirtyFields[fieldName];
 
-  const SuggestedHint = () =>
-    suggestionHelperText ? (
+  const getSuggestionHelperText = (fieldName: "rpe" | "avgHr" | "pace") => {
+    if (fieldName === "pace" && suggestions?.paceSource === "plan") {
+      return "From your plan";
+    }
+    return historyHelperText;
+  };
+
+  const SuggestedHint = ({ fieldName }: { fieldName: "rpe" | "avgHr" | "pace" }) => {
+    const helperText = getSuggestionHelperText(fieldName);
+    if (!helperText) return null;
+    return (
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
         <Badge variant="secondary" className="gap-1 px-1.5 py-0 h-4 text-[10px] font-medium">
           <Sparkles className="h-2.5 w-2.5" />
           Suggested
         </Badge>
-        <span>{suggestionHelperText}</span>
+        <span>{helperText}</span>
       </div>
-    ) : null;
+    );
+  };
 
   const invalidateData = () => invalidateMissionRelatedQueries(queryClient);
 
@@ -274,7 +284,7 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
                     <FormControl>
                       <Input placeholder="8:30" {...field} value={field.value ?? ""} />
                     </FormControl>
-                    {showSuggestion("pace") && <SuggestedHint />}
+                    {showSuggestion("pace") && <SuggestedHint fieldName="pace" />}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -288,7 +298,7 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
                     <FormControl>
                       <Input type="number" placeholder="140" {...field} value={field.value ?? ""} />
                     </FormControl>
-                    {showSuggestion("avgHr") && <SuggestedHint />}
+                    {showSuggestion("avgHr") && <SuggestedHint fieldName="avgHr" />}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -302,7 +312,7 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
                     <FormControl>
                       <Input type="number" min={1} max={10} placeholder="5" {...field} value={field.value ?? ""} />
                     </FormControl>
-                    {showSuggestion("rpe") && <SuggestedHint />}
+                    {showSuggestion("rpe") && <SuggestedHint fieldName="rpe" />}
                     <FormMessage />
                   </FormItem>
                 )}
