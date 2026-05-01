@@ -40,7 +40,7 @@ router.get("/dashboard/summary", async (_req, res) => {
     sql`SELECT COALESCE(SUM(distance_mi), 0)::float AS total_miles FROM workouts`,
   );
   const longestRunActual = await db.execute<{ longest: number }>(
-    sql`SELECT COALESCE(MAX(distance_mi), 0)::float AS longest FROM workouts WHERE session_type ILIKE 'Long Run%'`,
+    sql`SELECT COALESCE(MAX(distance_mi), 0)::float AS longest FROM workouts WHERE session_type IN ('Long Run', 'Race')`,
   );
 
   const lastMeas = await db.execute<{ weight: number | null }>(
@@ -122,7 +122,9 @@ router.get("/dashboard/equipment-usage", async (_req, res) => {
       COALESCE(SUM(duration_min), 0)::float AS total_minutes,
       COALESCE(SUM(total_load), 0)::float AS total_load,
       COALESCE(SUM(distance_mi), 0)::float AS total_distance
-      FROM workouts GROUP BY equipment`,
+      FROM workouts
+      WHERE equipment NOT IN ('Off / Rest', 'Off / Mobility', 'None', 'Rest')
+      GROUP BY equipment`,
   );
   const byName = new Map(rows.rows.map((r) => [r.equipment, r]));
   const arsenal = ARSENAL.map((name) => {
@@ -155,9 +157,9 @@ router.get("/dashboard/long-run-progression", async (_req, res) => {
         TO_CHAR(pd.date, 'YYYY-MM-DD') AS date,
         pd.distance_mi::float AS planned_mi,
         COALESCE((SELECT MAX(distance_mi) FROM workouts w
-          WHERE w.date = pd.date AND w.session_type = 'Long Run'), 0)::float AS actual_mi
+          WHERE w.date = pd.date AND w.session_type IN ('Long Run', 'Race')), 0)::float AS actual_mi
       FROM plan_days pd
-      WHERE pd.session_type = 'Long Run'
+      WHERE pd.session_type IN ('Long Run', 'Race')
       ORDER BY pd.date ASC
     `,
   );
