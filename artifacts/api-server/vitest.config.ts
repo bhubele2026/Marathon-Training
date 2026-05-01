@@ -8,9 +8,11 @@ export default defineConfig({
     hookTimeout: 15_000,
     pool: "forks",
     // Vitest 4 removed `test.poolOptions`; pool-specific options are now
-    // top-level. `singleFork` keeps integration tests in one worker so they
-    // don't race on the shared database.
+    // top-level. `singleFork` puts every file in one worker process and
+    // `fileParallelism: false` runs those files one after another so no two
+    // suites ever hit the shared integration database concurrently.
     forks: { singleFork: true },
+    fileParallelism: false,
     env: {
       NODE_ENV: "production",
       LOG_LEVEL: "silent",

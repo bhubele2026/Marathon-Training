@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import request from "supertest";
 import { sql } from "drizzle-orm";
 import app from "../app";
-import { db, pool, planWeeksTable, planDaysTable, workoutsTable } from "@workspace/db";
+import { db, planWeeksTable, planDaysTable, workoutsTable } from "@workspace/db";
 
 // Test fixtures live in clearly-namespaced ranges so cleanup can never delete
 // real data and pre-existing real data can never contaminate test averages.
@@ -124,10 +124,6 @@ beforeEach(async () => {
 afterEach(async () => {
   await cleanTestData();
   vi.useRealTimers();
-});
-
-afterAll(async () => {
-  await pool.end();
 });
 
 describe("GET /api/plan/weeks/:week", () => {
