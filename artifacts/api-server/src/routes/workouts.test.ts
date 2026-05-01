@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import request from "supertest";
 import {
+  ErrorResponse,
   ListWorkoutsResponse,
   UpdateWorkoutResponse,
+  ValidationErrorResponse,
 } from "@workspace/api-zod";
 import app from "../app";
 import {
@@ -72,7 +74,7 @@ describe("POST /api/workouts", () => {
       // Missing required `date`, `sessionType`, `equipment` fields.
       .send({ rpe: 7 });
     expect(res.status).toBe(400);
-    expect(res.body).toHaveProperty("error");
+    expectMatchesSchema(ValidationErrorResponse, res.body);
   });
 });
 
@@ -134,7 +136,7 @@ describe("GET /api/workouts", () => {
   it("returns 400 when the query fails validation", async () => {
     const res = await request(app).get("/api/workouts").query({ limit: "not-a-number" });
     expect(res.status).toBe(400);
-    expect(res.body).toHaveProperty("error");
+    expectMatchesSchema(ValidationErrorResponse, res.body);
   });
 });
 
@@ -171,6 +173,7 @@ describe("PATCH /api/workouts/:id", () => {
   it("returns 400 for an invalid id", async () => {
     const res = await request(app).patch("/api/workouts/0").send({ rpe: 5 });
     expect(res.status).toBe(400);
+    expectMatchesSchema(ErrorResponse, res.body);
     expect(res.body).toEqual({ error: "invalid id" });
   });
 
@@ -184,7 +187,7 @@ describe("PATCH /api/workouts/:id", () => {
       .patch(`/api/workouts/${id}`)
       .send({ rpe: "not-a-number" });
     expect(res.status).toBe(400);
-    expect(res.body).toHaveProperty("error");
+    expectMatchesSchema(ValidationErrorResponse, res.body);
   });
 
   it("returns 404 when the workout does not exist", async () => {
@@ -192,6 +195,7 @@ describe("PATCH /api/workouts/:id", () => {
       .patch("/api/workouts/999999999")
       .send({ rpe: 5 });
     expect(res.status).toBe(404);
+    expectMatchesSchema(ErrorResponse, res.body);
     expect(res.body).toEqual({ error: "not found" });
   });
 });
@@ -220,6 +224,7 @@ describe("DELETE /api/workouts/:id", () => {
   it("returns 400 for an invalid id", async () => {
     const res = await request(app).delete("/api/workouts/abc");
     expect(res.status).toBe(400);
+    expectMatchesSchema(ErrorResponse, res.body);
     expect(res.body).toEqual({ error: "invalid id" });
   });
 });

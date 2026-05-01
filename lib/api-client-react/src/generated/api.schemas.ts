@@ -9,6 +9,27 @@ export interface HealthStatus {
   status: string;
 }
 
+/**
+ * Standard error envelope returned for non-validation 4xx failures (e.g. invalid id, not found).
+ */
+export interface Error {
+  error: string;
+}
+
+export type ValidationErrorErrorFieldErrors = { [key: string]: string[] };
+
+export type ValidationErrorError = {
+  formErrors: string[];
+  fieldErrors: ValidationErrorErrorFieldErrors;
+};
+
+/**
+ * Error envelope returned when a request body or query fails Zod validation. The `error` field is the structured payload produced by `zodError.flatten()`.
+ */
+export interface ValidationError {
+  error: ValidationErrorError;
+}
+
 export interface PlanDay {
   id: number;
   week: number;

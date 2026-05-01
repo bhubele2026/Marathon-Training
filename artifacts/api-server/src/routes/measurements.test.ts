@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import request from "supertest";
 import {
+  ErrorResponse,
   ListMeasurementsResponse,
   UpdateMeasurementResponse,
+  ValidationErrorResponse,
 } from "@workspace/api-zod";
 import app from "../app";
 import {
@@ -76,7 +78,7 @@ describe("POST /api/measurements", () => {
   it("returns 400 when the body is missing required fields", async () => {
     const res = await request(app).post("/api/measurements").send({ weight: 220 });
     expect(res.status).toBe(400);
-    expect(res.body).toHaveProperty("error");
+    expectMatchesSchema(ValidationErrorResponse, res.body);
   });
 });
 
@@ -120,6 +122,7 @@ describe("PATCH /api/measurements/:id", () => {
   it("returns 400 for an invalid id", async () => {
     const res = await request(app).patch("/api/measurements/0").send({ weight: 220 });
     expect(res.status).toBe(400);
+    expectMatchesSchema(ErrorResponse, res.body);
     expect(res.body).toEqual({ error: "invalid id" });
   });
 
@@ -129,7 +132,7 @@ describe("PATCH /api/measurements/:id", () => {
       .patch(`/api/measurements/${id}`)
       .send({ weight: "not-a-number" });
     expect(res.status).toBe(400);
-    expect(res.body).toHaveProperty("error");
+    expectMatchesSchema(ValidationErrorResponse, res.body);
   });
 
   it("returns 404 when the measurement does not exist", async () => {
@@ -137,6 +140,7 @@ describe("PATCH /api/measurements/:id", () => {
       .patch("/api/measurements/999999999")
       .send({ weight: 220 });
     expect(res.status).toBe(404);
+    expectMatchesSchema(ErrorResponse, res.body);
     expect(res.body).toEqual({ error: "not found" });
   });
 });
@@ -158,6 +162,7 @@ describe("DELETE /api/measurements/:id", () => {
   it("returns 400 for an invalid id", async () => {
     const res = await request(app).delete("/api/measurements/abc");
     expect(res.status).toBe(400);
+    expectMatchesSchema(ErrorResponse, res.body);
     expect(res.body).toEqual({ error: "invalid id" });
   });
 });

@@ -63,6 +63,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PlanWeekDetail" }
+        "404":
+          description: Plan week not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 
   /plan/today:
     get:
@@ -100,6 +105,11 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/Workout" }
+        "400":
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ValidationError" }
     post:
       operationId: createWorkout
       tags: [workouts]
@@ -114,6 +124,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Workout" }
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ValidationError" }
 
   /workouts/{id}:
     patch:
@@ -135,6 +150,19 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Workout" }
+        "400":
+          description: Invalid id or request body
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ValidationError"
+        "404":
+          description: Workout not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
     delete:
       operationId: deleteWorkout
       tags: [workouts]
@@ -145,6 +173,11 @@ paths:
           schema: { type: integer }
       responses:
         "204": { description: No Content }
+        "400":
+          description: Invalid id
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 
   /measurements:
     get:
@@ -172,6 +205,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Measurement" }
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ValidationError" }
 
   /measurements/{id}:
     patch:
@@ -193,6 +231,19 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Measurement" }
+        "400":
+          description: Invalid id or request body
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ValidationError"
+        "404":
+          description: Measurement not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
     delete:
       operationId: deleteMeasurement
       tags: [measurements]
@@ -203,6 +254,11 @@ paths:
           schema: { type: integer }
       responses:
         "204": { description: No Content }
+        "400":
+          description: Invalid id
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 
   /dashboard/summary:
     get:
@@ -287,6 +343,31 @@ components:
       required: [status]
       properties:
         status: { type: string }
+
+    Error:
+      type: object
+      description: Standard error envelope returned for non-validation 4xx failures (e.g. invalid id, not found).
+      required: [error]
+      properties:
+        error: { type: string }
+
+    ValidationError:
+      type: object
+      description: Error envelope returned when a request body or query fails Zod validation. The `error` field is the structured payload produced by `zodError.flatten()`.
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [formErrors, fieldErrors]
+          properties:
+            formErrors:
+              type: array
+              items: { type: string }
+            fieldErrors:
+              type: object
+              additionalProperties:
+                type: array
+                items: { type: string }
 
     PlanDay:
       type: object

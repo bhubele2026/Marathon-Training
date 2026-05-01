@@ -21,6 +21,7 @@ import type {
   CreateWorkoutBody,
   DashboardSummary,
   EquipmentUsage,
+  Error,
   HealthStatus,
   ListWorkoutsParams,
   LongRunPoint,
@@ -31,6 +32,7 @@ import type {
   TodayPlan,
   UpdateMeasurementBody,
   UpdateWorkoutBody,
+  ValidationError,
   WeeklyMileagePoint,
   WeightPoint,
   Workout,
@@ -269,7 +271,7 @@ export const getGetPlanWeekQueryKey = (week: number) => {
 
 export const getGetPlanWeekQueryOptions = <
   TData = Awaited<ReturnType<typeof getPlanWeek>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<Error>,
 >(
   week: number,
   options?: {
@@ -304,11 +306,11 @@ export const getGetPlanWeekQueryOptions = <
 export type GetPlanWeekQueryResult = NonNullable<
   Awaited<ReturnType<typeof getPlanWeek>>
 >;
-export type GetPlanWeekQueryError = ErrorType<unknown>;
+export type GetPlanWeekQueryError = ErrorType<Error>;
 
 export function useGetPlanWeek<
   TData = Awaited<ReturnType<typeof getPlanWeek>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<Error>,
 >(
   week: number,
   options?: {
@@ -429,7 +431,7 @@ export const getListWorkoutsQueryKey = (params?: ListWorkoutsParams) => {
 
 export const getListWorkoutsQueryOptions = <
   TData = Awaited<ReturnType<typeof listWorkouts>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<ValidationError>,
 >(
   params?: ListWorkoutsParams,
   options?: {
@@ -459,11 +461,11 @@ export const getListWorkoutsQueryOptions = <
 export type ListWorkoutsQueryResult = NonNullable<
   Awaited<ReturnType<typeof listWorkouts>>
 >;
-export type ListWorkoutsQueryError = ErrorType<unknown>;
+export type ListWorkoutsQueryError = ErrorType<ValidationError>;
 
 export function useListWorkouts<
   TData = Awaited<ReturnType<typeof listWorkouts>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<ValidationError>,
 >(
   params?: ListWorkoutsParams,
   options?: {
@@ -501,7 +503,7 @@ export const createWorkout = async (
 };
 
 export const getCreateWorkoutMutationOptions = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<ValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -542,10 +544,10 @@ export type CreateWorkoutMutationResult = NonNullable<
   Awaited<ReturnType<typeof createWorkout>>
 >;
 export type CreateWorkoutMutationBody = BodyType<CreateWorkoutBody>;
-export type CreateWorkoutMutationError = ErrorType<unknown>;
+export type CreateWorkoutMutationError = ErrorType<ValidationError>;
 
 export const useCreateWorkout = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<ValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -582,7 +584,7 @@ export const updateWorkout = async (
 };
 
 export const getUpdateWorkoutMutationOptions = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<Error | ValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -623,10 +625,10 @@ export type UpdateWorkoutMutationResult = NonNullable<
   Awaited<ReturnType<typeof updateWorkout>>
 >;
 export type UpdateWorkoutMutationBody = BodyType<UpdateWorkoutBody>;
-export type UpdateWorkoutMutationError = ErrorType<unknown>;
+export type UpdateWorkoutMutationError = ErrorType<Error | ValidationError>;
 
 export const useUpdateWorkout = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<Error | ValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -660,7 +662,7 @@ export const deleteWorkout = async (
 };
 
 export const getDeleteWorkoutMutationOptions = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<Error>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -701,10 +703,10 @@ export type DeleteWorkoutMutationResult = NonNullable<
   Awaited<ReturnType<typeof deleteWorkout>>
 >;
 
-export type DeleteWorkoutMutationError = ErrorType<unknown>;
+export type DeleteWorkoutMutationError = ErrorType<Error>;
 
 export const useDeleteWorkout = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<Error>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -808,7 +810,7 @@ export const createMeasurement = async (
 };
 
 export const getCreateMeasurementMutationOptions = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<ValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -849,10 +851,10 @@ export type CreateMeasurementMutationResult = NonNullable<
   Awaited<ReturnType<typeof createMeasurement>>
 >;
 export type CreateMeasurementMutationBody = BodyType<CreateMeasurementBody>;
-export type CreateMeasurementMutationError = ErrorType<unknown>;
+export type CreateMeasurementMutationError = ErrorType<ValidationError>;
 
 export const useCreateMeasurement = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<ValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -889,7 +891,7 @@ export const updateMeasurement = async (
 };
 
 export const getUpdateMeasurementMutationOptions = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<Error | ValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -930,10 +932,10 @@ export type UpdateMeasurementMutationResult = NonNullable<
   Awaited<ReturnType<typeof updateMeasurement>>
 >;
 export type UpdateMeasurementMutationBody = BodyType<UpdateMeasurementBody>;
-export type UpdateMeasurementMutationError = ErrorType<unknown>;
+export type UpdateMeasurementMutationError = ErrorType<Error | ValidationError>;
 
 export const useUpdateMeasurement = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<Error | ValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -967,7 +969,7 @@ export const deleteMeasurement = async (
 };
 
 export const getDeleteMeasurementMutationOptions = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<Error>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -1008,10 +1010,10 @@ export type DeleteMeasurementMutationResult = NonNullable<
   Awaited<ReturnType<typeof deleteMeasurement>>
 >;
 
-export type DeleteMeasurementMutationError = ErrorType<unknown>;
+export type DeleteMeasurementMutationError = ErrorType<Error>;
 
 export const useDeleteMeasurement = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<Error>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<

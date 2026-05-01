@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import request from "supertest";
-import { GetPlanWeekResponse, GetTodayPlanResponse } from "@workspace/api-zod";
+import {
+  ErrorResponse,
+  GetPlanWeekResponse,
+  GetTodayPlanResponse,
+} from "@workspace/api-zod";
 import app from "../app";
 import {
   TEST_WEEK_MAX,
@@ -33,6 +37,7 @@ describe("GET /api/plan/weeks/:week", () => {
   it("returns 404 when the week does not exist", async () => {
     const res = await request(app).get(`/api/plan/weeks/${TEST_WEEK_MAX}`);
     expect(res.status).toBe(404);
+    expectMatchesSchema(ErrorResponse, res.body);
     expect(res.body).toEqual({ error: "week not found" });
   });
 
