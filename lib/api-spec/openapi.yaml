@@ -311,6 +311,17 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/EquipmentUsage" }
 
+  /dashboard/equipment-phase-summary:
+    get:
+      operationId: getEquipmentPhaseSummary
+      tags: [dashboard]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EquipmentPhaseSummary" }
+
   /dashboard/long-run-progression:
     get:
       operationId: getLongRunProgression
@@ -711,13 +722,50 @@ components:
 
     EquipmentUsage:
       type: object
-      required: [equipment, sessions, totalMinutes, totalLoad]
+      required:
+        [
+          equipment,
+          sessions,
+          totalMinutes,
+          totalLoad,
+          totalDistance,
+          plannedSessions,
+          plannedMinutes,
+          plannedLoad,
+          plannedDistance,
+        ]
       properties:
         equipment: { type: string }
         sessions: { type: integer }
         totalMinutes: { type: number }
         totalLoad: { type: number }
         totalDistance: { type: number }
+        plannedSessions: { type: integer }
+        plannedMinutes: { type: number }
+        plannedLoad: { type: number }
+        plannedDistance: { type: number }
+
+    EquipmentPhaseSummary:
+      type: object
+      description: Phase-by-phase planned session counts per machine. `phases` is the ordered list of phase names across the campaign; each row's `counts` array is parallel to `phases`.
+      required: [phases, rows]
+      properties:
+        phases:
+          type: array
+          items: { type: string }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/EquipmentPhaseRow" }
+
+    EquipmentPhaseRow:
+      type: object
+      required: [equipment, counts, total]
+      properties:
+        equipment: { type: string }
+        counts:
+          type: array
+          items: { type: integer }
+        total: { type: integer }
 
     LongRunPoint:
       type: object

@@ -238,7 +238,25 @@ export interface EquipmentUsage {
   sessions: number;
   totalMinutes: number;
   totalLoad: number;
-  totalDistance?: number;
+  totalDistance: number;
+  plannedSessions: number;
+  plannedMinutes: number;
+  plannedLoad: number;
+  plannedDistance: number;
+}
+
+export interface EquipmentPhaseRow {
+  equipment: string;
+  counts: number[];
+  total: number;
+}
+
+/**
+ * Phase-by-phase planned session counts per machine. `phases` is the ordered list of phase names across the campaign; each row's `counts` array is parallel to `phases`.
+ */
+export interface EquipmentPhaseSummary {
+  phases: string[];
+  rows: EquipmentPhaseRow[];
 }
 
 export interface LongRunPoint {

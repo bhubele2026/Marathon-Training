@@ -20,6 +20,7 @@ import type {
   CreateMeasurementBody,
   CreateWorkoutBody,
   DashboardSummary,
+  EquipmentPhaseSummary,
   EquipmentUsage,
   Error,
   HealthStatus,
@@ -1299,6 +1300,75 @@ export function useGetEquipmentUsage<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetEquipmentUsageQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getGetEquipmentPhaseSummaryUrl = () => {
+  return `/api/dashboard/equipment-phase-summary`;
+};
+
+export const getEquipmentPhaseSummary = async (
+  options?: RequestInit,
+): Promise<EquipmentPhaseSummary> => {
+  return customFetch<EquipmentPhaseSummary>(getGetEquipmentPhaseSummaryUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetEquipmentPhaseSummaryQueryKey = () => {
+  return [`/api/dashboard/equipment-phase-summary`] as const;
+};
+
+export const getGetEquipmentPhaseSummaryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getEquipmentPhaseSummary>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getEquipmentPhaseSummary>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetEquipmentPhaseSummaryQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getEquipmentPhaseSummary>>
+  > = ({ signal }) => getEquipmentPhaseSummary({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getEquipmentPhaseSummary>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetEquipmentPhaseSummaryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getEquipmentPhaseSummary>>
+>;
+export type GetEquipmentPhaseSummaryQueryError = ErrorType<unknown>;
+
+export function useGetEquipmentPhaseSummary<
+  TData = Awaited<ReturnType<typeof getEquipmentPhaseSummary>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getEquipmentPhaseSummary>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetEquipmentPhaseSummaryQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import request from "supertest";
 import {
   GetDashboardSummaryResponse,
+  GetEquipmentPhaseSummaryResponse,
   GetEquipmentUsageResponse,
   GetLongRunProgressionResponse,
   GetRecentActivityResponse,
@@ -187,7 +188,8 @@ describe("GET /api/dashboard/weekly-mileage", () => {
 });
 
 describe("GET /api/dashboard/equipment-usage", () => {
-  it("returns the canonical arsenal first, then groups extras by equipment", async () => {
+  it("returns the canonical arsenal first with planned + actual aggregates per equipment", async () => {
+    // Actuals from logged workouts.
     await insertWorkout({
       date: "2099-08-01",
       sessionType: T_RUN,
@@ -213,6 +215,52 @@ describe("GET /api/dashboard/equipment-usage", () => {
       totalLoad: 400,
     });
 
+    // Planned sessions from plan_days. E_OUTDOOR has both planned and actual;
+    // E_TREADMILL has planned-only (no logged workout) so it should still
+    // surface with non-zero plannedSessions and zero actuals.
+    const week = 8601;
+    const phase = "Equipment Phase";
+    await insertWeek(week, {
+      startDate: "2099-08-01",
+      endDate: "2099-08-07",
+      phase,
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-08-01",
+      day: "Mon",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      cardioMin: 45,
+      distanceMi: 5,
+      totalLoad: 250,
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-08-02",
+      day: "Tue",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      cardioMin: 35,
+      distanceMi: 4,
+      totalLoad: 200,
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-08-04",
+      day: "Thu",
+      sessionType: T_RUN,
+      equipment: E_TREADMILL,
+      cardioMin: 30,
+      distanceMi: 3,
+      totalLoad: 180,
+    });
+    // Rest plan day must be excluded from planned aggregates.
+    await insertPlanDay(week, phase, {
+      date: "2099-08-05",
+      day: "Fri",
+      sessionType: T_REST,
+      equipment: E_OUTDOOR,
+      isRest: true,
+    });
+
     const res = await request(app).get("/api/dashboard/equipment-usage");
     expect(res.status).toBe(200);
     expectMatchesSchema(GetEquipmentUsageResponse, res.body);
@@ -223,10 +271,21 @@ describe("GET /api/dashboard/equipment-usage", () => {
       totalMinutes: number;
       totalLoad: number;
       totalDistance: number;
+      plannedSessions: number;
+      plannedMinutes: number;
+      plannedLoad: number;
+      plannedDistance: number;
     }>;
 
-    // First four rows must always be the canonical arsenal in order.
+    // First four rows must always be the canonical arsenal in order, even
+    // though none of them have any test fixtures. Planned/actual values
+    // come from real seeded data, so we only assert the row exists and has
+    // numeric fields.
     expect(rows.slice(0, 4).map((r) => r.equipment)).toEqual([...ARSENAL]);
+    for (const r of rows.slice(0, 4)) {
+      expect(typeof r.plannedSessions).toBe("number");
+      expect(typeof r.sessions).toBe("number");
+    }
 
     const outdoor = rows.find((r) => r.equipment === E_OUTDOOR);
     expect(outdoor).toEqual({
@@ -235,8 +294,27 @@ describe("GET /api/dashboard/equipment-usage", () => {
       totalMinutes: 90,
       totalLoad: 350,
       totalDistance: 10,
+      plannedSessions: 2,
+      plannedMinutes: 80,
+      plannedLoad: 450,
+      plannedDistance: 9,
     });
 
+    // Planned-only equipment surfaces with zero actuals.
+    const treadmill = rows.find((r) => r.equipment === E_TREADMILL);
+    expect(treadmill).toEqual({
+      equipment: E_TREADMILL,
+      sessions: 0,
+      totalMinutes: 0,
+      totalLoad: 0,
+      totalDistance: 0,
+      plannedSessions: 1,
+      plannedMinutes: 30,
+      plannedLoad: 180,
+      plannedDistance: 3,
+    });
+
+    // Actual-only equipment surfaces with zero planned.
     const gym = rows.find((r) => r.equipment === E_GYM);
     expect(gym).toEqual({
       equipment: E_GYM,
@@ -244,7 +322,72 @@ describe("GET /api/dashboard/equipment-usage", () => {
       totalMinutes: 30,
       totalLoad: 400,
       totalDistance: 0,
+      plannedSessions: 0,
+      plannedMinutes: 0,
+      plannedLoad: 0,
+      plannedDistance: 0,
     });
+  });
+});
+
+describe("GET /api/dashboard/equipment-phase-summary", () => {
+  it("returns phase-by-phase planned session counts per equipment, with the canonical arsenal always present", async () => {
+    const phaseA = "__test__Phase A";
+    const phaseB = "__test__Phase B";
+    await insertWeek(8701, {
+      startDate: "2099-10-05",
+      endDate: "2099-10-11",
+      phase: phaseA,
+    });
+    await insertWeek(8702, {
+      startDate: "2099-10-12",
+      endDate: "2099-10-18",
+      phase: phaseB,
+    });
+
+    // 2 outdoor + 1 treadmill in phase A.
+    await insertPlanDay(8701, phaseA, { date: "2099-10-05", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR });
+    await insertPlanDay(8701, phaseA, { date: "2099-10-06", day: "Tue", sessionType: T_RUN, equipment: E_OUTDOOR });
+    await insertPlanDay(8701, phaseA, { date: "2099-10-07", day: "Wed", sessionType: T_RUN, equipment: E_TREADMILL });
+    // Rest day is excluded.
+    await insertPlanDay(8701, phaseA, { date: "2099-10-08", day: "Thu", sessionType: T_REST, equipment: E_OUTDOOR, isRest: true });
+    // 1 treadmill in phase B.
+    await insertPlanDay(8702, phaseB, { date: "2099-10-12", day: "Mon", sessionType: T_RUN, equipment: E_TREADMILL });
+
+    const res = await request(app).get("/api/dashboard/equipment-phase-summary");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetEquipmentPhaseSummaryResponse, res.body);
+
+    const body = res.body as {
+      phases: string[];
+      rows: Array<{ equipment: string; counts: number[]; total: number }>;
+    };
+
+    // Phases include the test phases (and any real phases). We only assert
+    // ordering for our two synthetic ones.
+    const idxA = body.phases.indexOf(phaseA);
+    const idxB = body.phases.indexOf(phaseB);
+    expect(idxA).toBeGreaterThanOrEqual(0);
+    expect(idxB).toBeGreaterThan(idxA);
+
+    // Canonical arsenal must always come first, regardless of fixtures.
+    expect(body.rows.slice(0, 4).map((r) => r.equipment)).toEqual([...ARSENAL]);
+    for (const r of body.rows) {
+      expect(r.counts).toHaveLength(body.phases.length);
+      expect(r.total).toBe(r.counts.reduce((s, n) => s + n, 0));
+    }
+
+    const outdoor = body.rows.find((r) => r.equipment === E_OUTDOOR);
+    expect(outdoor).toBeDefined();
+    expect(outdoor!.counts[idxA]).toBe(2);
+    expect(outdoor!.counts[idxB]).toBe(0);
+    expect(outdoor!.total).toBe(2);
+
+    const treadmill = body.rows.find((r) => r.equipment === E_TREADMILL);
+    expect(treadmill).toBeDefined();
+    expect(treadmill!.counts[idxA]).toBe(1);
+    expect(treadmill!.counts[idxB]).toBe(1);
+    expect(treadmill!.total).toBe(2);
   });
 });
 

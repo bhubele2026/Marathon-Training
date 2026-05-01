@@ -341,11 +341,30 @@ export const GetEquipmentUsageResponseItem = zod.object({
   sessions: zod.number(),
   totalMinutes: zod.number(),
   totalLoad: zod.number(),
-  totalDistance: zod.number().optional(),
+  totalDistance: zod.number(),
+  plannedSessions: zod.number(),
+  plannedMinutes: zod.number(),
+  plannedLoad: zod.number(),
+  plannedDistance: zod.number(),
 });
 export const GetEquipmentUsageResponse = zod.array(
   GetEquipmentUsageResponseItem,
 );
+
+export const GetEquipmentPhaseSummaryResponse = zod
+  .object({
+    phases: zod.array(zod.string()),
+    rows: zod.array(
+      zod.object({
+        equipment: zod.string(),
+        counts: zod.array(zod.number()),
+        total: zod.number(),
+      }),
+    ),
+  })
+  .describe(
+    "Phase-by-phase planned session counts per machine. `phases` is the ordered list of phase names across the campaign; each row's `counts` array is parallel to `phases`.",
+  );
 
 export const GetLongRunProgressionResponseItem = zod.object({
   week: zod.number(),
