@@ -248,6 +248,34 @@ export interface LongRunPoint {
   actualMi: number;
 }
 
+export interface RaceWeekChecklistItem {
+  itemId: string;
+  label: string;
+  checked: boolean;
+  checkedAt?: string | null;
+}
+
+export interface RaceWeekRacePlan {
+  distanceMi: number;
+  targetPace?: string | null;
+  fuelingNote?: string | null;
+  description: string;
+}
+
+export interface RaceWeekStatus {
+  raceDate: string;
+  daysToRace: number;
+  hoursToRace: number;
+  inWindow: boolean;
+  isRaceDay: boolean;
+  racePlan?: RaceWeekRacePlan | null;
+  checklist: RaceWeekChecklistItem[];
+}
+
+export interface SetRaceWeekChecklistItemBody {
+  checked: boolean;
+}
+
 export type ListWorkoutsParams = {
   limit?: number;
   from?: string;

@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Activity, CalendarDays, CheckCircle2, TrendingDown, Target, Zap, Edit, Trash2, ExternalLink, Pencil, XCircle } from "lucide-react";
 import { useMissionActions } from "@/hooks/use-mission-actions";
 import { QuickLogActivity } from "@/components/quick-log-activity";
+import { RaceWeekBanner } from "@/components/race-week-banner";
 
 export default function Dashboard() {
   const { data: summary, isLoading: loadingSummary } = useGetDashboardSummary();
@@ -42,7 +43,9 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      
+
+      <RaceWeekBanner />
+
       {/* Top Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-card">

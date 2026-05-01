@@ -29,6 +29,9 @@ import type {
   PlanOverview,
   PlanWeek,
   PlanWeekDetail,
+  RaceWeekChecklistItem,
+  RaceWeekStatus,
+  SetRaceWeekChecklistItemBody,
   TodayPlan,
   UpdateMeasurementBody,
   UpdateWorkoutBody,
@@ -1439,3 +1442,158 @@ export function useGetRecentActivity<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+export const getGetRaceWeekUrl = () => {
+  return `/api/race-week`;
+};
+
+export const getRaceWeek = async (
+  options?: RequestInit,
+): Promise<RaceWeekStatus> => {
+  return customFetch<RaceWeekStatus>(getGetRaceWeekUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetRaceWeekQueryKey = () => {
+  return [`/api/race-week`] as const;
+};
+
+export const getGetRaceWeekQueryOptions = <
+  TData = Awaited<ReturnType<typeof getRaceWeek>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getRaceWeek>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetRaceWeekQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getRaceWeek>>> = ({
+    signal,
+  }) => getRaceWeek({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getRaceWeek>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetRaceWeekQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getRaceWeek>>
+>;
+export type GetRaceWeekQueryError = ErrorType<unknown>;
+
+export function useGetRaceWeek<
+  TData = Awaited<ReturnType<typeof getRaceWeek>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getRaceWeek>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetRaceWeekQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getSetRaceWeekChecklistItemUrl = (itemId: string) => {
+  return `/api/race-week/checklist/${itemId}`;
+};
+
+export const setRaceWeekChecklistItem = async (
+  itemId: string,
+  setRaceWeekChecklistItemBody: SetRaceWeekChecklistItemBody,
+  options?: RequestInit,
+): Promise<RaceWeekChecklistItem> => {
+  return customFetch<RaceWeekChecklistItem>(
+    getSetRaceWeekChecklistItemUrl(itemId),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(setRaceWeekChecklistItemBody),
+    },
+  );
+};
+
+export const getSetRaceWeekChecklistItemMutationOptions = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setRaceWeekChecklistItem>>,
+    TError,
+    { itemId: string; data: BodyType<SetRaceWeekChecklistItemBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setRaceWeekChecklistItem>>,
+  TError,
+  { itemId: string; data: BodyType<SetRaceWeekChecklistItemBody> },
+  TContext
+> => {
+  const mutationKey = ["setRaceWeekChecklistItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setRaceWeekChecklistItem>>,
+    { itemId: string; data: BodyType<SetRaceWeekChecklistItemBody> }
+  > = (props) => {
+    const { itemId, data } = props ?? {};
+
+    return setRaceWeekChecklistItem(itemId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetRaceWeekChecklistItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setRaceWeekChecklistItem>>
+>;
+export type SetRaceWeekChecklistItemMutationBody =
+  BodyType<SetRaceWeekChecklistItemBody>;
+export type SetRaceWeekChecklistItemMutationError = ErrorType<
+  Error | ValidationError
+>;
+
+export const useSetRaceWeekChecklistItem = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setRaceWeekChecklistItem>>,
+    TError,
+    { itemId: string; data: BodyType<SetRaceWeekChecklistItemBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setRaceWeekChecklistItem>>,
+  TError,
+  { itemId: string; data: BodyType<SetRaceWeekChecklistItemBody> },
+  TContext
+> => {
+  return useMutation(getSetRaceWeekChecklistItemMutationOptions(options));
+};

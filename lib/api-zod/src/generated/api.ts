@@ -376,3 +376,42 @@ export const GetRecentActivityResponseItem = zod.object({
 export const GetRecentActivityResponse = zod.array(
   GetRecentActivityResponseItem,
 );
+
+export const GetRaceWeekResponse = zod.object({
+  raceDate: zod.string(),
+  daysToRace: zod.number(),
+  hoursToRace: zod.number(),
+  inWindow: zod.boolean(),
+  isRaceDay: zod.boolean(),
+  racePlan: zod
+    .object({
+      distanceMi: zod.number(),
+      targetPace: zod.string().nullish(),
+      fuelingNote: zod.string().nullish(),
+      description: zod.string(),
+    })
+    .nullish(),
+  checklist: zod.array(
+    zod.object({
+      itemId: zod.string(),
+      label: zod.string(),
+      checked: zod.boolean(),
+      checkedAt: zod.coerce.date().nullish(),
+    }),
+  ),
+});
+
+export const SetRaceWeekChecklistItemParams = zod.object({
+  itemId: zod.coerce.string(),
+});
+
+export const SetRaceWeekChecklistItemBody = zod.object({
+  checked: zod.boolean(),
+});
+
+export const SetRaceWeekChecklistItemResponse = zod.object({
+  itemId: zod.string(),
+  label: zod.string(),
+  checked: zod.boolean(),
+  checkedAt: zod.coerce.date().nullish(),
+});

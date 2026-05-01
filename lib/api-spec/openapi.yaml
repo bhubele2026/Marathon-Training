@@ -12,6 +12,7 @@ tags:
   - name: workouts
   - name: measurements
   - name: dashboard
+  - name: race-week
 paths:
   /healthz:
     get:
@@ -335,6 +336,51 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/Workout" }
+
+  /race-week:
+    get:
+      operationId: getRaceWeek
+      tags: [race-week]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RaceWeekStatus" }
+
+  /race-week/checklist/{itemId}:
+    put:
+      operationId: setRaceWeekChecklistItem
+      tags: [race-week]
+      parameters:
+        - in: path
+          name: itemId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SetRaceWeekChecklistItemBody" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RaceWeekChecklistItem" }
+        "400":
+          description: Invalid item id or body
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ValidationError"
+        "404":
+          description: Checklist item not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 
 components:
   schemas:
@@ -681,3 +727,44 @@ components:
         date: { type: string }
         plannedMi: { type: number }
         actualMi: { type: number }
+
+    RaceWeekChecklistItem:
+      type: object
+      required: [itemId, label, checked]
+      properties:
+        itemId: { type: string }
+        label: { type: string }
+        checked: { type: boolean }
+        checkedAt: { type: string, format: date-time, nullable: true }
+
+    RaceWeekRacePlan:
+      type: object
+      required: [distanceMi, description]
+      properties:
+        distanceMi: { type: number }
+        targetPace: { type: string, nullable: true }
+        fuelingNote: { type: string, nullable: true }
+        description: { type: string }
+
+    RaceWeekStatus:
+      type: object
+      required: [raceDate, daysToRace, hoursToRace, inWindow, isRaceDay, checklist]
+      properties:
+        raceDate: { type: string }
+        daysToRace: { type: integer }
+        hoursToRace: { type: integer }
+        inWindow: { type: boolean }
+        isRaceDay: { type: boolean }
+        racePlan:
+          allOf:
+            - $ref: "#/components/schemas/RaceWeekRacePlan"
+          nullable: true
+        checklist:
+          type: array
+          items: { $ref: "#/components/schemas/RaceWeekChecklistItem" }
+
+    SetRaceWeekChecklistItemBody:
+      type: object
+      required: [checked]
+      properties:
+        checked: { type: boolean }
