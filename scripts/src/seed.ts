@@ -1,59 +1,37 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { db, planDaysTable, planWeeksTable, measurementsTable } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { generatePlan, writePlanJson, type DailyRow, type WeeklyRow, type BodyRow } from "./generate-plan.js";
 
-type DailyRow = {
-  week: number;
-  phase: string;
-  date: string;
-  day: string;
-  strength_load: number | null;
-  equipment: string;
-  description: string;
-  cardio_min: number | null;
-  distance_mi: number | null;
-  pace: string | null;
-  session_type: string;
-  is_rest: boolean;
-  total_load: number;
-};
-
-type WeeklyRow = {
-  week: number;
-  phase: string;
-  start: string;
-  end: string;
-  planned_strength: number | null;
-  planned_cardio: number | null;
-  planned_total_load: number;
-  planned_miles: number;
-  long_run_mi: number;
-};
-
-type BodyRow = {
-  date: string;
-  weight: number | null;
-  l_arm: number | null;
-  r_arm: number | null;
-  l_leg: number | null;
-  r_leg: number | null;
-  belly: number | null;
-  chest: number | null;
-  notes: string | null;
-};
-
-async function main() {
+function loadPlanData(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: BodyRow[] } {
   const file = resolve(import.meta.dirname, "../../.local/data/plan.json");
+  if (!existsSync(file)) {
+    console.log(`No plan.json at ${file} — generating fresh from generate-plan.ts`);
+    writePlanJson();
+  }
   const data = JSON.parse(readFileSync(file, "utf-8")) as {
     daily: DailyRow[];
     weekly: WeeklyRow[];
     body: BodyRow[];
   };
+  // Defensive fallback: if the on-disk file is somehow malformed/empty, fall back to in-memory generation.
+  if (!data.weekly?.length || !data.daily?.length) {
+    console.log("plan.json was empty or malformed — regenerating in memory");
+    return generatePlan();
+  }
+  return data;
+}
 
-  console.log(`Seeding ${data.weekly.length} weeks, ${data.daily.length} days, ${data.body.length} body rows`);
+async function main() {
+  const data = loadPlanData();
 
-  await db.execute(sql`TRUNCATE TABLE plan_days, plan_weeks, measurements RESTART IDENTITY CASCADE`);
+  console.log(
+    `Seeding ${data.weekly.length} weeks, ${data.daily.length} days, ${data.body.length} body rows`,
+  );
+
+  // Only regenerate plan_weeks and plan_days. Preserve logged workouts and existing measurements.
+  await db.execute(sql`TRUNCATE TABLE plan_days, plan_weeks RESTART IDENTITY CASCADE`);
 
   await db.insert(planWeeksTable).values(
     data.weekly.map((w) => ({
@@ -91,7 +69,9 @@ async function main() {
     );
   }
 
-  if (data.body.length > 0) {
+  // Insert baseline body measurements only on a fresh database (don't overwrite user-entered measurements).
+  const existingMeasurements = await db.select().from(measurementsTable).limit(1);
+  if (existingMeasurements.length === 0 && data.body.length > 0) {
     await db.insert(measurementsTable).values(
       data.body.map((b) => ({
         date: b.date,
@@ -104,6 +84,11 @@ async function main() {
         chest: b.chest,
         notes: b.notes,
       })),
+    );
+    console.log(`Inserted ${data.body.length} baseline measurement rows (table was empty).`);
+  } else {
+    console.log(
+      `Preserved existing measurements (${existingMeasurements.length > 0 ? "table not empty" : "no body data"}).`,
     );
   }
 

@@ -33,9 +33,9 @@ export default function Plan() {
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-black uppercase tracking-tight text-primary">52-Week Campaign</h2>
+          <h2 className="text-3xl font-black uppercase tracking-tight text-primary">52-Week Half Marathon Campaign</h2>
           <p className="text-muted-foreground uppercase font-medium tracking-widest mt-1">
-            {overview.weeksRemaining} Weeks to Race Day ({formatDate(overview.raceDate)})
+            {overview.weeksRemaining} Weeks to Race Day · 13.1 mi · {formatDate(overview.raceDate)}
           </p>
         </div>
       </div>

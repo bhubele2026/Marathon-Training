@@ -22,7 +22,7 @@ export function Layout({ children }: LayoutProps) {
   const navItems = [
     { href: "/", label: "Command Center", icon: Home },
     { href: "/today", label: "Today's Mission", icon: Activity },
-    { href: "/plan", label: "52-Week Plan", icon: CalendarDays },
+    { href: "/plan", label: "Half Marathon Plan", icon: CalendarDays },
     { href: "/log", label: "Training Log", icon: ListOrdered },
     { href: "/measurements", label: "Body Metrics", icon: Scale },
     { href: "/equipment", label: "Equipment", icon: Dumbbell },
