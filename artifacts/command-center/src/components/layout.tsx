@@ -46,10 +46,10 @@ export function Layout({ children }: LayoutProps) {
                 key={item.href} 
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
-                  isActive 
-                    ? "bg-primary/10 text-primary" 
-                    : "text-muted-foreground hover:bg-accent/5 hover:text-accent-foreground"
+                  "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-semibold uppercase tracking-wider transition-colors",
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-foreground hover:bg-primary/10 hover:text-primary"
                 )}
               >
                 <Icon className="h-4 w-4" />
@@ -74,8 +74,8 @@ export function Layout({ children }: LayoutProps) {
           const Icon = item.icon;
           return (
             <Link key={item.href} href={item.href} className="flex flex-col items-center p-2">
-              <Icon className={cn("h-5 w-5 mb-1", isActive ? "text-primary" : "text-muted-foreground")} />
-              <span className={cn("text-[10px] font-medium", isActive ? "text-primary" : "text-muted-foreground")}>
+              <Icon className={cn("h-5 w-5 mb-1", isActive ? "text-primary" : "text-foreground")} />
+              <span className={cn("text-[10px] font-bold uppercase tracking-wider", isActive ? "text-primary" : "text-foreground")}>
                 {item.label.split(" ")[0]}
               </span>
             </Link>
