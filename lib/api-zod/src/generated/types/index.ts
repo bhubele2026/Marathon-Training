@@ -24,3 +24,4 @@ export * from "./updateWorkoutBody";
 export * from "./weeklyMileagePoint";
 export * from "./weightPoint";
 export * from "./workout";
+export * from "./workoutSuggestions";

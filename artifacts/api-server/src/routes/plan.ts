@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db, planDaysTable, planWeeksTable, workoutsTable } from "@workspace/db";
-import { eq, asc, sql, and, gte, lte } from "drizzle-orm";
+import { db, planDaysTable, planWeeksTable, workoutsTable, type PlanDayRow } from "@workspace/db";
+import { eq, asc, desc, sql, and, gte, lte, lt } from "drizzle-orm";
 import { toPlanDay, toPlanWeek, toWorkout } from "../lib/transforms";
 
 const router: IRouter = Router();
@@ -103,15 +103,69 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
   });
 });
 
+function parsePaceToSeconds(pace: string | null | undefined): number | null {
+  if (!pace) return null;
+  const match = pace.match(/(\d{1,2}):(\d{2})/);
+  if (!match) return null;
+  const minutes = Number(match[1]);
+  const seconds = Number(match[2]);
+  if (!Number.isFinite(minutes) || !Number.isFinite(seconds) || seconds >= 60) return null;
+  return minutes * 60 + seconds;
+}
+
+function formatSecondsAsPace(totalSeconds: number): string {
+  const rounded = Math.round(totalSeconds);
+  const minutes = Math.floor(rounded / 60);
+  const seconds = rounded % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+async function suggestionsForPlan(plan: PlanDayRow, today: string) {
+  const recent = await db
+    .select()
+    .from(workoutsTable)
+    .where(
+      and(
+        eq(workoutsTable.sessionType, plan.sessionType),
+        eq(workoutsTable.equipment, plan.equipment),
+        lt(workoutsTable.date, today),
+      ),
+    )
+    .orderBy(desc(workoutsTable.date), desc(workoutsTable.createdAt))
+    .limit(5);
+
+  const rpeValues = recent.map((r) => r.rpe).filter((v): v is number => v != null);
+  const hrValues = recent.map((r) => r.avgHr).filter((v): v is number => v != null);
+  const paceSeconds = recent
+    .map((r) => parsePaceToSeconds(r.pace))
+    .filter((v): v is number => v != null);
+
+  const avg = (xs: number[]) => xs.reduce((s, v) => s + v, 0) / xs.length;
+
+  const rpe = rpeValues.length ? Math.round(avg(rpeValues)) : null;
+  const avgHr = hrValues.length ? Math.round(avg(hrValues)) : null;
+  // Prefer the planned pace (e.g. from the session prescription) when available;
+  // otherwise fall back to the average of recent comparable sessions.
+  const pace = plan.pace
+    ? plan.pace
+    : paceSeconds.length
+      ? formatSecondsAsPace(avg(paceSeconds))
+      : null;
+
+  return { rpe, avgHr, pace, sampleSize: recent.length };
+}
+
 router.get("/plan/today", async (_req, res) => {
   const today = todayISO();
   const planRow = (await db.select().from(planDaysTable).where(eq(planDaysTable.date, today)).limit(1))[0];
   const loggedRow = (await db.select().from(workoutsTable).where(eq(workoutsTable.date, today)).orderBy(sql`${workoutsTable.createdAt} DESC`).limit(1))[0];
+  const suggestions = planRow && !planRow.isRest ? await suggestionsForPlan(planRow, today) : null;
   res.json({
     date: today,
     hasPlan: !!planRow,
     plan: planRow ? toPlanDay(planRow) : null,
     loggedWorkout: loggedRow ? toWorkout(loggedRow) : null,
+    suggestions,
   });
 });
 

@@ -10,7 +10,7 @@ export default function Today() {
   const { data: today, isLoading } = useGetTodayPlan();
   const { openLog, openEdit, requestDelete, isDeleting, dialogs } = useMissionActions();
   const ctx = today
-    ? { date: today.date, plan: today.plan, loggedWorkout: today.loggedWorkout }
+    ? { date: today.date, plan: today.plan, loggedWorkout: today.loggedWorkout, suggestions: today.suggestions }
     : null;
 
   if (isLoading) {

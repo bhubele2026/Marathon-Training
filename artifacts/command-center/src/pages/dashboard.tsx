@@ -54,7 +54,7 @@ export default function Dashboard() {
   const { data: today, isLoading: loadingToday } = useGetTodayPlan();
   const { openLog, openEdit, requestDelete, isDeleting, dialogs } = useMissionActions();
   const todayCtx = today
-    ? { date: today.date, plan: today.plan, loggedWorkout: today.loggedWorkout }
+    ? { date: today.date, plan: today.plan, loggedWorkout: today.loggedWorkout, suggestions: today.suggestions }
     : null;
 
   if (loadingSummary) return <DashboardSkeleton />;

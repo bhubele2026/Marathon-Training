@@ -76,11 +76,19 @@ export interface Workout {
   createdAt: string;
 }
 
+export interface WorkoutSuggestions {
+  rpe?: number | null;
+  avgHr?: number | null;
+  pace?: string | null;
+  sampleSize: number;
+}
+
 export interface TodayPlan {
   date: string;
   hasPlan: boolean;
   plan?: PlanDay | null;
   loggedWorkout?: Workout | null;
+  suggestions?: WorkoutSuggestions | null;
 }
 
 export interface CreateWorkoutBody {

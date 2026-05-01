@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useDeleteWorkout, PlanDay, Workout } from "@workspace/api-client-react";
+import { useDeleteWorkout, PlanDay, Workout, WorkoutSuggestions } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { WorkoutForm } from "@/components/workout-form";
@@ -19,6 +19,7 @@ export type MissionContext = {
   date: string;
   plan?: PlanDay | null;
   loggedWorkout?: Workout | null;
+  suggestions?: WorkoutSuggestions | null;
 };
 
 export function useMissionActions() {
@@ -47,6 +48,9 @@ export function useMissionActions() {
                   durationMin: logCtx.plan.cardioMin,
                   totalLoad: logCtx.plan.totalLoad,
                   planDayId: logCtx.plan.id,
+                  rpe: logCtx.suggestions?.rpe ?? null,
+                  avgHr: logCtx.suggestions?.avgHr ?? null,
+                  pace: logCtx.suggestions?.pace ?? null,
                 }
               : { date: logCtx.date }
           }

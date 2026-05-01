@@ -396,6 +396,19 @@ components:
           allOf:
             - $ref: "#/components/schemas/Workout"
           nullable: true
+        suggestions:
+          allOf:
+            - $ref: "#/components/schemas/WorkoutSuggestions"
+          nullable: true
+
+    WorkoutSuggestions:
+      type: object
+      required: [sampleSize]
+      properties:
+        rpe: { type: integer, nullable: true }
+        avgHr: { type: integer, nullable: true }
+        pace: { type: string, nullable: true }
+        sampleSize: { type: integer }
 
     Workout:
       type: object

@@ -7,10 +7,12 @@
  */
 import type { PlanDay } from "./planDay";
 import type { Workout } from "./workout";
+import type { WorkoutSuggestions } from "./workoutSuggestions";
 
 export interface TodayPlan {
   date: string;
   hasPlan: boolean;
   plan?: PlanDay | null;
   loggedWorkout?: Workout | null;
+  suggestions?: WorkoutSuggestions | null;
 }

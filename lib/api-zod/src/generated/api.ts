@@ -122,6 +122,14 @@ export const GetTodayPlanResponse = zod.object({
       createdAt: zod.coerce.date(),
     })
     .nullish(),
+  suggestions: zod
+    .object({
+      rpe: zod.number().nullish(),
+      avgHr: zod.number().nullish(),
+      pace: zod.string().nullish(),
+      sampleSize: zod.number(),
+    })
+    .nullish(),
 });
 
 export const ListWorkoutsQueryParams = zod.object({
