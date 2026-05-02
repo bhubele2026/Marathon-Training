@@ -152,22 +152,26 @@ export async function insertPlanDay(
   week: number,
   phase: string,
   d: PlanDayInput,
-): Promise<void> {
-  await db.insert(planDaysTable).values({
-    week,
-    phase,
-    date: d.date,
-    day: d.day,
-    sessionType: d.sessionType,
-    equipment: d.equipment,
-    description: d.description ?? "",
-    isRest: d.isRest ?? false,
-    pace: d.pace ?? null,
-    cardioMin: d.cardioMin ?? null,
-    distanceMi: d.distanceMi ?? null,
-    strengthLoad: d.strengthLoad ?? null,
-    totalLoad: d.totalLoad ?? 0,
-  });
+): Promise<{ id: number }> {
+  const inserted = await db
+    .insert(planDaysTable)
+    .values({
+      week,
+      phase,
+      date: d.date,
+      day: d.day,
+      sessionType: d.sessionType,
+      equipment: d.equipment,
+      description: d.description ?? "",
+      isRest: d.isRest ?? false,
+      pace: d.pace ?? null,
+      cardioMin: d.cardioMin ?? null,
+      distanceMi: d.distanceMi ?? null,
+      strengthLoad: d.strengthLoad ?? null,
+      totalLoad: d.totalLoad ?? 0,
+    })
+    .returning({ id: planDaysTable.id });
+  return { id: inserted[0]!.id };
 }
 
 export interface WorkoutInput {

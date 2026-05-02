@@ -47,6 +47,31 @@ export interface PlanDay {
   totalLoad: number;
 }
 
+/**
+ * Editable fields for a planned (prescribed) workout. Date, day, week, and phase are immutable - use the swap endpoint to move sessions between days within a week.
+ */
+export interface UpdatePlanDayBody {
+  sessionType?: string;
+  equipment?: string;
+  description?: string;
+  distanceMi?: number | null;
+  cardioMin?: number | null;
+  pace?: string | null;
+  strengthLoad?: number | null;
+  totalLoad?: number;
+  isRest?: boolean;
+}
+
+export interface SwapPlanDayBody {
+  /** id of the partner plan_day to swap session content with. Must be in the same week. */
+  withDayId: number;
+}
+
+export interface SwapPlanDayResponse {
+  from: PlanDay;
+  to: PlanDay;
+}
+
 export interface PlanWeek {
   week: number;
   phase: string;

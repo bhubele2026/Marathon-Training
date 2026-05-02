@@ -51,21 +51,40 @@ async function main() {
   for (let i = 0; i < data.daily.length; i += chunk) {
     const slice = data.daily.slice(i, i + chunk);
     await db.insert(planDaysTable).values(
-      slice.map((d) => ({
-        week: d.week,
-        phase: d.phase,
-        date: d.date,
-        day: d.day,
-        strengthLoad: d.strength_load,
-        equipment: d.equipment ?? "Rest",
-        description: d.description ?? "",
-        cardioMin: d.cardio_min,
-        distanceMi: d.distance_mi,
-        pace: d.pace,
-        sessionType: d.session_type ?? "Rest",
-        isRest: !!d.is_rest,
-        totalLoad: d.total_load ?? 0,
-      })),
+      slice.map((d) => {
+        const equipment = d.equipment ?? "Rest";
+        const description = d.description ?? "";
+        const sessionType = d.session_type ?? "Rest";
+        const isRest = !!d.is_rest;
+        const totalLoad = d.total_load ?? 0;
+        return {
+          week: d.week,
+          phase: d.phase,
+          date: d.date,
+          day: d.day,
+          strengthLoad: d.strength_load,
+          equipment,
+          description,
+          cardioMin: d.cardio_min,
+          distanceMi: d.distance_mi,
+          pace: d.pace,
+          sessionType,
+          isRest,
+          totalLoad,
+          // Mirror the prescribed values into the seed_* columns so the
+          // "Reset to original" plan-day action has a clean snapshot of the
+          // seeded prescription to restore from after edits or swaps.
+          seedSessionType: sessionType,
+          seedEquipment: equipment,
+          seedDescription: description,
+          seedDistanceMi: d.distance_mi,
+          seedCardioMin: d.cardio_min,
+          seedPace: d.pace,
+          seedStrengthLoad: d.strength_load,
+          seedTotalLoad: totalLoad,
+          seedIsRest: isRest,
+        };
+      }),
     );
   }
 

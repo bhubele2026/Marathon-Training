@@ -27,14 +27,18 @@ import type {
   ListWorkoutsParams,
   LongRunPoint,
   Measurement,
+  PlanDay,
   PlanOverview,
   PlanWeek,
   PlanWeekDetail,
   RaceWeekChecklistItem,
   RaceWeekStatus,
   SetRaceWeekChecklistItemBody,
+  SwapPlanDayBody,
+  SwapPlanDayResponse,
   TodayPlan,
   UpdateMeasurementBody,
+  UpdatePlanDayBody,
   UpdateWorkoutBody,
   ValidationError,
   WeeklyMileagePoint,
@@ -334,6 +338,246 @@ export function useGetPlanWeek<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+export const getUpdatePlanDayUrl = (id: number) => {
+  return `/api/plan/days/${id}`;
+};
+
+export const updatePlanDay = async (
+  id: number,
+  updatePlanDayBody: UpdatePlanDayBody,
+  options?: RequestInit,
+): Promise<PlanDay> => {
+  return customFetch<PlanDay>(getUpdatePlanDayUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updatePlanDayBody),
+  });
+};
+
+export const getUpdatePlanDayMutationOptions = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePlanDay>>,
+    TError,
+    { id: number; data: BodyType<UpdatePlanDayBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updatePlanDay>>,
+  TError,
+  { id: number; data: BodyType<UpdatePlanDayBody> },
+  TContext
+> => {
+  const mutationKey = ["updatePlanDay"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updatePlanDay>>,
+    { id: number; data: BodyType<UpdatePlanDayBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updatePlanDay(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdatePlanDayMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePlanDay>>
+>;
+export type UpdatePlanDayMutationBody = BodyType<UpdatePlanDayBody>;
+export type UpdatePlanDayMutationError = ErrorType<Error | ValidationError>;
+
+export const useUpdatePlanDay = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePlanDay>>,
+    TError,
+    { id: number; data: BodyType<UpdatePlanDayBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updatePlanDay>>,
+  TError,
+  { id: number; data: BodyType<UpdatePlanDayBody> },
+  TContext
+> => {
+  return useMutation(getUpdatePlanDayMutationOptions(options));
+};
+
+export const getSwapPlanDayUrl = (id: number) => {
+  return `/api/plan/days/${id}/swap`;
+};
+
+export const swapPlanDay = async (
+  id: number,
+  swapPlanDayBody: SwapPlanDayBody,
+  options?: RequestInit,
+): Promise<SwapPlanDayResponse> => {
+  return customFetch<SwapPlanDayResponse>(getSwapPlanDayUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(swapPlanDayBody),
+  });
+};
+
+export const getSwapPlanDayMutationOptions = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof swapPlanDay>>,
+    TError,
+    { id: number; data: BodyType<SwapPlanDayBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof swapPlanDay>>,
+  TError,
+  { id: number; data: BodyType<SwapPlanDayBody> },
+  TContext
+> => {
+  const mutationKey = ["swapPlanDay"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof swapPlanDay>>,
+    { id: number; data: BodyType<SwapPlanDayBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return swapPlanDay(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SwapPlanDayMutationResult = NonNullable<
+  Awaited<ReturnType<typeof swapPlanDay>>
+>;
+export type SwapPlanDayMutationBody = BodyType<SwapPlanDayBody>;
+export type SwapPlanDayMutationError = ErrorType<Error | ValidationError>;
+
+export const useSwapPlanDay = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof swapPlanDay>>,
+    TError,
+    { id: number; data: BodyType<SwapPlanDayBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof swapPlanDay>>,
+  TError,
+  { id: number; data: BodyType<SwapPlanDayBody> },
+  TContext
+> => {
+  return useMutation(getSwapPlanDayMutationOptions(options));
+};
+
+export const getResetPlanDayUrl = (id: number) => {
+  return `/api/plan/days/${id}/reset`;
+};
+
+export const resetPlanDay = async (
+  id: number,
+  options?: RequestInit,
+): Promise<PlanDay> => {
+  return customFetch<PlanDay>(getResetPlanDayUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getResetPlanDayMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resetPlanDay>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof resetPlanDay>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["resetPlanDay"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof resetPlanDay>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return resetPlanDay(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ResetPlanDayMutationResult = NonNullable<
+  Awaited<ReturnType<typeof resetPlanDay>>
+>;
+
+export type ResetPlanDayMutationError = ErrorType<Error>;
+
+export const useResetPlanDay = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resetPlanDay>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof resetPlanDay>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getResetPlanDayMutationOptions(options));
+};
 
 export const getGetTodayPlanUrl = () => {
   return `/api/plan/today`;

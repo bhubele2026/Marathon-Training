@@ -70,6 +70,100 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
 
+  /plan/days/{id}:
+    patch:
+      operationId: updatePlanDay
+      tags: [plan]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdatePlanDayBody" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlanDay" }
+        "400":
+          description: Invalid id or request body
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ValidationError"
+        "404":
+          description: Plan day not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /plan/days/{id}/swap:
+    post:
+      operationId: swapPlanDay
+      tags: [plan]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SwapPlanDayBody" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SwapPlanDayResponse" }
+        "400":
+          description: Invalid id, request body, or partner day not in same week
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ValidationError"
+        "404":
+          description: Plan day not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /plan/days/{id}/reset:
+    post:
+      operationId: resetPlanDay
+      tags: [plan]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlanDay" }
+        "400":
+          description: Invalid id
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Plan day not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
   /plan/today:
     get:
       operationId: getTodayPlan
@@ -456,6 +550,35 @@ components:
         sessionType: { type: string }
         isRest: { type: boolean }
         totalLoad: { type: number }
+
+    UpdatePlanDayBody:
+      type: object
+      description: Editable fields for a planned (prescribed) workout. Date, day, week, and phase are immutable - use the swap endpoint to move sessions between days within a week.
+      properties:
+        sessionType: { type: string }
+        equipment: { type: string }
+        description: { type: string }
+        distanceMi: { type: number, nullable: true }
+        cardioMin: { type: number, nullable: true }
+        pace: { type: string, nullable: true }
+        strengthLoad: { type: number, nullable: true }
+        totalLoad: { type: number }
+        isRest: { type: boolean }
+
+    SwapPlanDayBody:
+      type: object
+      required: [withDayId]
+      properties:
+        withDayId:
+          type: integer
+          description: id of the partner plan_day to swap session content with. Must be in the same week.
+
+    SwapPlanDayResponse:
+      type: object
+      required: [from, to]
+      properties:
+        from: { $ref: "#/components/schemas/PlanDay" }
+        to: { $ref: "#/components/schemas/PlanDay" }
 
     PlanWeek:
       type: object

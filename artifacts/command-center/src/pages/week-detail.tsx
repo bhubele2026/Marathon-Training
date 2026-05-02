@@ -1,12 +1,52 @@
-import { useGetPlanWeek, getGetPlanWeekQueryKey, useListWorkouts, getListWorkoutsQueryKey, Workout, PlanDayWithSuggestions } from "@workspace/api-client-react";
+import { useState } from "react";
+import {
+  useGetPlanWeek,
+  getGetPlanWeekQueryKey,
+  useListWorkouts,
+  getListWorkoutsQueryKey,
+  useResetPlanDay,
+  Workout,
+  PlanDay,
+  PlanDayWithSuggestions,
+} from "@workspace/api-client-react";
 import { useParams, useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
 import { formatDistance, formatLoad, formatDate, formatDuration } from "@/lib/format";
-import { ChevronLeft, ChevronRight, Activity, Play, Edit, Trash2, CheckCircle2, Zap, XCircle, Pencil, AlertTriangle } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Activity,
+  Play,
+  Edit,
+  Trash2,
+  CheckCircle2,
+  Zap,
+  XCircle,
+  Pencil,
+  AlertTriangle,
+  Settings2,
+  ArrowLeftRight,
+  Undo2,
+} from "lucide-react";
 import { useMissionActions } from "@/hooks/use-mission-actions";
 import { cn } from "@/lib/utils";
+import { PlanDayForm } from "@/components/plan-day-form";
+import { MoveDayPicker } from "@/components/move-day-picker";
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -18,6 +58,13 @@ export default function WeekDetail() {
   const [, setLocation] = useLocation();
   const { openLog, openEdit, requestDelete, requestSkip, crushIt, isDeleting, isCrushing, dialogs } =
     useMissionActions();
+
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const resetPlanDay = useResetPlanDay();
+  const [editPlanDay, setEditPlanDay] = useState<PlanDay | null>(null);
+  const [movePlanDay, setMovePlanDay] = useState<PlanDay | null>(null);
+  const [resetPlanDayCtx, setResetPlanDayCtx] = useState<PlanDay | null>(null);
 
   const { data: week, isLoading } = useGetPlanWeek(weekNum, {
     query: {
@@ -62,6 +109,30 @@ export default function WeekDetail() {
     suggestions: day.suggestions ?? null,
   });
 
+  const swapCandidates = (current: PlanDay): PlanDay[] =>
+    week.days.filter((d) => d.id !== current.id);
+
+  const confirmReset = () => {
+    if (!resetPlanDayCtx) return;
+    const target = resetPlanDayCtx;
+    resetPlanDay.mutate(
+      { id: target.id },
+      {
+        onSuccess: () => {
+          toast({
+            title: "Plan reset",
+            description: `${target.day} restored to original prescription.`,
+          });
+          invalidateMissionRelatedQueries(queryClient);
+          setResetPlanDayCtx(null);
+        },
+        onError: () => {
+          toast({ title: "Failed to reset plan", variant: "destructive" });
+        },
+      },
+    );
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
       
@@ -100,6 +171,43 @@ export default function WeekDetail() {
       <div className="space-y-4">
         {week.days.map((day) => {
           const sessions = workoutsByDate.get(day.date) ?? [];
+          // Plan-edit actions are rendered on every day card (rest or not) so
+          // the runner can edit / swap / reset the prescription regardless of
+          // whether anything has been logged yet.
+          const planActions = (
+            <div className="flex items-center gap-1 text-muted-foreground">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-[10px] uppercase font-bold tracking-wider hover:text-foreground"
+                onClick={() => setEditPlanDay(day)}
+                data-testid={`button-edit-plan-${day.date}`}
+                title="Edit planned session"
+              >
+                <Settings2 className="h-3 w-3 mr-1" /> Edit Plan
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-[10px] uppercase font-bold tracking-wider hover:text-foreground"
+                onClick={() => setMovePlanDay(day)}
+                data-testid={`button-move-plan-${day.date}`}
+                title="Swap with another day"
+              >
+                <ArrowLeftRight className="h-3 w-3 mr-1" /> Move Day
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-[10px] uppercase font-bold tracking-wider hover:text-foreground"
+                onClick={() => setResetPlanDayCtx(day)}
+                data-testid={`button-reset-plan-${day.date}`}
+                title="Reset to original prescription"
+              >
+                <Undo2 className="h-3 w-3 mr-1" /> Reset
+              </Button>
+            </div>
+          );
 
           if (day.isRest) {
             return (
@@ -164,6 +272,9 @@ export default function WeekDetail() {
                       ))}
                     </div>
                   )}
+                  <div className="flex justify-end pt-2 border-t border-dashed border-border/60">
+                    {planActions}
+                  </div>
                 </CardContent>
               </Card>
             );
@@ -326,6 +437,12 @@ export default function WeekDetail() {
                         </Button>
                       )}
                     </div>
+
+                    {/* Plan-edit row sits below the logged-workout actions so the
+                        two concerns are visually separated and can't be confused. */}
+                    <div className="flex justify-end pt-3 border-t border-border/60">
+                      {planActions}
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -333,6 +450,48 @@ export default function WeekDetail() {
           );
         })}
       </div>
+
+      {editPlanDay && (
+        <PlanDayForm
+          open={!!editPlanDay}
+          onOpenChange={(open) => !open && setEditPlanDay(null)}
+          planDay={editPlanDay}
+        />
+      )}
+      {movePlanDay && (
+        <MoveDayPicker
+          open={!!movePlanDay}
+          onOpenChange={(open) => !open && setMovePlanDay(null)}
+          day={movePlanDay}
+          candidates={swapCandidates(movePlanDay)}
+        />
+      )}
+      <AlertDialog
+        open={!!resetPlanDayCtx}
+        onOpenChange={(open) => !open && setResetPlanDayCtx(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset to original prescription?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will revert {resetPlanDayCtx?.day} ({resetPlanDayCtx?.date}) back to the seeded plan, undoing any edits or swaps applied to this day. Logged workouts are not affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={resetPlanDay.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={resetPlanDay.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                confirmReset();
+              }}
+              data-testid="button-confirm-reset-plan"
+            >
+              {resetPlanDay.isPending ? "Resetting..." : "Reset Plan"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {dialogs}
     </div>

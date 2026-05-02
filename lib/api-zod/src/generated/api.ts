@@ -104,6 +104,111 @@ export const GetPlanWeekResponse = zod
     }),
   );
 
+export const UpdatePlanDayParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdatePlanDayBody = zod
+  .object({
+    sessionType: zod.string().optional(),
+    equipment: zod.string().optional(),
+    description: zod.string().optional(),
+    distanceMi: zod.number().nullish(),
+    cardioMin: zod.number().nullish(),
+    pace: zod.string().nullish(),
+    strengthLoad: zod.number().nullish(),
+    totalLoad: zod.number().optional(),
+    isRest: zod.boolean().optional(),
+  })
+  .describe(
+    "Editable fields for a planned (prescribed) workout. Date, day, week, and phase are immutable - use the swap endpoint to move sessions between days within a week.",
+  );
+
+export const UpdatePlanDayResponse = zod.object({
+  id: zod.number(),
+  week: zod.number(),
+  phase: zod.string(),
+  date: zod.string(),
+  day: zod.string(),
+  strengthLoad: zod.number().nullish(),
+  equipment: zod.string(),
+  description: zod.string(),
+  cardioMin: zod.number().nullish(),
+  distanceMi: zod.number().nullish(),
+  pace: zod.string().nullish(),
+  sessionType: zod.string(),
+  isRest: zod.boolean(),
+  totalLoad: zod.number(),
+});
+
+export const SwapPlanDayParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const SwapPlanDayBody = zod.object({
+  withDayId: zod
+    .number()
+    .describe(
+      "id of the partner plan_day to swap session content with. Must be in the same week.",
+    ),
+});
+
+export const SwapPlanDayResponse = zod.object({
+  from: zod.object({
+    id: zod.number(),
+    week: zod.number(),
+    phase: zod.string(),
+    date: zod.string(),
+    day: zod.string(),
+    strengthLoad: zod.number().nullish(),
+    equipment: zod.string(),
+    description: zod.string(),
+    cardioMin: zod.number().nullish(),
+    distanceMi: zod.number().nullish(),
+    pace: zod.string().nullish(),
+    sessionType: zod.string(),
+    isRest: zod.boolean(),
+    totalLoad: zod.number(),
+  }),
+  to: zod.object({
+    id: zod.number(),
+    week: zod.number(),
+    phase: zod.string(),
+    date: zod.string(),
+    day: zod.string(),
+    strengthLoad: zod.number().nullish(),
+    equipment: zod.string(),
+    description: zod.string(),
+    cardioMin: zod.number().nullish(),
+    distanceMi: zod.number().nullish(),
+    pace: zod.string().nullish(),
+    sessionType: zod.string(),
+    isRest: zod.boolean(),
+    totalLoad: zod.number(),
+  }),
+});
+
+export const ResetPlanDayParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ResetPlanDayResponse = zod.object({
+  id: zod.number(),
+  week: zod.number(),
+  phase: zod.string(),
+  date: zod.string(),
+  day: zod.string(),
+  strengthLoad: zod.number().nullish(),
+  equipment: zod.string(),
+  description: zod.string(),
+  cardioMin: zod.number().nullish(),
+  distanceMi: zod.number().nullish(),
+  pace: zod.string().nullish(),
+  sessionType: zod.string(),
+  isRest: zod.boolean(),
+  totalLoad: zod.number(),
+});
+
 export const GetTodayPlanResponse = zod.object({
   date: zod.string(),
   hasPlan: zod.boolean(),

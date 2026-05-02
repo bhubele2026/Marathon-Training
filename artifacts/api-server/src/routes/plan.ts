@@ -1,6 +1,10 @@
 import { Router, type IRouter } from "express";
 import { db, planDaysTable, planWeeksTable, workoutsTable, type PlanDayRow, type WorkoutRow } from "@workspace/db";
 import { eq, asc, sql, and, gte, lte } from "drizzle-orm";
+import {
+  UpdatePlanDayBody,
+  SwapPlanDayBody,
+} from "@workspace/api-zod";
 import { toPlanDay, toPlanWeek, toWorkout } from "../lib/transforms";
 
 const router: IRouter = Router();
@@ -295,6 +299,235 @@ router.get("/plan/today", async (_req, res) => {
     loggedWorkouts: loggedRows.map(toWorkout),
     suggestions,
   });
+});
+
+// --- Plan editing ---------------------------------------------------------
+//
+// PATCH /plan/days/:id - edit the prescribed values on a plan day in place.
+// POST  /plan/days/:id/swap - swap session content with another day in the
+//                             same week; calendar dates stay put.
+// POST  /plan/days/:id/reset - restore the row to its seeded prescription.
+//
+// All three keep `plan_weeks` aggregates (plannedMiles, plannedTotalLoad,
+// plannedStrength, plannedCardio, longRunMi) consistent by recomputing them
+// from the affected week's plan_days inside a transaction, and lazily snapshot
+// the current row into the seed_* columns the first time it is mutated so
+// reset always has something to restore from on already-deployed databases.
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+interface PlanDayMutableFields {
+  sessionType: string;
+  equipment: string;
+  description: string;
+  distanceMi: number | null;
+  cardioMin: number | null;
+  pace: string | null;
+  strengthLoad: number | null;
+  totalLoad: number;
+  isRest: boolean;
+}
+
+function pickMutableFields(row: PlanDayRow): PlanDayMutableFields {
+  return {
+    sessionType: row.sessionType,
+    equipment: row.equipment,
+    description: row.description,
+    distanceMi: row.distanceMi,
+    cardioMin: row.cardioMin,
+    pace: row.pace,
+    strengthLoad: row.strengthLoad,
+    totalLoad: row.totalLoad,
+    isRest: row.isRest,
+  };
+}
+
+// Lazily snapshot the row's current prescription into seed_* the first time
+// it is about to change, so already-deployed databases (which were never
+// re-seeded after the seed_* columns were added) can still be reset later.
+async function ensureSeedSnapshot(tx: Tx, row: PlanDayRow): Promise<void> {
+  if (row.seedSessionType != null) return;
+  await tx
+    .update(planDaysTable)
+    .set({
+      seedSessionType: row.sessionType,
+      seedEquipment: row.equipment,
+      seedDescription: row.description,
+      seedDistanceMi: row.distanceMi,
+      seedCardioMin: row.cardioMin,
+      seedPace: row.pace,
+      seedStrengthLoad: row.strengthLoad,
+      seedTotalLoad: row.totalLoad,
+      seedIsRest: row.isRest,
+    })
+    .where(eq(planDaysTable.id, row.id));
+}
+
+// Recompute and persist the planned aggregates for `week` from its plan_days.
+// Mirrors the same shape the seed script writes (sum of distance, total_load,
+// strength_load, cardio_min, and the max distance as the long run).
+async function recomputeWeekTotals(tx: Tx, week: number): Promise<void> {
+  const days = await tx
+    .select()
+    .from(planDaysTable)
+    .where(eq(planDaysTable.week, week));
+  const plannedMiles = days.reduce((s, d) => s + (d.distanceMi ?? 0), 0);
+  const plannedTotalLoad = days.reduce((s, d) => s + (d.totalLoad ?? 0), 0);
+  const plannedStrength = days.reduce((s, d) => s + (d.strengthLoad ?? 0), 0);
+  const plannedCardio = days.reduce((s, d) => s + (d.cardioMin ?? 0), 0);
+  const longRunMi = days.reduce(
+    (max, d) => Math.max(max, d.distanceMi ?? 0),
+    0,
+  );
+  await tx
+    .update(planWeeksTable)
+    .set({
+      plannedMiles,
+      plannedTotalLoad,
+      plannedStrength,
+      plannedCardio,
+      longRunMi,
+    })
+    .where(eq(planWeeksTable.week, week));
+}
+
+router.patch("/plan/days/:id", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "invalid id" });
+    return;
+  }
+  const parsed = UpdatePlanDayBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const updated = await db.transaction(async (tx) => {
+    const existing = (
+      await tx.select().from(planDaysTable).where(eq(planDaysTable.id, id)).limit(1)
+    )[0];
+    if (!existing) return null;
+    await ensureSeedSnapshot(tx, existing);
+    const next = await tx
+      .update(planDaysTable)
+      .set(parsed.data)
+      .where(eq(planDaysTable.id, id))
+      .returning();
+    await recomputeWeekTotals(tx, existing.week);
+    return next[0]!;
+  });
+  if (!updated) {
+    res.status(404).json({ error: "plan day not found" });
+    return;
+  }
+  req.log.info({ planDayId: id, week: updated.week }, "plan day updated");
+  res.json(toPlanDay(updated));
+});
+
+router.post("/plan/days/:id/swap", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "invalid id" });
+    return;
+  }
+  const parsed = SwapPlanDayBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const withDayId = parsed.data.withDayId;
+  if (withDayId === id) {
+    res.status(400).json({ error: "cannot swap a day with itself" });
+    return;
+  }
+  const result = await db.transaction(async (tx) => {
+    const a = (
+      await tx.select().from(planDaysTable).where(eq(planDaysTable.id, id)).limit(1)
+    )[0];
+    const b = (
+      await tx
+        .select()
+        .from(planDaysTable)
+        .where(eq(planDaysTable.id, withDayId))
+        .limit(1)
+    )[0];
+    if (!a || !b) return { kind: "not-found" as const };
+    if (a.week !== b.week) {
+      return { kind: "different-week" as const };
+    }
+    await ensureSeedSnapshot(tx, a);
+    await ensureSeedSnapshot(tx, b);
+    const aFields = pickMutableFields(a);
+    const bFields = pickMutableFields(b);
+    // Overwrite a with b's prescription and vice-versa. date / day / week /
+    // phase / id / seed_* stay put so the calendar position and the original
+    // prescription snapshot are preserved.
+    const updatedA = await tx
+      .update(planDaysTable)
+      .set(bFields)
+      .where(eq(planDaysTable.id, a.id))
+      .returning();
+    const updatedB = await tx
+      .update(planDaysTable)
+      .set(aFields)
+      .where(eq(planDaysTable.id, b.id))
+      .returning();
+    await recomputeWeekTotals(tx, a.week);
+    return { kind: "ok" as const, a: updatedA[0]!, b: updatedB[0]! };
+  });
+  if (result.kind === "not-found") {
+    res.status(404).json({ error: "plan day not found" });
+    return;
+  }
+  if (result.kind === "different-week") {
+    res.status(400).json({ error: "plan days must be in the same week to swap" });
+    return;
+  }
+  req.log.info(
+    { fromId: id, toId: withDayId, week: result.a.week },
+    "plan days swapped",
+  );
+  res.json({ from: toPlanDay(result.a), to: toPlanDay(result.b) });
+});
+
+router.post("/plan/days/:id/reset", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "invalid id" });
+    return;
+  }
+  const result = await db.transaction(async (tx) => {
+    const existing = (
+      await tx.select().from(planDaysTable).where(eq(planDaysTable.id, id)).limit(1)
+    )[0];
+    if (!existing) return null;
+    // Nothing to restore from -> the row has never been edited, so just hand
+    // back the current prescription unchanged.
+    if (existing.seedSessionType == null) return existing;
+    const reset = await tx
+      .update(planDaysTable)
+      .set({
+        sessionType: existing.seedSessionType,
+        equipment: existing.seedEquipment ?? existing.equipment,
+        description: existing.seedDescription ?? existing.description,
+        distanceMi: existing.seedDistanceMi,
+        cardioMin: existing.seedCardioMin,
+        pace: existing.seedPace,
+        strengthLoad: existing.seedStrengthLoad,
+        totalLoad: existing.seedTotalLoad ?? 0,
+        isRest: existing.seedIsRest ?? existing.isRest,
+      })
+      .where(eq(planDaysTable.id, id))
+      .returning();
+    await recomputeWeekTotals(tx, existing.week);
+    return reset[0]!;
+  });
+  if (!result) {
+    res.status(404).json({ error: "plan day not found" });
+    return;
+  }
+  req.log.info({ planDayId: id, week: result.week }, "plan day reset");
+  res.json(toPlanDay(result));
 });
 
 export default router;
