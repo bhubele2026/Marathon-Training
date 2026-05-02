@@ -1,9 +1,10 @@
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { Toast, ToastProvider, ToastViewport } from "@/components/ui/toast";
 import { UndoCountdownAction } from "./undo-countdown-action";
 
-function renderInToast(ui: React.ReactNode) {
+function renderInToast(ui: ReactNode) {
   return render(
     <ToastProvider>
       <Toast open>{ui}</Toast>

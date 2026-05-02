@@ -38,17 +38,39 @@ const toastVariants = cva(
   }
 )
 
+// Mirrors Radix Toast's pause-on-hover/focus state down to descendants so that
+// timers rendered inside the toast (e.g. the Undo countdown) can stay in sync
+// with the host toast's auto-dismiss timer.
+const ToastPausedContext = React.createContext(false)
+
+function useToastPaused() {
+  return React.useContext(ToastPausedContext)
+}
+
 const Toast = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Root>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Root> &
     VariantProps<typeof toastVariants>
->(({ className, variant, ...props }, ref) => {
+>(({ className, variant, children, onPause, onResume, ...props }, ref) => {
+  const [paused, setPaused] = React.useState(false)
   return (
     <ToastPrimitives.Root
       ref={ref}
       className={cn(toastVariants({ variant }), className)}
+      onPause={() => {
+        setPaused(true)
+        onPause?.()
+      }}
+      onResume={() => {
+        setPaused(false)
+        onResume?.()
+      }}
       {...props}
-    />
+    >
+      <ToastPausedContext.Provider value={paused}>
+        {children}
+      </ToastPausedContext.Provider>
+    </ToastPrimitives.Root>
   )
 })
 Toast.displayName = ToastPrimitives.Root.displayName
@@ -124,4 +146,5 @@ export {
   ToastDescription,
   ToastClose,
   ToastAction,
+  useToastPaused,
 }
