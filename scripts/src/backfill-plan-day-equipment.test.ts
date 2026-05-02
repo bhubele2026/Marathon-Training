@@ -157,6 +157,28 @@ describe("computeEquipmentBackfillUpdates", () => {
     ).toEqual({});
   });
 
+  it("repairs an empty equipment_list array (not just NULL) so the API/UI fallback never has to render zero chips", () => {
+    expect(
+      computeEquipmentBackfillUpdates({
+        ...baseRow,
+        equipmentList: [],
+      }),
+    ).toEqual({ equipmentList: ["Tonal", "Peloton Bike"] });
+  });
+
+  it("repairs an empty seed_equipment_list when the row was edited", () => {
+    expect(
+      computeEquipmentBackfillUpdates({
+        ...baseRow,
+        equipmentList: ["Tonal", "Peloton Bike"],
+        seedSessionType: "Strength + Cardio",
+        seedEquipment: "Tonal",
+        seedDescription: "Heavy Tonal then Peloton Row",
+        seedEquipmentList: [],
+      }),
+    ).toEqual({ seedEquipmentList: ["Tonal", "Peloton Row"] });
+  });
+
   it("populates seed_equipment_list only when an edited marker exists and the seed mirror is null", () => {
     expect(
       computeEquipmentBackfillUpdates({

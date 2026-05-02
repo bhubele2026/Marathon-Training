@@ -130,4 +130,71 @@ describe("Today page — pre-launch countdown", () => {
     expect(screen.queryByTestId("card-campaign-countdown")).toBeNull();
     expect(screen.getByText("Mission Brief")).toBeTruthy();
   });
+
+  // Task #77 chip rail: each machine the runner uses today renders as its
+  // own chip with a deterministic test id `chip-equipment-{date}-{idx}`.
+  // Both call sites — the Mission Brief and the pre-launch countdown's
+  // First Scheduled Session preview — share the same fallback semantics:
+  // when `equipmentList` is missing or empty the chip rail collapses to a
+  // single `[equipment]` chip so a legacy row never renders zero chips.
+  it("renders one chip per equipmentList entry on the Mission Brief (multi-equipment day)", () => {
+    renderWithData({
+      date: "2026-05-05",
+      hasPlan: true,
+      plan: { ...firstSession, equipmentList: ["Tonal", "Peloton Bike"] },
+      loggedWorkouts: [],
+      suggestions: null,
+      daysUntilStart: null,
+      firstSession: null,
+    });
+
+    expect(screen.getByTestId("chip-equipment-2026-05-05-0").textContent).toBe("Tonal");
+    expect(screen.getByTestId("chip-equipment-2026-05-05-1").textContent).toBe("Peloton Bike");
+    expect(screen.queryByTestId("chip-equipment-2026-05-05-2")).toBeNull();
+  });
+
+  it("falls back to a single [equipment] chip on the Mission Brief when equipmentList is missing", () => {
+    renderWithData({
+      date: "2026-05-05",
+      hasPlan: true,
+      plan: { ...firstSession, equipmentList: undefined },
+      loggedWorkouts: [],
+      suggestions: null,
+      daysUntilStart: null,
+      firstSession: null,
+    });
+
+    expect(screen.getByTestId("chip-equipment-2026-05-05-0").textContent).toBe("Tonal");
+    expect(screen.queryByTestId("chip-equipment-2026-05-05-1")).toBeNull();
+  });
+
+  it("renders one chip per equipmentList entry on the pre-launch First Scheduled Session preview", () => {
+    renderWithData({
+      date: "2026-05-02",
+      hasPlan: false,
+      plan: null,
+      loggedWorkouts: [],
+      suggestions: null,
+      daysUntilStart: 3,
+      firstSession: { ...firstSession, equipmentList: ["Tonal", "Peloton Bike"] },
+    });
+
+    expect(screen.getByTestId("chip-equipment-2026-05-05-0").textContent).toBe("Tonal");
+    expect(screen.getByTestId("chip-equipment-2026-05-05-1").textContent).toBe("Peloton Bike");
+  });
+
+  it("falls back to a single [equipment] chip on the pre-launch First Scheduled Session preview when equipmentList is missing", () => {
+    renderWithData({
+      date: "2026-05-02",
+      hasPlan: false,
+      plan: null,
+      loggedWorkouts: [],
+      suggestions: null,
+      daysUntilStart: 3,
+      firstSession: { ...firstSession, equipmentList: undefined },
+    });
+
+    expect(screen.getByTestId("chip-equipment-2026-05-05-0").textContent).toBe("Tonal");
+    expect(screen.queryByTestId("chip-equipment-2026-05-05-1")).toBeNull();
+  });
 });

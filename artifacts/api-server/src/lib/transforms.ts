@@ -3,6 +3,18 @@ import type { PlanWeekRow } from "@workspace/db";
 import type { WorkoutRow } from "@workspace/db";
 import type { MeasurementRow } from "@workspace/db";
 
+// Normalize a possibly-NULL or possibly-empty equipment_list to a
+// guaranteed non-empty `[scalar]` fallback. Both NULL (the column was
+// never backfilled) and `[]` (a degenerate write that somehow slipped
+// past validation) need the same treatment so the chip rail always has at
+// least one element to render.
+export function normalizeEquipmentList(
+  list: string[] | null | undefined,
+  scalar: string,
+): string[] {
+  return list && list.length > 0 ? list : [scalar];
+}
+
 // Compare each mutable field against its seed_* snapshot. The snapshot is
 // only populated once a row has actually been edited (or swapped), so a row
 // that has never been touched returns an empty diff and reports as
@@ -16,12 +28,16 @@ function planDayCustomizedFields(r: PlanDayRow): string[] {
   if (r.equipment !== r.seedEquipment) fields.push("equipment");
   // The chip rail is generator-owned and replaced wholesale on edit, so
   // structural equality (JSON) is the right comparison here. Both sides are
-  // normalized through the same `?? [scalar]` fallback the API exposes via
-  // `toPlanDay` so a legacy NULL list on either the live row or the seed
+  // normalized through the same `[scalar]` fallback the API exposes via
+  // `toPlanDay` (treating NULL *and* empty arrays as "no rail recorded
+  // yet") so a legacy NULL list on either the live row or the seed
   // snapshot doesn't get falsely flagged as customized just because one
   // side has been backfilled and the other hasn't.
-  const liveList = r.equipmentList ?? [r.equipment];
-  const seedList = r.seedEquipmentList ?? [r.seedEquipment ?? r.equipment];
+  const liveList = normalizeEquipmentList(r.equipmentList, r.equipment);
+  const seedList = normalizeEquipmentList(
+    r.seedEquipmentList,
+    r.seedEquipment ?? r.equipment,
+  );
   if (JSON.stringify(liveList) !== JSON.stringify(seedList)) {
     fields.push("equipmentList");
   }
@@ -64,10 +80,11 @@ export function toPlanDay(r: PlanDayRow) {
     strengthLoad: r.strengthLoad,
     equipment: r.equipment,
     // Ordered chip rail of every machine the runner will use that day.
-    // Falls back to a single-element list of the scalar `equipment` so the
-    // UI can always render at least one chip even on rows that predate the
-    // task #77 backfill (equipment_list is nullable in the DB).
-    equipmentList: r.equipmentList ?? [r.equipment],
+    // Falls back to a single-element list of the scalar `equipment` for
+    // both NULL and empty arrays so the UI can always render at least one
+    // chip even on rows that predate the task #77 backfill or that
+    // somehow ended up with an empty array in the DB.
+    equipmentList: normalizeEquipmentList(r.equipmentList, r.equipment),
     description: r.description,
     strengthMin: r.strengthMin,
     cardioMin: r.cardioMin,

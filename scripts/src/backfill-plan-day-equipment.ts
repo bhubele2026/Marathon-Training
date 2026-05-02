@@ -95,11 +95,19 @@ interface BackfillUpdates {
   seedEquipmentList?: string[];
 }
 
+// True when the column has no usable chip rail yet — either NULL (never
+// backfilled) or an empty array (degenerate write). Both need repair so
+// the API/UI fallback path never has to render zero chips.
+function needsBackfill(list: string[] | null): boolean {
+  return list == null || list.length === 0;
+}
+
 // Compute the field-level updates for one row. Live `equipment_list` is
-// only populated when NULL; the seed mirror is only populated when NULL
-// AND the row carries an "edited" marker (seed_session_type IS NOT NULL).
-// Rows whose seed snapshot has never been recorded leave seed_* alone so
-// the "row was never edited" signal stays intact.
+// (re)populated whenever it's NULL or empty; the seed mirror is
+// (re)populated only when the row carries an "edited" marker
+// (seed_session_type IS NOT NULL) AND its current value is NULL or
+// empty. Rows whose seed snapshot has never been recorded leave seed_*
+// alone so the "row was never edited" signal stays intact.
 export function computeEquipmentBackfillUpdates(row: {
   equipment: string;
   description: string | null;
@@ -110,13 +118,13 @@ export function computeEquipmentBackfillUpdates(row: {
   seedEquipmentList: string[] | null;
 }): BackfillUpdates {
   const out: BackfillUpdates = {};
-  if (row.equipmentList == null) {
+  if (needsBackfill(row.equipmentList)) {
     out.equipmentList = parseEquipmentList({
       description: row.description,
       equipment: row.equipment,
     });
   }
-  if (row.seedSessionType != null && row.seedEquipmentList == null) {
+  if (row.seedSessionType != null && needsBackfill(row.seedEquipmentList)) {
     out.seedEquipmentList = parseEquipmentList({
       description: row.seedDescription,
       equipment: row.seedEquipment ?? row.equipment,

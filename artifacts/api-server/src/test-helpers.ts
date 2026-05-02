@@ -148,6 +148,10 @@ export interface PlanDayInput {
   distanceMi?: number | null;
   strengthLoad?: number | null;
   totalLoad?: number;
+  // Optional task #77 chip rail. When omitted the row's equipment_list
+  // column is left NULL, which simulates a pre-task-#77 legacy row and
+  // exercises the API's `[equipment]` fallback path.
+  equipmentList?: string[] | null;
 }
 
 export async function insertPlanDay(
@@ -164,6 +168,7 @@ export async function insertPlanDay(
       day: d.day,
       sessionType: d.sessionType,
       equipment: d.equipment,
+      equipmentList: d.equipmentList ?? null,
       description: d.description ?? "",
       isRest: d.isRest ?? false,
       pace: d.pace ?? null,

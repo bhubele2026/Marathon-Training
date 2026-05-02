@@ -76,8 +76,9 @@ export const GetPlanWeekResponse = zod
             equipment: zod.string(),
             equipmentList: zod
               .array(zod.string())
+              .nullish()
               .describe(
-                'Ordered chip rail of every machine the runner will use that day, in canonical priority order (Tonal, Peloton Bike, Peloton Row, Peloton Tread, Outdoor). The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". The scalar `equipment` field above is preserved for back-compat (dashboard equipment usage, suggestions pairKey) and continues to hold the headline machine. The server falls back to `[equipment]` for rows that predate the task',
+                'Ordered chip rail of every machine the runner will use that day. The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". Per the task #77 contract the scalar `equipment` field above always equals `equipmentList[0]` (the \*primary\* machine for the day) so any back-compat code path that still reads the scalar — dashboard equipment usage, suggestions pairKey, `\/equipment` page — agrees with the chip rail\'s lead chip. Nullable to match the underlying DB column on legacy rows that predate the task #77 backfill, but in practice the server normalizes both NULL and empty arrays to `[equipment]` before responding so this field is always present and non-empty in API responses; clients should still tolerate `null` defensively (e.g. `equipmentList ?? [equipment]`).\n',
               ),
             description: zod.string(),
             strengthMin: zod
@@ -174,8 +175,9 @@ export const UpdatePlanDayResponse = zod.object({
   equipment: zod.string(),
   equipmentList: zod
     .array(zod.string())
+    .nullish()
     .describe(
-      'Ordered chip rail of every machine the runner will use that day, in canonical priority order (Tonal, Peloton Bike, Peloton Row, Peloton Tread, Outdoor). The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". The scalar `equipment` field above is preserved for back-compat (dashboard equipment usage, suggestions pairKey) and continues to hold the headline machine. The server falls back to `[equipment]` for rows that predate the task',
+      'Ordered chip rail of every machine the runner will use that day. The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". Per the task #77 contract the scalar `equipment` field above always equals `equipmentList[0]` (the \*primary\* machine for the day) so any back-compat code path that still reads the scalar — dashboard equipment usage, suggestions pairKey, `\/equipment` page — agrees with the chip rail\'s lead chip. Nullable to match the underlying DB column on legacy rows that predate the task #77 backfill, but in practice the server normalizes both NULL and empty arrays to `[equipment]` before responding so this field is always present and non-empty in API responses; clients should still tolerate `null` defensively (e.g. `equipmentList ?? [equipment]`).\n',
     ),
   description: zod.string(),
   strengthMin: zod
@@ -242,8 +244,9 @@ export const SwapPlanDayResponse = zod.object({
     equipment: zod.string(),
     equipmentList: zod
       .array(zod.string())
+      .nullish()
       .describe(
-        'Ordered chip rail of every machine the runner will use that day, in canonical priority order (Tonal, Peloton Bike, Peloton Row, Peloton Tread, Outdoor). The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". The scalar `equipment` field above is preserved for back-compat (dashboard equipment usage, suggestions pairKey) and continues to hold the headline machine. The server falls back to `[equipment]` for rows that predate the task',
+        'Ordered chip rail of every machine the runner will use that day. The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". Per the task #77 contract the scalar `equipment` field above always equals `equipmentList[0]` (the \*primary\* machine for the day) so any back-compat code path that still reads the scalar — dashboard equipment usage, suggestions pairKey, `\/equipment` page — agrees with the chip rail\'s lead chip. Nullable to match the underlying DB column on legacy rows that predate the task #77 backfill, but in practice the server normalizes both NULL and empty arrays to `[equipment]` before responding so this field is always present and non-empty in API responses; clients should still tolerate `null` defensively (e.g. `equipmentList ?? [equipment]`).\n',
       ),
     description: zod.string(),
     strengthMin: zod
@@ -296,8 +299,9 @@ export const SwapPlanDayResponse = zod.object({
     equipment: zod.string(),
     equipmentList: zod
       .array(zod.string())
+      .nullish()
       .describe(
-        'Ordered chip rail of every machine the runner will use that day, in canonical priority order (Tonal, Peloton Bike, Peloton Row, Peloton Tread, Outdoor). The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". The scalar `equipment` field above is preserved for back-compat (dashboard equipment usage, suggestions pairKey) and continues to hold the headline machine. The server falls back to `[equipment]` for rows that predate the task',
+        'Ordered chip rail of every machine the runner will use that day. The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". Per the task #77 contract the scalar `equipment` field above always equals `equipmentList[0]` (the \*primary\* machine for the day) so any back-compat code path that still reads the scalar — dashboard equipment usage, suggestions pairKey, `\/equipment` page — agrees with the chip rail\'s lead chip. Nullable to match the underlying DB column on legacy rows that predate the task #77 backfill, but in practice the server normalizes both NULL and empty arrays to `[equipment]` before responding so this field is always present and non-empty in API responses; clients should still tolerate `null` defensively (e.g. `equipmentList ?? [equipment]`).\n',
       ),
     description: zod.string(),
     strengthMin: zod
@@ -366,8 +370,9 @@ export const ResetPlanDayResponse = zod.object({
   equipment: zod.string(),
   equipmentList: zod
     .array(zod.string())
+    .nullish()
     .describe(
-      'Ordered chip rail of every machine the runner will use that day, in canonical priority order (Tonal, Peloton Bike, Peloton Row, Peloton Tread, Outdoor). The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". The scalar `equipment` field above is preserved for back-compat (dashboard equipment usage, suggestions pairKey) and continues to hold the headline machine. The server falls back to `[equipment]` for rows that predate the task',
+      'Ordered chip rail of every machine the runner will use that day. The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". Per the task #77 contract the scalar `equipment` field above always equals `equipmentList[0]` (the \*primary\* machine for the day) so any back-compat code path that still reads the scalar — dashboard equipment usage, suggestions pairKey, `\/equipment` page — agrees with the chip rail\'s lead chip. Nullable to match the underlying DB column on legacy rows that predate the task #77 backfill, but in practice the server normalizes both NULL and empty arrays to `[equipment]` before responding so this field is always present and non-empty in API responses; clients should still tolerate `null` defensively (e.g. `equipmentList ?? [equipment]`).\n',
     ),
   description: zod.string(),
   strengthMin: zod
@@ -560,8 +565,9 @@ export const GetTodayPlanResponse = zod.object({
       equipment: zod.string(),
       equipmentList: zod
         .array(zod.string())
+        .nullish()
         .describe(
-          'Ordered chip rail of every machine the runner will use that day, in canonical priority order (Tonal, Peloton Bike, Peloton Row, Peloton Tread, Outdoor). The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". The scalar `equipment` field above is preserved for back-compat (dashboard equipment usage, suggestions pairKey) and continues to hold the headline machine. The server falls back to `[equipment]` for rows that predate the task',
+          'Ordered chip rail of every machine the runner will use that day. The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". Per the task #77 contract the scalar `equipment` field above always equals `equipmentList[0]` (the \*primary\* machine for the day) so any back-compat code path that still reads the scalar — dashboard equipment usage, suggestions pairKey, `\/equipment` page — agrees with the chip rail\'s lead chip. Nullable to match the underlying DB column on legacy rows that predate the task #77 backfill, but in practice the server normalizes both NULL and empty arrays to `[equipment]` before responding so this field is always present and non-empty in API responses; clients should still tolerate `null` defensively (e.g. `equipmentList ?? [equipment]`).\n',
         ),
       description: zod.string(),
       strengthMin: zod
@@ -694,8 +700,9 @@ export const GetTodayPlanResponse = zod.object({
       equipment: zod.string(),
       equipmentList: zod
         .array(zod.string())
+        .nullish()
         .describe(
-          'Ordered chip rail of every machine the runner will use that day, in canonical priority order (Tonal, Peloton Bike, Peloton Row, Peloton Tread, Outdoor). The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". The scalar `equipment` field above is preserved for back-compat (dashboard equipment usage, suggestions pairKey) and continues to hold the headline machine. The server falls back to `[equipment]` for rows that predate the task',
+          'Ordered chip rail of every machine the runner will use that day. The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". Per the task #77 contract the scalar `equipment` field above always equals `equipmentList[0]` (the \*primary\* machine for the day) so any back-compat code path that still reads the scalar — dashboard equipment usage, suggestions pairKey, `\/equipment` page — agrees with the chip rail\'s lead chip. Nullable to match the underlying DB column on legacy rows that predate the task #77 backfill, but in practice the server normalizes both NULL and empty arrays to `[equipment]` before responding so this field is always present and non-empty in API responses; clients should still tolerate `null` defensively (e.g. `equipmentList ?? [equipment]`).\n',
         ),
       description: zod.string(),
       strengthMin: zod

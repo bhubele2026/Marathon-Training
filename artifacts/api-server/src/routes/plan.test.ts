@@ -559,6 +559,96 @@ describe("PATCH /api/plan/days/:id", () => {
     expect(reset.body.totalLoad).toBe(40);
   });
 
+  it("echoes equipmentList verbatim on GET /api/plan/weeks/:week and falls back to [equipment] when the row's column is NULL (task #77 contract)", async () => {
+    const week = 8104;
+    const phase = "Echo Equipment List";
+    await insertWeek(week, { startDate: "2099-04-29", endDate: "2099-05-05", phase });
+
+    // Multi-equipment row: API must echo the chip rail verbatim, in
+    // order, so the UI can render TONAL · PELOTON BIKE.
+    await insertPlanDay(week, phase, {
+      date: "2099-04-29", day: "Mon", sessionType: T_STRENGTH, equipment: E_GYM,
+      equipmentList: [E_GYM, E_SPIN], totalLoad: 50,
+    });
+
+    // Single-equipment row: chip rail is just one element.
+    await insertPlanDay(week, phase, {
+      date: "2099-04-30", day: "Tue", sessionType: T_RUN, equipment: E_OUTDOOR,
+      equipmentList: [E_OUTDOOR], distanceMi: 4, totalLoad: 40,
+    });
+
+    // Legacy row that pre-dates task #77: equipment_list is NULL on
+    // disk, so the API must fall back to [equipment] for the response.
+    await insertPlanDay(week, phase, {
+      date: "2099-05-01", day: "Wed", sessionType: T_BIKE, equipment: E_SPIN,
+      totalLoad: 25,
+    });
+
+    const res = await request(app).get(`/api/plan/weeks/${week}`);
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetPlanWeekResponse, res.body);
+
+    const days = res.body.days as Array<{ date: string; equipment: string; equipmentList: string[] | null }>;
+    const mon = days.find((d) => d.date === "2099-04-29")!;
+    expect(mon.equipmentList).toEqual([E_GYM, E_SPIN]);
+    const tue = days.find((d) => d.date === "2099-04-30")!;
+    expect(tue.equipmentList).toEqual([E_OUTDOOR]);
+    const wed = days.find((d) => d.date === "2099-05-01")!;
+    expect(wed.equipmentList).toEqual([E_SPIN]); // fallback from scalar
+  });
+
+  it("echoes equipmentList on GET /api/plan/today for both today.plan and today.firstSession (task #77 contract)", async () => {
+    // Mock "today" to be inside the planned week so today.plan resolves.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-05-04T12:00:00.000Z"));
+
+    const week = 8105;
+    const phase = "Echo Today Equipment List";
+    await insertWeek(week, { startDate: "2099-05-04", endDate: "2099-05-10", phase });
+
+    await insertPlanDay(week, phase, {
+      date: "2099-05-04", day: "Mon", sessionType: T_STRENGTH, equipment: E_GYM,
+      equipmentList: [E_GYM, E_SPIN], totalLoad: 50,
+    });
+
+    const res = await request(app).get(`/api/plan/today`);
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetTodayPlanResponse, res.body);
+    expect(res.body.hasPlan).toBe(true);
+    expect(res.body.plan.equipmentList).toEqual([E_GYM, E_SPIN]);
+  });
+
+  it("echoes equipmentList on GET /api/plan/today.firstSession during the pre-launch countdown (task #77 contract)", async () => {
+    // Mock "today" to a date BEFORE the production seed window
+    // (2026-05-04 onwards) so the firstSession resolver picks our
+    // inserted test rows rather than a real seed row. Mirrors the date
+    // band used by the existing pre-launch tests above.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2025-12-15T12:00:00.000Z"));
+
+    const week = 8106;
+    const phase = "Echo First Session Equipment List";
+    await insertWeek(week, { startDate: "2025-12-22", endDate: "2025-12-28", phase });
+
+    // Mon is a pre-launch rest day with no real session content.
+    await insertPlanDay(week, phase, {
+      date: "2025-12-22", day: "Mon", sessionType: T_REST, equipment: E_NONE,
+      equipmentList: [E_NONE], isRest: true,
+    });
+    // Tue is the first real session — multi-equipment chip rail.
+    await insertPlanDay(week, phase, {
+      date: "2025-12-23", day: "Tue", sessionType: T_STRENGTH, equipment: E_GYM,
+      equipmentList: [E_GYM, E_SPIN], totalLoad: 50,
+    });
+
+    const res = await request(app).get(`/api/plan/today`);
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetTodayPlanResponse, res.body);
+    expect(res.body.firstSession).not.toBeNull();
+    expect(res.body.firstSession.date).toBe("2025-12-23");
+    expect(res.body.firstSession.equipmentList).toEqual([E_GYM, E_SPIN]);
+  });
+
   it("normalizes a NULL equipment_list to [equipment] at snapshot time so a scalar-edit + reset round-trip restores a consistent chip rail (task #77 regression)", async () => {
     // Insert a row that simulates a pre-task-#77 legacy row whose
     // equipment_list column is still NULL (the test helper doesn't write it
