@@ -899,7 +899,7 @@ components:
 
     EquipmentPhaseSummary:
       type: object
-      description: Phase-by-phase planned session counts per machine. `phases` is the ordered list of phase names across the campaign; each row's `counts` array is parallel to `phases`.
+      description: Phase-by-phase planned and actual session counts per machine. `phases` is the ordered list of phase names across the campaign; each row's `counts` and `actualCounts` arrays are parallel to `phases`.
       required: [phases, rows]
       properties:
         phases:
@@ -911,13 +911,21 @@ components:
 
     EquipmentPhaseRow:
       type: object
-      required: [equipment, counts, total]
+      required: [equipment, counts, actualCounts, total, actualTotal]
       properties:
         equipment: { type: string }
         counts:
           type: array
+          description: Planned non-rest sessions per phase, in the same order as `phases`.
+          items: { type: integer }
+        actualCounts:
+          type: array
+          description: Logged workouts per phase (matched by workout date falling inside the phase's plan weeks), in the same order as `phases`.
           items: { type: integer }
         total: { type: integer }
+        actualTotal:
+          type: integer
+          description: Sum of `actualCounts` across all phases.
 
     LongRunPoint:
       type: object

@@ -440,13 +440,31 @@ describe("GET /api/dashboard/equipment-phase-summary", () => {
     // 1 treadmill in phase B.
     await insertPlanDay(8702, phaseB, { date: "2099-10-12", day: "Mon", sessionType: T_RUN, equipment: E_TREADMILL });
 
+    // Logged workouts: phase A → 1 outdoor + 1 treadmill, phase B → 2 treadmill (over-execution).
+    await insertWorkout({ date: "2099-10-05", sessionType: T_RUN, equipment: E_OUTDOOR });
+    await insertWorkout({ date: "2099-10-07", sessionType: T_RUN, equipment: E_TREADMILL });
+    await insertWorkout({ date: "2099-10-12", sessionType: T_RUN, equipment: E_TREADMILL });
+    await insertWorkout({ date: "2099-10-13", sessionType: T_RUN, equipment: E_TREADMILL });
+    // Lifestyle entries inside the phase window must NOT pollute actual counts.
+    await insertWorkout({ date: "2099-10-06", sessionType: "Dog Walk", equipment: "Lifestyle", durationMin: 25 });
+    // Skipped sessions must NOT count as actual execution.
+    await insertWorkout({ date: "2099-10-06", sessionType: "Skipped", equipment: E_OUTDOOR });
+    // A workout that falls outside any planned week must not be tagged to a phase.
+    await insertWorkout({ date: "2099-10-25", sessionType: T_RUN, equipment: E_OUTDOOR });
+
     const res = await request(app).get("/api/dashboard/equipment-phase-summary");
     expect(res.status).toBe(200);
     expectMatchesSchema(GetEquipmentPhaseSummaryResponse, res.body);
 
     const body = res.body as {
       phases: string[];
-      rows: Array<{ equipment: string; counts: number[]; total: number }>;
+      rows: Array<{
+        equipment: string;
+        counts: number[];
+        actualCounts: number[];
+        total: number;
+        actualTotal: number;
+      }>;
     };
 
     // Phases include the test phases (and any real phases). We only assert
@@ -460,7 +478,9 @@ describe("GET /api/dashboard/equipment-phase-summary", () => {
     expect(body.rows.slice(0, 4).map((r) => r.equipment)).toEqual([...ARSENAL]);
     for (const r of body.rows) {
       expect(r.counts).toHaveLength(body.phases.length);
+      expect(r.actualCounts).toHaveLength(body.phases.length);
       expect(r.total).toBe(r.counts.reduce((s, n) => s + n, 0));
+      expect(r.actualTotal).toBe(r.actualCounts.reduce((s, n) => s + n, 0));
     }
 
     const outdoor = body.rows.find((r) => r.equipment === E_OUTDOOR);
@@ -468,12 +488,19 @@ describe("GET /api/dashboard/equipment-phase-summary", () => {
     expect(outdoor!.counts[idxA]).toBe(2);
     expect(outdoor!.counts[idxB]).toBe(0);
     expect(outdoor!.total).toBe(2);
+    expect(outdoor!.actualCounts[idxA]).toBe(1);
+    expect(outdoor!.actualCounts[idxB]).toBe(0);
+    expect(outdoor!.actualTotal).toBe(1);
 
     const treadmill = body.rows.find((r) => r.equipment === E_TREADMILL);
     expect(treadmill).toBeDefined();
     expect(treadmill!.counts[idxA]).toBe(1);
     expect(treadmill!.counts[idxB]).toBe(1);
     expect(treadmill!.total).toBe(2);
+    // Phase B is over-executed: 2 actual vs 1 planned.
+    expect(treadmill!.actualCounts[idxA]).toBe(1);
+    expect(treadmill!.actualCounts[idxB]).toBe(2);
+    expect(treadmill!.actualTotal).toBe(3);
   });
 });
 

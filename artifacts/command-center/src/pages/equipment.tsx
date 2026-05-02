@@ -343,7 +343,7 @@ export default function Equipment() {
         <div className="mb-4">
           <h3 className="text-xl font-bold uppercase tracking-wider">Campaign Distribution</h3>
           <p className="text-xs text-muted-foreground uppercase tracking-widest mt-1">
-            Planned sessions per machine across each phase
+            Planned vs actual sessions per machine across each phase
           </p>
         </div>
         {loadingPhases ? (
@@ -351,7 +351,7 @@ export default function Equipment() {
         ) : phaseSummary && phaseSummary.phases.length > 0 ? (
           <Card>
             <CardContent className="p-5">
-              <div className="flex flex-wrap gap-x-4 gap-y-2 mb-5">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-5">
                 {phaseSummary.phases.map((phase, i) => (
                   <div key={phase} className="flex items-center gap-2">
                     <span
@@ -364,59 +364,125 @@ export default function Equipment() {
                     </span>
                   </div>
                 ))}
+                <div className="ml-auto flex items-center gap-3 text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className="h-3 w-3 rounded-sm border border-foreground/20 bg-foreground/10"
+                      aria-hidden
+                    />
+                    Planned
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className="h-3 w-3 rounded-sm bg-foreground/70"
+                      aria-hidden
+                    />
+                    Actual
+                  </div>
+                </div>
               </div>
 
               <TooltipProvider delayDuration={100}>
                 {(() => {
                   const maxTotal = phaseSummary.rows.reduce(
-                    (m, r) => (r.total > m ? r.total : m),
+                    (m, r) => (Math.max(r.total, r.actualTotal) > m ? Math.max(r.total, r.actualTotal) : m),
                     1,
                   );
                   return (
                     <div className="space-y-3">
                       {phaseSummary.rows.map((row) => {
-                        const widthPct =
-                          row.total === 0 ? 0 : (row.total / maxTotal) * 100;
+                        const barTotal = Math.max(row.total, row.actualTotal);
+                        const widthPct = barTotal === 0 ? 0 : (barTotal / maxTotal) * 100;
                         return (
                           <div
                             key={row.equipment}
-                            className="grid grid-cols-[7rem_1fr_3rem] items-center gap-3"
+                            className="grid grid-cols-[7rem_1fr_4.25rem] items-center gap-3"
                           >
                             <div className="font-bold uppercase tracking-wider text-xs truncate">
                               {row.equipment}
                             </div>
-                            <div className="relative h-6 rounded-sm bg-muted/40 overflow-hidden">
-                              {row.total > 0 && (
+                            <div className="relative h-7 rounded-sm bg-muted/40 overflow-hidden">
+                              {barTotal > 0 && (
                                 <div
                                   className="absolute inset-y-0 left-0 flex"
                                   style={{ width: `${widthPct}%` }}
                                 >
-                                  {row.counts.map((n, i) => {
-                                    if (n === 0) return null;
-                                    const segPct = (n / row.total) * 100;
+                                  {row.counts.map((planned, i) => {
+                                    const actual = row.actualCounts[i] ?? 0;
+                                    const segValue = Math.max(planned, actual);
+                                    if (segValue === 0) return null;
+                                    const segPct = (segValue / barTotal) * 100;
+                                    const color = phaseColor(i);
+                                    const fillRatio =
+                                      planned === 0
+                                        ? actual > 0
+                                          ? 1
+                                          : 0
+                                        : Math.min(1, actual / planned);
+                                    const fillPct = fillRatio * 100;
+                                    const overshoot = planned > 0 && actual > planned;
                                     return (
                                       <Tooltip
                                         key={`${row.equipment}-${phaseSummary.phases[i]}`}
                                       >
                                         <TooltipTrigger asChild>
                                           <div
-                                            className="h-full flex items-center justify-center text-[10px] font-bold text-white/95 cursor-default transition-opacity hover:opacity-80"
-                                            style={{
-                                              width: `${segPct}%`,
-                                              backgroundColor: phaseColor(i),
-                                            }}
+                                            className="relative h-full cursor-default border-r border-background/30 last:border-r-0 transition-opacity hover:opacity-90"
+                                            style={{ width: `${segPct}%` }}
                                           >
-                                            {segPct >= 12 ? n : ""}
+                                            <div
+                                              className="absolute inset-0"
+                                              style={{
+                                                backgroundColor: color,
+                                                opacity: 0.25,
+                                              }}
+                                              aria-hidden
+                                            />
+                                            <div
+                                              className="absolute inset-y-0 left-0"
+                                              style={{
+                                                width: `${fillPct}%`,
+                                                backgroundColor: color,
+                                              }}
+                                              aria-hidden
+                                            />
+                                            {overshoot && (
+                                              <div
+                                                className="absolute inset-y-0 right-0 w-0.5 bg-foreground/70"
+                                                aria-hidden
+                                                title="Over plan"
+                                              />
+                                            )}
+                                            {segPct >= 14 && (
+                                              <div className="relative h-full flex items-center justify-center text-[10px] font-bold text-white tabular-nums drop-shadow-[0_1px_1px_rgba(0,0,0,0.6)]">
+                                                {actual}/{planned}
+                                              </div>
+                                            )}
                                           </div>
                                         </TooltipTrigger>
                                         <TooltipContent>
                                           <div className="font-bold uppercase tracking-wider">
                                             {phaseSummary.phases[i]}
                                           </div>
-                                          <div>
-                                            {n} planned session
-                                            {n === 1 ? "" : "s"}
+                                          <div className="text-xs">
+                                            {actual} of {planned} planned session
+                                            {planned === 1 ? "" : "s"}
+                                            {planned > 0 && (
+                                              <>
+                                                {" "}· {Math.round((actual / planned) * 100)}%
+                                              </>
+                                            )}
                                           </div>
+                                          {overshoot && (
+                                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">
+                                              {actual - planned} over plan
+                                            </div>
+                                          )}
+                                          {planned === 0 && actual > 0 && (
+                                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">
+                                              Unplanned
+                                            </div>
+                                          )}
                                         </TooltipContent>
                                       </Tooltip>
                                     );
@@ -426,11 +492,17 @@ export default function Equipment() {
                             </div>
                             <div
                               className={cn(
-                                "text-right font-mono font-bold text-sm",
-                                row.total === 0 && "text-muted-foreground/50",
+                                "text-right font-mono text-xs leading-tight",
+                                row.total === 0 && row.actualTotal === 0 && "text-muted-foreground/50",
                               )}
                             >
-                              {row.total}
+                              <div className="font-bold tabular-nums">
+                                {row.actualTotal}
+                                <span className="text-muted-foreground">/{row.total}</span>
+                              </div>
+                              <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                                done/plan
+                              </div>
                             </div>
                           </div>
                         );

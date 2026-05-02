@@ -318,12 +318,17 @@ export interface EquipmentUsage {
 
 export interface EquipmentPhaseRow {
   equipment: string;
+  /** Planned non-rest sessions per phase, in the same order as `phases`. */
   counts: number[];
+  /** Logged workouts per phase (matched by workout date falling inside the phase's plan weeks), in the same order as `phases`. */
+  actualCounts: number[];
   total: number;
+  /** Sum of `actualCounts` across all phases. */
+  actualTotal: number;
 }
 
 /**
- * Phase-by-phase planned session counts per machine. `phases` is the ordered list of phase names across the campaign; each row's `counts` array is parallel to `phases`.
+ * Phase-by-phase planned and actual session counts per machine. `phases` is the ordered list of phase names across the campaign; each row's `counts` and `actualCounts` arrays are parallel to `phases`.
  */
 export interface EquipmentPhaseSummary {
   phases: string[];

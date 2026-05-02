@@ -500,13 +500,25 @@ export const GetEquipmentPhaseSummaryResponse = zod
     rows: zod.array(
       zod.object({
         equipment: zod.string(),
-        counts: zod.array(zod.number()),
+        counts: zod
+          .array(zod.number())
+          .describe(
+            "Planned non-rest sessions per phase, in the same order as `phases`.",
+          ),
+        actualCounts: zod
+          .array(zod.number())
+          .describe(
+            "Logged workouts per phase (matched by workout date falling inside the phase's plan weeks), in the same order as `phases`.",
+          ),
         total: zod.number(),
+        actualTotal: zod
+          .number()
+          .describe("Sum of `actualCounts` across all phases."),
       }),
     ),
   })
   .describe(
-    "Phase-by-phase planned session counts per machine. `phases` is the ordered list of phase names across the campaign; each row's `counts` array is parallel to `phases`.",
+    "Phase-by-phase planned and actual session counts per machine. `phases` is the ordered list of phase names across the campaign; each row's `counts` and `actualCounts` arrays are parallel to `phases`.",
   );
 
 export const GetLongRunProgressionResponseItem = zod.object({

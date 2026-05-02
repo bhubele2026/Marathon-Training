@@ -241,14 +241,36 @@ router.get("/dashboard/equipment-phase-summary", async (_req, res) => {
         GROUP BY phase, equipment`,
   );
 
-  const rowsByEquipment = new Map<string, number[]>();
-  const ensure = (name: string): number[] => {
-    let counts = rowsByEquipment.get(name);
-    if (!counts) {
-      counts = phases.map(() => 0);
-      rowsByEquipment.set(name, counts);
+  // Actuals: tag each workout with the phase of the plan_week whose
+  // [start_date, end_date] band contains the workout's date. Workouts that
+  // fall outside any planned week (e.g. cross-training before/after the
+  // campaign window) are dropped so the totals always line up with the
+  // campaign timeline.
+  const actualRows = await db.execute<{ phase: string; equipment: string; sessions: number }>(
+    sql`SELECT pw.phase, w.equipment, COUNT(*)::int AS sessions
+        FROM workouts w
+        JOIN plan_weeks pw
+          ON w.date BETWEEN pw.start_date AND pw.end_date
+        WHERE w.equipment NOT IN ('Off / Rest', 'Off / Mobility', 'None', 'Rest', 'Lifestyle')
+          AND w.session_type <> 'Skipped'
+        GROUP BY pw.phase, w.equipment`,
+  );
+
+  interface Row {
+    counts: number[];
+    actualCounts: number[];
+  }
+  const rowsByEquipment = new Map<string, Row>();
+  const ensure = (name: string): Row => {
+    let row = rowsByEquipment.get(name);
+    if (!row) {
+      row = {
+        counts: phases.map(() => 0),
+        actualCounts: phases.map(() => 0),
+      };
+      rowsByEquipment.set(name, row);
     }
-    return counts;
+    return row;
   };
   // Always surface the canonical arsenal so a fresh plan still renders the
   // expected machines.
@@ -256,22 +278,35 @@ router.get("/dashboard/equipment-phase-summary", async (_req, res) => {
   for (const r of countRows.rows) {
     const idx = phaseIndex.get(r.phase);
     if (idx === undefined) continue;
-    const counts = ensure(r.equipment);
-    counts[idx] = r.sessions;
+    ensure(r.equipment).counts[idx] = r.sessions;
+  }
+  for (const r of actualRows.rows) {
+    const idx = phaseIndex.get(r.phase);
+    if (idx === undefined) continue;
+    ensure(r.equipment).actualCounts[idx] = r.sessions;
   }
 
+  const buildRow = (equipment: string, row: Row) => ({
+    equipment,
+    counts: row.counts,
+    actualCounts: row.actualCounts,
+    total: row.counts.reduce((s, n) => s + n, 0),
+    actualTotal: row.actualCounts.reduce((s, n) => s + n, 0),
+  });
+
   const arsenalRows = ARSENAL.map((name) => {
-    const counts = rowsByEquipment.get(name) ?? phases.map(() => 0);
+    const row = rowsByEquipment.get(name) ?? {
+      counts: phases.map(() => 0),
+      actualCounts: phases.map(() => 0),
+    };
     rowsByEquipment.delete(name);
-    return { equipment: name, counts, total: counts.reduce((s, n) => s + n, 0) };
+    return buildRow(name, row);
   });
   const extraRows = Array.from(rowsByEquipment.entries())
-    .map(([equipment, counts]) => ({
-      equipment,
-      counts,
-      total: counts.reduce((s, n) => s + n, 0),
-    }))
-    .sort((a, b) => b.total - a.total);
+    .map(([equipment, row]) => buildRow(equipment, row))
+    // Order non-arsenal machines by whichever signal is largest so a row
+    // that's mostly unplanned actuals still surfaces above an empty row.
+    .sort((a, b) => Math.max(b.total, b.actualTotal) - Math.max(a.total, a.actualTotal));
 
   res.json({ phases, rows: [...arsenalRows, ...extraRows] });
 });
