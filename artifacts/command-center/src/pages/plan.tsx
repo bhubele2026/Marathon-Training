@@ -137,10 +137,20 @@ export default function Plan() {
         queryClient.invalidateQueries();
         setFullResetOpen(false);
       },
-      onError: () => {
+      onError: (err: unknown) => {
+        // Surface the server-provided message when present so the runner
+        // knows what went wrong (e.g. lock contention or a generator
+        // failure) instead of seeing a generic "try again" wall. The
+        // transactional route guarantees nothing was committed on error.
+        const detail =
+          (err as { data?: { error?: { message?: unknown } } })?.data?.error?.message;
+        const fallback = "Nothing was changed. Try again or check the server logs.";
         toast({
           title: "Full reset failed",
-          description: "Nothing was changed. Try again or check the server logs.",
+          description:
+            typeof detail === "string" && detail.trim().length > 0
+              ? `${detail} Nothing was changed.`
+              : fallback,
           variant: "destructive",
         });
       },
@@ -334,7 +344,7 @@ export default function Plan() {
               onClick={() => setFullResetOpen(true)}
               data-testid="button-full-reset"
             >
-              <Flame className="h-3 w-3 mr-1.5" /> Full Reset
+              <Flame className="h-3 w-3 mr-1.5" /> Full Reset to Day One
             </Button>
           </div>
         </CardContent>
