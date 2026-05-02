@@ -7,9 +7,30 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { formatDistance, formatDuration, formatLoad, formatDate } from "@/lib/format";
 import { Activity, Dumbbell, Clock, Route } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const PHASE_COLORS = [
+  "hsl(24 95% 53%)",
+  "hsl(199 89% 48%)",
+  "hsl(142 71% 45%)",
+  "hsl(271 76% 53%)",
+  "hsl(346 87% 55%)",
+  "hsl(48 96% 53%)",
+  "hsl(180 65% 40%)",
+  "hsl(217 91% 60%)",
+];
+
+function phaseColor(index: number) {
+  return PHASE_COLORS[index % PHASE_COLORS.length];
+}
 
 interface EquipmentStats {
   sessions: number;
@@ -329,48 +350,95 @@ export default function Equipment() {
           <Skeleton className="h-40 w-full" />
         ) : phaseSummary && phaseSummary.phases.length > 0 ? (
           <Card>
-            <CardContent className="p-0 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left p-3 text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
-                      Equipment
-                    </th>
-                    {phaseSummary.phases.map((phase) => (
-                      <th
-                        key={phase}
-                        className="text-right p-3 text-[10px] uppercase font-bold text-muted-foreground tracking-wider"
-                      >
-                        {phase}
-                      </th>
-                    ))}
-                    <th className="text-right p-3 text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
-                      Total
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {phaseSummary.rows.map((row) => (
-                    <tr key={row.equipment} className="border-b border-border last:border-0">
-                      <td className="p-3 font-bold uppercase tracking-wider text-xs">
-                        {row.equipment}
-                      </td>
-                      {row.counts.map((n, i) => (
-                        <td
-                          key={`${row.equipment}-${phaseSummary.phases[i]}`}
-                          className={cn(
-                            "p-3 text-right font-mono",
-                            n === 0 && "text-muted-foreground/50",
-                          )}
-                        >
-                          {n}
-                        </td>
-                      ))}
-                      <td className="p-3 text-right font-mono font-bold">{row.total}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <CardContent className="p-5">
+              <div className="flex flex-wrap gap-x-4 gap-y-2 mb-5">
+                {phaseSummary.phases.map((phase, i) => (
+                  <div key={phase} className="flex items-center gap-2">
+                    <span
+                      className="h-3 w-3 rounded-sm shrink-0"
+                      style={{ backgroundColor: phaseColor(i) }}
+                      aria-hidden
+                    />
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+                      {phase}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <TooltipProvider delayDuration={100}>
+                {(() => {
+                  const maxTotal = phaseSummary.rows.reduce(
+                    (m, r) => (r.total > m ? r.total : m),
+                    1,
+                  );
+                  return (
+                    <div className="space-y-3">
+                      {phaseSummary.rows.map((row) => {
+                        const widthPct =
+                          row.total === 0 ? 0 : (row.total / maxTotal) * 100;
+                        return (
+                          <div
+                            key={row.equipment}
+                            className="grid grid-cols-[7rem_1fr_3rem] items-center gap-3"
+                          >
+                            <div className="font-bold uppercase tracking-wider text-xs truncate">
+                              {row.equipment}
+                            </div>
+                            <div className="relative h-6 rounded-sm bg-muted/40 overflow-hidden">
+                              {row.total > 0 && (
+                                <div
+                                  className="absolute inset-y-0 left-0 flex"
+                                  style={{ width: `${widthPct}%` }}
+                                >
+                                  {row.counts.map((n, i) => {
+                                    if (n === 0) return null;
+                                    const segPct = (n / row.total) * 100;
+                                    return (
+                                      <Tooltip
+                                        key={`${row.equipment}-${phaseSummary.phases[i]}`}
+                                      >
+                                        <TooltipTrigger asChild>
+                                          <div
+                                            className="h-full flex items-center justify-center text-[10px] font-bold text-white/95 cursor-default transition-opacity hover:opacity-80"
+                                            style={{
+                                              width: `${segPct}%`,
+                                              backgroundColor: phaseColor(i),
+                                            }}
+                                          >
+                                            {segPct >= 12 ? n : ""}
+                                          </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <div className="font-bold uppercase tracking-wider">
+                                            {phaseSummary.phases[i]}
+                                          </div>
+                                          <div>
+                                            {n} planned session
+                                            {n === 1 ? "" : "s"}
+                                          </div>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                            <div
+                              className={cn(
+                                "text-right font-mono font-bold text-sm",
+                                row.total === 0 && "text-muted-foreground/50",
+                              )}
+                            >
+                              {row.total}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </TooltipProvider>
             </CardContent>
           </Card>
         ) : (
