@@ -7,6 +7,8 @@
     "hello": "tsx ./src/hello.ts",
     "generate-plan": "tsx ./src/generate-plan.ts",
     "seed": "tsx ./src/seed.ts",
+    "backfill-plan-day-minutes": "tsx ./src/backfill-plan-day-minutes.ts",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
@@ -14,6 +16,7 @@
     "@workspace/db": "workspace:*",
     "@workspace/plan-generator": "workspace:*",
     "drizzle-orm": "catalog:",
-    "tsx": "catalog:"
+    "tsx": "catalog:",
+    "vitest": "^4.1.5"
   }
 }

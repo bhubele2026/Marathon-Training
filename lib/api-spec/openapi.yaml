@@ -633,7 +633,22 @@ components:
         strengthLoad: { type: number, nullable: true }
         equipment: { type: string }
         description: { type: string }
-        cardioMin: { type: number, nullable: true }
+        strengthMin:
+          type: number
+          nullable: true
+          description: Prescribed Tonal / lift minutes for this day (heavy block plus accessory work). Null on rows that pre-date the breakdown columns and have not yet been backfilled.
+        cardioMin:
+          type: number
+          nullable: true
+          description: Prescribed non-running cross-train minutes (bike, row, spin). Does NOT include treadmill or outdoor running minutes — those live in `runMin`.
+        runMin:
+          type: number
+          nullable: true
+          description: Prescribed treadmill or outdoor running minutes for this day. Null on rows that pre-date the breakdown columns and have not yet been backfilled.
+        totalMin:
+          type: number
+          nullable: true
+          description: Sum of strengthMin, cardioMin, and runMin. Null when ALL three buckets are null (ambiguous legacy row that backfill couldn't classify); otherwise nulls in individual buckets are treated as 0. Server-computed so the UI's TOTAL · LIFT · CARDIO · RUN tile is consistent across pages.
         distanceMi: { type: number, nullable: true }
         pace: { type: string, nullable: true }
         sessionType: { type: string }
@@ -655,7 +670,9 @@ components:
         equipment: { type: string }
         description: { type: string }
         distanceMi: { type: number, nullable: true }
+        strengthMin: { type: number, nullable: true }
         cardioMin: { type: number, nullable: true }
+        runMin: { type: number, nullable: true }
         pace: { type: string, nullable: true }
         strengthLoad: { type: number, nullable: true }
         totalLoad: { type: number }

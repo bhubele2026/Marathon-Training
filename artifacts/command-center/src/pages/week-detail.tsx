@@ -59,6 +59,7 @@ import { MoveDayPicker } from "@/components/move-day-picker";
 import { sortWorkoutsByTimeOfDay } from "@/lib/time-of-day";
 import { TimeOfDayBadge } from "@/components/time-of-day-badge";
 import { UndoCountdownAction } from "@/components/undo-countdown-action";
+import { PlannedBreakdown } from "@/components/planned-breakdown";
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -72,7 +73,9 @@ const CUSTOMIZED_FIELD_LABELS: Record<string, string> = {
   equipment: "Equipment",
   description: "Description",
   distanceMi: "Distance",
-  cardioMin: "Duration",
+  strengthMin: "Lift minutes",
+  cardioMin: "Cardio minutes",
+  runMin: "Run minutes",
   pace: "Pace",
   strengthLoad: "Strength load",
   totalLoad: "Total load",
@@ -483,22 +486,25 @@ export default function WeekDetail() {
                       <div className="flex flex-wrap gap-4 text-sm pt-2">
                         {day.distanceMi != null && (
                           <div>
-                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">Planned Distance</span>
+                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">Distance</span>
                             <span className="font-mono font-medium">{formatDistance(day.distanceMi)}</span>
-                          </div>
-                        )}
-                        {day.cardioMin != null && (
-                          <div>
-                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">Planned Duration</span>
-                            <span className="font-mono font-medium">{formatDuration(day.cardioMin)}</span>
                           </div>
                         )}
                         {day.totalLoad != null && day.totalLoad > 0 && (
                           <div>
-                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">Planned Load</span>
+                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">Load</span>
                             <span className="font-mono font-medium">{formatLoad(day.totalLoad)}</span>
                           </div>
                         )}
+                        <PlannedBreakdown
+                          totalMin={day.totalMin}
+                          strengthMin={day.strengthMin}
+                          cardioMin={day.cardioMin}
+                          runMin={day.runMin}
+                          runDistanceMi={day.distanceMi}
+                          variant="compact"
+                          testIdPrefix={`day-${day.date}`}
+                        />
                       </div>
                     </div>
 

@@ -16,12 +16,30 @@ function planDayCustomizedFields(r: PlanDayRow): string[] {
   if (r.equipment !== r.seedEquipment) fields.push("equipment");
   if (r.description !== r.seedDescription) fields.push("description");
   if (r.distanceMi !== r.seedDistanceMi) fields.push("distanceMi");
+  if (r.strengthMin !== r.seedStrengthMin) fields.push("strengthMin");
   if (r.cardioMin !== r.seedCardioMin) fields.push("cardioMin");
+  if (r.runMin !== r.seedRunMin) fields.push("runMin");
   if (r.pace !== r.seedPace) fields.push("pace");
   if (r.strengthLoad !== r.seedStrengthLoad) fields.push("strengthLoad");
   if (r.totalLoad !== r.seedTotalLoad) fields.push("totalLoad");
   if (r.isRest !== r.seedIsRest) fields.push("isRest");
   return fields;
+}
+
+// Sum the three minute buckets. Returns `null` when ALL three are null —
+// that's the "ambiguous legacy row the backfill couldn't classify"
+// signal, and we want the UI to render nothing rather than a misleading
+// "0 min" total. As soon as ANY bucket has a concrete value (including
+// 0), we sum and treat the remaining nulls as zero.
+export function computeTotalMin(r: {
+  strengthMin: number | null;
+  cardioMin: number | null;
+  runMin: number | null;
+}): number | null {
+  if (r.strengthMin == null && r.cardioMin == null && r.runMin == null) {
+    return null;
+  }
+  return (r.strengthMin ?? 0) + (r.cardioMin ?? 0) + (r.runMin ?? 0);
 }
 
 export function toPlanDay(r: PlanDayRow) {
@@ -35,7 +53,10 @@ export function toPlanDay(r: PlanDayRow) {
     strengthLoad: r.strengthLoad,
     equipment: r.equipment,
     description: r.description,
+    strengthMin: r.strengthMin,
     cardioMin: r.cardioMin,
+    runMin: r.runMin,
+    totalMin: computeTotalMin(r),
     distanceMi: r.distanceMi,
     pace: r.pace,
     sessionType: r.sessionType,

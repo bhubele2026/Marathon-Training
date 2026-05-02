@@ -39,7 +39,14 @@ export interface PlanDay {
   strengthLoad?: number | null;
   equipment: string;
   description: string;
+  /** Prescribed Tonal / lift minutes for this day (heavy block plus accessory work). Null on rows that pre-date the breakdown columns and have not yet been backfilled. */
+  strengthMin?: number | null;
+  /** Prescribed non-running cross-train minutes (bike, row, spin). Does NOT include treadmill or outdoor running minutes — those live in `runMin`. */
   cardioMin?: number | null;
+  /** Prescribed treadmill or outdoor running minutes for this day. Null on rows that pre-date the breakdown columns and have not yet been backfilled. */
+  runMin?: number | null;
+  /** Sum of strengthMin, cardioMin, and runMin. Null when ALL three buckets are null (ambiguous legacy row that backfill couldn't classify); otherwise nulls in individual buckets are treated as 0. Server-computed so the UI's TOTAL · LIFT · CARDIO · RUN tile is consistent across pages. */
+  totalMin?: number | null;
   distanceMi?: number | null;
   pace?: string | null;
   sessionType: string;
@@ -59,7 +66,9 @@ export interface UpdatePlanDayBody {
   equipment?: string;
   description?: string;
   distanceMi?: number | null;
+  strengthMin?: number | null;
   cardioMin?: number | null;
+  runMin?: number | null;
   pace?: string | null;
   strengthLoad?: number | null;
   totalLoad?: number;

@@ -7,6 +7,7 @@ import { CheckCircle2, Activity, Trash2, Edit, Zap, Pencil, XCircle, Rocket } fr
 import { useMissionActions } from "@/hooks/use-mission-actions";
 import { QuickLogActivity } from "@/components/quick-log-activity";
 import { TimeOfDayBadge } from "@/components/time-of-day-badge";
+import { PlannedBreakdown } from "@/components/planned-breakdown";
 import { format, parseISO } from "date-fns";
 
 export default function Today() {
@@ -80,31 +81,36 @@ export default function Today() {
                 <span className="text-muted-foreground"> · {today.firstSession.equipment}</span>
               </p>
               <p className="text-sm text-muted-foreground mt-2">{today.firstSession.description}</p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 pt-4 border-t border-border">
-                {today.firstSession.distanceMi != null && today.firstSession.distanceMi > 0 && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Distance</p>
-                    <p className="text-base font-black">{formatDistance(today.firstSession.distanceMi)}</p>
-                  </div>
-                )}
-                {today.firstSession.cardioMin != null && today.firstSession.cardioMin > 0 && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Duration</p>
-                    <p className="text-base font-black">{formatDuration(today.firstSession.cardioMin)}</p>
-                  </div>
-                )}
-                {today.firstSession.strengthLoad != null && today.firstSession.strengthLoad > 0 && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Strength Load</p>
-                    <p className="text-base font-black">{today.firstSession.strengthLoad}</p>
-                  </div>
-                )}
-                {today.firstSession.totalLoad > 0 && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Total Load</p>
-                    <p className="text-base font-black">{formatLoad(today.firstSession.totalLoad)}</p>
-                  </div>
-                )}
+              <div className="space-y-4 mt-4 pt-4 border-t border-border">
+                <PlannedBreakdown
+                  totalMin={today.firstSession.totalMin}
+                  strengthMin={today.firstSession.strengthMin}
+                  cardioMin={today.firstSession.cardioMin}
+                  runMin={today.firstSession.runMin}
+                  runDistanceMi={today.firstSession.distanceMi}
+                  variant="prominent"
+                  testIdPrefix="first-session"
+                />
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {today.firstSession.distanceMi != null && today.firstSession.distanceMi > 0 && (
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Distance</p>
+                      <p className="text-base font-black">{formatDistance(today.firstSession.distanceMi)}</p>
+                    </div>
+                  )}
+                  {today.firstSession.strengthLoad != null && today.firstSession.strengthLoad > 0 && (
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Strength Load</p>
+                      <p className="text-base font-black">{today.firstSession.strengthLoad}</p>
+                    </div>
+                  )}
+                  {today.firstSession.totalLoad > 0 && (
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Total Load</p>
+                      <p className="text-base font-black">{formatLoad(today.firstSession.totalLoad)}</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             <p className="text-sm text-muted-foreground italic">
@@ -141,31 +147,38 @@ export default function Today() {
 
                     <p className="text-foreground text-lg leading-relaxed">{today.plan?.description}</p>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-border">
-                      {today.plan?.distanceMi && (
-                        <div>
-                          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Distance</p>
-                          <p className="text-xl font-black">{formatDistance(today.plan.distanceMi)}</p>
-                        </div>
+                    <div className="space-y-4 mt-6 pt-6 border-t border-border">
+                      {today.plan && (
+                        <PlannedBreakdown
+                          totalMin={today.plan.totalMin}
+                          strengthMin={today.plan.strengthMin}
+                          cardioMin={today.plan.cardioMin}
+                          runMin={today.plan.runMin}
+                          runDistanceMi={today.plan.distanceMi}
+                          variant="prominent"
+                          testIdPrefix="today-plan"
+                        />
                       )}
-                      {today.plan?.cardioMin && (
-                        <div>
-                          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Duration</p>
-                          <p className="text-xl font-black">{formatDuration(today.plan.cardioMin)}</p>
-                        </div>
-                      )}
-                      {today.plan?.strengthLoad && (
-                        <div>
-                          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Strength Load</p>
-                          <p className="text-xl font-black">{today.plan.strengthLoad}</p>
-                        </div>
-                      )}
-                      {today.plan?.totalLoad && (
-                        <div>
-                          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Total Load</p>
-                          <p className="text-xl font-black">{formatLoad(today.plan.totalLoad)}</p>
-                        </div>
-                      )}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                        {today.plan?.distanceMi && (
+                          <div>
+                            <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Distance</p>
+                            <p className="text-xl font-black">{formatDistance(today.plan.distanceMi)}</p>
+                          </div>
+                        )}
+                        {today.plan?.strengthLoad && (
+                          <div>
+                            <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Strength Load</p>
+                            <p className="text-xl font-black">{today.plan.strengthLoad}</p>
+                          </div>
+                        )}
+                        {today.plan?.totalLoad && (
+                          <div>
+                            <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Total Load</p>
+                            <p className="text-xl font-black">{formatLoad(today.plan.totalLoad)}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 

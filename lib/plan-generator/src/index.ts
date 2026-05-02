@@ -13,7 +13,13 @@ export type DailyRow = {
   strength_load: number | null;
   equipment: string;
   description: string;
-  cardio_min: number | null;
+  // Three-bucket minute breakdown — see lib/db/src/schema/planDays.ts for the
+  // semantics of strength_min / cardio_min / run_min. The generator always
+  // populates explicit numbers (not null) so downstream rendering of TOTAL
+  // · LIFT · CARDIO · RUN never has to invent a value.
+  strength_min: number;
+  cardio_min: number;
+  run_min: number;
   distance_mi: number | null;
   pace: string | null;
   session_type: string;
@@ -130,6 +136,8 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
     const heavyStrengthLoad = isCutback ? 45 : 60;
     const heavyTonalMin = isCutback ? 35 : 45;
     const shortCardioMin = isCutback ? 20 : 25;
+    // Light Tonal accessory block paired with the Wed/Fri run.
+    const accessoryTonalMin = isCutback ? 20 : 25;
 
     // ---------- MON: REST ----------
     const monDay: DailyRow = {
@@ -140,7 +148,9 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
       strength_load: 0,
       equipment: "Off / Rest",
       description: "Full rest day. Optional 20 min walk, foam roll, mobility, hydrate.",
+      strength_min: 0,
       cardio_min: 0,
+      run_min: 0,
       distance_mi: null,
       pace: null,
       session_type: "Rest",
@@ -159,7 +169,9 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
       description: isCutback
         ? `Heavy upper-body Tonal (${heavyTonalMin} min, push/pull/core), then ${shortCardioMin} min easy Peloton Bike spin to flush legs`
         : `Heavy upper-body Tonal (${heavyTonalMin} min, push/pull at 80-85% effort), then ${shortCardioMin} min easy Peloton Bike spin`,
+      strength_min: heavyTonalMin,
       cardio_min: shortCardioMin,
+      run_min: 0,
       distance_mi: null,
       pace: null,
       session_type: "Strength + Cardio",
@@ -170,7 +182,6 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
     // ---------- WED: EASY RUN + LIGHT TONAL ACCESSORY ----------
     const wedDist = easyRunDist(w, isCutback);
     const wedRunMin = Math.max(20, Math.round(wedDist * (w <= 6 ? 16 : w <= 18 ? 13 : 12)));
-    const wedAccessoryMin = isCutback ? 20 : 25;
     const wedAccessoryLoad = isCutback ? 20 : 25;
     const wedDay: DailyRow = {
       week: w,
@@ -180,9 +191,11 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
       strength_load: wedAccessoryLoad,
       equipment: "Peloton Tread",
       description: isCutback
-        ? `Easy aerobic Tread run (${wedDist} mi, conversational), then ${wedAccessoryMin} min light Tonal core + mobility`
-        : `Easy aerobic Tread run (${wedDist} mi, fully conversational pace), then ${wedAccessoryMin} min Tonal core + accessory work (no heavy lifting)`,
-      cardio_min: wedRunMin,
+        ? `Easy aerobic Tread run (${wedDist} mi, conversational), then ${accessoryTonalMin} min light Tonal core + mobility`
+        : `Easy aerobic Tread run (${wedDist} mi, fully conversational pace), then ${accessoryTonalMin} min Tonal core + accessory work (no heavy lifting)`,
+      strength_min: accessoryTonalMin,
+      cardio_min: 0,
+      run_min: wedRunMin,
       distance_mi: wedDist,
       pace: easyPace,
       session_type: "Run + Accessory",
@@ -201,7 +214,9 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
       description: isCutback
         ? `Heavy lower-body Tonal (${heavyTonalMin} min, squat/hinge/lunge), then ${shortCardioMin} min steady Peloton Row`
         : `Heavy lower-body Tonal (${heavyTonalMin} min, squat/hinge/lunge at 80-85% effort), then ${shortCardioMin} min steady Peloton Row`,
+      strength_min: heavyTonalMin,
       cardio_min: shortCardioMin,
+      run_min: 0,
       distance_mi: null,
       pace: null,
       session_type: "Strength + Cardio",
@@ -215,6 +230,7 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
     let friDesc: string;
     let friPace: string;
     let friLiftLoad: number;
+    let friLiftMin: number;
     let friLiftDesc: string;
 
     if (w <= 6) {
@@ -222,7 +238,8 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
       friDesc = `Easy aerobic Tread run (${friDist} mi), build durability`;
       friPace = easyPace;
       friLiftLoad = isCutback ? 18 : 22;
-      friLiftDesc = ` + ${isCutback ? 20 : 25} min Tonal core + mobility`;
+      friLiftMin = accessoryTonalMin;
+      friLiftDesc = ` + ${accessoryTonalMin} min Tonal core + mobility`;
     } else if (w <= 18) {
       friType = isCutback ? "Aerobic Base" : "Tempo Run";
       friDesc = isCutback
@@ -230,6 +247,7 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
         : `Tread tempo (${friDist} mi: 5 min easy, ${Math.max(10, friDist * 4)} min steady tempo, 5 min cool-down)`;
       friPace = isCutback ? easyPace : tempoPace;
       friLiftLoad = 0;
+      friLiftMin = 0;
       friLiftDesc = " — no lift today, recover for the long run";
     } else if (w <= 32) {
       friType = isCutback ? "Aerobic Base" : "Threshold Intervals";
@@ -238,6 +256,7 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
         : `Tread threshold (${friDist} mi: warm-up, then 4 x 800m at threshold w/ 90s jog recovery, cool-down)`;
       friPace = isCutback ? easyPace : tempoPace;
       friLiftLoad = 0;
+      friLiftMin = 0;
       friLiftDesc = " — no lift today, recover for the long run";
     } else if (w <= 46) {
       friType = isCutback ? "Aerobic Base" : "Race-Pace Workout";
@@ -246,30 +265,35 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
         : `Tread race-pace (${friDist} mi: warm-up, 3 x 1 mi at goal half-marathon pace w/ 2 min recovery, cool-down)`;
       friPace = isCutback ? easyPace : tempoPace;
       friLiftLoad = 0;
+      friLiftMin = 0;
       friLiftDesc = " — no lift today, recover for the long run";
     } else if (w <= 49) {
       friType = "Tempo Run";
       friDesc = `Tread sharpener (${friDist} mi: 10 min easy, 15-20 min steady tempo, 5 min cool-down)`;
       friPace = tempoPace;
       friLiftLoad = 0;
+      friLiftMin = 0;
       friLiftDesc = " — no lift today";
     } else if (w === 50) {
       friType = "Tempo Run";
       friDesc = `Tread taper tempo (${friDist} mi: 10 min easy, 12 min tempo, 5 min cool-down)`;
       friPace = tempoPace;
       friLiftLoad = 0;
+      friLiftMin = 0;
       friLiftDesc = " — no lift today";
     } else if (w === 51) {
       friType = "Sharpener";
       friDesc = `Easy Tread run (${friDist} mi) with 4 x 30s strides in the final mile`;
       friPace = easyPace;
       friLiftLoad = 0;
+      friLiftMin = 0;
       friLiftDesc = " — no lift today";
     } else {
       friType = "Race Shakeout";
       friDesc = `Easy Tread shakeout (${friDist} mi) with 3 x 30s strides`;
       friPace = easyPace;
       friLiftLoad = 0;
+      friLiftMin = 0;
       friLiftDesc = " — no lift today, race tomorrow";
     }
     const friRunMin = Math.max(20, Math.round(friDist * (w <= 6 ? 16 : w <= 18 ? 13 : w <= 32 ? 12 : 11.5)));
@@ -281,7 +305,9 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
       strength_load: friLiftLoad,
       equipment: "Peloton Tread",
       description: friDesc + friLiftDesc,
-      cardio_min: friRunMin,
+      strength_min: friLiftMin,
+      cardio_min: 0,
+      run_min: friRunMin,
       distance_mi: friDist,
       pace: friPace,
       session_type: friLiftLoad > 0 ? `${friType} + Accessory` : friType,
@@ -292,6 +318,10 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
     // ---------- SAT: HEAVY LIFT + SHORT BIKE/ROW (alternate) ----------
     const satCardioName = w % 2 === 0 ? "Peloton Row" : "Peloton Bike";
     const satCardioVerb = w % 2 === 0 ? "steady row" : "steady bike";
+    // Race week swaps the heavy lift for a 15 min Tonal mobility flush plus a
+    // 15 min easy spin; the three-bucket minute breakdown reflects that.
+    const satStrengthMin = isRaceWeek ? 15 : heavyTonalMin;
+    const satCardioMin = isRaceWeek ? 15 : shortCardioMin;
     const satDay: DailyRow = {
       week: w,
       phase,
@@ -300,11 +330,13 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
       strength_load: heavyStrengthLoad,
       equipment: "Tonal",
       description: isRaceWeek
-        ? `Race-eve: light Tonal mobility (15 min) + 15 min easy ${satCardioName} spin. Stay loose, hydrate, fuel well.`
+        ? `Race-eve: light Tonal mobility (${satStrengthMin} min) + ${satCardioMin} min easy ${satCardioName} spin. Stay loose, hydrate, fuel well.`
         : isCutback
         ? `Heavy full-body Tonal (${heavyTonalMin} min, mixed push/pull/squat), then ${shortCardioMin} min ${satCardioVerb}`
         : `Heavy full-body Tonal (${heavyTonalMin} min, mixed push/pull/squat at 80-85% effort), then ${shortCardioMin} min ${satCardioVerb} on ${satCardioName}`,
-      cardio_min: isRaceWeek ? 15 : shortCardioMin,
+      strength_min: satStrengthMin,
+      cardio_min: satCardioMin,
+      run_min: 0,
       distance_mi: null,
       pace: null,
       session_type: isRaceWeek ? "Race Prep" : "Strength + Cardio",
@@ -315,6 +347,7 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
     // ---------- SUN: LONG RUN (no lift) or RACE ----------
     let sunDay: DailyRow;
     if (isRaceWeek) {
+      const raceMin = Math.round(13.1 * 12);
       sunDay = {
         week: w,
         phase,
@@ -324,7 +357,9 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
         equipment: "Outdoor",
         description:
           "RACE DAY — Half Marathon (13.1 mi). Execute race plan, fuel every 4 mi, finish strong.",
-        cardio_min: Math.round(13.1 * 12),
+        strength_min: 0,
+        cardio_min: 0,
+        run_min: raceMin,
         distance_mi: 13.1,
         pace: "12:00",
         session_type: "Race",
@@ -356,7 +391,9 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
         strength_load: 0,
         equipment: longEquipment,
         description: longDesc,
-        cardio_min: longMin,
+        strength_min: 0,
+        cardio_min: 0,
+        run_min: longMin,
         distance_mi: longRun,
         pace: longPace,
         session_type: "Long Run",
@@ -369,6 +406,9 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
     daily.push(...days);
 
     const planned_strength = days.reduce((s, d) => s + (d.strength_load || 0), 0);
+    // Weekly planned_cardio aggregates non-running cardio minutes only; run
+    // minutes are excluded so the weekly card's "Cardio" stat doesn't
+    // double-count tread/outdoor runs already reflected in planned_miles.
     const planned_cardio = days.reduce((s, d) => s + (d.cardio_min || 0), 0);
     const planned_total_load = days.reduce((s, d) => s + (d.total_load || 0), 0);
     const planned_miles =

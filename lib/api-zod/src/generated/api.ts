@@ -75,7 +75,30 @@ export const GetPlanWeekResponse = zod
             strengthLoad: zod.number().nullish(),
             equipment: zod.string(),
             description: zod.string(),
-            cardioMin: zod.number().nullish(),
+            strengthMin: zod
+              .number()
+              .nullish()
+              .describe(
+                "Prescribed Tonal \/ lift minutes for this day (heavy block plus accessory work). Null on rows that pre-date the breakdown columns and have not yet been backfilled.",
+              ),
+            cardioMin: zod
+              .number()
+              .nullish()
+              .describe(
+                "Prescribed non-running cross-train minutes (bike, row, spin). Does NOT include treadmill or outdoor running minutes — those live in `runMin`.",
+              ),
+            runMin: zod
+              .number()
+              .nullish()
+              .describe(
+                "Prescribed treadmill or outdoor running minutes for this day. Null on rows that pre-date the breakdown columns and have not yet been backfilled.",
+              ),
+            totalMin: zod
+              .number()
+              .nullish()
+              .describe(
+                "Sum of strengthMin, cardioMin, and runMin. Null when ALL three buckets are null (ambiguous legacy row that backfill couldn't classify); otherwise nulls in individual buckets are treated as 0. Server-computed so the UI's TOTAL · LIFT · CARDIO · RUN tile is consistent across pages.",
+              ),
             distanceMi: zod.number().nullish(),
             pace: zod.string().nullish(),
             sessionType: zod.string(),
@@ -124,7 +147,9 @@ export const UpdatePlanDayBody = zod
     equipment: zod.string().optional(),
     description: zod.string().optional(),
     distanceMi: zod.number().nullish(),
+    strengthMin: zod.number().nullish(),
     cardioMin: zod.number().nullish(),
+    runMin: zod.number().nullish(),
     pace: zod.string().nullish(),
     strengthLoad: zod.number().nullish(),
     totalLoad: zod.number().optional(),
@@ -143,7 +168,30 @@ export const UpdatePlanDayResponse = zod.object({
   strengthLoad: zod.number().nullish(),
   equipment: zod.string(),
   description: zod.string(),
-  cardioMin: zod.number().nullish(),
+  strengthMin: zod
+    .number()
+    .nullish()
+    .describe(
+      "Prescribed Tonal \/ lift minutes for this day (heavy block plus accessory work). Null on rows that pre-date the breakdown columns and have not yet been backfilled.",
+    ),
+  cardioMin: zod
+    .number()
+    .nullish()
+    .describe(
+      "Prescribed non-running cross-train minutes (bike, row, spin). Does NOT include treadmill or outdoor running minutes — those live in `runMin`.",
+    ),
+  runMin: zod
+    .number()
+    .nullish()
+    .describe(
+      "Prescribed treadmill or outdoor running minutes for this day. Null on rows that pre-date the breakdown columns and have not yet been backfilled.",
+    ),
+  totalMin: zod
+    .number()
+    .nullish()
+    .describe(
+      "Sum of strengthMin, cardioMin, and runMin. Null when ALL three buckets are null (ambiguous legacy row that backfill couldn't classify); otherwise nulls in individual buckets are treated as 0. Server-computed so the UI's TOTAL · LIFT · CARDIO · RUN tile is consistent across pages.",
+    ),
   distanceMi: zod.number().nullish(),
   pace: zod.string().nullish(),
   sessionType: zod.string(),
@@ -183,7 +231,30 @@ export const SwapPlanDayResponse = zod.object({
     strengthLoad: zod.number().nullish(),
     equipment: zod.string(),
     description: zod.string(),
-    cardioMin: zod.number().nullish(),
+    strengthMin: zod
+      .number()
+      .nullish()
+      .describe(
+        "Prescribed Tonal \/ lift minutes for this day (heavy block plus accessory work). Null on rows that pre-date the breakdown columns and have not yet been backfilled.",
+      ),
+    cardioMin: zod
+      .number()
+      .nullish()
+      .describe(
+        "Prescribed non-running cross-train minutes (bike, row, spin). Does NOT include treadmill or outdoor running minutes — those live in `runMin`.",
+      ),
+    runMin: zod
+      .number()
+      .nullish()
+      .describe(
+        "Prescribed treadmill or outdoor running minutes for this day. Null on rows that pre-date the breakdown columns and have not yet been backfilled.",
+      ),
+    totalMin: zod
+      .number()
+      .nullish()
+      .describe(
+        "Sum of strengthMin, cardioMin, and runMin. Null when ALL three buckets are null (ambiguous legacy row that backfill couldn't classify); otherwise nulls in individual buckets are treated as 0. Server-computed so the UI's TOTAL · LIFT · CARDIO · RUN tile is consistent across pages.",
+      ),
     distanceMi: zod.number().nullish(),
     pace: zod.string().nullish(),
     sessionType: zod.string(),
@@ -209,7 +280,30 @@ export const SwapPlanDayResponse = zod.object({
     strengthLoad: zod.number().nullish(),
     equipment: zod.string(),
     description: zod.string(),
-    cardioMin: zod.number().nullish(),
+    strengthMin: zod
+      .number()
+      .nullish()
+      .describe(
+        "Prescribed Tonal \/ lift minutes for this day (heavy block plus accessory work). Null on rows that pre-date the breakdown columns and have not yet been backfilled.",
+      ),
+    cardioMin: zod
+      .number()
+      .nullish()
+      .describe(
+        "Prescribed non-running cross-train minutes (bike, row, spin). Does NOT include treadmill or outdoor running minutes — those live in `runMin`.",
+      ),
+    runMin: zod
+      .number()
+      .nullish()
+      .describe(
+        "Prescribed treadmill or outdoor running minutes for this day. Null on rows that pre-date the breakdown columns and have not yet been backfilled.",
+      ),
+    totalMin: zod
+      .number()
+      .nullish()
+      .describe(
+        "Sum of strengthMin, cardioMin, and runMin. Null when ALL three buckets are null (ambiguous legacy row that backfill couldn't classify); otherwise nulls in individual buckets are treated as 0. Server-computed so the UI's TOTAL · LIFT · CARDIO · RUN tile is consistent across pages.",
+      ),
     distanceMi: zod.number().nullish(),
     pace: zod.string().nullish(),
     sessionType: zod.string(),
@@ -251,7 +345,30 @@ export const ResetPlanDayResponse = zod.object({
   strengthLoad: zod.number().nullish(),
   equipment: zod.string(),
   description: zod.string(),
-  cardioMin: zod.number().nullish(),
+  strengthMin: zod
+    .number()
+    .nullish()
+    .describe(
+      "Prescribed Tonal \/ lift minutes for this day (heavy block plus accessory work). Null on rows that pre-date the breakdown columns and have not yet been backfilled.",
+    ),
+  cardioMin: zod
+    .number()
+    .nullish()
+    .describe(
+      "Prescribed non-running cross-train minutes (bike, row, spin). Does NOT include treadmill or outdoor running minutes — those live in `runMin`.",
+    ),
+  runMin: zod
+    .number()
+    .nullish()
+    .describe(
+      "Prescribed treadmill or outdoor running minutes for this day. Null on rows that pre-date the breakdown columns and have not yet been backfilled.",
+    ),
+  totalMin: zod
+    .number()
+    .nullish()
+    .describe(
+      "Sum of strengthMin, cardioMin, and runMin. Null when ALL three buckets are null (ambiguous legacy row that backfill couldn't classify); otherwise nulls in individual buckets are treated as 0. Server-computed so the UI's TOTAL · LIFT · CARDIO · RUN tile is consistent across pages.",
+    ),
   distanceMi: zod.number().nullish(),
   pace: zod.string().nullish(),
   sessionType: zod.string(),
@@ -417,7 +534,30 @@ export const GetTodayPlanResponse = zod.object({
       strengthLoad: zod.number().nullish(),
       equipment: zod.string(),
       description: zod.string(),
-      cardioMin: zod.number().nullish(),
+      strengthMin: zod
+        .number()
+        .nullish()
+        .describe(
+          "Prescribed Tonal \/ lift minutes for this day (heavy block plus accessory work). Null on rows that pre-date the breakdown columns and have not yet been backfilled.",
+        ),
+      cardioMin: zod
+        .number()
+        .nullish()
+        .describe(
+          "Prescribed non-running cross-train minutes (bike, row, spin). Does NOT include treadmill or outdoor running minutes — those live in `runMin`.",
+        ),
+      runMin: zod
+        .number()
+        .nullish()
+        .describe(
+          "Prescribed treadmill or outdoor running minutes for this day. Null on rows that pre-date the breakdown columns and have not yet been backfilled.",
+        ),
+      totalMin: zod
+        .number()
+        .nullish()
+        .describe(
+          "Sum of strengthMin, cardioMin, and runMin. Null when ALL three buckets are null (ambiguous legacy row that backfill couldn't classify); otherwise nulls in individual buckets are treated as 0. Server-computed so the UI's TOTAL · LIFT · CARDIO · RUN tile is consistent across pages.",
+        ),
       distanceMi: zod.number().nullish(),
       pace: zod.string().nullish(),
       sessionType: zod.string(),
@@ -499,7 +639,30 @@ export const GetTodayPlanResponse = zod.object({
       strengthLoad: zod.number().nullish(),
       equipment: zod.string(),
       description: zod.string(),
-      cardioMin: zod.number().nullish(),
+      strengthMin: zod
+        .number()
+        .nullish()
+        .describe(
+          "Prescribed Tonal \/ lift minutes for this day (heavy block plus accessory work). Null on rows that pre-date the breakdown columns and have not yet been backfilled.",
+        ),
+      cardioMin: zod
+        .number()
+        .nullish()
+        .describe(
+          "Prescribed non-running cross-train minutes (bike, row, spin). Does NOT include treadmill or outdoor running minutes — those live in `runMin`.",
+        ),
+      runMin: zod
+        .number()
+        .nullish()
+        .describe(
+          "Prescribed treadmill or outdoor running minutes for this day. Null on rows that pre-date the breakdown columns and have not yet been backfilled.",
+        ),
+      totalMin: zod
+        .number()
+        .nullish()
+        .describe(
+          "Sum of strengthMin, cardioMin, and runMin. Null when ALL three buckets are null (ambiguous legacy row that backfill couldn't classify); otherwise nulls in individual buckets are treated as 0. Server-computed so the UI's TOTAL · LIFT · CARDIO · RUN tile is consistent across pages.",
+        ),
       distanceMi: zod.number().nullish(),
       pace: zod.string().nullish(),
       sessionType: zod.string(),

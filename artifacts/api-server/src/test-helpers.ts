@@ -142,7 +142,9 @@ export interface PlanDayInput {
   description?: string;
   isRest?: boolean;
   pace?: string | null;
+  strengthMin?: number | null;
   cardioMin?: number | null;
+  runMin?: number | null;
   distanceMi?: number | null;
   strengthLoad?: number | null;
   totalLoad?: number;
@@ -165,7 +167,9 @@ export async function insertPlanDay(
       description: d.description ?? "",
       isRest: d.isRest ?? false,
       pace: d.pace ?? null,
+      strengthMin: d.strengthMin ?? null,
       cardioMin: d.cardioMin ?? null,
+      runMin: d.runMin ?? null,
       distanceMi: d.distanceMi ?? null,
       strengthLoad: d.strengthLoad ?? null,
       totalLoad: d.totalLoad ?? 0,

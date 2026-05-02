@@ -41,6 +41,7 @@ Bike/row sessions are always 20–30 min max. Big run days (Fri quality, Sun lon
 - Plan + days + body baselines seeded from `.local/data/plan.json` via `pnpm --filter @workspace/scripts run seed`.
 - Tables (lib/db): `plan_weeks`, `plan_days`, `workouts`, `body_measurements`.
 - Seed reseeds plan_weeks / plan_days on every run, wipes `workouts` (campaign reset), and preserves `body_measurements` and `reset_undo_snapshots`.
+- `plan_days` carries a three-bucket minute breakdown (`strength_min`, `cardio_min`, `run_min`) plus matching `seed_*` mirrors. `cardio_min` is non-running cross-train minutes only (bike, row, spin); treadmill / outdoor running minutes live in `run_min`. The API exposes `totalMin` (server-computed sum) so the `/today` and `/plan/:week` workout cards render a stable TOTAL · LIFT · CARDIO · RUN tile via `<PlannedBreakdown>`. The one-shot backfill script `pnpm --filter @workspace/scripts run backfill-plan-day-minutes` populates the new columns from the canonical generator output and runs automatically on every merge via `scripts/post-merge.sh`.
 
 ## Stack
 

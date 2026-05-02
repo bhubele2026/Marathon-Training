@@ -21,7 +21,9 @@ export interface PlanDaySnapshot {
   equipment: string;
   description: string;
   distanceMi: number | null;
+  strengthMin: number | null;
   cardioMin: number | null;
+  runMin: number | null;
   pace: string | null;
   strengthLoad: number | null;
   totalLoad: number;
@@ -30,7 +32,9 @@ export interface PlanDaySnapshot {
   seedEquipment: string | null;
   seedDescription: string | null;
   seedDistanceMi: number | null;
+  seedStrengthMin: number | null;
   seedCardioMin: number | null;
+  seedRunMin: number | null;
   seedPace: string | null;
   seedStrengthLoad: number | null;
   seedTotalLoad: number | null;
@@ -51,7 +55,9 @@ export function snapshotPlanDay(row: PlanDayRow): PlanDaySnapshot {
     equipment: row.equipment,
     description: row.description,
     distanceMi: row.distanceMi,
+    strengthMin: row.strengthMin,
     cardioMin: row.cardioMin,
+    runMin: row.runMin,
     pace: row.pace,
     strengthLoad: row.strengthLoad,
     totalLoad: row.totalLoad,
@@ -60,7 +66,9 @@ export function snapshotPlanDay(row: PlanDayRow): PlanDaySnapshot {
     seedEquipment: row.seedEquipment,
     seedDescription: row.seedDescription,
     seedDistanceMi: row.seedDistanceMi,
+    seedStrengthMin: row.seedStrengthMin,
     seedCardioMin: row.seedCardioMin,
+    seedRunMin: row.seedRunMin,
     seedPace: row.seedPace,
     seedStrengthLoad: row.seedStrengthLoad,
     seedTotalLoad: row.seedTotalLoad,

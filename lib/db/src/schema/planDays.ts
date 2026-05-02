@@ -9,7 +9,23 @@ export const planDaysTable = pgTable("plan_days", {
   strengthLoad: doublePrecision("strength_load"),
   equipment: text("equipment").notNull(),
   description: text("description").notNull(),
+  // Three-bucket minute breakdown for the prescribed session. Pre-task #74
+  // the schema only carried `cardio_min`, which the generator overloaded as
+  // "run minutes" for run/long-run days and as "cross-train minutes" for
+  // strength+cardio days. That made it impossible to render an accurate
+  // TOTAL · LIFT · CARDIO · RUN breakdown on workout cards. We now split the
+  // prescription into three orthogonal columns:
+  //   * strength_min: Tonal / lift minutes (heavy block + accessory work)
+  //   * cardio_min:   non-running cross-train minutes (bike, row, spin)
+  //   * run_min:      treadmill or outdoor running minutes
+  // total minutes = sum of the three (computed on the server side, see
+  // `toPlanDay` in api-server/src/lib/transforms.ts). All three are nullable
+  // so existing rows pre-backfill remain valid; the backfill script
+  // (scripts/src/backfill-plan-day-minutes.ts) populates them from the
+  // canonical generator output by date.
+  strengthMin: doublePrecision("strength_min"),
   cardioMin: doublePrecision("cardio_min"),
+  runMin: doublePrecision("run_min"),
   distanceMi: doublePrecision("distance_mi"),
   pace: text("pace"),
   sessionType: text("session_type").notNull(),
@@ -25,7 +41,9 @@ export const planDaysTable = pgTable("plan_days", {
   seedEquipment: text("seed_equipment"),
   seedDescription: text("seed_description"),
   seedDistanceMi: doublePrecision("seed_distance_mi"),
+  seedStrengthMin: doublePrecision("seed_strength_min"),
   seedCardioMin: doublePrecision("seed_cardio_min"),
+  seedRunMin: doublePrecision("seed_run_min"),
   seedPace: text("seed_pace"),
   seedStrengthLoad: doublePrecision("seed_strength_load"),
   seedTotalLoad: doublePrecision("seed_total_load"),
