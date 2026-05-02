@@ -752,7 +752,13 @@ describe("POST /api/plan/weeks/:week/reset", () => {
 
     const res = await request(app).post(`/api/plan/weeks/${week}/reset`).send({});
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ week, daysReset: 0, daysTotal: 2 });
+    expect(res.body).toEqual({
+      week,
+      daysReset: 0,
+      daysTotal: 2,
+      undoToken: null,
+      undoExpiresInSeconds: null,
+    });
   });
 
   it("restores every edited day in the week and recomputes aggregates", async () => {
@@ -781,7 +787,11 @@ describe("POST /api/plan/weeks/:week/reset", () => {
 
     const res = await request(app).post(`/api/plan/weeks/${week}/reset`).send({});
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ week, daysReset: 2, daysTotal: 3 });
+    expect(res.body.week).toBe(week);
+    expect(res.body.daysReset).toBe(2);
+    expect(res.body.daysTotal).toBe(3);
+    expect(typeof res.body.undoToken).toBe("string");
+    expect(res.body.undoExpiresInSeconds).toBeGreaterThan(0);
 
     const after = await request(app).get(`/api/plan/weeks/${week}`);
     expect(after.status).toBe(200);
@@ -823,7 +833,10 @@ describe("POST /api/plan/weeks/:week/reset", () => {
 
     const res = await request(app).post(`/api/plan/weeks/8402/reset`).send({});
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ week: 8402, daysReset: 1, daysTotal: 1 });
+    expect(res.body.week).toBe(8402);
+    expect(res.body.daysReset).toBe(1);
+    expect(res.body.daysTotal).toBe(1);
+    expect(typeof res.body.undoToken).toBe("string");
 
     const otherWeek = await request(app).get(`/api/plan/weeks/8403`);
     const outsideAfter = (otherWeek.body.days as Array<{ date: string; equipment: string; description: string }>).find((d) => d.date === "2099-09-08")!;
@@ -902,5 +915,141 @@ describe("POST /api/plan/reset", () => {
     expect(after1.body.longRunMi).toBe(5);
     expect(after2.body.plannedTotalLoad).toBe(60);
     expect(after2.body.plannedCardio).toBe(60);
+  });
+});
+
+describe("POST /api/plan/reset/undo", () => {
+  it("returns 400 when the body is missing the undo token", async () => {
+    const res = await request(app).post(`/api/plan/reset/undo`).send({});
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 404 when the undo token is unknown", async () => {
+    const res = await request(app)
+      .post(`/api/plan/reset/undo`)
+      .send({ undoToken: "this-token-was-never-issued" });
+    expect(res.status).toBe(404);
+    expectMatchesSchema(ErrorResponse, res.body);
+  });
+
+  it("restores customizations wiped by a week-reset, including the edited marker and aggregates", async () => {
+    const week = 8600;
+    const phase = "Undo Week Reset";
+    await insertWeek(week, { startDate: "2099-11-01", endDate: "2099-11-07", phase });
+    const mon = await insertPlanDay(week, phase, {
+      date: "2099-11-01", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, description: "seed-mon", distanceMi: 5, cardioMin: 50, totalLoad: 50,
+    });
+    const tue = await insertPlanDay(week, phase, {
+      date: "2099-11-02", day: "Tue", sessionType: T_BIKE, equipment: E_SPIN, description: "seed-tue", distanceMi: 0, cardioMin: 30, totalLoad: 30,
+    });
+
+    // Customize both days; these are the values undo must put back.
+    await request(app).patch(`/api/plan/days/${mon.id}`).send({
+      sessionType: T_STRENGTH, equipment: E_GYM, description: "edited-mon",
+      distanceMi: null, cardioMin: null, strengthLoad: 150, totalLoad: 150, isRest: false,
+    });
+    await request(app).patch(`/api/plan/days/${tue.id}`).send({
+      sessionType: T_REST, equipment: E_NONE, description: "edited-tue",
+      distanceMi: null, cardioMin: null, strengthLoad: null, totalLoad: 0, isRest: true,
+    });
+
+    const reset = await request(app).post(`/api/plan/weeks/${week}/reset`).send({});
+    expect(reset.status).toBe(200);
+    expect(reset.body.daysReset).toBe(2);
+    const undoToken = reset.body.undoToken as string;
+    expect(typeof undoToken).toBe("string");
+
+    // Verify the reset actually wiped the customizations before we undo it.
+    const wiped = await request(app).get(`/api/plan/weeks/${week}`);
+    const monWiped = (wiped.body.days as Array<{ date: string; sessionType: string; isCustomized: boolean }>).find((d) => d.date === "2099-11-01")!;
+    expect(monWiped.sessionType).toBe(T_RUN);
+    expect(monWiped.isCustomized).toBe(false);
+
+    const undo = await request(app).post(`/api/plan/reset/undo`).send({ undoToken });
+    expect(undo.status).toBe(200);
+    expect(undo.body.daysRestored).toBe(2);
+    expect(undo.body.weeksAffected).toEqual([week]);
+
+    // Both days are back to their edited state and the "edited" badge is back.
+    const restored = await request(app).get(`/api/plan/weeks/${week}`);
+    const monBack = (restored.body.days as Array<{ date: string; sessionType: string; equipment: string; description: string; distanceMi: number | null; strengthLoad: number | null; totalLoad: number; isRest: boolean; isCustomized: boolean }>).find((d) => d.date === "2099-11-01")!;
+    const tueBack = (restored.body.days as Array<{ date: string; sessionType: string; equipment: string; description: string; isRest: boolean; isCustomized: boolean }>).find((d) => d.date === "2099-11-02")!;
+    expect(monBack.sessionType).toBe(T_STRENGTH);
+    expect(monBack.equipment).toBe(E_GYM);
+    expect(monBack.description).toBe("edited-mon");
+    expect(monBack.distanceMi).toBeNull();
+    expect(monBack.strengthLoad).toBe(150);
+    expect(monBack.totalLoad).toBe(150);
+    expect(monBack.isCustomized).toBe(true);
+    expect(tueBack.sessionType).toBe(T_REST);
+    expect(tueBack.equipment).toBe(E_NONE);
+    expect(tueBack.description).toBe("edited-tue");
+    expect(tueBack.isRest).toBe(true);
+    expect(tueBack.isCustomized).toBe(true);
+
+    // Aggregates also recomputed back to the edited totals.
+    expect(restored.body.plannedTotalLoad).toBe(150);
+    expect(restored.body.plannedMiles).toBe(0);
+
+    // Token is single-use: a second undo for the same token returns 404.
+    const second = await request(app).post(`/api/plan/reset/undo`).send({ undoToken });
+    expect(second.status).toBe(404);
+  });
+
+  it("restores customizations wiped by a plan-wide reset across multiple weeks", async () => {
+    const phase = "Undo Plan Reset";
+    await insertWeek(8610, { startDate: "2099-11-08", endDate: "2099-11-14", phase });
+    await insertWeek(8611, { startDate: "2099-11-15", endDate: "2099-11-21", phase });
+    const a = await insertPlanDay(8610, phase, {
+      date: "2099-11-08", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, description: "seed-a", distanceMi: 5, cardioMin: 50, totalLoad: 50,
+    });
+    const b = await insertPlanDay(8611, phase, {
+      date: "2099-11-15", day: "Mon", sessionType: T_BIKE, equipment: E_SPIN, description: "seed-b", distanceMi: 0, cardioMin: 60, totalLoad: 60,
+    });
+
+    await request(app).patch(`/api/plan/days/${a.id}`).send({
+      sessionType: T_STRENGTH, equipment: E_GYM, description: "edited-a",
+      distanceMi: null, cardioMin: null, strengthLoad: 200, totalLoad: 200, isRest: false,
+    });
+    await request(app).patch(`/api/plan/days/${b.id}`).send({
+      sessionType: T_REST, equipment: E_NONE, description: "edited-b",
+      distanceMi: null, cardioMin: null, strengthLoad: null, totalLoad: 0, isRest: true,
+    });
+
+    const reset = await request(app).post(`/api/plan/reset`).send({});
+    expect(reset.status).toBe(200);
+    const undoToken = reset.body.undoToken as string;
+    expect(typeof undoToken).toBe("string");
+    expect(reset.body.daysReset).toBeGreaterThanOrEqual(2);
+
+    const undo = await request(app).post(`/api/plan/reset/undo`).send({ undoToken });
+    expect(undo.status).toBe(200);
+    expect(undo.body.daysRestored).toBeGreaterThanOrEqual(2);
+    expect(undo.body.weeksAffected).toEqual(expect.arrayContaining([8610, 8611]));
+
+    const after1 = await request(app).get(`/api/plan/weeks/8610`);
+    const after2 = await request(app).get(`/api/plan/weeks/8611`);
+    const aBack = (after1.body.days as Array<{ date: string; sessionType: string; description: string }>).find((d) => d.date === "2099-11-08")!;
+    const bBack = (after2.body.days as Array<{ date: string; sessionType: string; description: string; isRest: boolean }>).find((d) => d.date === "2099-11-15")!;
+    expect(aBack.sessionType).toBe(T_STRENGTH);
+    expect(aBack.description).toBe("edited-a");
+    expect(bBack.sessionType).toBe(T_REST);
+    expect(bBack.isRest).toBe(true);
+    expect(bBack.description).toBe("edited-b");
+  });
+
+  it("does not return an undo token when nothing was reset", async () => {
+    const week = 8620;
+    const phase = "Undo Noop";
+    await insertWeek(week, { startDate: "2099-12-01", endDate: "2099-12-07", phase });
+    await insertPlanDay(week, phase, {
+      date: "2099-12-01", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 4, totalLoad: 40,
+    });
+
+    const reset = await request(app).post(`/api/plan/weeks/${week}/reset`).send({});
+    expect(reset.status).toBe(200);
+    expect(reset.body.daysReset).toBe(0);
+    expect(reset.body.undoToken).toBeNull();
+    expect(reset.body.undoExpiresInSeconds).toBeNull();
   });
 });

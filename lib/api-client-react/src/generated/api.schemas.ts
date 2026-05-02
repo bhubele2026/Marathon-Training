@@ -86,6 +86,10 @@ export interface ResetPlanWeekResponse {
   daysReset: number;
   /** Total number of plan days in the week (including untouched ones). */
   daysTotal: number;
+  /** Short-lived token that can be passed to POST /plan/reset/undo to restore the just-wiped customizations. Null when nothing was reset (i.e. daysReset is 0). Expires after roughly 30 seconds. */
+  undoToken?: string | null;
+  /** Approximate number of seconds the undoToken will remain valid for. Null when undoToken is null. */
+  undoExpiresInSeconds?: number | null;
 }
 
 export interface ResetPlanResponse {
@@ -95,6 +99,22 @@ export interface ResetPlanResponse {
   daysReset: number;
   /** Total number of plan days across the entire plan (including untouched ones). */
   daysTotal: number;
+  /** Short-lived token that can be passed to POST /plan/reset/undo to restore the just-wiped customizations. Null when nothing was reset (i.e. daysReset is 0). Expires after roughly 30 seconds. */
+  undoToken?: string | null;
+  /** Approximate number of seconds the undoToken will remain valid for. Null when undoToken is null. */
+  undoExpiresInSeconds?: number | null;
+}
+
+export interface UndoPlanResetBody {
+  /** Token previously returned by POST /plan/weeks/{week}/reset or POST /plan/reset. */
+  undoToken: string;
+}
+
+export interface UndoPlanResetResponse {
+  /** Number of plan days whose pre-reset customizations were restored. */
+  daysRestored: number;
+  /** Plan-week numbers whose aggregates were recomputed by the undo. */
+  weeksAffected: number[];
 }
 
 export interface PlanWeek {

@@ -39,6 +39,8 @@ import type {
   SwapPlanDayBody,
   SwapPlanDayResponse,
   TodayPlan,
+  UndoPlanResetBody,
+  UndoPlanResetResponse,
   UpdateMeasurementBody,
   UpdatePlanDayBody,
   UpdateWorkoutBody,
@@ -738,6 +740,89 @@ export const useResetPlan = <
   TContext
 > => {
   return useMutation(getResetPlanMutationOptions(options));
+};
+
+/**
+ * Restore the plan days that were just wiped by the most recent week-reset or plan-reset call. The undo token is only valid for a short window (~30 seconds) after the reset; after that the snapshot is dropped and the call returns 404.
+ */
+export const getUndoPlanResetUrl = () => {
+  return `/api/plan/reset/undo`;
+};
+
+export const undoPlanReset = async (
+  undoPlanResetBody: UndoPlanResetBody,
+  options?: RequestInit,
+): Promise<UndoPlanResetResponse> => {
+  return customFetch<UndoPlanResetResponse>(getUndoPlanResetUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(undoPlanResetBody),
+  });
+};
+
+export const getUndoPlanResetMutationOptions = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof undoPlanReset>>,
+    TError,
+    { data: BodyType<UndoPlanResetBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof undoPlanReset>>,
+  TError,
+  { data: BodyType<UndoPlanResetBody> },
+  TContext
+> => {
+  const mutationKey = ["undoPlanReset"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof undoPlanReset>>,
+    { data: BodyType<UndoPlanResetBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return undoPlanReset(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UndoPlanResetMutationResult = NonNullable<
+  Awaited<ReturnType<typeof undoPlanReset>>
+>;
+export type UndoPlanResetMutationBody = BodyType<UndoPlanResetBody>;
+export type UndoPlanResetMutationError = ErrorType<Error | ValidationError>;
+
+export const useUndoPlanReset = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof undoPlanReset>>,
+    TError,
+    { data: BodyType<UndoPlanResetBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof undoPlanReset>>,
+  TError,
+  { data: BodyType<UndoPlanResetBody> },
+  TContext
+> => {
+  return useMutation(getUndoPlanResetMutationOptions(options));
 };
 
 export const getGetTodayPlanUrl = () => {

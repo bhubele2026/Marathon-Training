@@ -4,8 +4,16 @@ import { eq, asc, sql, and, gte, lte } from "drizzle-orm";
 import {
   UpdatePlanDayBody,
   SwapPlanDayBody,
+  UndoPlanResetBody,
 } from "@workspace/api-zod";
 import { toPlanDay, toPlanWeek, toWorkout } from "../lib/transforms";
+import {
+  consumeResetSnapshot,
+  releaseResetSnapshot,
+  snapshotPlanDay,
+  storeResetSnapshot,
+  type PlanDaySnapshot,
+} from "../lib/reset-undo";
 
 const router: IRouter = Router();
 
@@ -622,6 +630,10 @@ router.post("/plan/weeks/:week/reset", async (req, res): Promise<void> => {
       .from(planDaysTable)
       .where(eq(planDaysTable.week, week));
     const editedDays = days.filter((d) => d.seedSessionType != null);
+    // Capture a full snapshot of every edited row before we wipe it so an
+    // immediate "Undo" on the toast can put the customizations back exactly
+    // as they were (including the seed_* "edited" markers).
+    const snapshots: PlanDaySnapshot[] = editedDays.map(snapshotPlanDay);
     for (const d of editedDays) {
       await tx
         .update(planDaysTable)
@@ -631,23 +643,43 @@ router.post("/plan/weeks/:week/reset", async (req, res): Promise<void> => {
     if (editedDays.length > 0) {
       await recomputeWeekTotals(tx, week);
     }
-    return { daysReset: editedDays.length, daysTotal: days.length };
+    return {
+      daysReset: editedDays.length,
+      daysTotal: days.length,
+      snapshots,
+    };
   });
   if (!result) {
     res.status(404).json({ error: "week not found" });
     return;
   }
+  // Only stash an undo snapshot when there was actually something to wipe;
+  // a no-op reset (daysReset === 0) doesn't need an undo button.
+  let undoToken: string | null = null;
+  let undoExpiresInSeconds: number | null = null;
+  if (result.snapshots.length > 0) {
+    const stored = storeResetSnapshot(result.snapshots, [week]);
+    undoToken = stored.token;
+    undoExpiresInSeconds = stored.expiresInSeconds;
+  }
   req.log.info(
     { week, daysReset: result.daysReset, daysTotal: result.daysTotal },
     "plan week reset",
   );
-  res.json({ week, ...result });
+  res.json({
+    week,
+    daysReset: result.daysReset,
+    daysTotal: result.daysTotal,
+    undoToken,
+    undoExpiresInSeconds,
+  });
 });
 
 router.post("/plan/reset", async (req, res): Promise<void> => {
   const result = await db.transaction(async (tx) => {
     const days = await tx.select().from(planDaysTable);
     const editedDays = days.filter((d) => d.seedSessionType != null);
+    const snapshots: PlanDaySnapshot[] = editedDays.map(snapshotPlanDay);
     const weeksTouched = new Set<number>();
     for (const d of editedDays) {
       await tx
@@ -663,9 +695,121 @@ router.post("/plan/reset", async (req, res): Promise<void> => {
       weeksReset: weeksTouched.size,
       daysReset: editedDays.length,
       daysTotal: days.length,
+      snapshots,
+      weeksAffected: Array.from(weeksTouched).sort((a, b) => a - b),
     };
   });
-  req.log.info(result, "entire plan reset");
+  let undoToken: string | null = null;
+  let undoExpiresInSeconds: number | null = null;
+  if (result.snapshots.length > 0) {
+    const stored = storeResetSnapshot(result.snapshots, result.weeksAffected);
+    undoToken = stored.token;
+    undoExpiresInSeconds = stored.expiresInSeconds;
+  }
+  req.log.info(
+    {
+      weeksReset: result.weeksReset,
+      daysReset: result.daysReset,
+      daysTotal: result.daysTotal,
+    },
+    "entire plan reset",
+  );
+  res.json({
+    weeksReset: result.weeksReset,
+    daysReset: result.daysReset,
+    daysTotal: result.daysTotal,
+    undoToken,
+    undoExpiresInSeconds,
+  });
+});
+
+// Restore the customizations that the most recent week-reset or plan-reset
+// just wiped, identified by the short-lived token returned in that response.
+// Each snapshot is single-use: once it's been consumed (or has expired) the
+// endpoint returns 404 so a double-click on Undo can't double-restore.
+router.post("/plan/reset/undo", async (req, res): Promise<void> => {
+  const parsed = UndoPlanResetBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  // Atomically reserve the snapshot so a concurrent double-click can't run
+  // the restore twice. If the transaction below fails we release it back
+  // into the store so the user can retry within the remaining TTL.
+  const snapshot = consumeResetSnapshot(parsed.data.undoToken);
+  if (!snapshot) {
+    res.status(404).json({ error: "undo token not found or expired" });
+    return;
+  }
+  let result: { daysRestored: number; weeksAffected: number[] };
+  try {
+    result = await db.transaction(async (tx) => {
+      const touched = new Set<number>();
+      let restored = 0;
+      for (const d of snapshot.days) {
+        // It's possible (though unusual) for the row to have been deleted or
+        // re-edited between the reset and the undo. Restoring by id is still
+        // the right thing to do: we're putting the snapshot back verbatim.
+        const existing = (
+          await tx
+            .select()
+            .from(planDaysTable)
+            .where(eq(planDaysTable.id, d.id))
+            .limit(1)
+        )[0];
+        if (!existing) continue;
+        await tx
+          .update(planDaysTable)
+          .set({
+            sessionType: d.sessionType,
+            equipment: d.equipment,
+            description: d.description,
+            distanceMi: d.distanceMi,
+            cardioMin: d.cardioMin,
+            pace: d.pace,
+            strengthLoad: d.strengthLoad,
+            totalLoad: d.totalLoad,
+            isRest: d.isRest,
+            seedSessionType: d.seedSessionType,
+            seedEquipment: d.seedEquipment,
+            seedDescription: d.seedDescription,
+            seedDistanceMi: d.seedDistanceMi,
+            seedCardioMin: d.seedCardioMin,
+            seedPace: d.seedPace,
+            seedStrengthLoad: d.seedStrengthLoad,
+            seedTotalLoad: d.seedTotalLoad,
+            seedIsRest: d.seedIsRest,
+          })
+          .where(eq(planDaysTable.id, d.id));
+        restored += 1;
+        // Use the row's current week (not the snapshot's) so aggregate
+        // recomputation targets the week the row actually lives in today,
+        // in case anything moved it between the reset and the undo.
+        touched.add(existing.week);
+        if (existing.week !== d.week) {
+          // The row moved since the snapshot; the snapshot's original week
+          // also needs recomputing because we just changed totals there too.
+          touched.add(d.week);
+        }
+      }
+      for (const w of touched) {
+        await recomputeWeekTotals(tx, w);
+      }
+      return {
+        daysRestored: restored,
+        weeksAffected: Array.from(touched).sort((a, b) => a - b),
+      };
+    });
+  } catch (err) {
+    // Restore failed; release the reservation so the runner can retry within
+    // the remaining TTL instead of being told the undo window has expired.
+    releaseResetSnapshot(parsed.data.undoToken, snapshot);
+    throw err;
+  }
+  req.log.info(
+    { daysRestored: result.daysRestored, weeksAffected: result.weeksAffected },
+    "plan reset undone",
+  );
   res.json(result);
 });
 

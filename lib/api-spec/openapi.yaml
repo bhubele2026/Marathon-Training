@@ -203,6 +203,36 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ResetPlanResponse" }
 
+  /plan/reset/undo:
+    post:
+      operationId: undoPlanReset
+      tags: [plan]
+      description: Restore the plan days that were just wiped by the most recent week-reset or plan-reset call. The undo token is only valid for a short window (~30 seconds) after the reset; after that the snapshot is dropped and the call returns 404.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UndoPlanResetBody" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UndoPlanResetResponse" }
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ValidationError"
+        "404":
+          description: Undo token not found or expired
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
   /plan/today:
     get:
       operationId: getTodayPlan
@@ -646,6 +676,14 @@ components:
         daysTotal:
           type: integer
           description: Total number of plan days in the week (including untouched ones).
+        undoToken:
+          type: string
+          nullable: true
+          description: Short-lived token that can be passed to POST /plan/reset/undo to restore the just-wiped customizations. Null when nothing was reset (i.e. daysReset is 0). Expires after roughly 30 seconds.
+        undoExpiresInSeconds:
+          type: integer
+          nullable: true
+          description: Approximate number of seconds the undoToken will remain valid for. Null when undoToken is null.
 
     ResetPlanResponse:
       type: object
@@ -660,6 +698,34 @@ components:
         daysTotal:
           type: integer
           description: Total number of plan days across the entire plan (including untouched ones).
+        undoToken:
+          type: string
+          nullable: true
+          description: Short-lived token that can be passed to POST /plan/reset/undo to restore the just-wiped customizations. Null when nothing was reset (i.e. daysReset is 0). Expires after roughly 30 seconds.
+        undoExpiresInSeconds:
+          type: integer
+          nullable: true
+          description: Approximate number of seconds the undoToken will remain valid for. Null when undoToken is null.
+
+    UndoPlanResetBody:
+      type: object
+      required: [undoToken]
+      properties:
+        undoToken:
+          type: string
+          description: Token previously returned by POST /plan/weeks/{week}/reset or POST /plan/reset.
+
+    UndoPlanResetResponse:
+      type: object
+      required: [daysRestored, weeksAffected]
+      properties:
+        daysRestored:
+          type: integer
+          description: Number of plan days whose pre-reset customizations were restored.
+        weeksAffected:
+          type: array
+          items: { type: integer }
+          description: Plan-week numbers whose aggregates were recomputed by the undo.
 
     PlanWeek:
       type: object

@@ -288,6 +288,18 @@ export const ResetPlanWeekResponse = zod.object({
     .describe(
       "Total number of plan days in the week (including untouched ones).",
     ),
+  undoToken: zod
+    .string()
+    .nullish()
+    .describe(
+      "Short-lived token that can be passed to POST \/plan\/reset\/undo to restore the just-wiped customizations. Null when nothing was reset (i.e. daysReset is 0). Expires after roughly 30 seconds.",
+    ),
+  undoExpiresInSeconds: zod
+    .number()
+    .nullish()
+    .describe(
+      "Approximate number of seconds the undoToken will remain valid for. Null when undoToken is null.",
+    ),
 });
 
 /**
@@ -308,6 +320,42 @@ export const ResetPlanResponse = zod.object({
     .number()
     .describe(
       "Total number of plan days across the entire plan (including untouched ones).",
+    ),
+  undoToken: zod
+    .string()
+    .nullish()
+    .describe(
+      "Short-lived token that can be passed to POST \/plan\/reset\/undo to restore the just-wiped customizations. Null when nothing was reset (i.e. daysReset is 0). Expires after roughly 30 seconds.",
+    ),
+  undoExpiresInSeconds: zod
+    .number()
+    .nullish()
+    .describe(
+      "Approximate number of seconds the undoToken will remain valid for. Null when undoToken is null.",
+    ),
+});
+
+/**
+ * Restore the plan days that were just wiped by the most recent week-reset or plan-reset call. The undo token is only valid for a short window (~30 seconds) after the reset; after that the snapshot is dropped and the call returns 404.
+ */
+export const UndoPlanResetBody = zod.object({
+  undoToken: zod
+    .string()
+    .describe(
+      "Token previously returned by POST \/plan\/weeks\/{week}\/reset or POST \/plan\/reset.",
+    ),
+});
+
+export const UndoPlanResetResponse = zod.object({
+  daysRestored: zod
+    .number()
+    .describe(
+      "Number of plan days whose pre-reset customizations were restored.",
+    ),
+  weeksAffected: zod
+    .array(zod.number())
+    .describe(
+      "Plan-week numbers whose aggregates were recomputed by the undo.",
     ),
 });
 

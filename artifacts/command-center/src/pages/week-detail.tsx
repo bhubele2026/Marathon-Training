@@ -6,6 +6,7 @@ import {
   getListWorkoutsQueryKey,
   useResetPlanDay,
   useResetPlanWeek,
+  useUndoPlanReset,
   Workout,
   PlanDay,
   PlanDayWithSuggestions,
@@ -31,6 +32,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
 import { formatDistance, formatLoad, formatDate, formatDuration } from "@/lib/format";
 import {
@@ -113,6 +115,7 @@ export default function WeekDetail() {
   const queryClient = useQueryClient();
   const resetPlanDay = useResetPlanDay();
   const resetPlanWeek = useResetPlanWeek();
+  const undoPlanReset = useUndoPlanReset();
   const [editPlanDay, setEditPlanDay] = useState<PlanDay | null>(null);
   const [movePlanDay, setMovePlanDay] = useState<PlanDay | null>(null);
   const [resetPlanDayCtx, setResetPlanDayCtx] = useState<PlanDay | null>(null);
@@ -185,6 +188,28 @@ export default function WeekDetail() {
     );
   };
 
+  const handleUndoReset = (undoToken: string, scopeLabel: string) => {
+    undoPlanReset.mutate(
+      { data: { undoToken } },
+      {
+        onSuccess: (data) => {
+          toast({
+            title: "Reset undone",
+            description: `${data.daysRestored} day${data.daysRestored === 1 ? "" : "s"} of ${scopeLabel} restored.`,
+          });
+          invalidateMissionRelatedQueries(queryClient);
+        },
+        onError: () => {
+          toast({
+            title: "Couldn't undo",
+            description: "The undo window has expired.",
+            variant: "destructive",
+          });
+        },
+      },
+    );
+  };
+
   const confirmResetWeek = () => {
     resetPlanWeek.mutate(
       { week: weekNum },
@@ -196,9 +221,23 @@ export default function WeekDetail() {
               description: `Week ${weekNum} hasn't been customized yet.`,
             });
           } else {
+            const undoToken = data.undoToken;
+            const undoSeconds = data.undoExpiresInSeconds ?? 30;
             toast({
               title: "Week reset",
-              description: `${data.daysReset} day${data.daysReset === 1 ? "" : "s"} in week ${weekNum} restored to the original plan.`,
+              description: `${data.daysReset} day${data.daysReset === 1 ? "" : "s"} in week ${weekNum} restored to the original plan. Undo available for ${undoSeconds}s.`,
+              duration: undoToken ? undoSeconds * 1000 : undefined,
+              action: undoToken ? (
+                <ToastAction
+                  altText="Undo week reset"
+                  onClick={() =>
+                    handleUndoReset(undoToken, `week ${weekNum}`)
+                  }
+                  data-testid="button-undo-reset-week"
+                >
+                  Undo
+                </ToastAction>
+              ) : undefined,
             });
           }
           invalidateMissionRelatedQueries(queryClient);
