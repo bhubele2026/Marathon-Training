@@ -3,7 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "codegen": "orval --config ./orval.config.ts && tsx ./scripts/generate-error-zod.ts && prettier --write ../api-zod/src/errors.ts && pnpm -w run typecheck:libs"
+    "codegen": "pnpm run codegen:generate && pnpm -w run typecheck:libs",
+    "codegen:generate": "orval --config ./orval.config.ts && tsx ./scripts/generate-error-zod.ts && prettier --write ../api-zod/src/errors.ts",
+    "codegen:check": "tsx ./scripts/check-codegen.ts"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
