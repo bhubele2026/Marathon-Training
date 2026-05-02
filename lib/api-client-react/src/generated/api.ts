@@ -17,6 +17,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  ApplyPlannerConfigResponse,
   CreateMeasurementBody,
   CreateWorkoutBody,
   DashboardSummary,
@@ -24,6 +25,7 @@ import type {
   EquipmentUsage,
   Error,
   FullResetPlanResponse,
+  GetPlannerConfig200,
   HealthStatus,
   ListWorkoutsParams,
   LongRunPoint,
@@ -32,6 +34,8 @@ import type {
   PlanOverview,
   PlanWeek,
   PlanWeekDetail,
+  PlannerConfig,
+  PutPlannerConfigBody,
   RaceWeekChecklistItem,
   RaceWeekStatus,
   ResetPlanResponse,
@@ -2087,6 +2091,244 @@ export function useGetRecentActivity<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Return the most recently saved Planner config, or null if none has been saved yet (in which case the canonical hard-coded plan is in effect).
+ */
+export const getGetPlannerConfigUrl = () => {
+  return `/api/planner/config`;
+};
+
+export const getPlannerConfig = async (
+  options?: RequestInit,
+): Promise<GetPlannerConfig200> => {
+  return customFetch<GetPlannerConfig200>(getGetPlannerConfigUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPlannerConfigQueryKey = () => {
+  return [`/api/planner/config`] as const;
+};
+
+export const getGetPlannerConfigQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPlannerConfig>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPlannerConfig>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPlannerConfigQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPlannerConfig>>
+  > = ({ signal }) => getPlannerConfig({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPlannerConfig>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPlannerConfigQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPlannerConfig>>
+>;
+export type GetPlannerConfigQueryError = ErrorType<unknown>;
+
+export function useGetPlannerConfig<
+  TData = Awaited<ReturnType<typeof getPlannerConfig>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPlannerConfig>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPlannerConfigQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Upsert the Planner config. Validates the dates (Monday start, Sunday marathon, at least 16 weeks apart) and that block weeks sum to (totalWeeks - 16). Saving the config does NOT regenerate plan rows — call POST /planner/apply for that.
+ */
+export const getPutPlannerConfigUrl = () => {
+  return `/api/planner/config`;
+};
+
+export const putPlannerConfig = async (
+  putPlannerConfigBody: PutPlannerConfigBody,
+  options?: RequestInit,
+): Promise<PlannerConfig> => {
+  return customFetch<PlannerConfig>(getPutPlannerConfigUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(putPlannerConfigBody),
+  });
+};
+
+export const getPutPlannerConfigMutationOptions = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof putPlannerConfig>>,
+    TError,
+    { data: BodyType<PutPlannerConfigBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof putPlannerConfig>>,
+  TError,
+  { data: BodyType<PutPlannerConfigBody> },
+  TContext
+> => {
+  const mutationKey = ["putPlannerConfig"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof putPlannerConfig>>,
+    { data: BodyType<PutPlannerConfigBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return putPlannerConfig(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PutPlannerConfigMutationResult = NonNullable<
+  Awaited<ReturnType<typeof putPlannerConfig>>
+>;
+export type PutPlannerConfigMutationBody = BodyType<PutPlannerConfigBody>;
+export type PutPlannerConfigMutationError = ErrorType<Error | ValidationError>;
+
+export const usePutPlannerConfig = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof putPlannerConfig>>,
+    TError,
+    { data: BodyType<PutPlannerConfigBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof putPlannerConfig>>,
+  TError,
+  { data: BodyType<PutPlannerConfigBody> },
+  TContext
+> => {
+  return useMutation(getPutPlannerConfigMutationOptions(options));
+};
+
+/**
+ * Regenerate plan_weeks and plan_days from the most recently saved
+Planner config. Logged workouts and body measurements are PRESERVED.
+Reset-undo snapshots are dropped because their plan_day ids no longer
+match. Workout plan_day_id FKs are best-effort rebound to the new
+plan_day with the same date; workouts whose date no longer falls
+within the regenerated plan get plan_day_id = NULL.
+
+ */
+export const getApplyPlannerConfigUrl = () => {
+  return `/api/planner/apply`;
+};
+
+export const applyPlannerConfig = async (
+  options?: RequestInit,
+): Promise<ApplyPlannerConfigResponse> => {
+  return customFetch<ApplyPlannerConfigResponse>(getApplyPlannerConfigUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getApplyPlannerConfigMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof applyPlannerConfig>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof applyPlannerConfig>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["applyPlannerConfig"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof applyPlannerConfig>>,
+    void
+  > = () => {
+    return applyPlannerConfig(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ApplyPlannerConfigMutationResult = NonNullable<
+  Awaited<ReturnType<typeof applyPlannerConfig>>
+>;
+
+export type ApplyPlannerConfigMutationError = ErrorType<Error>;
+
+export const useApplyPlannerConfig = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof applyPlannerConfig>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof applyPlannerConfig>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getApplyPlannerConfigMutationOptions(options));
+};
 
 export const getGetRaceWeekUrl = () => {
   return `/api/race-week`;

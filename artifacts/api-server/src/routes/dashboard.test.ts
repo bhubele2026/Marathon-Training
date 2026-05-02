@@ -9,6 +9,7 @@ import {
   GetWeeklyMileageResponse,
   GetWeightTrendResponse,
 } from "@workspace/api-zod";
+import { db, plannerConfigsTable } from "@workspace/db";
 import app from "../app";
 import {
   cleanTestData,
@@ -124,6 +125,40 @@ describe("GET /api/dashboard/summary", () => {
     expect(typeof res.body.adherencePct).toBe("number");
     expect(res.body.adherencePct).toBeGreaterThanOrEqual(0);
     expect(res.body.adherencePct).toBeLessThanOrEqual(100);
+  });
+});
+
+describe("GET /api/dashboard/summary daysToRace anchored on applied Planner config", () => {
+  it("counts down to the runner's APPLIED marathon date, not the canonical 2027 date", async () => {
+    vi.useFakeTimers();
+    // Sit "today" at 2099-04-26 (a Sunday) so the canonical 2027-05-02
+    // race date is in the past — without the planner override, the route
+    // would clamp daysToRace to 0. Our applied config marathon date is
+    // exactly 14 days later (Sun 2099-05-10).
+    vi.setSystemTime(new Date("2099-04-26T12:00:00.000Z"));
+
+    // Save + apply a planner config whose marathon date is 2099-05-10.
+    // 2099-04-27 is a Mon and 2099-05-10 is a Sun (verified manually);
+    // 2 weeks total = 16 user weeks short of MARATHON_TAIL_WEEKS, so the
+    // validator would reject. Skip apply and instead write the config row
+    // directly with last_applied_at set so we exercise the dashboard
+    // anchor without exercising the full apply pipeline.
+    await db.insert(plannerConfigsTable).values({
+      id: 1,
+      startDate: "2099-04-27",
+      marathonDate: "2099-05-10",
+      blocks: [{ focusType: "Base", weeks: 2 }],
+      lastAppliedAt: new Date(),
+      appliedStartDate: "2099-04-27",
+      appliedMarathonDate: "2099-05-10",
+      appliedBlocks: [{ focusType: "Base", weeks: 2 }],
+    });
+
+    const res = await request(app).get("/api/dashboard/summary");
+    expect(res.status).toBe(200);
+    expect(res.body.daysToRace).toBe(14);
+
+    await db.delete(plannerConfigsTable);
   });
 });
 

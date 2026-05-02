@@ -1,13 +1,14 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { 
-  Activity, 
-  CalendarDays, 
-  Dumbbell, 
-  Home, 
-  LineChart, 
+import {
+  Activity,
+  CalendarDays,
+  Dumbbell,
+  Home,
+  LineChart,
   ListOrdered,
-  Scale
+  Scale,
+  SlidersHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./theme-toggle";
@@ -27,6 +28,7 @@ export function Layout({ children }: LayoutProps) {
     { href: "/log", label: "Training Log", icon: ListOrdered },
     { href: "/measurements", label: "Body Metrics", icon: Scale },
     { href: "/equipment", label: "Equipment", icon: Dumbbell },
+    { href: "/planner", label: "Phase Planner", icon: SlidersHorizontal },
   ];
 
   return (

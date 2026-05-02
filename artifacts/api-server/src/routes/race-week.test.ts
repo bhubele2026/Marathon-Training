@@ -5,7 +5,7 @@ import {
   GetRaceWeekResponse,
   SetRaceWeekChecklistItemResponse,
 } from "@workspace/api-zod";
-import { db, planDaysTable } from "@workspace/db";
+import { db, planDaysTable, plannerConfigsTable } from "@workspace/db";
 import app from "../app";
 import { expectMatchesSchema } from "../test-helpers";
 
@@ -16,6 +16,9 @@ async function clearChecklistAndRaceDayPlan() {
   // Race-day plan_day is real seed data; remove just the row for our window so
   // the GET endpoint behaves deterministically when we add our own.
   await db.execute(sql`DELETE FROM plan_days WHERE date = ${RACE_DATE}`);
+  // Make sure no leaked planner config from another test re-points the
+  // canonical race-date anchor for the suites below.
+  await db.delete(plannerConfigsTable);
 }
 
 beforeEach(async () => {
@@ -74,6 +77,52 @@ describe("GET /api/race-week", () => {
     expect(body.racePlan?.distanceMi).toBe(13.1);
     expect(body.racePlan?.targetPace).toBe("12:00");
     expect(body.racePlan?.fuelingNote).toMatch(/every 4 mi/i);
+  });
+
+  it("anchors raceDate, daysToRace, and racePlan lookup on the APPLIED Planner marathon date", async () => {
+    vi.useFakeTimers();
+    // 2099-05-10 is a Sunday; pin "today" 7 days before so we land in-window.
+    const customRace = "2099-05-10";
+    vi.setSystemTime(new Date("2099-05-03T12:00:00.000Z"));
+
+    await db.insert(plannerConfigsTable).values({
+      id: 1,
+      startDate: "2099-04-27",
+      marathonDate: customRace,
+      blocks: [{ focusType: "Base", weeks: 2 }],
+      lastAppliedAt: new Date(),
+      appliedStartDate: "2099-04-27",
+      appliedMarathonDate: customRace,
+      appliedBlocks: [{ focusType: "Base", weeks: 2 }],
+    });
+
+    // Insert the race-day plan_day at the CUSTOM date so the lookup hits.
+    await db.insert(planDaysTable).values({
+      week: 99,
+      phase: "Taper & Race",
+      date: customRace,
+      day: "Sun",
+      strengthLoad: 0,
+      equipment: "Outdoor",
+      description: "RACE DAY — Marathon (26.2 mi). Fuel every 4 mi.",
+      cardioMin: 240,
+      distanceMi: 26.2,
+      pace: "10:00",
+      sessionType: "Race",
+      isRest: false,
+      totalLoad: 400,
+    });
+
+    const res = await request(app).get("/api/race-week");
+    expect(res.status).toBe(200);
+    const body = expectMatchesSchema(GetRaceWeekResponse, res.body);
+    expect(body.raceDate).toBe(customRace);
+    expect(body.daysToRace).toBe(7);
+    expect(body.inWindow).toBe(true);
+    expect(body.racePlan?.distanceMi).toBe(26.2);
+
+    await db.execute(sql`DELETE FROM plan_days WHERE date = ${customRace}`);
+    await db.delete(plannerConfigsTable);
   });
 
   it("flips to isRaceDay=true on race-day itself", async () => {

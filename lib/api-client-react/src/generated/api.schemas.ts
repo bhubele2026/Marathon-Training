@@ -511,9 +511,75 @@ export interface SetRaceWeekChecklistItemBody {
   checked: boolean;
 }
 
+export type PhaseBlockFocusType =
+  (typeof PhaseBlockFocusType)[keyof typeof PhaseBlockFocusType];
+
+export const PhaseBlockFocusType = {
+  Base: "Base",
+  Time_on_Feet: "Time on Feet",
+  "Cardio_+_Weight_Loss": "Cardio + Weight Loss",
+  Speed: "Speed",
+  "Marathon-Specific": "Marathon-Specific",
+  Taper: "Taper",
+  Recovery: "Recovery",
+  Custom: "Custom",
+} as const;
+
+/**
+ * One block in the runner's Phase Planner config. The trailing 16-week
+Marathon-Specific block is auto-pinned at generation time and is NOT
+present in the user-defined `blocks` array; users only pick the
+blocks that come BEFORE the auto-pinned tail.
+
+ */
+export interface PhaseBlock {
+  focusType: PhaseBlockFocusType;
+  /** @minimum 1 */
+  weeks: number;
+  /** Required when focusType is "Custom"; ignored otherwise. Used as the phase label on plan_weeks/plan_days for that block. */
+  customName?: string | null;
+  /** Optional free-text appended in `[brackets]` to every plan_day description in this block (handy for marking experiments, "extra recovery", etc.). */
+  customNotes?: string | null;
+}
+
+export interface PlannerConfig {
+  /** ISO yyyy-mm-dd; week 1 begins on this date. Must be a Monday. */
+  startDate: string;
+  /** ISO yyyy-mm-dd; race day, the Sunday the auto-pinned 16-week Marathon-Specific block ends on. Must be a Sunday and at least 16 weeks after startDate. */
+  marathonDate: string;
+  blocks: PhaseBlock[];
+  notes?: string | null;
+  /** Server-set timestamp for the most recent PUT. Read-only — ignored on writes. */
+  updatedAt?: string;
+}
+
+export interface PutPlannerConfigBody {
+  startDate: string;
+  marathonDate: string;
+  blocks: PhaseBlock[];
+  notes?: string | null;
+}
+
+/**
+ * Result of regenerating plan_weeks and plan_days from the saved Planner config. Workouts and measurements are preserved (not wiped); reset undo snapshots are dropped because their plan_day ids no longer match.
+ */
+export interface ApplyPlannerConfigResponse {
+  weeksSeeded: number;
+  daysSeeded: number;
+  /** Count of logged workouts that survived the apply (i.e. were not wiped). Their plan_day_id FKs are best-effort re-pointed to the new plan_day with the same date; rows whose date no longer falls within the regenerated plan are kept but get plan_day_id = NULL so the runner doesn't lose history. */
+  workoutsPreserved: number;
+  measurementsPreserved: number;
+  undoSnapshotsWiped: number;
+  totalWeeks: number;
+}
+
 export type ListWorkoutsParams = {
   limit?: number;
   from?: string;
   to?: string;
   equipment?: string;
+};
+
+export type GetPlannerConfig200 = {
+  config: PlannerConfig | null;
 };

@@ -2,10 +2,10 @@ import { Router, type IRouter } from "express";
 import { db, planDaysTable, raceWeekChecklistTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { SetRaceWeekChecklistItemBody } from "@workspace/api-zod";
+import { readActiveRaceDate } from "./planner";
 
 const router: IRouter = Router();
 
-const RACE_DATE = "2027-05-02";
 const WINDOW_DAYS = 21;
 
 export const RACE_WEEK_CHECKLIST_DEFAULTS: ReadonlyArray<{ itemId: string; label: string }> = [
@@ -22,10 +22,6 @@ export const RACE_WEEK_CHECKLIST_DEFAULTS: ReadonlyArray<{ itemId: string; label
 
 const KNOWN_ITEM_IDS = new Set(RACE_WEEK_CHECKLIST_DEFAULTS.map((d) => d.itemId));
 
-function raceDayStartUtc(): Date {
-  return new Date(`${RACE_DATE}T00:00:00.000Z`);
-}
-
 function todayUtcMidnight(): Date {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
@@ -38,7 +34,10 @@ function extractFuelingNote(description: string | null | undefined): string | nu
 }
 
 router.get("/race-week", async (_req, res) => {
-  const raceStart = raceDayStartUtc();
+  // Anchor race-week math on the runner's APPLIED marathon date so the
+  // status, race-day plan lookup, and checklist all follow the active plan.
+  const raceDate = await readActiveRaceDate();
+  const raceStart = new Date(`${raceDate}T00:00:00.000Z`);
   const today = todayUtcMidnight();
   const msPerDay = 24 * 3600 * 1000;
   const daysToRace = Math.max(0, Math.ceil((raceStart.getTime() - Date.now()) / msPerDay));
@@ -56,7 +55,7 @@ router.get("/race-week", async (_req, res) => {
   } | null = null;
   if (inWindow) {
     const planRow = (
-      await db.select().from(planDaysTable).where(eq(planDaysTable.date, RACE_DATE)).limit(1)
+      await db.select().from(planDaysTable).where(eq(planDaysTable.date, raceDate)).limit(1)
     )[0];
     if (planRow && planRow.distanceMi != null) {
       racePlan = {
@@ -81,7 +80,7 @@ router.get("/race-week", async (_req, res) => {
   });
 
   res.json({
-    raceDate: RACE_DATE,
+    raceDate,
     daysToRace,
     hoursToRace,
     inWindow,

@@ -5,6 +5,7 @@ import workoutsRouter from "./workouts";
 import measurementsRouter from "./measurements";
 import dashboardRouter from "./dashboard";
 import raceWeekRouter from "./race-week";
+import plannerRouter from "./planner";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(workoutsRouter);
 router.use(measurementsRouter);
 router.use(dashboardRouter);
 router.use(raceWeekRouter);
+router.use(plannerRouter);
 
 export default router;

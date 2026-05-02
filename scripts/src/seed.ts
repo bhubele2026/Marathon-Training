@@ -1,7 +1,18 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { db, planDaysTable, planWeeksTable, measurementsTable } from "@workspace/db";
+import {
+  db,
+  planDaysTable,
+  planWeeksTable,
+  measurementsTable,
+  plannerConfigsTable,
+} from "@workspace/db";
 import { sql } from "drizzle-orm";
+import {
+  generatePlanFromConfig,
+  type PhaseBlock,
+  type PlannerConfig,
+} from "@workspace/plan-generator";
 import { generatePlan, writePlanJson, type DailyRow, type WeeklyRow, type BodyRow } from "./generate-plan.js";
 
 function loadPlanData(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: BodyRow[] } {
@@ -23,8 +34,46 @@ function loadPlanData(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: BodyRow
   return data;
 }
 
+// If the runner has already applied a custom Planner config (Task #80),
+// reseed from THAT instead of the canonical hard-coded plan so a "campaign
+// reset" via this CLI matches what they configured. Returns null when no
+// config has ever been applied (i.e. fresh installs / never customized).
+async function loadLastAppliedPlan(): Promise<
+  { daily: DailyRow[]; weekly: WeeklyRow[]; body: BodyRow[] } | null
+> {
+  const rows = await db.select().from(plannerConfigsTable).limit(1);
+  const row = rows[0];
+  if (
+    !row ||
+    row.lastAppliedAt === null ||
+    !row.appliedStartDate ||
+    !row.appliedMarathonDate ||
+    !row.appliedBlocks
+  ) {
+    return null;
+  }
+  const config: PlannerConfig = {
+    startDate: row.appliedStartDate,
+    marathonDate: row.appliedMarathonDate,
+    blocks: row.appliedBlocks as PhaseBlock[],
+  };
+  const generated = generatePlanFromConfig(config);
+  return {
+    daily: generated.daily as DailyRow[],
+    weekly: generated.weekly as WeeklyRow[],
+    body: generated.body as BodyRow[],
+  };
+}
+
 async function main() {
-  const data = loadPlanData();
+  const fileData = loadPlanData();
+  const applied = await loadLastAppliedPlan();
+  const data = applied ?? fileData;
+  if (applied) {
+    console.log(
+      `Using last-applied Planner config (${applied.weekly.length} weeks, ${applied.daily.length} days).`,
+    );
+  }
 
   console.log(
     `Seeding ${data.weekly.length} weeks, ${data.daily.length} days, ${data.body.length} body rows`,

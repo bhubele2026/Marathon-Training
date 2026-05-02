@@ -2,10 +2,9 @@ import { Router, type IRouter } from "express";
 import { db, planWeeksTable, planDaysTable, workoutsTable, measurementsTable } from "@workspace/db";
 import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { toWorkout } from "../lib/transforms";
+import { readActiveRaceDate } from "./planner";
 
 const router: IRouter = Router();
-
-const RACE_DATE = "2027-05-02";
 const START_WEIGHT = 281.6;
 const GOAL_WEIGHT = 210;
 
@@ -67,7 +66,10 @@ router.get("/dashboard/summary", async (_req, res) => {
   const completed = adherence.rows[0]?.completed ?? 0;
   const adherencePct = planned > 0 ? Math.min(100, (completed / planned) * 100) : 0;
 
-  const daysToRace = Math.max(0, Math.ceil((new Date(RACE_DATE).getTime() - Date.now()) / (24 * 3600 * 1000)));
+  // Anchor on the runner's chosen marathon date when they've applied a
+  // custom Planner config; otherwise fall back to the canonical race date.
+  const activeRaceDate = await readActiveRaceDate();
+  const daysToRace = Math.max(0, Math.ceil((new Date(activeRaceDate).getTime() - Date.now()) / (24 * 3600 * 1000)));
 
   res.json({
     currentWeek: weekRow?.week ?? 1,

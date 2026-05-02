@@ -486,3 +486,911 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
 
   return { daily, weekly, body };
 }
+
+// ===========================================================================
+// PLANNER CONFIG (Task #80) — parameterized plan generation
+// ===========================================================================
+//
+// The original `generatePlan()` above produces the canonical 52-week
+// half-marathon plan that the seed CLI and a brand-new "Full Reset" call use
+// when no Planner config has ever been saved. Once the runner saves a
+// Planner config (PUT /api/planner/config) and clicks Apply
+// (POST /api/planner/apply), the API server calls
+// `generatePlanFromConfig(config)` instead so the plan rows reflect the
+// runner's chosen marathon date, training start date, and ordered phase
+// blocks.
+//
+// The auto-pinned 16-week Marathon-Specific block is appended to the
+// runner's blocks at generation time so the user-facing block list never has
+// to include it (and can never accidentally exclude it). Validation enforces
+// that user blocks sum to (totalWeeks - MARATHON_TAIL_WEEKS) so the
+// generated plan lands exactly on the marathon date with the auto-pinned
+// block as the trailing 16 weeks.
+
+export const FOCUS_TYPES = [
+  "Base",
+  "Time on Feet",
+  "Cardio + Weight Loss",
+  "Speed",
+  "Marathon-Specific",
+  "Taper",
+  "Recovery",
+  "Custom",
+] as const;
+
+export type FocusType = (typeof FOCUS_TYPES)[number];
+
+export interface PhaseBlock {
+  focusType: FocusType;
+  weeks: number;
+  customName?: string | null;
+  customNotes?: string | null;
+}
+
+export interface PlannerConfig {
+  // ISO yyyy-mm-dd; week 1 begins on this date. Must be a Monday so the
+  // Mon..Sun day pattern lines up with the calendar; the validator enforces
+  // this so a runner can't accidentally start mid-week.
+  startDate: string;
+  // ISO yyyy-mm-dd; race day. Must be a Sunday and at least
+  // MARATHON_TAIL_WEEKS * 7 days after startDate so the auto-pinned
+  // Marathon-Specific block has room.
+  marathonDate: string;
+  // Ordered user-defined blocks BEFORE the auto-appended Marathon-Specific
+  // tail. Block weeks must sum to (totalWeeks - MARATHON_TAIL_WEEKS).
+  blocks: PhaseBlock[];
+}
+
+// The trailing Marathon-Specific block is always exactly 16 weeks. Pinned
+// here so the validator, the generator, and the UI all agree on the size.
+export const MARATHON_TAIL_WEEKS = 16;
+
+// Total race day mileage (full marathon).
+export const MARATHON_DISTANCE_MI = 26.2;
+
+// Total weeks between startDate (a Monday) and marathonDate (a Sunday),
+// inclusive of both ends. Week 1 starts Monday startDate; the final week's
+// Sunday is marathonDate. Returns -1 when the dates don't form a valid
+// Monday→Sunday week-aligned span.
+export function totalWeeksFromDates(
+  startDate: string,
+  marathonDate: string,
+): number {
+  const start = Date.parse(`${startDate}T00:00:00Z`);
+  const race = Date.parse(`${marathonDate}T00:00:00Z`);
+  if (!Number.isFinite(start) || !Number.isFinite(race)) return -1;
+  const diffDays = Math.round((race - start) / 86400000);
+  if (diffDays < 6) return -1;
+  if ((diffDays + 1) % 7 !== 0) return -1;
+  return (diffDays + 1) / 7;
+}
+
+// What the user-defined block weeks must sum to so the plan ends with the
+// auto-pinned Marathon-Specific block landing on race day.
+export function expectedUserBlockWeeks(
+  startDate: string,
+  marathonDate: string,
+): number {
+  const total = totalWeeksFromDates(startDate, marathonDate);
+  if (total < 0) return -1;
+  return total - MARATHON_TAIL_WEEKS;
+}
+
+export interface PlannerValidationIssue {
+  // Dot-path identifying the problematic field. Examples:
+  //   "startDate", "marathonDate", "blocks", "blocks[2].weeks",
+  //   "blocks[3].customName".
+  field: string;
+  message: string;
+}
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function isMonday(iso: string): boolean {
+  if (!ISO_DATE_RE.test(iso)) return false;
+  const t = Date.parse(`${iso}T00:00:00Z`);
+  if (!Number.isFinite(t)) return false;
+  return new Date(t).getUTCDay() === 1;
+}
+
+function isSunday(iso: string): boolean {
+  if (!ISO_DATE_RE.test(iso)) return false;
+  const t = Date.parse(`${iso}T00:00:00Z`);
+  if (!Number.isFinite(t)) return false;
+  return new Date(t).getUTCDay() === 0;
+}
+
+export interface ValidatePlannerConfigOptions {
+  // When set, the marathon date must be on or after this ISO yyyy-mm-dd.
+  // Used by the API route to reject configs whose race day is in the past.
+  // Tests pass this explicitly so 2099-dated fixtures stay valid.
+  todayISO?: string;
+}
+
+export function validatePlannerConfig(
+  config: PlannerConfig,
+  opts: ValidatePlannerConfigOptions = {},
+): PlannerValidationIssue[] {
+  const issues: PlannerValidationIssue[] = [];
+
+  if (!ISO_DATE_RE.test(config.startDate)) {
+    issues.push({ field: "startDate", message: "must be a yyyy-mm-dd date" });
+  } else if (!isMonday(config.startDate)) {
+    issues.push({
+      field: "startDate",
+      message: "must be a Monday so the Mon..Sun week pattern lines up",
+    });
+  }
+
+  if (!ISO_DATE_RE.test(config.marathonDate)) {
+    issues.push({
+      field: "marathonDate",
+      message: "must be a yyyy-mm-dd date",
+    });
+  } else if (!isSunday(config.marathonDate)) {
+    issues.push({
+      field: "marathonDate",
+      message: "must be a Sunday — marathons are run on the final Sun of the plan",
+    });
+  } else if (opts.todayISO && config.marathonDate < opts.todayISO) {
+    issues.push({
+      field: "marathonDate",
+      message: `must be in the future (got ${config.marathonDate}, today is ${opts.todayISO})`,
+    });
+  }
+
+  if (issues.length > 0) return issues;
+
+  const totalWeeks = totalWeeksFromDates(config.startDate, config.marathonDate);
+  if (totalWeeks < MARATHON_TAIL_WEEKS) {
+    issues.push({
+      field: "marathonDate",
+      message: `must be at least ${MARATHON_TAIL_WEEKS} weeks after startDate (the trailing Marathon-Specific block is auto-pinned at ${MARATHON_TAIL_WEEKS} weeks)`,
+    });
+    return issues;
+  }
+
+  const expected = totalWeeks - MARATHON_TAIL_WEEKS;
+  let sum = 0;
+  for (let i = 0; i < config.blocks.length; i++) {
+    const b = config.blocks[i]!;
+    if (!FOCUS_TYPES.includes(b.focusType)) {
+      issues.push({
+        field: `blocks[${i}].focusType`,
+        message: `must be one of: ${FOCUS_TYPES.join(", ")}`,
+      });
+    }
+    if (!Number.isInteger(b.weeks) || b.weeks < 1) {
+      issues.push({
+        field: `blocks[${i}].weeks`,
+        message: "must be a positive integer",
+      });
+    } else {
+      sum += b.weeks;
+    }
+    if (b.focusType === "Custom") {
+      const name = b.customName?.trim();
+      if (!name) {
+        issues.push({
+          field: `blocks[${i}].customName`,
+          message: "Custom blocks require a name",
+        });
+      }
+    }
+  }
+  if (sum !== expected) {
+    issues.push({
+      field: "blocks",
+      message: `block weeks must sum to ${expected} (got ${sum}); the trailing ${MARATHON_TAIL_WEEKS}-week Marathon-Specific block is auto-pinned`,
+    });
+  }
+
+  return issues;
+}
+
+// Expand the user blocks with the auto-pinned Marathon-Specific tail. The
+// generator iterates over this expanded list. Exported so tests and the UI's
+// timeline preview agree on what the runner will end up with.
+export function expandPlannerBlocks(config: PlannerConfig): PhaseBlock[] {
+  return [
+    ...config.blocks,
+    {
+      focusType: "Marathon-Specific",
+      weeks: MARATHON_TAIL_WEEKS,
+      customName: null,
+      customNotes: null,
+    },
+  ];
+}
+
+// ---- Per-focus recipes ---------------------------------------------------
+
+interface FocusRecipe {
+  // Phase label written into plan_weeks.phase + plan_days.phase. Falls back
+  // to focusType for non-Custom blocks so the existing /plan / dashboard
+  // surfaces (which key on phase) keep working without per-focus mapping.
+  phaseLabel(block: PhaseBlock): string;
+  // Mileage progressions. weekInBlock starts at 1.
+  longRunMi(weekInBlock: number, blockWeeks: number, isCutback: boolean): number;
+  easyRunMi(weekInBlock: number, blockWeeks: number, isCutback: boolean): number;
+  qualityRunMi(weekInBlock: number, blockWeeks: number, isCutback: boolean): number;
+  // Pace targets (mm:ss / mi).
+  easyPace: string;
+  longPace: string;
+  tempoPace: string;
+  // Run-minute multipliers (min/mile). Used to convert distance to run_min.
+  easyRunMinPerMi: number;
+  qualityRunMinPerMi: number;
+  longRunMinPerMi: number;
+  // Strength + cardio block sizing.
+  heavyStrengthLoad: number; // base, gets *0.75 on cutback
+  heavyTonalMin: number; // base
+  shortCardioMin: number; // base
+  accessoryTonalMin: number; // base
+  // Friday quality recipe.
+  fridayKind: "AerobicBase" | "Tempo" | "Threshold" | "RacePace" | "Sharpener";
+  // Whether this focus uses cutback weeks (every 4th week).
+  useCutbacks: boolean;
+  // Long-run description copy.
+  longRunVerb: string;
+  // Optional weight-loss biased cardio: increase Tue/Thu/Sat cardio block.
+  cardioBoostMin?: number;
+  // Optional taper-style ramp: when true, every value scales down weekInBlock.
+  isTaper?: boolean;
+  // Optional recovery: Mon and Fri become rest, no quality work.
+  isRecovery?: boolean;
+}
+
+function r1(n: number): number {
+  return Math.round(n * 10) / 10;
+}
+
+const RECIPES: Record<FocusType, FocusRecipe> = {
+  Base: {
+    phaseLabel: () => "Base",
+    longRunMi: (w, _bw, isCutback) => {
+      // Start 4mi, +0.5/wk, cap 10, cutback 70%.
+      const base = Math.min(10, 4 + (w - 1) * 0.5);
+      return r1(isCutback ? base * 0.7 : base);
+    },
+    easyRunMi: (_w, _bw, isCutback) => r1(isCutback ? 2.0 : 3.0),
+    qualityRunMi: (_w, _bw, isCutback) => r1(isCutback ? 2.0 : 3.0),
+    easyPace: "13:30",
+    longPace: "14:00",
+    tempoPace: "12:30",
+    easyRunMinPerMi: 13,
+    qualityRunMinPerMi: 13,
+    longRunMinPerMi: 14,
+    heavyStrengthLoad: 60,
+    heavyTonalMin: 45,
+    shortCardioMin: 25,
+    accessoryTonalMin: 25,
+    fridayKind: "AerobicBase",
+    useCutbacks: true,
+    longRunVerb: "Long aerobic run",
+  },
+  "Time on Feet": {
+    phaseLabel: () => "Time on Feet",
+    longRunMi: (w, _bw, isCutback) => {
+      const base = Math.min(14, 6 + (w - 1) * 0.75);
+      return r1(isCutback ? base * 0.7 : base);
+    },
+    easyRunMi: (_w, _bw, isCutback) => r1(isCutback ? 2.5 : 3.5),
+    qualityRunMi: (_w, _bw, isCutback) => r1(isCutback ? 2.5 : 3.5),
+    easyPace: "13:30",
+    longPace: "14:30",
+    tempoPace: "12:30",
+    easyRunMinPerMi: 14,
+    qualityRunMinPerMi: 14,
+    longRunMinPerMi: 15,
+    heavyStrengthLoad: 50,
+    heavyTonalMin: 35,
+    shortCardioMin: 25,
+    accessoryTonalMin: 25,
+    fridayKind: "AerobicBase",
+    useCutbacks: true,
+    longRunVerb: "Time-on-feet long run",
+  },
+  "Cardio + Weight Loss": {
+    phaseLabel: () => "Cardio + Weight Loss",
+    longRunMi: (w, _bw, isCutback) => {
+      const base = Math.min(8, 5 + (w - 1) * 0.25);
+      return r1(isCutback ? base * 0.75 : base);
+    },
+    easyRunMi: (_w, _bw, isCutback) => r1(isCutback ? 2.0 : 2.5),
+    qualityRunMi: (_w, _bw, isCutback) => r1(isCutback ? 2.0 : 2.5),
+    easyPace: "13:30",
+    longPace: "14:00",
+    tempoPace: "12:30",
+    easyRunMinPerMi: 13,
+    qualityRunMinPerMi: 13,
+    longRunMinPerMi: 14,
+    heavyStrengthLoad: 35,
+    heavyTonalMin: 25,
+    shortCardioMin: 50,
+    accessoryTonalMin: 20,
+    fridayKind: "AerobicBase",
+    useCutbacks: true,
+    longRunVerb: "Calorie-burn long run",
+    cardioBoostMin: 25,
+  },
+  Speed: {
+    phaseLabel: () => "Speed",
+    longRunMi: (w, _bw, isCutback) => {
+      const base = Math.min(10, 6 + (w - 1) * 0.25);
+      return r1(isCutback ? base * 0.7 : base);
+    },
+    easyRunMi: (_w, _bw, isCutback) => r1(isCutback ? 2.5 : 3.0),
+    qualityRunMi: (w, _bw, isCutback) => r1(isCutback ? 2.5 : Math.min(5, 3.5 + (w - 1) * 0.1)),
+    easyPace: "12:30",
+    longPace: "13:00",
+    tempoPace: "11:00",
+    easyRunMinPerMi: 12,
+    qualityRunMinPerMi: 11,
+    longRunMinPerMi: 13,
+    heavyStrengthLoad: 60,
+    heavyTonalMin: 40,
+    shortCardioMin: 25,
+    accessoryTonalMin: 25,
+    fridayKind: "Threshold",
+    useCutbacks: true,
+    longRunVerb: "Steady long run",
+  },
+  "Marathon-Specific": {
+    phaseLabel: () => "Marathon-Specific",
+    longRunMi: (w, blockWeeks, isCutback) => {
+      // Ramp 12 -> 20+ across the block, with cutbacks every 4th week and a
+      // 3-week taper at the end (volume drops sharply in the final 3
+      // weeks). Last week of the block is race week (handled by caller as
+      // 26.2 mi marathon — this fn is not called for the race week).
+      const tail = blockWeeks - w; // 0 = race week, 1 = race-eve week, etc.
+      if (tail === 0) return MARATHON_DISTANCE_MI;
+      if (tail === 1) return r1(8);
+      if (tail === 2) return r1(13);
+      if (tail === 3) return r1(16);
+      const peak = 20;
+      const base = Math.min(peak, 12 + (w - 1) * ((peak - 12) / Math.max(1, blockWeeks - 4)));
+      return r1(isCutback ? Math.max(8, base * 0.75) : base);
+    },
+    easyRunMi: (_w, _bw, isCutback) => r1(isCutback ? 3.0 : 4.0),
+    qualityRunMi: (_w, _bw, isCutback) => r1(isCutback ? 3.0 : 4.5),
+    easyPace: "12:30",
+    longPace: "13:00",
+    tempoPace: "11:30",
+    easyRunMinPerMi: 12,
+    qualityRunMinPerMi: 11,
+    longRunMinPerMi: 12,
+    heavyStrengthLoad: 50,
+    heavyTonalMin: 35,
+    shortCardioMin: 25,
+    accessoryTonalMin: 25,
+    fridayKind: "RacePace",
+    useCutbacks: true,
+    longRunVerb: "Marathon-pace long run",
+  },
+  Taper: {
+    phaseLabel: () => "Taper",
+    longRunMi: (w, blockWeeks, _isCutback) => {
+      // Drop volume across the block. Final week is half of starting.
+      const t = (w - 1) / Math.max(1, blockWeeks - 1); // 0..1
+      return r1(10 - t * 6);
+    },
+    easyRunMi: (w, blockWeeks, _isCutback) => {
+      const t = (w - 1) / Math.max(1, blockWeeks - 1);
+      return r1(3.0 - t * 1.0);
+    },
+    qualityRunMi: (w, blockWeeks, _isCutback) => {
+      const t = (w - 1) / Math.max(1, blockWeeks - 1);
+      return r1(3.0 - t * 1.5);
+    },
+    easyPace: "12:30",
+    longPace: "13:00",
+    tempoPace: "11:30",
+    easyRunMinPerMi: 12,
+    qualityRunMinPerMi: 11,
+    longRunMinPerMi: 13,
+    heavyStrengthLoad: 35,
+    heavyTonalMin: 25,
+    shortCardioMin: 15,
+    accessoryTonalMin: 20,
+    fridayKind: "Sharpener",
+    useCutbacks: false,
+    longRunVerb: "Taper long run",
+    isTaper: true,
+  },
+  Recovery: {
+    phaseLabel: () => "Recovery",
+    longRunMi: (_w, _bw, _isCutback) => r1(4),
+    easyRunMi: (_w, _bw, _isCutback) => r1(2),
+    qualityRunMi: (_w, _bw, _isCutback) => r1(2),
+    easyPace: "14:00",
+    longPace: "14:30",
+    tempoPace: "13:30",
+    easyRunMinPerMi: 14,
+    qualityRunMinPerMi: 14,
+    longRunMinPerMi: 15,
+    heavyStrengthLoad: 25,
+    heavyTonalMin: 20,
+    shortCardioMin: 15,
+    accessoryTonalMin: 15,
+    fridayKind: "AerobicBase",
+    useCutbacks: false,
+    longRunVerb: "Easy recovery long run",
+    isRecovery: true,
+  },
+  Custom: {
+    phaseLabel: (b) => (b.customName?.trim() ? b.customName.trim() : "Custom"),
+    longRunMi: (w, _bw, isCutback) => {
+      const base = Math.min(10, 4 + (w - 1) * 0.5);
+      return r1(isCutback ? base * 0.7 : base);
+    },
+    easyRunMi: (_w, _bw, isCutback) => r1(isCutback ? 2.0 : 3.0),
+    qualityRunMi: (_w, _bw, isCutback) => r1(isCutback ? 2.0 : 3.0),
+    easyPace: "13:30",
+    longPace: "14:00",
+    tempoPace: "12:30",
+    easyRunMinPerMi: 13,
+    qualityRunMinPerMi: 13,
+    longRunMinPerMi: 14,
+    heavyStrengthLoad: 60,
+    heavyTonalMin: 45,
+    shortCardioMin: 25,
+    accessoryTonalMin: 25,
+    fridayKind: "AerobicBase",
+    useCutbacks: true,
+    longRunVerb: "Long run",
+  },
+};
+
+function fridayContent(
+  recipe: FocusRecipe,
+  block: PhaseBlock,
+  weekInBlock: number,
+  isCutback: boolean,
+  qualityDist: number,
+): {
+  type: string;
+  desc: string;
+  pace: string;
+  liftMin: number;
+  liftLoad: number;
+  liftDescSuffix: string;
+} {
+  const accessory = isCutback
+    ? Math.max(15, recipe.accessoryTonalMin - 5)
+    : recipe.accessoryTonalMin;
+  if (isCutback) {
+    return {
+      type: "Aerobic Base",
+      desc: `Easy recovery Tread run (${qualityDist} mi, conversational)`,
+      pace: recipe.easyPace,
+      liftMin: 0,
+      liftLoad: 0,
+      liftDescSuffix: " — no lift today, recover for the long run",
+    };
+  }
+  switch (recipe.fridayKind) {
+    case "Tempo":
+      return {
+        type: "Tempo Run",
+        desc: `Tread tempo (${qualityDist} mi: 5 min easy, ${Math.max(10, Math.round(qualityDist * 4))} min steady tempo, 5 min cool-down)`,
+        pace: recipe.tempoPace,
+        liftMin: 0,
+        liftLoad: 0,
+        liftDescSuffix: " — no lift today, recover for the long run",
+      };
+    case "Threshold":
+      return {
+        type: "Threshold Intervals",
+        desc: `Tread threshold (${qualityDist} mi: warm-up, then 4 x 800m at threshold w/ 90s jog recovery, cool-down)`,
+        pace: recipe.tempoPace,
+        liftMin: 0,
+        liftLoad: 0,
+        liftDescSuffix: " — no lift today, recover for the long run",
+      };
+    case "RacePace":
+      return {
+        type: "Race-Pace Workout",
+        desc: `Tread marathon-pace (${qualityDist} mi: warm-up, ${Math.max(2, Math.round(qualityDist - 1.5))} mi at goal marathon pace, cool-down)`,
+        pace: recipe.tempoPace,
+        liftMin: 0,
+        liftLoad: 0,
+        liftDescSuffix: " — no lift today, recover for the long run",
+      };
+    case "Sharpener":
+      return {
+        type: "Sharpener",
+        desc: `Easy Tread run (${qualityDist} mi) with 4 x 30s strides in the final mile`,
+        pace: recipe.easyPace,
+        liftMin: 0,
+        liftLoad: 0,
+        liftDescSuffix: " — no lift today",
+      };
+    case "AerobicBase":
+    default:
+      return {
+        type: "Aerobic Base",
+        desc: `Easy aerobic Tread run (${qualityDist} mi), build durability`,
+        pace: recipe.easyPace,
+        liftMin: accessory,
+        liftLoad: 22,
+        liftDescSuffix: ` + ${accessory} min Tonal core + mobility`,
+      };
+  }
+}
+
+// Build the seven days of one week.
+function buildWeekDays(opts: {
+  weekNumber: number;
+  weekInBlock: number;
+  blockWeeks: number;
+  block: PhaseBlock;
+  recipe: FocusRecipe;
+  wkStart: Date;
+  isRaceWeek: boolean;
+}): DailyRow[] {
+  const { weekNumber, weekInBlock, blockWeeks, block, recipe, wkStart, isRaceWeek } = opts;
+  const phase = recipe.phaseLabel(block);
+  const isCutback = recipe.useCutbacks
+    ? blockWeeks >= 4 && weekInBlock % 4 === 0 && weekInBlock !== blockWeeks
+    : false;
+
+  const heavyStrengthLoad = isCutback
+    ? Math.round(recipe.heavyStrengthLoad * 0.75)
+    : recipe.heavyStrengthLoad;
+  const heavyTonalMin = isCutback
+    ? Math.max(20, Math.round(recipe.heavyTonalMin * 0.8))
+    : recipe.heavyTonalMin;
+  const shortCardioMin = isCutback
+    ? Math.max(10, Math.round(recipe.shortCardioMin * 0.8))
+    : recipe.shortCardioMin;
+  const accessoryTonalMin = isCutback
+    ? Math.max(15, recipe.accessoryTonalMin - 5)
+    : recipe.accessoryTonalMin;
+  const cardioBoost = recipe.cardioBoostMin ?? 0;
+  const tueCardioMin = shortCardioMin + cardioBoost;
+  const thuCardioMin = shortCardioMin + cardioBoost;
+  const satCardioMin = shortCardioMin + cardioBoost;
+
+  // For Custom blocks, tag every day's description with `[<Custom Name>: <notes>]`
+  // (or `[<Custom Name>]` when no notes) so the runner can see at a glance
+  // which custom block any given day belongs to in /plan and /today.
+  const customName = block.customName?.trim();
+  const customNotes = block.customNotes?.trim();
+  const customSuffix =
+    block.focusType === "Custom" && customName
+      ? customNotes
+        ? ` [${customName}: ${customNotes}]`
+        : ` [${customName}]`
+      : "";
+
+  // ---------- MON ----------
+  // Recovery blocks turn Mon into a rest day with a longer optional walk;
+  // the canonical pattern is already a rest day so this is a copy tweak only.
+  const monDay: DailyRow = {
+    week: weekNumber,
+    phase,
+    date: fmt(wkStart),
+    day: "Mon",
+    strength_load: 0,
+    equipment: "Off / Rest",
+    equipment_list: ["Off / Rest"],
+    description: recipe.isRecovery
+      ? "Rest day. Light walk (30-45 min) and full mobility flow." + customSuffix
+      : "Full rest day. Optional 20 min walk, foam roll, mobility, hydrate." + customSuffix,
+    strength_min: 0,
+    cardio_min: 0,
+    run_min: 0,
+    distance_mi: null,
+    pace: null,
+    session_type: "Rest",
+    is_rest: true,
+    total_load: 0,
+  };
+
+  // ---------- TUE: HEAVY LIFT + CARDIO ----------
+  const tueDay: DailyRow = {
+    week: weekNumber,
+    phase,
+    date: fmt(addDays(wkStart, 1)),
+    day: "Tue",
+    strength_load: heavyStrengthLoad,
+    equipment: "Tonal",
+    equipment_list: ["Tonal", "Peloton Bike"],
+    description:
+      (isCutback
+        ? `Heavy upper-body Tonal (${heavyTonalMin} min, push/pull/core), then ${tueCardioMin} min easy Peloton Bike spin`
+        : `Heavy upper-body Tonal (${heavyTonalMin} min, push/pull at 80-85% effort), then ${tueCardioMin} min easy Peloton Bike spin`) +
+      customSuffix,
+    strength_min: heavyTonalMin,
+    cardio_min: tueCardioMin,
+    run_min: 0,
+    distance_mi: null,
+    pace: null,
+    session_type: "Strength + Cardio",
+    is_rest: false,
+    total_load: heavyStrengthLoad + tueCardioMin,
+  };
+
+  // ---------- WED: EASY RUN + ACCESSORY ----------
+  const wedDist = recipe.easyRunMi(weekInBlock, blockWeeks, isCutback);
+  const wedRunMin = Math.max(20, Math.round(wedDist * recipe.easyRunMinPerMi));
+  const wedAccessoryLoad = isCutback ? 20 : 25;
+  const wedDay: DailyRow = {
+    week: weekNumber,
+    phase,
+    date: fmt(addDays(wkStart, 2)),
+    day: "Wed",
+    strength_load: wedAccessoryLoad,
+    equipment: "Tonal",
+    equipment_list: ["Tonal", "Peloton Tread"],
+    description:
+      `Easy aerobic Tread run (${wedDist} mi, conversational), then ${accessoryTonalMin} min Tonal core + accessory work` +
+      customSuffix,
+    strength_min: accessoryTonalMin,
+    cardio_min: 0,
+    run_min: wedRunMin,
+    distance_mi: wedDist,
+    pace: recipe.easyPace,
+    session_type: "Run + Accessory",
+    is_rest: false,
+    total_load: wedRunMin + wedAccessoryLoad,
+  };
+
+  // ---------- THU: HEAVY LIFT + ROW ----------
+  const thuDay: DailyRow = {
+    week: weekNumber,
+    phase,
+    date: fmt(addDays(wkStart, 3)),
+    day: "Thu",
+    strength_load: heavyStrengthLoad,
+    equipment: "Tonal",
+    equipment_list: ["Tonal", "Peloton Row"],
+    description:
+      (isCutback
+        ? `Heavy lower-body Tonal (${heavyTonalMin} min, squat/hinge/lunge), then ${thuCardioMin} min steady Peloton Row`
+        : `Heavy lower-body Tonal (${heavyTonalMin} min, squat/hinge/lunge at 80-85% effort), then ${thuCardioMin} min steady Peloton Row`) +
+      customSuffix,
+    strength_min: heavyTonalMin,
+    cardio_min: thuCardioMin,
+    run_min: 0,
+    distance_mi: null,
+    pace: null,
+    session_type: "Strength + Cardio",
+    is_rest: false,
+    total_load: heavyStrengthLoad + thuCardioMin,
+  };
+
+  // ---------- FRI: QUALITY RUN ----------
+  const friDist = recipe.qualityRunMi(weekInBlock, blockWeeks, isCutback);
+  const fri = fridayContent(recipe, block, weekInBlock, isCutback, friDist);
+  const friRunMin = Math.max(20, Math.round(friDist * recipe.qualityRunMinPerMi));
+  const friDay: DailyRow = {
+    week: weekNumber,
+    phase,
+    date: fmt(addDays(wkStart, 4)),
+    day: "Fri",
+    strength_load: fri.liftLoad,
+    equipment: fri.liftMin > 0 ? "Tonal" : "Peloton Tread",
+    equipment_list:
+      fri.liftMin > 0 ? ["Tonal", "Peloton Tread"] : ["Peloton Tread"],
+    description: fri.desc + fri.liftDescSuffix + customSuffix,
+    strength_min: fri.liftMin,
+    cardio_min: 0,
+    run_min: friRunMin,
+    distance_mi: friDist,
+    pace: fri.pace,
+    session_type: fri.liftLoad > 0 ? `${fri.type} + Accessory` : fri.type,
+    is_rest: false,
+    total_load: friRunMin + fri.liftLoad,
+  };
+
+  // ---------- SAT: HEAVY LIFT + CARDIO ----------
+  const satCardioName = weekNumber % 2 === 0 ? "Peloton Row" : "Peloton Bike";
+  const satCardioVerb = weekNumber % 2 === 0 ? "steady row" : "steady bike";
+  // Race week swaps the heavy lift for a 15-min mobility flush + 15-min spin
+  // (mirrors the canonical race-eve pattern).
+  const satStrengthMin = isRaceWeek ? 15 : heavyTonalMin;
+  const satFinalCardioMin = isRaceWeek ? 15 : satCardioMin;
+  const satDay: DailyRow = {
+    week: weekNumber,
+    phase,
+    date: fmt(addDays(wkStart, 5)),
+    day: "Sat",
+    strength_load: isRaceWeek ? 0 : heavyStrengthLoad,
+    equipment: "Tonal",
+    equipment_list: ["Tonal", satCardioName],
+    description:
+      (isRaceWeek
+        ? `Race-eve: light Tonal mobility (${satStrengthMin} min) + ${satFinalCardioMin} min easy ${satCardioName} spin. Stay loose, hydrate, fuel well.`
+        : isCutback
+        ? `Heavy full-body Tonal (${heavyTonalMin} min, mixed push/pull/squat), then ${satCardioMin} min ${satCardioVerb}`
+        : `Heavy full-body Tonal (${heavyTonalMin} min, mixed push/pull/squat at 80-85% effort), then ${satCardioMin} min ${satCardioVerb} on ${satCardioName}`) +
+      customSuffix,
+    strength_min: satStrengthMin,
+    cardio_min: satFinalCardioMin,
+    run_min: 0,
+    distance_mi: null,
+    pace: null,
+    session_type: isRaceWeek ? "Race Prep" : "Strength + Cardio",
+    is_rest: false,
+    total_load: isRaceWeek ? 30 : heavyStrengthLoad + satCardioMin,
+  };
+
+  // ---------- SUN: LONG RUN or RACE ----------
+  let sunDay: DailyRow;
+  if (isRaceWeek) {
+    const raceMin = Math.round(MARATHON_DISTANCE_MI * 11);
+    sunDay = {
+      week: weekNumber,
+      phase,
+      date: fmt(addDays(wkStart, 6)),
+      day: "Sun",
+      strength_load: 0,
+      equipment: "Outdoor",
+      equipment_list: ["Outdoor"],
+      description:
+        "RACE DAY — Marathon (26.2 mi). Execute race plan, fuel every 4 mi, finish strong.",
+      strength_min: 0,
+      cardio_min: 0,
+      run_min: raceMin,
+      distance_mi: MARATHON_DISTANCE_MI,
+      pace: recipe.tempoPace,
+      session_type: "Race",
+      is_rest: false,
+      total_load: 350,
+    };
+  } else {
+    const longRun = recipe.longRunMi(weekInBlock, blockWeeks, isCutback);
+    const longEquipment = weekNumber % 2 === 0 ? "Outdoor" : "Peloton Tread";
+    const longMin = Math.max(20, Math.round(longRun * recipe.longRunMinPerMi));
+    sunDay = {
+      week: weekNumber,
+      phase,
+      date: fmt(addDays(wkStart, 6)),
+      day: "Sun",
+      strength_load: 0,
+      equipment: longEquipment,
+      equipment_list: [longEquipment],
+      description:
+        `${recipe.longRunVerb} (${longRun} mi): conversational unless noted, dial in fueling. NO lift today.` +
+        customSuffix,
+      strength_min: 0,
+      cardio_min: 0,
+      run_min: longMin,
+      distance_mi: longRun,
+      pace: recipe.longPace,
+      session_type: "Long Run",
+      is_rest: false,
+      total_load: longMin + 10,
+    };
+  }
+
+  // Recovery focus drops the Friday quality (replace with rest) so the runner
+  // gets two rest days during the recovery block.
+  if (recipe.isRecovery) {
+    return [
+      monDay,
+      tueDay,
+      wedDay,
+      thuDay,
+      {
+        ...friDay,
+        strength_load: 0,
+        equipment: "Off / Rest",
+        equipment_list: ["Off / Rest"],
+        description:
+          "Rest day. Walk, mobility, foam roll. Recovery block — no quality work this week." + customSuffix,
+        strength_min: 0,
+        cardio_min: 0,
+        run_min: 0,
+        distance_mi: null,
+        pace: null,
+        session_type: "Rest",
+        is_rest: true,
+        total_load: 0,
+      },
+      satDay,
+      sunDay,
+    ];
+  }
+
+  return [monDay, tueDay, wedDay, thuDay, friDay, satDay, sunDay];
+}
+
+export function generatePlanFromConfig(
+  config: PlannerConfig,
+): { daily: DailyRow[]; weekly: WeeklyRow[]; body: BodyRow[] } {
+  const issues = validatePlannerConfig(config);
+  if (issues.length > 0) {
+    const summary = issues.map((i) => `${i.field}: ${i.message}`).join("; ");
+    throw new Error(`invalid planner config: ${summary}`);
+  }
+
+  const expandedBlocks = expandPlannerBlocks(config);
+  const totalWeeks = totalWeeksFromDates(config.startDate, config.marathonDate);
+
+  const startDate = new Date(`${config.startDate}T00:00:00Z`);
+  const weekly: WeeklyRow[] = [];
+  const daily: DailyRow[] = [];
+  const body: BodyRow[] = [];
+
+  let weekNumber = 0;
+  for (const block of expandedBlocks) {
+    const recipe = RECIPES[block.focusType];
+    for (let weekInBlock = 1; weekInBlock <= block.weeks; weekInBlock++) {
+      weekNumber += 1;
+      const wkStart = addDays(startDate, (weekNumber - 1) * 7);
+      const wkEnd = addDays(wkStart, 6);
+      const isRaceWeek = weekNumber === totalWeeks;
+      const days = buildWeekDays({
+        weekNumber,
+        weekInBlock,
+        blockWeeks: block.weeks,
+        block,
+        recipe,
+        wkStart,
+        isRaceWeek,
+      });
+      daily.push(...days);
+
+      const planned_strength = days.reduce(
+        (s, d) => s + (d.strength_load || 0),
+        0,
+      );
+      const planned_cardio = days.reduce((s, d) => s + (d.cardio_min || 0), 0);
+      const planned_total_load = days.reduce(
+        (s, d) => s + (d.total_load || 0),
+        0,
+      );
+      const planned_miles = r1(
+        days.reduce((s, d) => s + (d.distance_mi || 0), 0),
+      );
+      const long_run_mi = days.reduce(
+        (max, d) => Math.max(max, d.distance_mi || 0),
+        0,
+      );
+      weekly.push({
+        week: weekNumber,
+        phase: recipe.phaseLabel(block),
+        start: fmt(wkStart),
+        end: fmt(wkEnd),
+        planned_strength,
+        planned_cardio,
+        planned_total_load,
+        planned_miles,
+        long_run_mi: r1(long_run_mi),
+      });
+
+      if (weekNumber === 1) {
+        body.push({
+          week: 1,
+          date: fmt(wkStart),
+          weight: 281.6,
+          l_arm: 17,
+          r_arm: 17,
+          l_leg: 29.5,
+          r_leg: 29.5,
+          belly: 53.5,
+          chest: 51,
+          notes: "Baseline week — enter starting measurements here.",
+        });
+      } else {
+        body.push({
+          week: weekNumber,
+          date: fmt(wkStart),
+          weight: null,
+          l_arm: null,
+          r_arm: null,
+          l_leg: null,
+          r_leg: null,
+          belly: null,
+          chest: null,
+          notes: "",
+        });
+      }
+    }
+  }
+
+  return { daily, weekly, body };
+}

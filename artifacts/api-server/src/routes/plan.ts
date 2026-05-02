@@ -14,7 +14,8 @@ import {
   SwapPlanDayBody,
   UndoPlanResetBody,
 } from "@workspace/api-zod";
-import { generatePlan } from "@workspace/plan-generator";
+import { generatePlan, generatePlanFromConfig } from "@workspace/plan-generator";
+import { readLastAppliedPlannerConfig } from "./planner";
 import { toPlanDay, toPlanWeek, toWorkout } from "../lib/transforms";
 import {
   consumeResetSnapshot,
@@ -843,10 +844,15 @@ router.post("/plan/reset", async (req, res): Promise<void> => {
 // destructive bulk delete invites footguns (a 30-second TTL undo for
 // hundreds of rows would surprise rather than help).
 router.post("/plan/full-reset", async (req, res): Promise<void> => {
-  // Generate the fresh plan rows OUTSIDE the transaction so a generator bug
-  // can't leave us with truncated tables and no rows reinserted. If
-  // generatePlan() throws, the transaction is never started.
-  const plan = generatePlan();
+  // Generate plan rows OUTSIDE the transaction so a generator bug can't
+  // leave us with truncated tables. Pivot off the most recently APPLIED
+  // Planner config so a saved-but-never-applied draft does not silently
+  // change what Full Reset reseeds. With no applied config, fall back to
+  // the canonical hard-coded plan.
+  const appliedConfig = await readLastAppliedPlannerConfig();
+  const plan = appliedConfig
+    ? generatePlanFromConfig(appliedConfig)
+    : generatePlan();
 
   const result = await db.transaction(async (tx) => {
     // Take ACCESS EXCLUSIVE locks on every table we're about to wipe BEFORE

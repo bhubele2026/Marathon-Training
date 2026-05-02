@@ -1174,6 +1174,181 @@ export const GetRecentActivityResponse = zod.array(
   GetRecentActivityResponseItem,
 );
 
+/**
+ * Return the most recently saved Planner config, or null if none has been saved yet (in which case the canonical hard-coded plan is in effect).
+ */
+
+export const GetPlannerConfigResponse = zod.object({
+  config: zod
+    .object({
+      startDate: zod
+        .string()
+        .describe(
+          "ISO yyyy-mm-dd; week 1 begins on this date. Must be a Monday.",
+        ),
+      marathonDate: zod
+        .string()
+        .describe(
+          "ISO yyyy-mm-dd; race day, the Sunday the auto-pinned 16-week Marathon-Specific block ends on. Must be a Sunday and at least 16 weeks after startDate.",
+        ),
+      blocks: zod.array(
+        zod
+          .object({
+            focusType: zod.enum([
+              "Base",
+              "Time on Feet",
+              "Cardio + Weight Loss",
+              "Speed",
+              "Marathon-Specific",
+              "Taper",
+              "Recovery",
+              "Custom",
+            ]),
+            weeks: zod.number().min(1),
+            customName: zod
+              .string()
+              .nullish()
+              .describe(
+                'Required when focusType is \"Custom\"; ignored otherwise. Used as the phase label on plan_weeks\/plan_days for that block.',
+              ),
+            customNotes: zod
+              .string()
+              .nullish()
+              .describe(
+                'Optional free-text appended in `[brackets]` to every plan_day description in this block (handy for marking experiments, \"extra recovery\", etc.).',
+              ),
+          })
+          .describe(
+            "One block in the runner's Phase Planner config. The trailing 16-week\nMarathon-Specific block is auto-pinned at generation time and is NOT\npresent in the user-defined `blocks` array; users only pick the\nblocks that come BEFORE the auto-pinned tail.\n",
+          ),
+      ),
+      notes: zod.string().nullish(),
+      updatedAt: zod.coerce
+        .date()
+        .optional()
+        .describe(
+          "Server-set timestamp for the most recent PUT. Read-only — ignored on writes.",
+        ),
+    })
+    .nullable(),
+});
+
+/**
+ * Upsert the Planner config. Validates the dates (Monday start, Sunday marathon, at least 16 weeks apart) and that block weeks sum to (totalWeeks - 16). Saving the config does NOT regenerate plan rows — call POST /planner/apply for that.
+ */
+
+export const PutPlannerConfigBody = zod.object({
+  startDate: zod.string(),
+  marathonDate: zod.string(),
+  blocks: zod.array(
+    zod
+      .object({
+        focusType: zod.enum([
+          "Base",
+          "Time on Feet",
+          "Cardio + Weight Loss",
+          "Speed",
+          "Marathon-Specific",
+          "Taper",
+          "Recovery",
+          "Custom",
+        ]),
+        weeks: zod.number().min(1),
+        customName: zod
+          .string()
+          .nullish()
+          .describe(
+            'Required when focusType is \"Custom\"; ignored otherwise. Used as the phase label on plan_weeks\/plan_days for that block.',
+          ),
+        customNotes: zod
+          .string()
+          .nullish()
+          .describe(
+            'Optional free-text appended in `[brackets]` to every plan_day description in this block (handy for marking experiments, \"extra recovery\", etc.).',
+          ),
+      })
+      .describe(
+        "One block in the runner's Phase Planner config. The trailing 16-week\nMarathon-Specific block is auto-pinned at generation time and is NOT\npresent in the user-defined `blocks` array; users only pick the\nblocks that come BEFORE the auto-pinned tail.\n",
+      ),
+  ),
+  notes: zod.string().nullish(),
+});
+
+export const PutPlannerConfigResponse = zod.object({
+  startDate: zod
+    .string()
+    .describe("ISO yyyy-mm-dd; week 1 begins on this date. Must be a Monday."),
+  marathonDate: zod
+    .string()
+    .describe(
+      "ISO yyyy-mm-dd; race day, the Sunday the auto-pinned 16-week Marathon-Specific block ends on. Must be a Sunday and at least 16 weeks after startDate.",
+    ),
+  blocks: zod.array(
+    zod
+      .object({
+        focusType: zod.enum([
+          "Base",
+          "Time on Feet",
+          "Cardio + Weight Loss",
+          "Speed",
+          "Marathon-Specific",
+          "Taper",
+          "Recovery",
+          "Custom",
+        ]),
+        weeks: zod.number().min(1),
+        customName: zod
+          .string()
+          .nullish()
+          .describe(
+            'Required when focusType is \"Custom\"; ignored otherwise. Used as the phase label on plan_weeks\/plan_days for that block.',
+          ),
+        customNotes: zod
+          .string()
+          .nullish()
+          .describe(
+            'Optional free-text appended in `[brackets]` to every plan_day description in this block (handy for marking experiments, \"extra recovery\", etc.).',
+          ),
+      })
+      .describe(
+        "One block in the runner's Phase Planner config. The trailing 16-week\nMarathon-Specific block is auto-pinned at generation time and is NOT\npresent in the user-defined `blocks` array; users only pick the\nblocks that come BEFORE the auto-pinned tail.\n",
+      ),
+  ),
+  notes: zod.string().nullish(),
+  updatedAt: zod.coerce
+    .date()
+    .optional()
+    .describe(
+      "Server-set timestamp for the most recent PUT. Read-only — ignored on writes.",
+    ),
+});
+
+/**
+ * Regenerate plan_weeks and plan_days from the most recently saved
+Planner config. Logged workouts and body measurements are PRESERVED.
+Reset-undo snapshots are dropped because their plan_day ids no longer
+match. Workout plan_day_id FKs are best-effort rebound to the new
+plan_day with the same date; workouts whose date no longer falls
+within the regenerated plan get plan_day_id = NULL.
+
+ */
+export const ApplyPlannerConfigResponse = zod
+  .object({
+    weeksSeeded: zod.number(),
+    daysSeeded: zod.number(),
+    workoutsPreserved: zod
+      .number()
+      .describe(
+        "Count of logged workouts that survived the apply (i.e. were not wiped). Their plan_day_id FKs are best-effort re-pointed to the new plan_day with the same date; rows whose date no longer falls within the regenerated plan are kept but get plan_day_id = NULL so the runner doesn't lose history.",
+      ),
+    measurementsPreserved: zod.number(),
+    undoSnapshotsWiped: zod.number(),
+    totalWeeks: zod.number(),
+  })
+  .describe(
+    "Result of regenerating plan_weeks and plan_days from the saved Planner config. Workouts and measurements are preserved (not wiped); reset undo snapshots are dropped because their plan_day ids no longer match.",
+  );
+
 export const GetRaceWeekResponse = zod.object({
   raceDate: zod.string(),
   daysToRace: zod.number(),
