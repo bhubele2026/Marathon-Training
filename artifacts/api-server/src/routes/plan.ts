@@ -1,11 +1,20 @@
 import { Router, type IRouter } from "express";
-import { db, planDaysTable, planWeeksTable, workoutsTable, type PlanDayRow, type WorkoutRow } from "@workspace/db";
+import {
+  db,
+  planDaysTable,
+  planWeeksTable,
+  workoutsTable,
+  measurementsTable,
+  type PlanDayRow,
+  type WorkoutRow,
+} from "@workspace/db";
 import { eq, asc, sql, and, gte, lte } from "drizzle-orm";
 import {
   UpdatePlanDayBody,
   SwapPlanDayBody,
   UndoPlanResetBody,
 } from "@workspace/api-zod";
+import { generatePlan } from "@workspace/plan-generator";
 import { toPlanDay, toPlanWeek, toWorkout } from "../lib/transforms";
 import {
   consumeResetSnapshot,
@@ -726,6 +735,182 @@ router.post("/plan/reset", async (req, res): Promise<void> => {
     undoToken,
     undoExpiresInSeconds,
   });
+});
+
+// Nuclear "start over" reset. Wipes every logged workout, every body
+// measurement, the race-week checklist, any pending reset-undo snapshots,
+// and every plan_weeks/plan_days customization, then reseeds the canonical
+// 52-week plan and the seeded baseline body row from the in-process
+// generator. There is intentionally NO undo token here — the whole point
+// is "I want to truly start over from day one", and offering an undo for a
+// destructive bulk delete invites footguns (a 30-second TTL undo for
+// hundreds of rows would surprise rather than help).
+router.post("/plan/full-reset", async (req, res): Promise<void> => {
+  // Generate the fresh plan rows OUTSIDE the transaction so a generator bug
+  // can't leave us with truncated tables and no rows reinserted. If
+  // generatePlan() throws, the transaction is never started.
+  const plan = generatePlan();
+
+  const result = await db.transaction(async (tx) => {
+    // Take ACCESS EXCLUSIVE locks on every table we're about to wipe BEFORE
+    // counting, so a concurrent insert cannot commit between our COUNT(*)
+    // and the TRUNCATE that follows. Without this lock, a row inserted +
+    // committed in another transaction during the count→truncate window
+    // would get wiped by the TRUNCATE but be missing from the response
+    // counts. ACCESS EXCLUSIVE matches the lock TRUNCATE itself takes, so
+    // this just hoists that lock acquisition earlier in the transaction.
+    await tx.execute(
+      sql`LOCK TABLE workouts, plan_days, plan_weeks, measurements, race_week_checklist, reset_undo_snapshots IN ACCESS EXCLUSIVE MODE`,
+    );
+
+    // Snapshot pre-wipe counts so the response can tell the user exactly
+    // how much was destroyed. Safe to count now — we hold the strongest
+    // lock on every table involved.
+    const [{ count: workoutsBefore } = { count: 0 }] = (
+      await tx.execute<{ count: number }>(
+        sql`SELECT COUNT(*)::int AS count FROM workouts`,
+      )
+    ).rows;
+    const [{ count: measurementsBefore } = { count: 0 }] = (
+      await tx.execute<{ count: number }>(
+        sql`SELECT COUNT(*)::int AS count FROM measurements`,
+      )
+    ).rows;
+    const [{ count: checklistBefore } = { count: 0 }] = (
+      await tx.execute<{ count: number }>(
+        sql`SELECT COUNT(*)::int AS count FROM race_week_checklist`,
+      )
+    ).rows;
+    const [{ count: snapshotsBefore } = { count: 0 }] = (
+      await tx.execute<{ count: number }>(
+        sql`SELECT COUNT(*)::int AS count FROM reset_undo_snapshots`,
+      )
+    ).rows;
+
+    // Single TRUNCATE so RESTART IDENTITY resets every serial id back to 1
+    // and CASCADE handles any plan_day_id FKs from workouts in one shot.
+    // Listing every table the runner can mutate makes this the canonical
+    // "delete everything I've put in" operation.
+    await tx.execute(
+      sql`TRUNCATE TABLE workouts, plan_days, plan_weeks, measurements, race_week_checklist, reset_undo_snapshots RESTART IDENTITY CASCADE`,
+    );
+
+    // Reseed plan_weeks first so the plan_days FK targets exist.
+    await tx.insert(planWeeksTable).values(
+      plan.weekly.map((w) => ({
+        week: w.week,
+        phase: w.phase,
+        startDate: w.start,
+        endDate: w.end,
+        plannedStrength: w.planned_strength,
+        plannedCardio: w.planned_cardio,
+        plannedTotalLoad: w.planned_total_load,
+        plannedMiles: w.planned_miles,
+        longRunMi: w.long_run_mi,
+      })),
+    );
+
+    // Chunk plan_days inserts to keep parameter counts well under the
+    // postgres bind-parameter limit; mirrors the chunk size used by the
+    // CLI seeder so the two reseed paths stay aligned.
+    const chunk = 100;
+    for (let i = 0; i < plan.daily.length; i += chunk) {
+      const slice = plan.daily.slice(i, i + chunk);
+      await tx.insert(planDaysTable).values(
+        slice.map((d) => {
+          const equipment = d.equipment ?? "Rest";
+          const description = d.description ?? "";
+          const sessionType = d.session_type ?? "Rest";
+          const isRest = !!d.is_rest;
+          const totalLoad = d.total_load ?? 0;
+          return {
+            week: d.week,
+            phase: d.phase,
+            date: d.date,
+            day: d.day,
+            strengthLoad: d.strength_load,
+            equipment,
+            description,
+            cardioMin: d.cardio_min,
+            distanceMi: d.distance_mi,
+            pace: d.pace,
+            sessionType,
+            isRest,
+            totalLoad,
+            // Mirror the prescribed values into the seed_* columns so a
+            // subsequent /plan/days/:id/reset has a clean snapshot to
+            // restore from after the runner edits this freshly-seeded row.
+            seedSessionType: sessionType,
+            seedEquipment: equipment,
+            seedDescription: description,
+            seedDistanceMi: d.distance_mi,
+            seedCardioMin: d.cardio_min,
+            seedPace: d.pace,
+            seedStrengthLoad: d.strength_load,
+            seedTotalLoad: totalLoad,
+            seedIsRest: isRest,
+          };
+        }),
+      );
+    }
+
+    // Reinsert only the seeded baseline measurement (week 1) so the
+    // dashboard "starting weight" card has data to show on a fresh
+    // campaign. Empty placeholder rows for weeks 2..52 are intentionally
+    // skipped — the runner enters real measurements as they go.
+    let measurementsSeeded = 0;
+    const baseline = plan.body.find(
+      (b) =>
+        b.weight != null ||
+        b.l_arm != null ||
+        b.r_arm != null ||
+        b.l_leg != null ||
+        b.r_leg != null ||
+        b.belly != null ||
+        b.chest != null,
+    );
+    if (baseline) {
+      await tx.insert(measurementsTable).values({
+        date: baseline.date,
+        weight: baseline.weight,
+        lArm: baseline.l_arm,
+        rArm: baseline.r_arm,
+        lLeg: baseline.l_leg,
+        rLeg: baseline.r_leg,
+        belly: baseline.belly,
+        chest: baseline.chest,
+        notes: baseline.notes,
+      });
+      measurementsSeeded = 1;
+    }
+
+    return {
+      weeksSeeded: plan.weekly.length,
+      daysSeeded: plan.daily.length,
+      workoutsWiped: workoutsBefore,
+      measurementsWiped: measurementsBefore,
+      measurementsSeeded,
+      checklistItemsWiped: checklistBefore,
+      undoSnapshotsWiped: snapshotsBefore,
+    };
+  });
+
+  // Logged at warn level because this is a destructive, irreversible
+  // operation and we want it to stand out in the operator log even at
+  // default log levels.
+  req.log.warn(
+    {
+      weeksSeeded: result.weeksSeeded,
+      daysSeeded: result.daysSeeded,
+      workoutsWiped: result.workoutsWiped,
+      measurementsWiped: result.measurementsWiped,
+      measurementsSeeded: result.measurementsSeeded,
+      checklistItemsWiped: result.checklistItemsWiped,
+      undoSnapshotsWiped: result.undoSnapshotsWiped,
+    },
+    "full plan reset (no undo) — campaign reseeded from day one",
+  );
+  res.json(result);
 });
 
 // Restore the customizations that the most recent week-reset or plan-reset

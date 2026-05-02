@@ -203,6 +203,24 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ResetPlanResponse" }
 
+  /plan/full-reset:
+    post:
+      operationId: fullResetPlan
+      tags: [plan]
+      description: |
+        Nuclear reset. TRUNCATEs and reseeds plan_weeks and plan_days from the
+        canonical generator (clearing every customization), and wipes every
+        logged workout, every body measurement (re-inserting only the seeded
+        baseline row), the race-week checklist, and any pending reset-undo
+        snapshots. There is no undo for this operation. Use only when the user
+        wants to start the campaign over from day one.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FullResetPlanResponse" }
+
   /plan/reset/undo:
     post:
       operationId: undoPlanReset
@@ -706,6 +724,41 @@ components:
           type: integer
           nullable: true
           description: Approximate number of seconds the undoToken will remain valid for. Null when undoToken is null.
+
+    FullResetPlanResponse:
+      type: object
+      required:
+        [
+          weeksSeeded,
+          daysSeeded,
+          workoutsWiped,
+          measurementsWiped,
+          measurementsSeeded,
+          checklistItemsWiped,
+          undoSnapshotsWiped,
+        ]
+      properties:
+        weeksSeeded:
+          type: integer
+          description: Number of plan_weeks rows reinserted from the canonical generator (52 for the standard campaign).
+        daysSeeded:
+          type: integer
+          description: Number of plan_days rows reinserted from the canonical generator (364 for the standard campaign).
+        workoutsWiped:
+          type: integer
+          description: Number of logged workout rows that were deleted by the reset.
+        measurementsWiped:
+          type: integer
+          description: Number of measurements rows that were deleted by the reset (includes the baseline row, which is then reinserted from the seed).
+        measurementsSeeded:
+          type: integer
+          description: Number of baseline measurements rows reinserted from the seed (1 for the standard campaign).
+        checklistItemsWiped:
+          type: integer
+          description: Number of race-week checklist rows that were deleted by the reset.
+        undoSnapshotsWiped:
+          type: integer
+          description: Number of pending reset-undo snapshots that were dropped (so a stale Undo can't restore deleted state after the full reset).
 
     UndoPlanResetBody:
       type: object

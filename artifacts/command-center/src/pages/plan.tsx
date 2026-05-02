@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  useFullResetPlan,
   useGetPlanOverview,
   useListPlanWeeks,
   useResetPlan,
@@ -33,11 +34,13 @@ import {
   Activity,
   AlertTriangle,
   RotateCcw,
+  Flame,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { phaseColor } from "@/lib/phase-colors";
 
 const RESET_PLAN_CONFIRM_PHRASE = "RESET PLAN";
+const FULL_RESET_CONFIRM_PHRASE = "WIPE EVERYTHING";
 
 export default function Plan() {
   const { data: overview, isLoading: loadingOverview } = useGetPlanOverview();
@@ -47,13 +50,24 @@ export default function Plan() {
   const queryClient = useQueryClient();
   const resetPlan = useResetPlan();
   const undoPlanReset = useUndoPlanReset();
+  const fullResetPlan = useFullResetPlan();
   const [resetPlanOpen, setResetPlanOpen] = useState(false);
   const [resetPlanConfirmText, setResetPlanConfirmText] = useState("");
+  const [fullResetOpen, setFullResetOpen] = useState(false);
+  const [fullResetConfirmText, setFullResetConfirmText] = useState("");
 
   const closeResetPlanDialog = (open: boolean) => {
     if (resetPlan.isPending) return;
     setResetPlanOpen(open);
     if (!open) setResetPlanConfirmText("");
+  };
+
+  // Lock the dialog open while the reset is in flight so the user can't
+  // half-cancel a destructive operation that's already running on the server.
+  const closeFullResetDialog = (open: boolean) => {
+    if (fullResetPlan.isPending) return;
+    setFullResetOpen(open);
+    if (!open) setFullResetConfirmText("");
   };
 
   const handleUndoReset = (undoToken: string) => {
@@ -109,6 +123,30 @@ export default function Plan() {
       },
       onError: () => {
         toast({ title: "Failed to reset plan", variant: "destructive" });
+      },
+    });
+  };
+
+  const confirmFullReset = () => {
+    fullResetPlan.mutate(undefined, {
+      onSuccess: (data) => {
+        // Spell out exactly what got nuked so the runner knows the operation
+        // succeeded end-to-end (and they can spot any unexpectedly-zero
+        // counts if they thought there was data here).
+        toast({
+          title: "Campaign reset to day one",
+          description: `${data.workoutsWiped} workout${data.workoutsWiped === 1 ? "" : "s"} and ${data.measurementsWiped} measurement${data.measurementsWiped === 1 ? "" : "s"} wiped. Reseeded ${data.weeksSeeded} weeks / ${data.daysSeeded} days from scratch.`,
+        });
+        invalidateMissionRelatedQueries(queryClient);
+        setFullResetOpen(false);
+        setFullResetConfirmText("");
+      },
+      onError: () => {
+        toast({
+          title: "Full reset failed",
+          description: "Nothing was changed. Try again or check the server logs.",
+          variant: "destructive",
+        });
       },
     });
   };
@@ -272,6 +310,40 @@ export default function Plan() {
         })}
       </div>
 
+      <Card
+        className="border-2 border-destructive/40 bg-destructive/5"
+        data-testid="card-danger-zone"
+      >
+        <CardContent className="p-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <Flame className="h-5 w-5 text-destructive" />
+            <h3 className="text-sm font-black uppercase tracking-widest text-destructive">
+              Danger Zone
+            </h3>
+          </div>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="space-y-1 max-w-2xl">
+              <p className="text-sm font-bold">Full reset — start over from day one</p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Wipes every logged workout, every body measurement, the
+                race-week checklist, every plan customization, then reseeds
+                the canonical 52-week plan and the seeded baseline weight
+                from scratch. This cannot be undone.
+              </p>
+            </div>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="text-xs uppercase font-bold tracking-wider self-start md:self-auto shrink-0"
+              onClick={() => setFullResetOpen(true)}
+              data-testid="button-full-reset"
+            >
+              <Flame className="h-3 w-3 mr-1.5" /> Full Reset
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <AlertDialog open={resetPlanOpen} onOpenChange={closeResetPlanDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -313,6 +385,53 @@ export default function Plan() {
               data-testid="button-confirm-reset-plan"
             >
               {resetPlan.isPending ? "Resetting..." : "Reset Entire Plan"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={fullResetOpen} onOpenChange={closeFullResetDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Wipe everything and start over?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This is a nuclear reset. It permanently deletes every logged
+              workout, every body measurement, the race-week checklist, every
+              plan customization, then reseeds the canonical 52-week plan
+              from scratch and reinserts only the seeded baseline weight.
+              There is no undo. Type{" "}
+              <span className="font-mono font-bold">{FULL_RESET_CONFIRM_PHRASE}</span> below to confirm.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="full-reset-confirm" className="text-xs uppercase tracking-wider">
+              Confirmation
+            </Label>
+            <Input
+              id="full-reset-confirm"
+              autoFocus
+              value={fullResetConfirmText}
+              onChange={(e) => setFullResetConfirmText(e.target.value)}
+              placeholder={FULL_RESET_CONFIRM_PHRASE}
+              disabled={fullResetPlan.isPending}
+              data-testid="input-confirm-full-reset"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={fullResetPlan.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={
+                fullResetPlan.isPending ||
+                fullResetConfirmText.trim().toUpperCase() !== FULL_RESET_CONFIRM_PHRASE
+              }
+              onClick={(e) => {
+                e.preventDefault();
+                confirmFullReset();
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-full-reset"
+            >
+              {fullResetPlan.isPending ? "Wiping..." : "Wipe Everything"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

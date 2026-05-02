@@ -336,6 +336,51 @@ export const ResetPlanResponse = zod.object({
 });
 
 /**
+ * Nuclear reset. TRUNCATEs and reseeds plan_weeks and plan_days from the
+canonical generator (clearing every customization), and wipes every
+logged workout, every body measurement (re-inserting only the seeded
+baseline row), the race-week checklist, and any pending reset-undo
+snapshots. There is no undo for this operation. Use only when the user
+wants to start the campaign over from day one.
+
+ */
+export const FullResetPlanResponse = zod.object({
+  weeksSeeded: zod
+    .number()
+    .describe(
+      "Number of plan_weeks rows reinserted from the canonical generator (52 for the standard campaign).",
+    ),
+  daysSeeded: zod
+    .number()
+    .describe(
+      "Number of plan_days rows reinserted from the canonical generator (364 for the standard campaign).",
+    ),
+  workoutsWiped: zod
+    .number()
+    .describe("Number of logged workout rows that were deleted by the reset."),
+  measurementsWiped: zod
+    .number()
+    .describe(
+      "Number of measurements rows that were deleted by the reset (includes the baseline row, which is then reinserted from the seed).",
+    ),
+  measurementsSeeded: zod
+    .number()
+    .describe(
+      "Number of baseline measurements rows reinserted from the seed (1 for the standard campaign).",
+    ),
+  checklistItemsWiped: zod
+    .number()
+    .describe(
+      "Number of race-week checklist rows that were deleted by the reset.",
+    ),
+  undoSnapshotsWiped: zod
+    .number()
+    .describe(
+      "Number of pending reset-undo snapshots that were dropped (so a stale Undo can't restore deleted state after the full reset).",
+    ),
+});
+
+/**
  * Restore the plan days that were just wiped by the most recent week-reset or plan-reset call. The undo token is only valid for a short window (~30 seconds) after the reset; after that the snapshot is dropped and the call returns 404.
  */
 export const UndoPlanResetBody = zod.object({

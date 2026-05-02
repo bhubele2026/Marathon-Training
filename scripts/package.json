@@ -12,6 +12,7 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "@workspace/db": "workspace:*",
+    "@workspace/plan-generator": "workspace:*",
     "drizzle-orm": "catalog:",
     "tsx": "catalog:"
   }

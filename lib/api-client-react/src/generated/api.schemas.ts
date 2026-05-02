@@ -105,6 +105,23 @@ export interface ResetPlanResponse {
   undoExpiresInSeconds?: number | null;
 }
 
+export interface FullResetPlanResponse {
+  /** Number of plan_weeks rows reinserted from the canonical generator (52 for the standard campaign). */
+  weeksSeeded: number;
+  /** Number of plan_days rows reinserted from the canonical generator (364 for the standard campaign). */
+  daysSeeded: number;
+  /** Number of logged workout rows that were deleted by the reset. */
+  workoutsWiped: number;
+  /** Number of measurements rows that were deleted by the reset (includes the baseline row, which is then reinserted from the seed). */
+  measurementsWiped: number;
+  /** Number of baseline measurements rows reinserted from the seed (1 for the standard campaign). */
+  measurementsSeeded: number;
+  /** Number of race-week checklist rows that were deleted by the reset. */
+  checklistItemsWiped: number;
+  /** Number of pending reset-undo snapshots that were dropped (so a stale Undo can't restore deleted state after the full reset). */
+  undoSnapshotsWiped: number;
+}
+
 export interface UndoPlanResetBody {
   /** Token previously returned by POST /plan/weeks/{week}/reset or POST /plan/reset. */
   undoToken: string;

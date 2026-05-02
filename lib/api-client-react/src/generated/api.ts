@@ -23,6 +23,7 @@ import type {
   EquipmentPhaseSummary,
   EquipmentUsage,
   Error,
+  FullResetPlanResponse,
   HealthStatus,
   ListWorkoutsParams,
   LongRunPoint,
@@ -740,6 +741,90 @@ export const useResetPlan = <
   TContext
 > => {
   return useMutation(getResetPlanMutationOptions(options));
+};
+
+/**
+ * Nuclear reset. TRUNCATEs and reseeds plan_weeks and plan_days from the
+canonical generator (clearing every customization), and wipes every
+logged workout, every body measurement (re-inserting only the seeded
+baseline row), the race-week checklist, and any pending reset-undo
+snapshots. There is no undo for this operation. Use only when the user
+wants to start the campaign over from day one.
+
+ */
+export const getFullResetPlanUrl = () => {
+  return `/api/plan/full-reset`;
+};
+
+export const fullResetPlan = async (
+  options?: RequestInit,
+): Promise<FullResetPlanResponse> => {
+  return customFetch<FullResetPlanResponse>(getFullResetPlanUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getFullResetPlanMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof fullResetPlan>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof fullResetPlan>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["fullResetPlan"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof fullResetPlan>>,
+    void
+  > = () => {
+    return fullResetPlan(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type FullResetPlanMutationResult = NonNullable<
+  Awaited<ReturnType<typeof fullResetPlan>>
+>;
+
+export type FullResetPlanMutationError = ErrorType<unknown>;
+
+export const useFullResetPlan = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof fullResetPlan>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof fullResetPlan>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getFullResetPlanMutationOptions(options));
 };
 
 /**
