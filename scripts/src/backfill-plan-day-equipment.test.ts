@@ -1,7 +1,8 @@
-// Unit tests for the equipment_list backfill (task #77). The parser walks
-// the description in canonical priority order (Tonal > Bike > Row > Tread >
-// Outdoor) and emits each matched chip at most once. The wrapper around it
-// only writes equipment_list when it's NULL, and only writes
+// Unit tests for the equipment_list backfill (task #77). Per the task
+// contract the parser builds `[scalar equipment, ...secondary machines in
+// order of appearance in the description]`, deduped, so legacy rows
+// preserve their existing scalar at index 0. The wrapper around the
+// parser only writes equipment_list when it's NULL, and only writes
 // seed_equipment_list when the row carries an "edited" marker.
 
 import { describe, expect, it } from "vitest";
@@ -11,7 +12,7 @@ import {
 } from "./backfill-plan-day-equipment";
 
 describe("parseEquipmentList", () => {
-  it("emits Tonal first then the cardio machine for a Tue heavy + bike day", () => {
+  it("emits scalar Tonal first then the cardio machine for a Tue heavy + bike day", () => {
     expect(
       parseEquipmentList({
         description:
@@ -21,17 +22,22 @@ describe("parseEquipmentList", () => {
     ).toEqual(["Tonal", "Peloton Bike"]);
   });
 
-  it("emits Tonal then Peloton Tread for a Wed run-with-accessory day", () => {
+  it("preserves a legacy scalar Peloton Tread at index 0 then appends Tonal in order of appearance for a Wed run-with-accessory day", () => {
+    // Legacy DB rows inserted before task #77 have `equipment = "Peloton
+    // Tread"` on Wed (the run was treated as the headline activity). The
+    // backfill must keep that scalar at index 0 so any code reading the
+    // scalar stays consistent with `equipmentList[0]`. Tonal is mentioned
+    // later in the description, so it appears second in the rail.
     expect(
       parseEquipmentList({
         description:
           "Easy aerobic Tread run (3 mi, fully conversational pace), then 25 min Tonal core + accessory work",
         equipment: "Peloton Tread",
       }),
-    ).toEqual(["Tonal", "Peloton Tread"]);
+    ).toEqual(["Peloton Tread", "Tonal"]);
   });
 
-  it("emits a single Peloton Tread chip for a tempo Fri with no Tonal accessory", () => {
+  it("returns a single Peloton Tread chip for a tempo Fri with no Tonal accessory", () => {
     expect(
       parseEquipmentList({
         description:
@@ -41,7 +47,7 @@ describe("parseEquipmentList", () => {
     ).toEqual(["Peloton Tread"]);
   });
 
-  it("emits Outdoor for race day even though the description doesn't say 'outdoor'", () => {
+  it("returns a single Outdoor chip for race day", () => {
     expect(
       parseEquipmentList({
         description:
@@ -51,13 +57,22 @@ describe("parseEquipmentList", () => {
     ).toEqual(["Outdoor"]);
   });
 
-  it("falls back to [equipment] when no known machine name appears in the description", () => {
+  it("falls back to [equipment] when no known secondary machine name appears in the description", () => {
     expect(
       parseEquipmentList({
         description: "Full rest day. Optional 20 min walk, foam roll, mobility, hydrate.",
         equipment: "Off / Rest",
       }),
     ).toEqual(["Off / Rest"]);
+  });
+
+  it("dedupes the scalar so it never repeats when the description also names it", () => {
+    expect(
+      parseEquipmentList({
+        description: "Heavy Tonal then easy Peloton Bike spin",
+        equipment: "Tonal",
+      }),
+    ).toEqual(["Tonal", "Peloton Bike"]);
   });
 });
 

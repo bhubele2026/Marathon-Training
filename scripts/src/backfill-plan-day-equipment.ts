@@ -4,23 +4,27 @@
 // Pre-task, every plan day rendered a single equipment chip from the scalar
 // `equipment` column. Task #77 introduces a chip rail so a Tue strength +
 // cardio session shows "TONAL · PELOTON BIKE" and a Wed run-with-accessory
-// shows "TONAL · PELOTON TREAD" instead of just "TONAL".
+// shows "PELOTON TREAD · TONAL" instead of just "TONAL".
 //
-// The generator now emits the canonical chip rail at seed time. This script
-// retro-fits every existing row whose `equipment_list` is still NULL by
-// parsing the description for known machine names in canonical priority
-// order:
+// The generator now emits the canonical chip rail at seed time and keeps
+// the scalar `equipment` aligned with `equipment_list[0]`. This script
+// retro-fits every legacy row whose `equipment_list` is still NULL by
+// building `[scalar equipment, ...secondary machines mentioned in the
+// description, in order of appearance]`, deduped — so the existing scalar
+// stays at index 0 (preserving back-compat for any code path still
+// reading the scalar) and the runner sees every secondary machine
+// referenced in the prose.
 //
-//   1. Tonal           — every Tonal-paired session
-//   2. Peloton Bike    — bike spins
-//   3. Peloton Row     — row sessions
-//   4. Peloton Tread   — treadmill runs
-//   5. Outdoor         — outdoor / race-day runs
+// Recognized secondary machine names (each emitted at most once):
+//   - Tonal           — every Tonal-paired session
+//   - Peloton Bike    — bike spins
+//   - Peloton Row     — row sessions
+//   - Peloton Tread   — treadmill runs
+//   - Outdoor         — outdoor / race-day runs
 //
-// When the description doesn't mention any known machine (e.g. legacy "Off
-// / Rest" rows or runner-edited descriptions), the script falls back to
-// `[equipment]` so the column is never left null after the script runs and
-// the renderer always has at least one chip to show.
+// When the description doesn't mention any additional machine, the
+// resulting list is just `[equipment]` so the column is never left NULL
+// and the renderer always has at least one chip to show.
 //
 // Idempotent: rows whose `equipment_list` is already non-null are skipped.
 // `seed_equipment_list` is mirrored from a parse of `seed_description` (or
@@ -37,10 +41,10 @@ interface ParseInput {
   equipment: string;
 }
 
-// Ordered list of (regex, canonical-chip-name) pairs. The order is the
-// canonical priority order; the parser walks the list and pushes a chip
-// the first time its regex matches in the description. Each chip is
-// emitted at most once per row.
+// (regex, canonical-chip-name) pairs for every machine the chip rail
+// renders. Order in this list does NOT determine the chip rail order —
+// the parser sorts matches by their first occurrence index in the
+// description so the rail mirrors the natural reading order of the prose.
 const CHIP_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
   [/\btonal\b/i, "Tonal"],
   [/\bpeloton bike\b|\bbike spin\b|\beasy spin\b|\bspin\b/i, "Peloton Bike"],
@@ -49,23 +53,34 @@ const CHIP_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
   [/\boutdoor\b|\brace\b/i, "Outdoor"],
 ] as const;
 
-// Parse the description into a chip rail in canonical priority order.
-// Falls back to `[equipment]` (or `["Rest"]` for an empty equipment) when
-// no known machine name appears in the description so callers always get a
-// non-empty array.
+// Build the chip rail for one row. Per the task #77 contract the scalar
+// `equipment` is always the first chip; any additional machines named in
+// the description are appended in the order they appear in the prose,
+// deduped against the scalar so it never repeats. Falls back to
+// `[equipment]` (or `["Rest"]` for an empty scalar) when the description
+// names no additional machine, so callers always get a non-empty array.
 export function parseEquipmentList(input: ParseInput): string[] {
+  const scalar = input.equipment?.trim() || "Rest";
   const desc = input.description ?? "";
-  const chips: string[] = [];
+
+  // Find the first index at which each known machine name appears.
+  // Machines that aren't mentioned in this description are skipped. The
+  // resulting list is sorted by index so the chip rail follows the
+  // natural reading order of the description.
+  const hits: Array<{ name: string; idx: number }> = [];
   for (const [pattern, name] of CHIP_PATTERNS) {
-    if (pattern.test(desc) && !chips.includes(name)) {
-      chips.push(name);
+    const m = desc.match(pattern);
+    if (m && typeof m.index === "number") {
+      hits.push({ name, idx: m.index });
     }
   }
-  if (chips.length === 0) {
-    const fallback = input.equipment?.trim() || "Rest";
-    return [fallback];
+  hits.sort((a, b) => a.idx - b.idx);
+
+  const result: string[] = [scalar];
+  for (const { name } of hits) {
+    if (!result.includes(name)) result.push(name);
   }
-  return chips;
+  return result;
 }
 
 interface BackfillUpdates {

@@ -16,11 +16,12 @@ export type DailyRow = {
   // canonical priority order: Tonal, Peloton Bike, Peloton Row, Peloton
   // Tread, Outdoor (then anything else). Tue/Thu/Sat → ["Tonal", "<cardio
   // machine>"]; Wed and the foundation Fri pair the run with a Tonal
-  // accessory block, so the chip rail leads with TONAL even though the
-  // scalar `equipment` for those days remains "Peloton Tread" (preserved
-  // for back-compat with dashboard equipment-usage and suggestions
-  // pairKey, which key on the existing scalar). Renderers consume this
-  // array verbatim; the legacy single-chip code path falls back to
+  // accessory block, so the chip rail leads with TONAL. The scalar
+  // `equipment` is always set to `equipment_list[0]` (the *primary*
+  // machine for that day) so any back-compat code path that still reads
+  // the scalar — dashboard equipment-usage, suggestions pairKey,
+  // /equipment — agrees with the chip rail's lead chip. Renderers consume
+  // this array verbatim; the legacy single-chip code path falls back to
   // `[equipment]` when the column is null on pre-backfill rows.
   equipment_list: string[];
   description: string;
@@ -202,11 +203,11 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
       date: fmt(addDays(wkStart, 2)),
       day: "Wed",
       strength_load: wedAccessoryLoad,
-      equipment: "Peloton Tread",
       // Wed always pairs the run with a Tonal accessory block, so both
-      // chips render. Scalar `equipment` stays "Peloton Tread" (the run is
-      // the headline activity for aggregations / suggestions), while the
-      // chip rail leads with TONAL per the canonical priority order.
+      // chips render. Per the task #77 contract the scalar `equipment` is
+      // always the first chip in the rail — TONAL on Wed — so dashboard /
+      // suggestions / /equipment agree with the chip rail's lead chip.
+      equipment: "Tonal",
       equipment_list: ["Tonal", "Peloton Tread"],
       description: isCutback
         ? `Easy aerobic Tread run (${wedDist} mi, conversational), then ${accessoryTonalMin} min light Tonal core + mobility`
@@ -322,10 +323,12 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
       date: fmt(addDays(wkStart, 4)),
       day: "Fri",
       strength_load: friLiftLoad,
-      equipment: "Peloton Tread",
       // Foundation Fri (W1-6) pairs the run with a Tonal accessory block;
-      // from W7 onward Fri is run-only so we drop the Tonal chip. Scalar
-      // `equipment` stays "Peloton Tread" everywhere for back-compat.
+      // from W7 onward Fri is run-only so we drop the Tonal chip. Per the
+      // task #77 contract the scalar `equipment` always tracks
+      // `equipment_list[0]` — TONAL during foundation, PELOTON TREAD once
+      // the accessory block drops away.
+      equipment: friLiftMin > 0 ? "Tonal" : "Peloton Tread",
       equipment_list: friLiftMin > 0 ? ["Tonal", "Peloton Tread"] : ["Peloton Tread"],
       description: friDesc + friLiftDesc,
       strength_min: friLiftMin,

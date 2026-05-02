@@ -90,10 +90,10 @@ describe("generator: per-day minute breakdown", () => {
     // Tue = Tonal + Peloton Bike
     expect(dayOf(1, "Tue").equipment_list).toEqual(["Tonal", "Peloton Bike"]);
 
-    // Wed = Tonal accessory + Peloton Tread (chip rail leads with TONAL
-    // even though the scalar `equipment` stays "Peloton Tread")
+    // Wed = Tonal accessory + Peloton Tread. Task #77 contract: scalar
+    // `equipment` always equals `equipment_list[0]` (the primary machine).
     expect(dayOf(1, "Wed").equipment_list).toEqual(["Tonal", "Peloton Tread"]);
-    expect(dayOf(1, "Wed").equipment).toBe("Peloton Tread");
+    expect(dayOf(1, "Wed").equipment).toBe("Tonal");
 
     // Thu = Tonal + Peloton Row
     expect(dayOf(1, "Thu").equipment_list).toEqual(["Tonal", "Peloton Row"]);
@@ -114,6 +114,20 @@ describe("generator: per-day minute breakdown", () => {
 
     // Race week Sunday is Outdoor only.
     expect(dayOf(52, "Sun").equipment_list).toEqual(["Outdoor"]);
+  });
+
+  it("keeps the scalar `equipment` aligned with `equipment_list[0]` for every generated day (task #77 contract)", () => {
+    // The scalar `equipment` is the back-compat handle for any code path
+    // that still reads a single value (dashboard, suggestions pairKey,
+    // /equipment). Per the task #77 contract it must always equal the
+    // primary chip — i.e. `equipment_list[0]` — so the legacy view and
+    // the new chip rail never disagree about which machine leads the day.
+    for (const row of PLAN.daily) {
+      expect(
+        row.equipment_list[0],
+        `${row.date} ${row.day} primary chip`,
+      ).toBe(row.equipment);
+    }
   });
 
   it("weekly planned_cardio sums NON-running cross-train minutes only (run minutes already live in planned_miles)", () => {
