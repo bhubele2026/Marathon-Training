@@ -32,7 +32,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { ToastAction } from "@/components/ui/toast";
 import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
 import { formatDistance, formatLoad, formatDate, formatDuration } from "@/lib/format";
 import {
@@ -59,6 +58,7 @@ import { PlanDayForm } from "@/components/plan-day-form";
 import { MoveDayPicker } from "@/components/move-day-picker";
 import { sortWorkoutsByTimeOfDay } from "@/lib/time-of-day";
 import { TimeOfDayBadge } from "@/components/time-of-day-badge";
+import { UndoCountdownAction } from "@/components/undo-countdown-action";
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -228,15 +228,14 @@ export default function WeekDetail() {
               description: `${data.daysReset} day${data.daysReset === 1 ? "" : "s"} in week ${weekNum} restored to the original plan. Undo available for ${undoSeconds}s.`,
               duration: undoToken ? undoSeconds * 1000 : undefined,
               action: undoToken ? (
-                <ToastAction
+                <UndoCountdownAction
                   altText="Undo week reset"
-                  onClick={() =>
+                  expiresInSeconds={undoSeconds}
+                  onUndo={() =>
                     handleUndoReset(undoToken, `week ${weekNum}`)
                   }
-                  data-testid="button-undo-reset-week"
-                >
-                  Undo
-                </ToastAction>
+                  testId="button-undo-reset-week"
+                />
               ) : undefined,
             });
           }

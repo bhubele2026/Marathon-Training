@@ -23,7 +23,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { ToastAction } from "@/components/ui/toast";
+import { UndoCountdownAction } from "@/components/undo-countdown-action";
 import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
 import { formatDistance, formatDate } from "@/lib/format";
 import { useLocation } from "wouter";
@@ -94,13 +94,12 @@ export default function Plan() {
             description: `${data.daysReset} day${data.daysReset === 1 ? "" : "s"} across ${data.weeksReset} week${data.weeksReset === 1 ? "" : "s"} restored to the original campaign. Undo available for ${undoSeconds}s.`,
             duration: undoToken ? undoSeconds * 1000 : undefined,
             action: undoToken ? (
-              <ToastAction
+              <UndoCountdownAction
                 altText="Undo plan reset"
-                onClick={() => handleUndoReset(undoToken)}
-                data-testid="button-undo-reset-plan"
-              >
-                Undo
-              </ToastAction>
+                expiresInSeconds={undoSeconds}
+                onUndo={() => handleUndoReset(undoToken)}
+                testId="button-undo-reset-plan"
+              />
             ) : undefined,
           });
         }
