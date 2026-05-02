@@ -2,7 +2,7 @@
 
 ## Overview
 
-Personal 1-year half-marathon training tracker. Goal: 281.6 lbs → 210 lbs by race day **2027-05-01**. Plan starts **2026-05-01** and runs 52 weeks (5 phases: Foundation Build, Aerobic Build, Tempo / Threshold, Race-Specific, Taper & Race).
+Personal 1-year half-marathon training tracker. Goal: 281.6 lbs → 210 lbs by race day **2027-05-02** (Sun). Plan starts **2026-05-04** (Mon, week 1) and runs 52 weeks (5 phases: Foundation Build, Aerobic Build, Tempo / Threshold, Race-Specific, Taper & Race). Each week runs Mon → Sun; first training session is Tue 2026-05-05.
 
 UI is an orange-on-dark "mission control" theme. No emojis anywhere.
 
@@ -40,7 +40,7 @@ Bike/row sessions are always 20–30 min max. Big run days (Fri quality, Sun lon
 
 - Plan + days + body baselines seeded from `.local/data/plan.json` via `pnpm --filter @workspace/scripts run seed`.
 - Tables (lib/db): `plan_weeks`, `plan_days`, `workouts`, `body_measurements`.
-- Seed reseeds plan/day/measurement tables on every run; `workouts` is preserved.
+- Seed reseeds plan_weeks / plan_days on every run, wipes `workouts` (campaign reset), and preserves `body_measurements` and `reset_undo_snapshots`.
 
 ## Stack
 

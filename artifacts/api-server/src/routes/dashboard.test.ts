@@ -107,7 +107,7 @@ describe("GET /api/dashboard/summary", () => {
         weightCurrent: 232.5,
         weightLost: expect.closeTo(281.6 - 232.5, 5),
         weightToGoal: expect.closeTo(232.5 - 210, 5),
-        // Race date (2027-05-01) is well in the past relative to today (2099),
+        // Race date (2027-05-02) is well in the past relative to today (2099),
         // so the countdown clamps to zero.
         daysToRace: 0,
       }),

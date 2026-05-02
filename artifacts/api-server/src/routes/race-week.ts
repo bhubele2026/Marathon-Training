@@ -5,7 +5,7 @@ import { SetRaceWeekChecklistItemBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
-const RACE_DATE = "2027-05-01";
+const RACE_DATE = "2027-05-02";
 const WINDOW_DAYS = 21;
 
 export const RACE_WEEK_CHECKLIST_DEFAULTS: ReadonlyArray<{ itemId: string; label: string }> = [

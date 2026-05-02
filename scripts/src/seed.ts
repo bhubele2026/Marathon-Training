@@ -30,8 +30,10 @@ async function main() {
     `Seeding ${data.weekly.length} weeks, ${data.daily.length} days, ${data.body.length} body rows`,
   );
 
-  // Only regenerate plan_weeks and plan_days. Preserve logged workouts and existing measurements.
-  await db.execute(sql`TRUNCATE TABLE plan_days, plan_weeks RESTART IDENTITY CASCADE`);
+  // Campaign reset: wipe plan_weeks, plan_days, AND workouts so the regenerated
+  // plan rows don't leave orphaned plan_day_id references behind in workouts.
+  // body_measurements and reset_undo_snapshots are intentionally preserved.
+  await db.execute(sql`TRUNCATE TABLE workouts, plan_days, plan_weeks RESTART IDENTITY CASCADE`);
 
   await db.insert(planWeeksTable).values(
     data.weekly.map((w) => ({

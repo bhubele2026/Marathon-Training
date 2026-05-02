@@ -9,7 +9,7 @@ import { db, planDaysTable } from "@workspace/db";
 import app from "../app";
 import { expectMatchesSchema } from "../test-helpers";
 
-const RACE_DATE = "2027-05-01";
+const RACE_DATE = "2027-05-02";
 
 async function clearChecklistAndRaceDayPlan() {
   await db.execute(sql`DELETE FROM race_week_checklist`);
@@ -39,7 +39,7 @@ describe("GET /api/race-week", () => {
     expect(body.inWindow).toBe(false);
     expect(body.isRaceDay).toBe(false);
     expect(body.racePlan).toBeNull();
-    expect(body.daysToRace).toBe(60);
+    expect(body.daysToRace).toBe(61);
     expect(body.checklist.length).toBeGreaterThanOrEqual(9);
     expect(body.checklist.every((c) => c.checked === false)).toBe(true);
   });
@@ -52,7 +52,7 @@ describe("GET /api/race-week", () => {
       week: 52,
       phase: "Taper & Race",
       date: RACE_DATE,
-      day: "Sat",
+      day: "Sun",
       strengthLoad: 0,
       equipment: "Outdoor",
       description:
@@ -70,7 +70,7 @@ describe("GET /api/race-week", () => {
     const body = expectMatchesSchema(GetRaceWeekResponse, res.body);
     expect(body.inWindow).toBe(true);
     expect(body.isRaceDay).toBe(false);
-    expect(body.daysToRace).toBe(6);
+    expect(body.daysToRace).toBe(7);
     expect(body.racePlan?.distanceMi).toBe(13.1);
     expect(body.racePlan?.targetPace).toBe("12:00");
     expect(body.racePlan?.fuelingNote).toMatch(/every 4 mi/i);

@@ -55,8 +55,8 @@ describe("GET /api/plan/overview", () => {
       expect.objectContaining({
         currentWeek: week,
         currentPhase: phase,
-        raceDate: "2027-05-01",
-        startDate: "2026-05-01",
+        raceDate: "2027-05-02",
+        startDate: "2026-05-04",
         startWeight: 281.6,
         goalWeight: 210,
         currentWeight: 232.5,
