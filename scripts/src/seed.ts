@@ -55,6 +55,7 @@ async function main() {
     await db.insert(planDaysTable).values(
       slice.map((d) => {
         const equipment = d.equipment ?? "Rest";
+        const equipmentList = d.equipment_list ?? [equipment];
         const description = d.description ?? "";
         const sessionType = d.session_type ?? "Rest";
         const isRest = !!d.is_rest;
@@ -66,6 +67,7 @@ async function main() {
           day: d.day,
           strengthLoad: d.strength_load,
           equipment,
+          equipmentList,
           description,
           strengthMin: d.strength_min,
           cardioMin: d.cardio_min,
@@ -80,6 +82,7 @@ async function main() {
           // seeded prescription to restore from after edits or swaps.
           seedSessionType: sessionType,
           seedEquipment: equipment,
+          seedEquipmentList: equipmentList,
           seedDescription: description,
           seedDistanceMi: d.distance_mi,
           seedStrengthMin: d.strength_min,

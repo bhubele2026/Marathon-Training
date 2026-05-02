@@ -12,6 +12,17 @@ export type DailyRow = {
   day: string;
   strength_load: number | null;
   equipment: string;
+  // Ordered chip rail of every machine the runner will touch that day, in
+  // canonical priority order: Tonal, Peloton Bike, Peloton Row, Peloton
+  // Tread, Outdoor (then anything else). Tue/Thu/Sat → ["Tonal", "<cardio
+  // machine>"]; Wed and the foundation Fri pair the run with a Tonal
+  // accessory block, so the chip rail leads with TONAL even though the
+  // scalar `equipment` for those days remains "Peloton Tread" (preserved
+  // for back-compat with dashboard equipment-usage and suggestions
+  // pairKey, which key on the existing scalar). Renderers consume this
+  // array verbatim; the legacy single-chip code path falls back to
+  // `[equipment]` when the column is null on pre-backfill rows.
+  equipment_list: string[];
   description: string;
   // Three-bucket minute breakdown — see lib/db/src/schema/planDays.ts for the
   // semantics of strength_min / cardio_min / run_min. The generator always
@@ -147,6 +158,7 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
       day: "Mon",
       strength_load: 0,
       equipment: "Off / Rest",
+      equipment_list: ["Off / Rest"],
       description: "Full rest day. Optional 20 min walk, foam roll, mobility, hydrate.",
       strength_min: 0,
       cardio_min: 0,
@@ -166,6 +178,7 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
       day: "Tue",
       strength_load: heavyStrengthLoad,
       equipment: "Tonal",
+      equipment_list: ["Tonal", "Peloton Bike"],
       description: isCutback
         ? `Heavy upper-body Tonal (${heavyTonalMin} min, push/pull/core), then ${shortCardioMin} min easy Peloton Bike spin to flush legs`
         : `Heavy upper-body Tonal (${heavyTonalMin} min, push/pull at 80-85% effort), then ${shortCardioMin} min easy Peloton Bike spin`,
@@ -190,6 +203,11 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
       day: "Wed",
       strength_load: wedAccessoryLoad,
       equipment: "Peloton Tread",
+      // Wed always pairs the run with a Tonal accessory block, so both
+      // chips render. Scalar `equipment` stays "Peloton Tread" (the run is
+      // the headline activity for aggregations / suggestions), while the
+      // chip rail leads with TONAL per the canonical priority order.
+      equipment_list: ["Tonal", "Peloton Tread"],
       description: isCutback
         ? `Easy aerobic Tread run (${wedDist} mi, conversational), then ${accessoryTonalMin} min light Tonal core + mobility`
         : `Easy aerobic Tread run (${wedDist} mi, fully conversational pace), then ${accessoryTonalMin} min Tonal core + accessory work (no heavy lifting)`,
@@ -211,6 +229,7 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
       day: "Thu",
       strength_load: heavyStrengthLoad,
       equipment: "Tonal",
+      equipment_list: ["Tonal", "Peloton Row"],
       description: isCutback
         ? `Heavy lower-body Tonal (${heavyTonalMin} min, squat/hinge/lunge), then ${shortCardioMin} min steady Peloton Row`
         : `Heavy lower-body Tonal (${heavyTonalMin} min, squat/hinge/lunge at 80-85% effort), then ${shortCardioMin} min steady Peloton Row`,
@@ -304,6 +323,10 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
       day: "Fri",
       strength_load: friLiftLoad,
       equipment: "Peloton Tread",
+      // Foundation Fri (W1-6) pairs the run with a Tonal accessory block;
+      // from W7 onward Fri is run-only so we drop the Tonal chip. Scalar
+      // `equipment` stays "Peloton Tread" everywhere for back-compat.
+      equipment_list: friLiftMin > 0 ? ["Tonal", "Peloton Tread"] : ["Peloton Tread"],
       description: friDesc + friLiftDesc,
       strength_min: friLiftMin,
       cardio_min: 0,
@@ -329,6 +352,7 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
       day: "Sat",
       strength_load: heavyStrengthLoad,
       equipment: "Tonal",
+      equipment_list: ["Tonal", satCardioName],
       description: isRaceWeek
         ? `Race-eve: light Tonal mobility (${satStrengthMin} min) + ${satCardioMin} min easy ${satCardioName} spin. Stay loose, hydrate, fuel well.`
         : isCutback
@@ -355,6 +379,7 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
         day: "Sun",
         strength_load: 0,
         equipment: "Outdoor",
+        equipment_list: ["Outdoor"],
         description:
           "RACE DAY — Half Marathon (13.1 mi). Execute race plan, fuel every 4 mi, finish strong.",
         strength_min: 0,
@@ -390,6 +415,7 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
         day: "Sun",
         strength_load: 0,
         equipment: longEquipment,
+        equipment_list: [longEquipment],
         description: longDesc,
         strength_min: 0,
         cardio_min: 0,

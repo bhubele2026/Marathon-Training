@@ -19,6 +19,9 @@ export interface PlanDaySnapshot {
   week: number;
   sessionType: string;
   equipment: string;
+  // Multi-machine chip rail (task #77). Nullable so snapshots taken from
+  // rows that predate the backfill round-trip cleanly through undo.
+  equipmentList: string[] | null;
   description: string;
   distanceMi: number | null;
   strengthMin: number | null;
@@ -30,6 +33,7 @@ export interface PlanDaySnapshot {
   isRest: boolean;
   seedSessionType: string | null;
   seedEquipment: string | null;
+  seedEquipmentList: string[] | null;
   seedDescription: string | null;
   seedDistanceMi: number | null;
   seedStrengthMin: number | null;
@@ -53,6 +57,7 @@ export function snapshotPlanDay(row: PlanDayRow): PlanDaySnapshot {
     week: row.week,
     sessionType: row.sessionType,
     equipment: row.equipment,
+    equipmentList: row.equipmentList,
     description: row.description,
     distanceMi: row.distanceMi,
     strengthMin: row.strengthMin,
@@ -64,6 +69,7 @@ export function snapshotPlanDay(row: PlanDayRow): PlanDaySnapshot {
     isRest: row.isRest,
     seedSessionType: row.seedSessionType,
     seedEquipment: row.seedEquipment,
+    seedEquipmentList: row.seedEquipmentList,
     seedDescription: row.seedDescription,
     seedDistanceMi: row.seedDistanceMi,
     seedStrengthMin: row.seedStrengthMin,

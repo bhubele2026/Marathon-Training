@@ -410,6 +410,10 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 interface PlanDayMutableFields {
   sessionType: string;
   equipment: string;
+  // Generator-owned chip rail; carried through swaps so a moved day brings
+  // its multi-machine display along with it. Nullable to round-trip rows
+  // that predate the task #77 backfill.
+  equipmentList: string[] | null;
   description: string;
   distanceMi: number | null;
   strengthMin: number | null;
@@ -425,6 +429,7 @@ function pickMutableFields(row: PlanDayRow): PlanDayMutableFields {
   return {
     sessionType: row.sessionType,
     equipment: row.equipment,
+    equipmentList: row.equipmentList,
     description: row.description,
     distanceMi: row.distanceMi,
     strengthMin: row.strengthMin,
@@ -447,6 +452,7 @@ async function ensureSeedSnapshot(tx: Tx, row: PlanDayRow): Promise<void> {
     .set({
       seedSessionType: row.sessionType,
       seedEquipment: row.equipment,
+      seedEquipmentList: row.equipmentList,
       seedDescription: row.description,
       seedDistanceMi: row.distanceMi,
       seedStrengthMin: row.strengthMin,
@@ -505,9 +511,23 @@ router.patch("/plan/days/:id", async (req, res): Promise<void> => {
     )[0];
     if (!existing) return null;
     await ensureSeedSnapshot(tx, existing);
+    // Manual single-equipment edits collapse the chip rail back to
+    // [equipment]: the form only edits the scalar, so a stale generator
+    // chip rail like ["Tonal", "Peloton Tread"] would misrepresent a row
+    // the runner just changed to "Outdoor". The list stays a single
+    // element until the next /plan/full-reset rebuilds the rail from the
+    // generator. Only refresh when equipment actually changed so other
+    // edits (e.g. distance-only) don't churn the list.
+    const patch: Record<string, unknown> = { ...parsed.data };
+    if (
+      typeof parsed.data.equipment === "string" &&
+      parsed.data.equipment !== existing.equipment
+    ) {
+      patch.equipmentList = [parsed.data.equipment];
+    }
     const next = await tx
       .update(planDaysTable)
-      .set(parsed.data)
+      .set(patch)
       .where(eq(planDaysTable.id, id))
       .returning();
     await recomputeWeekTotals(tx, existing.week);
@@ -610,6 +630,7 @@ router.post("/plan/days/:id/swap", async (req, res): Promise<void> => {
 const CLEAR_SEED_FIELDS = {
   seedSessionType: null,
   seedEquipment: null,
+  seedEquipmentList: null,
   seedDescription: null,
   seedDistanceMi: null,
   seedStrengthMin: null,
@@ -640,6 +661,7 @@ router.post("/plan/days/:id/reset", async (req, res): Promise<void> => {
       .set({
         sessionType: existing.seedSessionType,
         equipment: existing.seedEquipment ?? existing.equipment,
+        equipmentList: existing.seedEquipmentList ?? existing.equipmentList,
         description: existing.seedDescription ?? existing.description,
         distanceMi: existing.seedDistanceMi,
         strengthMin: existing.seedStrengthMin,
@@ -673,6 +695,7 @@ function resetRow(row: PlanDayRow): PlanDayMutableFields {
   return {
     sessionType: row.seedSessionType ?? row.sessionType,
     equipment: row.seedEquipment ?? row.equipment,
+    equipmentList: row.seedEquipmentList ?? row.equipmentList,
     description: row.seedDescription ?? row.description,
     distanceMi: row.seedDistanceMi,
     strengthMin: row.seedStrengthMin,
@@ -883,6 +906,7 @@ router.post("/plan/full-reset", async (req, res): Promise<void> => {
       await tx.insert(planDaysTable).values(
         slice.map((d) => {
           const equipment = d.equipment ?? "Rest";
+          const equipmentList = d.equipment_list ?? [equipment];
           const description = d.description ?? "";
           const sessionType = d.session_type ?? "Rest";
           const isRest = !!d.is_rest;
@@ -894,6 +918,7 @@ router.post("/plan/full-reset", async (req, res): Promise<void> => {
             day: d.day,
             strengthLoad: d.strength_load,
             equipment,
+            equipmentList,
             description,
             strengthMin: d.strength_min,
             cardioMin: d.cardio_min,
@@ -908,6 +933,7 @@ router.post("/plan/full-reset", async (req, res): Promise<void> => {
             // restore from after the runner edits this freshly-seeded row.
             seedSessionType: sessionType,
             seedEquipment: equipment,
+            seedEquipmentList: equipmentList,
             seedDescription: description,
             seedDistanceMi: d.distance_mi,
             seedStrengthMin: d.strength_min,
@@ -1021,6 +1047,7 @@ router.post("/plan/reset/undo", async (req, res): Promise<void> => {
           .set({
             sessionType: d.sessionType,
             equipment: d.equipment,
+            equipmentList: d.equipmentList,
             description: d.description,
             distanceMi: d.distanceMi,
             strengthMin: d.strengthMin,
@@ -1032,6 +1059,7 @@ router.post("/plan/reset/undo", async (req, res): Promise<void> => {
             isRest: d.isRest,
             seedSessionType: d.seedSessionType,
             seedEquipment: d.seedEquipment,
+            seedEquipmentList: d.seedEquipmentList,
             seedDescription: d.seedDescription,
             seedDistanceMi: d.seedDistanceMi,
             seedStrengthMin: d.seedStrengthMin,

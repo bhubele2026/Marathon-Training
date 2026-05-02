@@ -617,6 +617,7 @@ components:
           date,
           day,
           equipment,
+          equipmentList,
           description,
           sessionType,
           isRest,
@@ -632,6 +633,10 @@ components:
         day: { type: string }
         strengthLoad: { type: number, nullable: true }
         equipment: { type: string }
+        equipmentList:
+          type: array
+          items: { type: string }
+          description: Ordered chip rail of every machine the runner will use that day, in canonical priority order (Tonal, Peloton Bike, Peloton Row, Peloton Tread, Outdoor). The UI renders one chip per element so a Tue strength + cardio day shows "TONAL · PELOTON BIKE" instead of just "TONAL". The scalar `equipment` field above is preserved for back-compat (dashboard equipment usage, suggestions pairKey) and continues to hold the headline machine. The server falls back to `[equipment]` for rows that predate the task #77 backfill so this field is always present and non-empty.
         description: { type: string }
         strengthMin:
           type: number

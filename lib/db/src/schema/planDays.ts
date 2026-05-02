@@ -8,6 +8,19 @@ export const planDaysTable = pgTable("plan_days", {
   day: text("day").notNull(),
   strengthLoad: doublePrecision("strength_load"),
   equipment: text("equipment").notNull(),
+  // Ordered list of every machine the runner will use that day (e.g. a Tue
+  // strength + cardio session uses both Tonal and Peloton Bike). Added by
+  // task #77 so the day card can render every machine as a chip
+  // ("TONAL · PELOTON BIKE") instead of the single scalar `equipment` chip
+  // we used to show. The scalar `equipment` column is preserved as-is for
+  // back-compat with downstream code (dashboard aggregations, suggestions
+  // pairKey, /equipment page); the list is owned by the generator and
+  // refreshed to `[equipment]` whenever the runner edits the scalar value
+  // through the form. Nullable so existing rows pre-backfill stay valid;
+  // the backfill (scripts/src/backfill-plan-day-equipment.ts) populates it
+  // by parsing the description for known machine names. Renderers fall
+  // back to `[equipment]` when the column is null.
+  equipmentList: text("equipment_list").array(),
   description: text("description").notNull(),
   // Three-bucket minute breakdown for the prescribed session. Pre-task #74
   // the schema only carried `cardio_min`, which the generator overloaded as
@@ -39,6 +52,10 @@ export const planDaysTable = pgTable("plan_days", {
   // "nothing to restore" and is a no-op for that row.
   seedSessionType: text("seed_session_type"),
   seedEquipment: text("seed_equipment"),
+  // Mirror snapshot of `equipment_list` (task #77). Captured at seed time
+  // and lazily on first edit so /reset can restore the original chip rail
+  // even after the runner has edited it.
+  seedEquipmentList: text("seed_equipment_list").array(),
   seedDescription: text("seed_description"),
   seedDistanceMi: doublePrecision("seed_distance_mi"),
   seedStrengthMin: doublePrecision("seed_strength_min"),

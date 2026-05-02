@@ -74,6 +74,11 @@ export const GetPlanWeekResponse = zod
             day: zod.string(),
             strengthLoad: zod.number().nullish(),
             equipment: zod.string(),
+            equipmentList: zod
+              .array(zod.string())
+              .describe(
+                'Ordered chip rail of every machine the runner will use that day, in canonical priority order (Tonal, Peloton Bike, Peloton Row, Peloton Tread, Outdoor). The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". The scalar `equipment` field above is preserved for back-compat (dashboard equipment usage, suggestions pairKey) and continues to hold the headline machine. The server falls back to `[equipment]` for rows that predate the task',
+              ),
             description: zod.string(),
             strengthMin: zod
               .number()
@@ -167,6 +172,11 @@ export const UpdatePlanDayResponse = zod.object({
   day: zod.string(),
   strengthLoad: zod.number().nullish(),
   equipment: zod.string(),
+  equipmentList: zod
+    .array(zod.string())
+    .describe(
+      'Ordered chip rail of every machine the runner will use that day, in canonical priority order (Tonal, Peloton Bike, Peloton Row, Peloton Tread, Outdoor). The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". The scalar `equipment` field above is preserved for back-compat (dashboard equipment usage, suggestions pairKey) and continues to hold the headline machine. The server falls back to `[equipment]` for rows that predate the task',
+    ),
   description: zod.string(),
   strengthMin: zod
     .number()
@@ -230,6 +240,11 @@ export const SwapPlanDayResponse = zod.object({
     day: zod.string(),
     strengthLoad: zod.number().nullish(),
     equipment: zod.string(),
+    equipmentList: zod
+      .array(zod.string())
+      .describe(
+        'Ordered chip rail of every machine the runner will use that day, in canonical priority order (Tonal, Peloton Bike, Peloton Row, Peloton Tread, Outdoor). The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". The scalar `equipment` field above is preserved for back-compat (dashboard equipment usage, suggestions pairKey) and continues to hold the headline machine. The server falls back to `[equipment]` for rows that predate the task',
+      ),
     description: zod.string(),
     strengthMin: zod
       .number()
@@ -279,6 +294,11 @@ export const SwapPlanDayResponse = zod.object({
     day: zod.string(),
     strengthLoad: zod.number().nullish(),
     equipment: zod.string(),
+    equipmentList: zod
+      .array(zod.string())
+      .describe(
+        'Ordered chip rail of every machine the runner will use that day, in canonical priority order (Tonal, Peloton Bike, Peloton Row, Peloton Tread, Outdoor). The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". The scalar `equipment` field above is preserved for back-compat (dashboard equipment usage, suggestions pairKey) and continues to hold the headline machine. The server falls back to `[equipment]` for rows that predate the task',
+      ),
     description: zod.string(),
     strengthMin: zod
       .number()
@@ -344,6 +364,11 @@ export const ResetPlanDayResponse = zod.object({
   day: zod.string(),
   strengthLoad: zod.number().nullish(),
   equipment: zod.string(),
+  equipmentList: zod
+    .array(zod.string())
+    .describe(
+      'Ordered chip rail of every machine the runner will use that day, in canonical priority order (Tonal, Peloton Bike, Peloton Row, Peloton Tread, Outdoor). The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". The scalar `equipment` field above is preserved for back-compat (dashboard equipment usage, suggestions pairKey) and continues to hold the headline machine. The server falls back to `[equipment]` for rows that predate the task',
+    ),
   description: zod.string(),
   strengthMin: zod
     .number()
@@ -533,6 +558,11 @@ export const GetTodayPlanResponse = zod.object({
       day: zod.string(),
       strengthLoad: zod.number().nullish(),
       equipment: zod.string(),
+      equipmentList: zod
+        .array(zod.string())
+        .describe(
+          'Ordered chip rail of every machine the runner will use that day, in canonical priority order (Tonal, Peloton Bike, Peloton Row, Peloton Tread, Outdoor). The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". The scalar `equipment` field above is preserved for back-compat (dashboard equipment usage, suggestions pairKey) and continues to hold the headline machine. The server falls back to `[equipment]` for rows that predate the task',
+        ),
       description: zod.string(),
       strengthMin: zod
         .number()
@@ -662,6 +692,11 @@ export const GetTodayPlanResponse = zod.object({
       day: zod.string(),
       strengthLoad: zod.number().nullish(),
       equipment: zod.string(),
+      equipmentList: zod
+        .array(zod.string())
+        .describe(
+          'Ordered chip rail of every machine the runner will use that day, in canonical priority order (Tonal, Peloton Bike, Peloton Row, Peloton Tread, Outdoor). The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". The scalar `equipment` field above is preserved for back-compat (dashboard equipment usage, suggestions pairKey) and continues to hold the headline machine. The server falls back to `[equipment]` for rows that predate the task',
+        ),
       description: zod.string(),
       strengthMin: zod
         .number()

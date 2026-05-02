@@ -14,6 +14,18 @@ function planDayCustomizedFields(r: PlanDayRow): string[] {
   const fields: string[] = [];
   if (r.sessionType !== r.seedSessionType) fields.push("sessionType");
   if (r.equipment !== r.seedEquipment) fields.push("equipment");
+  // The chip rail is generator-owned and replaced wholesale on edit, so
+  // structural equality (JSON) is the right comparison here. We treat a
+  // null seedEquipmentList as "no snapshot yet" and only flag a diff once
+  // both sides exist (the outer `seedSessionType == null` guard above
+  // already short-circuits the no-snapshot case for the row as a whole).
+  if (
+    r.seedEquipmentList != null &&
+    JSON.stringify(r.equipmentList ?? null) !==
+      JSON.stringify(r.seedEquipmentList)
+  ) {
+    fields.push("equipmentList");
+  }
   if (r.description !== r.seedDescription) fields.push("description");
   if (r.distanceMi !== r.seedDistanceMi) fields.push("distanceMi");
   if (r.strengthMin !== r.seedStrengthMin) fields.push("strengthMin");
@@ -52,6 +64,11 @@ export function toPlanDay(r: PlanDayRow) {
     day: r.day,
     strengthLoad: r.strengthLoad,
     equipment: r.equipment,
+    // Ordered chip rail of every machine the runner will use that day.
+    // Falls back to a single-element list of the scalar `equipment` so the
+    // UI can always render at least one chip even on rows that predate the
+    // task #77 backfill (equipment_list is nullable in the DB).
+    equipmentList: r.equipmentList ?? [r.equipment],
     description: r.description,
     strengthMin: r.strengthMin,
     cardioMin: r.cardioMin,
