@@ -144,4 +144,62 @@ describe("toPlanDay", () => {
     expect(out.isCustomized).toBe(false);
     expect(out.customizedFields).toEqual([]);
   });
+
+  // Regression for the equipment-rail null asymmetry fixed in task #77:
+  // before the fix, a row whose live `equipmentList` had been backfilled to
+  // `[scalar]` while the seed snapshot still held NULL (or vice versa) would
+  // be falsely flagged as customized on the chip rail, even though both
+  // sides round-trip through the same `?? [scalar]` fallback in toPlanDay
+  // and therefore render identically. Lock that invariant in place against
+  // future refactors of the diff helper by exercising all four NULL/non-NULL
+  // permutations against a single-element list of the matching scalar.
+  it("does NOT flag equipmentList as customized when one side is NULL and the other is [scalar]", () => {
+    const seedSnapshot = {
+      seedSessionType: "Strength + Cardio" as const,
+      seedEquipment: "Tonal",
+      seedDescription: "Heavy upper-body Tonal",
+      seedDistanceMi: null,
+      seedStrengthMin: 45,
+      seedCardioMin: 25,
+      seedRunMin: 0,
+      seedPace: null,
+      seedStrengthLoad: 60,
+      seedTotalLoad: 85,
+      seedIsRest: false,
+    };
+
+    const liveNullSeedList = toPlanDay(
+      makeRow({
+        equipmentList: null,
+        ...seedSnapshot,
+        seedEquipmentList: ["Tonal"],
+      }),
+    );
+    const liveListSeedNull = toPlanDay(
+      makeRow({
+        equipmentList: ["Tonal"],
+        ...seedSnapshot,
+        seedEquipmentList: null,
+      }),
+    );
+    const bothNull = toPlanDay(
+      makeRow({
+        equipmentList: null,
+        ...seedSnapshot,
+        seedEquipmentList: null,
+      }),
+    );
+    const bothEqual = toPlanDay(
+      makeRow({
+        equipmentList: ["Tonal"],
+        ...seedSnapshot,
+        seedEquipmentList: ["Tonal"],
+      }),
+    );
+
+    expect(liveNullSeedList.customizedFields).not.toContain("equipmentList");
+    expect(liveListSeedNull.customizedFields).not.toContain("equipmentList");
+    expect(bothNull.customizedFields).not.toContain("equipmentList");
+    expect(bothEqual.customizedFields).not.toContain("equipmentList");
+  });
 });
