@@ -1014,6 +1014,7 @@ components:
       properties:
         week: { type: integer }
         date: { type: string }
+        phase: { type: string }
         plannedMi: { type: number }
         actualMi: { type: number }
 

@@ -539,11 +539,12 @@ describe("GET /api/dashboard/long-run-progression", () => {
     const rows = res.body as Array<{
       week: number;
       date: string;
+      phase: string;
       plannedMi: number;
       actualMi: number;
     }>;
     const ours = rows.find((r) => r.week === week);
-    expect(ours).toEqual({ week, date: "2099-09-26", plannedMi: 12, actualMi: 11.5 });
+    expect(ours).toEqual({ week, date: "2099-09-26", phase, plannedMi: 12, actualMi: 11.5 });
   });
 });
 

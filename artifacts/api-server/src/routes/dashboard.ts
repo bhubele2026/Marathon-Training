@@ -312,14 +312,16 @@ router.get("/dashboard/equipment-phase-summary", async (_req, res) => {
 });
 
 router.get("/dashboard/long-run-progression", async (_req, res) => {
-  const rows = await db.execute<{ week: number; date: string; planned_mi: number; actual_mi: number }>(
+  const rows = await db.execute<{ week: number; date: string; phase: string; planned_mi: number; actual_mi: number }>(
     sql`
       SELECT pd.week,
         TO_CHAR(pd.date, 'YYYY-MM-DD') AS date,
+        pw.phase AS phase,
         pd.distance_mi::float AS planned_mi,
         COALESCE((SELECT MAX(distance_mi) FROM workouts w
           WHERE w.date = pd.date AND w.session_type IN ('Long Run', 'Race')), 0)::float AS actual_mi
       FROM plan_days pd
+      LEFT JOIN plan_weeks pw ON pw.week = pd.week
       WHERE pd.session_type IN ('Long Run', 'Race')
       ORDER BY pd.date ASC
     `,
@@ -327,6 +329,7 @@ router.get("/dashboard/long-run-progression", async (_req, res) => {
   res.json(rows.rows.map((r) => ({
     week: r.week,
     date: r.date,
+    phase: r.phase,
     plannedMi: r.planned_mi,
     actualMi: r.actual_mi,
   })));

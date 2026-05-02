@@ -12,7 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  BarChart, Bar, Legend, AreaChart, Area
+  BarChart, Bar, Legend, AreaChart, Area, Cell
 } from "recharts";
 import { formatDistance, formatLoad, formatWeight, formatDate, formatDuration } from "@/lib/format";
 import { format } from "date-fns";
@@ -307,19 +307,38 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               {loadingMileage ? <Skeleton className="h-64" /> : (
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={mileage}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-                      <XAxis dataKey="week" tickFormatter={(v) => `W${v}`} />
-                      <YAxis />
-                      <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }} />
-                      <Legend />
-                      <Bar dataKey="plannedMiles" name="Planned" fill="hsl(var(--muted-foreground))" opacity={0.3} radius={[2, 2, 0, 0]} />
-                      <Bar dataKey="actualMiles" name="Actual" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+                <>
+                  <PhaseLegend
+                    phases={uniquePhases(mileage?.map((m) => m.phase))}
+                    showActualSwatch
+                  />
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={mileage}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                        <XAxis dataKey="week" tickFormatter={(v) => `W${v}`} />
+                        <YAxis />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+                          labelFormatter={(label, payload) => {
+                            const phase = payload?.[0]?.payload?.phase;
+                            return phase ? `Week ${label} · ${phase}` : `Week ${label}`;
+                          }}
+                        />
+                        <Legend />
+                        <Bar dataKey="plannedMiles" name="Planned" fill="hsl(var(--muted-foreground))" opacity={0.3} radius={[2, 2, 0, 0]} />
+                        <Bar dataKey="actualMiles" name="Actual" radius={[2, 2, 0, 0]}>
+                          {(mileage ?? []).map((row, i) => (
+                            <Cell
+                              key={`mileage-${row.week}-${i}`}
+                              fill={row.phase ? phaseColor(row.phase) : "hsl(var(--primary))"}
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
@@ -331,19 +350,57 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               {loadingLongRun ? <Skeleton className="h-64" /> : (
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={longRun}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-                      <XAxis dataKey="week" tickFormatter={(v) => `W${v}`} />
-                      <YAxis />
-                      <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }} />
-                      <Legend />
-                      <Line type="stepAfter" dataKey="plannedMi" name="Target" stroke="hsl(var(--muted-foreground))" strokeDasharray="5 5" strokeWidth={2} dot={false} />
-                      <Line type="monotone" dataKey="actualMi" name="Completed" stroke="hsl(var(--primary))" strokeWidth={3} dot={{ r: 4, fill: 'hsl(var(--primary))' }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
+                <>
+                  <PhaseLegend phases={uniquePhases(longRun?.map((p) => p.phase))} />
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={longRun}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                        <XAxis dataKey="week" tickFormatter={(v) => `W${v}`} />
+                        <YAxis />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+                          labelFormatter={(label, payload) => {
+                            const phase = payload?.[0]?.payload?.phase;
+                            return phase ? `Week ${label} · ${phase}` : `Week ${label}`;
+                          }}
+                        />
+                        <Legend />
+                        <Line type="stepAfter" dataKey="plannedMi" name="Target" stroke="hsl(var(--muted-foreground))" strokeDasharray="5 5" strokeWidth={2} dot={false} />
+                        <Line
+                          type="monotone"
+                          dataKey="actualMi"
+                          name="Completed"
+                          stroke="hsl(var(--muted-foreground))"
+                          strokeOpacity={0.5}
+                          strokeWidth={2}
+                          dot={(props) => {
+                            const { cx, cy, payload, index } = props as {
+                              cx?: number; cy?: number;
+                              payload?: { phase?: string; week?: number; actualMi?: number };
+                              index?: number;
+                            };
+                            if (cx == null || cy == null) {
+                              return <g key={`long-run-dot-${index ?? 0}`} />;
+                            }
+                            const fill = payload?.phase ? phaseColor(payload.phase) : "hsl(var(--primary))";
+                            return (
+                              <circle
+                                key={`long-run-dot-${payload?.week ?? index ?? 0}`}
+                                cx={cx}
+                                cy={cy}
+                                r={4}
+                                fill={fill}
+                                stroke="hsl(var(--card))"
+                                strokeWidth={1}
+                              />
+                            );
+                          }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
@@ -443,6 +500,59 @@ export default function Dashboard() {
         </div>
       </div>
 
+    </div>
+  );
+}
+
+function uniquePhases(phases: Array<string | undefined> | undefined): string[] {
+  if (!phases) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const p of phases) {
+    if (!p || seen.has(p)) continue;
+    seen.add(p);
+    out.push(p);
+  }
+  return out;
+}
+
+function PhaseLegend({ phases, showActualSwatch = false }: { phases: string[]; showActualSwatch?: boolean }) {
+  if (phases.length === 0) return null;
+  return (
+    <div
+      className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3"
+      data-testid="phase-legend"
+    >
+      {phases.map((phase) => (
+        <div key={phase} className="flex items-center gap-2">
+          <span
+            className="h-3 w-3 rounded-sm shrink-0"
+            style={{ backgroundColor: phaseColor(phase) }}
+            aria-hidden
+          />
+          <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+            {phase}
+          </span>
+        </div>
+      ))}
+      {showActualSwatch && (
+        <div className="ml-auto flex items-center gap-3 text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+          <div className="flex items-center gap-1.5">
+            <span
+              className="h-3 w-3 rounded-sm border border-foreground/20 bg-foreground/10"
+              aria-hidden
+            />
+            Planned
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span
+              className="h-3 w-3 rounded-sm bg-foreground/70"
+              aria-hidden
+            />
+            Actual (by phase)
+          </div>
+        </div>
+      )}
     </div>
   );
 }

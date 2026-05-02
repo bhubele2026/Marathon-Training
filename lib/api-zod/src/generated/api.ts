@@ -636,6 +636,7 @@ export const GetEquipmentPhaseSummaryResponse = zod
 export const GetLongRunProgressionResponseItem = zod.object({
   week: zod.number(),
   date: zod.string().optional(),
+  phase: zod.string().optional(),
   plannedMi: zod.number(),
   actualMi: zod.number(),
 });

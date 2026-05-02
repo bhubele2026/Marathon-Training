@@ -363,6 +363,7 @@ export interface EquipmentPhaseSummary {
 export interface LongRunPoint {
   week: number;
   date?: string;
+  phase?: string;
   plannedMi: number;
   actualMi: number;
 }
