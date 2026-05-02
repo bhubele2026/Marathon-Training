@@ -58,6 +58,7 @@ router.post("/workouts", async (req, res): Promise<void> => {
     totalLoad: d.totalLoad ?? null,
     notes: d.notes ?? null,
     timeOfDay: d.timeOfDay ?? null,
+    modality: d.modality ?? null,
   }).returning();
   res.status(201).json(toWorkout(inserted[0]!));
 });

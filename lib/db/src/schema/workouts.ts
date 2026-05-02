@@ -18,6 +18,10 @@ export const workoutsTable = pgTable("workouts", {
   // "Other"). Nullable so existing rows logged before this column existed
   // continue to render and sort by createdAt as before.
   timeOfDay: text("time_of_day"),
+  // Optional high-level modality of the session: "Cardio" / "Strength" /
+  // "Mixed". Nullable so existing rows logged before this column existed
+  // remain valid; the UI can fall back to inferring modality from equipment.
+  modality: text("modality"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   dateIdx: index("workouts_date_idx").on(t.date),

@@ -412,6 +412,12 @@ export const GetTodayPlanResponse = zod.object({
           .describe(
             "Optional tag used to order and label same-day sessions. AM sorts before PM, PM before Other; rows with no tag fall back to createdAt order.",
           ),
+        modality: zod
+          .enum(["Cardio", "Strength", "Mixed"])
+          .nullish()
+          .describe(
+            "High-level modality of the session. Lets the user explicitly mark a workout as cardio, strength, or mixed independent of the more granular sessionType. Nullable for rows logged before this field existed.",
+          ),
         createdAt: zod.coerce.date(),
       }),
     )
@@ -461,6 +467,12 @@ export const ListWorkoutsResponseItem = zod.object({
     .describe(
       "Optional tag used to order and label same-day sessions. AM sorts before PM, PM before Other; rows with no tag fall back to createdAt order.",
     ),
+  modality: zod
+    .enum(["Cardio", "Strength", "Mixed"])
+    .nullish()
+    .describe(
+      "High-level modality of the session. Lets the user explicitly mark a workout as cardio, strength, or mixed independent of the more granular sessionType. Nullable for rows logged before this field existed.",
+    ),
   createdAt: zod.coerce.date(),
 });
 export const ListWorkoutsResponse = zod.array(ListWorkoutsResponseItem);
@@ -479,6 +491,7 @@ export const CreateWorkoutBody = zod.object({
   totalLoad: zod.number().nullish(),
   notes: zod.string().nullish(),
   timeOfDay: zod.enum(["AM", "PM", "Other"]).nullish(),
+  modality: zod.enum(["Cardio", "Strength", "Mixed"]).nullish(),
 });
 
 export const UpdateWorkoutParams = zod.object({
@@ -498,6 +511,7 @@ export const UpdateWorkoutBody = zod.object({
   totalLoad: zod.number().nullish(),
   notes: zod.string().nullish(),
   timeOfDay: zod.enum(["AM", "PM", "Other"]).nullish(),
+  modality: zod.enum(["Cardio", "Strength", "Mixed"]).nullish(),
 });
 
 export const UpdateWorkoutResponse = zod.object({
@@ -519,6 +533,12 @@ export const UpdateWorkoutResponse = zod.object({
     .nullish()
     .describe(
       "Optional tag used to order and label same-day sessions. AM sorts before PM, PM before Other; rows with no tag fall back to createdAt order.",
+    ),
+  modality: zod
+    .enum(["Cardio", "Strength", "Mixed"])
+    .nullish()
+    .describe(
+      "High-level modality of the session. Lets the user explicitly mark a workout as cardio, strength, or mixed independent of the more granular sessionType. Nullable for rows logged before this field existed.",
     ),
   createdAt: zod.coerce.date(),
 });
@@ -716,6 +736,12 @@ export const GetRecentActivityResponseItem = zod.object({
     .nullish()
     .describe(
       "Optional tag used to order and label same-day sessions. AM sorts before PM, PM before Other; rows with no tag fall back to createdAt order.",
+    ),
+  modality: zod
+    .enum(["Cardio", "Strength", "Mixed"])
+    .nullish()
+    .describe(
+      "High-level modality of the session. Lets the user explicitly mark a workout as cardio, strength, or mixed independent of the more granular sessionType. Nullable for rows logged before this field existed.",
     ),
   createdAt: zod.coerce.date(),
 });

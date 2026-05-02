@@ -189,6 +189,19 @@ export const WorkoutTimeOfDay = {
   Other: "Other",
 } as const;
 
+/**
+ * High-level modality of the session. Lets the user explicitly mark a workout as cardio, strength, or mixed independent of the more granular sessionType. Nullable for rows logged before this field existed.
+ */
+export type WorkoutModality =
+  | (typeof WorkoutModality)[keyof typeof WorkoutModality]
+  | null;
+
+export const WorkoutModality = {
+  Cardio: "Cardio",
+  Strength: "Strength",
+  Mixed: "Mixed",
+} as const;
+
 export interface Workout {
   id: number;
   planDayId?: number | null;
@@ -205,6 +218,8 @@ export interface Workout {
   notes?: string | null;
   /** Optional tag used to order and label same-day sessions. AM sorts before PM, PM before Other; rows with no tag fall back to createdAt order. */
   timeOfDay?: WorkoutTimeOfDay;
+  /** High-level modality of the session. Lets the user explicitly mark a workout as cardio, strength, or mixed independent of the more granular sessionType. Nullable for rows logged before this field existed. */
+  modality?: WorkoutModality;
   createdAt: string;
 }
 
@@ -227,6 +242,16 @@ export const CreateWorkoutBodyTimeOfDay = {
   Other: "Other",
 } as const;
 
+export type CreateWorkoutBodyModality =
+  | (typeof CreateWorkoutBodyModality)[keyof typeof CreateWorkoutBodyModality]
+  | null;
+
+export const CreateWorkoutBodyModality = {
+  Cardio: "Cardio",
+  Strength: "Strength",
+  Mixed: "Mixed",
+} as const;
+
 export interface CreateWorkoutBody {
   planDayId?: number | null;
   date: string;
@@ -241,6 +266,7 @@ export interface CreateWorkoutBody {
   totalLoad?: number | null;
   notes?: string | null;
   timeOfDay?: CreateWorkoutBodyTimeOfDay;
+  modality?: CreateWorkoutBodyModality;
 }
 
 export type UpdateWorkoutBodyTimeOfDay =
@@ -251,6 +277,16 @@ export const UpdateWorkoutBodyTimeOfDay = {
   AM: "AM",
   PM: "PM",
   Other: "Other",
+} as const;
+
+export type UpdateWorkoutBodyModality =
+  | (typeof UpdateWorkoutBodyModality)[keyof typeof UpdateWorkoutBodyModality]
+  | null;
+
+export const UpdateWorkoutBodyModality = {
+  Cardio: "Cardio",
+  Strength: "Strength",
+  Mixed: "Mixed",
 } as const;
 
 export interface UpdateWorkoutBody {
@@ -266,6 +302,7 @@ export interface UpdateWorkoutBody {
   totalLoad?: number | null;
   notes?: string | null;
   timeOfDay?: UpdateWorkoutBodyTimeOfDay;
+  modality?: UpdateWorkoutBodyModality;
 }
 
 export interface Measurement {

@@ -856,6 +856,11 @@ components:
           enum: [AM, PM, Other]
           nullable: true
           description: Optional tag used to order and label same-day sessions. AM sorts before PM, PM before Other; rows with no tag fall back to createdAt order.
+        modality:
+          type: string
+          enum: [Cardio, Strength, Mixed]
+          nullable: true
+          description: High-level modality of the session. Lets the user explicitly mark a workout as cardio, strength, or mixed independent of the more granular sessionType. Nullable for rows logged before this field existed.
         createdAt: { type: string, format: date-time }
 
     CreateWorkoutBody:
@@ -878,6 +883,10 @@ components:
           type: string
           enum: [AM, PM, Other]
           nullable: true
+        modality:
+          type: string
+          enum: [Cardio, Strength, Mixed]
+          nullable: true
 
     UpdateWorkoutBody:
       type: object
@@ -896,6 +905,10 @@ components:
         timeOfDay:
           type: string
           enum: [AM, PM, Other]
+          nullable: true
+        modality:
+          type: string
+          enum: [Cardio, Strength, Mixed]
           nullable: true
 
     Measurement:

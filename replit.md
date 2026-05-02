@@ -32,7 +32,7 @@ Bike/row sessions are always 20–30 min max. Big run days (Fri quality, Sun lon
 - `/today` Today's mission with three quick actions (Crushed It / Log Actual / Skipped).
 - `/plan` 52-week plan grouped by phase.
 - `/plan/:week` Week detail with 7 day cards. Each non-rest card has three quick actions: **Crushed It** (one-click logs a workout matching the planned values + hype toast), **Log Actual** (opens the form pre-filled), **Skipped** (confirm dialog → logs `sessionType="Skipped"` + roast toast). Sass copy lives in `src/lib/sass.ts`; mutation logic in `src/hooks/use-mission-actions.tsx`. Skipped workouts are excluded from adherence/completion counts and weekly mileage in `dashboard.ts` / `plan.ts`.
-- `/log` Workouts list with equipment filter + log dialog.
+- `/log` Workouts list with equipment filter + log dialog. The Log Workout dialog has a **Cardio or Strength** modality picker plus an **Equipment / Machine** picker grouped by modality (Cardio: Peloton Tread/Bike/Row/Outdoor · Strength: Tonal · Other: Lifestyle / None). Modality is auto-inferred from equipment if blank, never overwriting an explicit user choice. Persisted on `workouts.modality` (nullable text) and propagated by Crushed It.
 - `/measurements` Body weight trend + check-in dialog.
 - `/equipment` Per-equipment session counts and recent activity.
 

@@ -23,6 +23,25 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+// Mirror of the inference table in workout-form.tsx so the Crushed It
+// shortcut tags the resulting workout with the same modality the user
+// would otherwise pick by hand.
+function inferModalityFromEquipment(
+  equipment: string,
+): "Cardio" | "Strength" | null {
+  switch (equipment) {
+    case "Tonal":
+      return "Strength";
+    case "Peloton Tread":
+    case "Peloton Bike":
+    case "Peloton Row":
+    case "Outdoor":
+      return "Cardio";
+    default:
+      return null;
+  }
+}
+
 export type MissionContext = {
   date: string;
   plan?: PlanDay | null;
@@ -66,6 +85,9 @@ export function useMissionActions() {
           // Tag with AM/PM based on the local clock so multi-session days
           // sort sensibly without forcing the user into the form.
           timeOfDay: defaultTimeOfDayForNow(),
+          // Tag the modality from the planned equipment so the new
+          // cardio/strength filter reflects quick-logged sessions too.
+          modality: inferModalityFromEquipment(plan.equipment),
         },
       },
       {

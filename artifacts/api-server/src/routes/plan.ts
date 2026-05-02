@@ -253,6 +253,7 @@ async function fetchRecentWorkoutsByPair(
     total_load: number | null;
     notes: string | null;
     time_of_day: string | null;
+    modality: string | null;
     created_at: Date;
   }>(sql`
     WITH ranked AS (
@@ -268,7 +269,7 @@ async function fetchRecentWorkoutsByPair(
     )
     SELECT id, plan_day_id, date, equipment, session_type, duration_min,
            distance_mi, pace, avg_hr, rpe, strength_load, total_load, notes,
-           time_of_day, created_at
+           time_of_day, modality, created_at
     FROM ranked
     WHERE rn <= ${RECENT_LIMIT}
     ORDER BY session_type, equipment, date DESC, created_at DESC
@@ -293,6 +294,7 @@ async function fetchRecentWorkoutsByPair(
       totalLoad: r.total_load,
       notes: r.notes,
       timeOfDay: r.time_of_day,
+      modality: r.modality,
       createdAt: r.created_at instanceof Date ? r.created_at : new Date(r.created_at),
     });
   }

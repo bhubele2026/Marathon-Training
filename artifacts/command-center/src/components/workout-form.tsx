@@ -42,6 +42,57 @@ type TimeOfDayValue = (typeof TIME_OF_DAY_VALUES)[number];
 // Sentinel for "no tag" since native <select> can't hold a literal null value.
 const TIME_OF_DAY_NONE = "__none__";
 
+const MODALITY_VALUES = ["Cardio", "Strength", "Mixed"] as const;
+type ModalityValue = (typeof MODALITY_VALUES)[number];
+const MODALITY_NONE = "__none__";
+
+// Equipment options grouped by which modality they typically belong to. The
+// dropdown renders these as labeled groups so the user can quickly find
+// "the machine they used" once they've picked a modality.
+const EQUIPMENT_GROUPS: ReadonlyArray<{
+  label: string;
+  items: ReadonlyArray<{ value: string; label: string }>;
+}> = [
+  {
+    label: "Cardio",
+    items: [
+      { value: "Peloton Tread", label: "Peloton Tread" },
+      { value: "Peloton Bike", label: "Peloton Bike" },
+      { value: "Peloton Row", label: "Peloton Row" },
+      { value: "Outdoor", label: "Outdoor" },
+    ],
+  },
+  {
+    label: "Strength",
+    items: [{ value: "Tonal", label: "Tonal" }],
+  },
+  {
+    label: "Other",
+    items: [
+      { value: "Lifestyle", label: "Lifestyle" },
+      { value: "None", label: "None / Rest" },
+    ],
+  },
+];
+
+// Best-effort modality inference from a chosen piece of equipment. Used to
+// pre-fill the Modality picker when the user changes equipment without
+// having explicitly set a modality yet (and never overwrites an explicit
+// user choice).
+function inferModalityFromEquipment(equipment: string): ModalityValue | null {
+  switch (equipment) {
+    case "Tonal":
+      return "Strength";
+    case "Peloton Tread":
+    case "Peloton Bike":
+    case "Peloton Row":
+    case "Outdoor":
+      return "Cardio";
+    default:
+      return null;
+  }
+}
+
 const formSchema = z.object({
   date: z.string().min(1, "Date is required"),
   equipment: z.string().min(1, "Equipment is required"),
@@ -56,6 +107,7 @@ const formSchema = z.object({
   notes: z.string().optional().nullable(),
   planDayId: z.number().optional().nullable(),
   timeOfDay: z.enum(TIME_OF_DAY_VALUES).nullable().optional(),
+  modality: z.enum(MODALITY_VALUES).nullable().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -82,6 +134,7 @@ const KNOWN_FIELDS = [
   "notes",
   "planDayId",
   "timeOfDay",
+  "modality",
 ] as const satisfies ReadonlyArray<Path<FormValues>>;
 
 export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutId }: WorkoutFormProps) {
@@ -95,9 +148,18 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
     initial?.timeOfDay && (TIME_OF_DAY_VALUES as readonly string[]).includes(initial.timeOfDay)
       ? (initial.timeOfDay as TimeOfDayValue)
       : null;
+  const initialEquipment = initial?.equipment || "None";
+  const initialModality: ModalityValue | null =
+    initial?.modality && (MODALITY_VALUES as readonly string[]).includes(initial.modality)
+      ? (initial.modality as ModalityValue)
+      : // For brand-new logs (no workoutId), prefill modality from equipment
+        // so the user just confirms rather than setting it from scratch.
+        !workoutId
+        ? inferModalityFromEquipment(initialEquipment)
+        : null;
   const buildDefaults = (): FormValues => ({
     date: initial?.date || new Date().toISOString().split('T')[0],
-    equipment: initial?.equipment || "None",
+    equipment: initialEquipment,
     sessionType: initial?.sessionType || "",
     durationMin: initial?.durationMin ?? null,
     distanceMi: initial?.distanceMi ?? null,
@@ -109,6 +171,7 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
     notes: initial?.notes || "",
     planDayId: initial?.planDayId ?? null,
     timeOfDay: initialTimeOfDay,
+    modality: initialModality,
   });
 
   const form = useForm<FormValues>({
@@ -122,7 +185,7 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
       setServerFormErrors([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, initial?.date, initial?.equipment, initial?.sessionType, initial?.planDayId, workoutId]);
+  }, [open, initial?.date, initial?.equipment, initial?.sessionType, initial?.planDayId, initial?.modality, workoutId]);
 
   const handleMutationError = (error: unknown, fallbackTitle: string) => {
     const envelope = extractValidationError(error);
@@ -181,6 +244,7 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
       ...data,
       planDayId: data.planDayId ?? undefined,
       timeOfDay: data.timeOfDay ?? null,
+      modality: data.modality ?? null,
     };
 
     if (workoutId) {
@@ -322,24 +386,73 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
               />
               <FormField
                 control={form.control}
+                name="modality"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Cardio or Strength</FormLabel>
+                    <Select
+                      value={field.value ?? MODALITY_NONE}
+                      onValueChange={(v) =>
+                        field.onChange(v === MODALITY_NONE ? null : (v as ModalityValue))
+                      }
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-modality">
+                          <SelectValue placeholder="Pick one" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={MODALITY_NONE}>Untagged</SelectItem>
+                        <SelectItem value="Cardio">Cardio</SelectItem>
+                        <SelectItem value="Strength">Strength</SelectItem>
+                        <SelectItem value="Mixed">Mixed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
                 name="equipment"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Equipment</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <FormLabel>Equipment / Machine</FormLabel>
+                    <Select
+                      onValueChange={(v) => {
+                        field.onChange(v);
+                        // If the user hasn't picked a modality yet, infer
+                        // one from the equipment they just chose so the
+                        // explicit cardio/strength tag isn't left blank.
+                        const currentModality = form.getValues("modality");
+                        if (!currentModality) {
+                          const inferred = inferModalityFromEquipment(v);
+                          if (inferred) {
+                            form.setValue("modality", inferred, {
+                              shouldDirty: false,
+                              shouldValidate: false,
+                            });
+                          }
+                        }
+                      }}
+                      value={field.value}
+                    >
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger data-testid="select-equipment">
                           <SelectValue placeholder="Select equipment" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="Tonal">Tonal (Strength)</SelectItem>
-                        <SelectItem value="Peloton Tread">Peloton Tread</SelectItem>
-                        <SelectItem value="Peloton Bike">Peloton Bike</SelectItem>
-                        <SelectItem value="Peloton Row">Peloton Row</SelectItem>
-                        <SelectItem value="Outdoor">Outdoor</SelectItem>
-                        <SelectItem value="Lifestyle">Lifestyle</SelectItem>
-                        <SelectItem value="None">None / Rest</SelectItem>
+                        {EQUIPMENT_GROUPS.map((group) => (
+                          <SelectGroup key={group.label}>
+                            <SelectLabel>{group.label}</SelectLabel>
+                            {group.items.map((item) => (
+                              <SelectItem key={item.value} value={item.value}>
+                                {item.label}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />
