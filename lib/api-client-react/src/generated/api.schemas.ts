@@ -247,6 +247,10 @@ export interface TodayPlan {
   /** All workouts logged for today, ordered by timeOfDay (AM, PM, Other, then untagged) and then createdAt ascending. Empty when nothing has been logged yet. */
   loggedWorkouts: Workout[];
   suggestions?: WorkoutSuggestions | null;
+  /** Number of days from today until the first scheduled (non-rest) plan day. Populated only when today is before that first session; null once the campaign has started. Lets the UI render a "campaign starts in N days" countdown during the pre-launch window. */
+  daysUntilStart?: number | null;
+  /** Preview of the first scheduled (non-rest) plan day. Populated alongside daysUntilStart only when today is before that session; null once the campaign has started. */
+  firstSession?: PlanDay | null;
 }
 
 export type CreateWorkoutBodyTimeOfDay =

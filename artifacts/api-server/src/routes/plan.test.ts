@@ -370,6 +370,119 @@ describe("GET /api/plan/today", () => {
     const ids = res.body.loggedWorkouts.map((w: { id: number }) => w.id);
     expect(ids).toEqual([first.id, second.id]);
   });
+
+  it("returns daysUntilStart and a firstSession preview when today is before the campaign begins", async () => {
+    // Pre-launch window: today is 4 days before the first non-rest plan day.
+    // The week starts on a Mon rest day to verify we count down to the first
+    // *training* day (Tue), not the technical start of week 1.
+    //
+    // Tests in this file use a date band BEFORE the production seed window
+    // (which begins 2026-05-04) so the inserted test plan days are the
+    // earliest non-rest rows in the database. The cleanTestData helper still
+    // wipes them between tests because it filters by the 8000-range week id,
+    // not by date.
+    const today = "2025-12-06";
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(`${today}T12:00:00.000Z`));
+
+    const week = 8020;
+    const phase = "Pre-Launch";
+    const startDate = "2025-12-08";
+    const firstSessionDate = "2025-12-10";
+    await insertWeek(week, { startDate, endDate: "2025-12-14", phase });
+    // Mon rest day at the start of the week — should be skipped when picking
+    // the firstSession preview.
+    await insertPlanDay(week, phase, {
+      date: startDate,
+      day: "Mon",
+      sessionType: T_REST,
+      equipment: E_NONE,
+      isRest: true,
+    });
+    await insertPlanDay(week, phase, {
+      date: firstSessionDate,
+      day: "Wed",
+      sessionType: T_STRENGTH,
+      equipment: E_GYM,
+      strengthLoad: 60,
+      totalLoad: 60,
+    });
+
+    const res = await request(app).get("/api/plan/today");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetTodayPlanResponse, res.body);
+    expect(res.body.date).toBe(today);
+    expect(res.body.hasPlan).toBe(false);
+    expect(res.body.plan).toBeNull();
+    expect(res.body.daysUntilStart).toBe(4);
+    expect(res.body.firstSession).not.toBeNull();
+    expect(res.body.firstSession.date).toBe(firstSessionDate);
+    expect(res.body.firstSession.sessionType).toBe(T_STRENGTH);
+    expect(res.body.firstSession.equipment).toBe(E_GYM);
+    expect(res.body.firstSession.isRest).toBe(false);
+  });
+
+  it("still returns the countdown on a pre-launch rest day that has its own plan row", async () => {
+    // Today IS the campaign start date but it's a Mon rest day — the user
+    // hasn't actually started training yet, so the countdown should keep
+    // pointing at the next non-rest day.
+    const today = "2025-12-08";
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(`${today}T12:00:00.000Z`));
+
+    const week = 8021;
+    const phase = "Pre-Launch Rest";
+    await insertWeek(week, { startDate: today, endDate: "2025-12-14", phase });
+    await insertPlanDay(week, phase, {
+      date: today,
+      day: "Mon",
+      sessionType: T_REST,
+      equipment: E_NONE,
+      isRest: true,
+    });
+    await insertPlanDay(week, phase, {
+      date: "2025-12-09",
+      day: "Tue",
+      sessionType: T_STRENGTH,
+      equipment: E_GYM,
+      strengthLoad: 60,
+      totalLoad: 60,
+    });
+
+    const res = await request(app).get("/api/plan/today");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetTodayPlanResponse, res.body);
+    expect(res.body.hasPlan).toBe(true);
+    expect(res.body.plan.isRest).toBe(true);
+    expect(res.body.daysUntilStart).toBe(1);
+    expect(res.body.firstSession).not.toBeNull();
+    expect(res.body.firstSession.date).toBe("2025-12-09");
+  });
+
+  it("returns null countdown fields once today is on or after the first scheduled session", async () => {
+    const today = "2025-12-09";
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(`${today}T12:00:00.000Z`));
+
+    const week = 8022;
+    const phase = "Launch Day";
+    await insertWeek(week, { startDate: today, endDate: "2025-12-15", phase });
+    await insertPlanDay(week, phase, {
+      date: today,
+      day: "Tue",
+      sessionType: T_STRENGTH,
+      equipment: E_GYM,
+      strengthLoad: 60,
+      totalLoad: 60,
+    });
+
+    const res = await request(app).get("/api/plan/today");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetTodayPlanResponse, res.body);
+    expect(res.body.hasPlan).toBe(true);
+    expect(res.body.daysUntilStart).toBeNull();
+    expect(res.body.firstSession).toBeNull();
+  });
 });
 
 describe("PATCH /api/plan/days/:id", () => {

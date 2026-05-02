@@ -317,6 +317,32 @@ async function suggestionsForPlan(plan: PlanDayRow, today: string) {
   return buildSuggestions(plan, recent);
 }
 
+// Number of whole UTC days between two ISO date strings (yyyy-mm-dd). Both
+// inputs are treated as midnight UTC so the result matches what the user sees
+// when they look at their calendar — independent of the server's local TZ
+// and of any time-of-day component. Returns a positive number when `to` is in
+// the future relative to `from`.
+function daysBetweenISO(from: string, to: string): number {
+  const fromMs = Date.parse(`${from}T00:00:00.000Z`);
+  const toMs = Date.parse(`${to}T00:00:00.000Z`);
+  return Math.round((toMs - fromMs) / (1000 * 60 * 60 * 24));
+}
+
+// Look up the first non-rest plan day in calendar order. Used to power the
+// "campaign starts in N days" countdown on /plan/today during the pre-launch
+// window. Rest days at the very start of week 1 are skipped on purpose so
+// the countdown reflects the first day the user actually has to train, not
+// the technical start of week 1 (which may be a Mon rest day).
+async function fetchFirstSessionDay(): Promise<PlanDayRow | null> {
+  const rows = await db
+    .select()
+    .from(planDaysTable)
+    .where(eq(planDaysTable.isRest, false))
+    .orderBy(asc(planDaysTable.date))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 router.get("/plan/today", async (_req, res) => {
   const today = todayISO();
   const planRow = (await db.select().from(planDaysTable).where(eq(planDaysTable.date, today)).limit(1))[0];
@@ -329,12 +355,28 @@ router.get("/plan/today", async (_req, res) => {
     .where(eq(workoutsTable.date, today))
     .orderBy(asc(timeOfDayOrderExpr), asc(workoutsTable.createdAt));
   const suggestions = planRow && !planRow.isRest ? await suggestionsForPlan(planRow, today) : null;
+
+  // Pre-launch countdown: when today is before the first scheduled (non-rest)
+  // session, surface the gap so the UI can render a friendly countdown card
+  // instead of the generic "no plan for today" empty state. We key off the
+  // first non-rest day rather than the very first plan_day so a Mon rest day
+  // at the start of week 1 still shows the countdown.
+  let daysUntilStart: number | null = null;
+  let firstSession: ReturnType<typeof toPlanDay> | null = null;
+  const firstSessionRow = await fetchFirstSessionDay();
+  if (firstSessionRow && today < firstSessionRow.date) {
+    daysUntilStart = daysBetweenISO(today, firstSessionRow.date);
+    firstSession = toPlanDay(firstSessionRow);
+  }
+
   res.json({
     date: today,
     hasPlan: !!planRow,
     plan: planRow ? toPlanDay(planRow) : null,
     loggedWorkouts: loggedRows.map(toWorkout),
     suggestions,
+    daysUntilStart,
+    firstSession,
   });
 });
 

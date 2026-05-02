@@ -483,6 +483,43 @@ export const GetTodayPlanResponse = zod.object({
       sampleSize: zod.number(),
     })
     .nullish(),
+  daysUntilStart: zod
+    .number()
+    .nullish()
+    .describe(
+      'Number of days from today until the first scheduled (non-rest) plan day. Populated only when today is before that first session; null once the campaign has started. Lets the UI render a \"campaign starts in N days\" countdown during the pre-launch window.',
+    ),
+  firstSession: zod
+    .object({
+      id: zod.number(),
+      week: zod.number(),
+      phase: zod.string(),
+      date: zod.string(),
+      day: zod.string(),
+      strengthLoad: zod.number().nullish(),
+      equipment: zod.string(),
+      description: zod.string(),
+      cardioMin: zod.number().nullish(),
+      distanceMi: zod.number().nullish(),
+      pace: zod.string().nullish(),
+      sessionType: zod.string(),
+      isRest: zod.boolean(),
+      totalLoad: zod.number(),
+      isCustomized: zod
+        .boolean()
+        .describe(
+          "True when this day's prescription differs from the originally-seeded snapshot (i.e. it has been edited or swapped).",
+        ),
+      customizedFields: zod
+        .array(zod.string())
+        .describe(
+          "camelCase field names whose current value differs from the seeded snapshot. Empty when isCustomized is false.",
+        ),
+    })
+    .nullish()
+    .describe(
+      "Preview of the first scheduled (non-rest) plan day. Populated alongside daysUntilStart only when today is before that session; null once the campaign has started.",
+    ),
 });
 
 export const ListWorkoutsQueryParams = zod.object({

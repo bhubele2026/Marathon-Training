@@ -3,10 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistance, formatLoad, formatDuration } from "@/lib/format";
-import { CheckCircle2, Activity, Trash2, Edit, Zap, Pencil, XCircle } from "lucide-react";
+import { CheckCircle2, Activity, Trash2, Edit, Zap, Pencil, XCircle, Rocket } from "lucide-react";
 import { useMissionActions } from "@/hooks/use-mission-actions";
 import { QuickLogActivity } from "@/components/quick-log-activity";
 import { TimeOfDayBadge } from "@/components/time-of-day-badge";
+import { format, parseISO } from "date-fns";
 
 export default function Today() {
   const { data: today, isLoading } = useGetTodayPlan();
@@ -26,6 +27,13 @@ export default function Today() {
 
   const sessions = today.loggedWorkouts ?? [];
   const hasSessions = sessions.length > 0;
+  // Pre-launch countdown: when the API tells us today is before the first
+  // scheduled session, take over the page with a dedicated countdown card so
+  // the user has clear orientation during the gap. We hide both the plan card
+  // (which would otherwise show a Mon rest day at the start of week 1) and
+  // the generic "Rest Day" empty state in this window.
+  const showCountdown =
+    typeof today.daysUntilStart === "number" && today.daysUntilStart > 0 && !!today.firstSession;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
@@ -36,7 +44,75 @@ export default function Today() {
         </div>
       </div>
 
-      {!today.hasPlan ? (
+      {showCountdown && today.firstSession ? (
+        <Card
+          className="border-primary/40 bg-primary/5"
+          data-testid="card-campaign-countdown"
+        >
+          <CardHeader className="border-b border-border pb-4">
+            <CardTitle className="text-lg uppercase tracking-wider text-primary flex items-center gap-2">
+              <Rocket className="h-5 w-5" />
+              Pre-Launch
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-8 text-center space-y-6">
+            <div>
+              <p className="text-sm text-muted-foreground uppercase font-bold tracking-widest mb-2">
+                Campaign Starts In
+              </p>
+              <p
+                className="text-6xl font-black text-primary leading-none"
+                data-testid="text-countdown-days"
+              >
+                {today.daysUntilStart}
+              </p>
+              <p className="text-sm text-muted-foreground uppercase font-bold tracking-widest mt-2">
+                {today.daysUntilStart === 1 ? "Day" : "Days"}
+              </p>
+            </div>
+            <div className="bg-background border border-border rounded-md p-6 text-left max-w-xl mx-auto">
+              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-2">
+                First Scheduled Session
+              </p>
+              <p className="text-lg font-black uppercase tracking-tight" data-testid="text-first-session-date">
+                {format(parseISO(today.firstSession.date), "EEE MMM d")} —{" "}
+                <span className="text-primary">{today.firstSession.sessionType}</span>
+                <span className="text-muted-foreground"> · {today.firstSession.equipment}</span>
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">{today.firstSession.description}</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 pt-4 border-t border-border">
+                {today.firstSession.distanceMi != null && today.firstSession.distanceMi > 0 && (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Distance</p>
+                    <p className="text-base font-black">{formatDistance(today.firstSession.distanceMi)}</p>
+                  </div>
+                )}
+                {today.firstSession.cardioMin != null && today.firstSession.cardioMin > 0 && (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Duration</p>
+                    <p className="text-base font-black">{formatDuration(today.firstSession.cardioMin)}</p>
+                  </div>
+                )}
+                {today.firstSession.strengthLoad != null && today.firstSession.strengthLoad > 0 && (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Strength Load</p>
+                    <p className="text-base font-black">{today.firstSession.strengthLoad}</p>
+                  </div>
+                )}
+                {today.firstSession.totalLoad > 0 && (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Total Load</p>
+                    <p className="text-base font-black">{formatLoad(today.firstSession.totalLoad)}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground italic">
+              Use this window to dial in nutrition, sleep, and gear. The grind starts soon.
+            </p>
+          </CardContent>
+        </Card>
+      ) : !today.hasPlan ? (
         <Card className="border-dashed border-2 bg-muted/50">
           <CardContent className="p-12 text-center text-muted-foreground">
             <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -48,7 +124,7 @@ export default function Today() {
 
       <QuickLogActivity testIdSuffix="today" />
 
-      {today.hasPlan && (
+      {today.hasPlan && !showCountdown && (
         <div className="grid gap-6">
           <Card className="border-primary/20 bg-primary/5">
             <CardHeader>

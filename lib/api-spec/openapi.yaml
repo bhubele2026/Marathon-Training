@@ -872,6 +872,15 @@ components:
           allOf:
             - $ref: "#/components/schemas/WorkoutSuggestions"
           nullable: true
+        daysUntilStart:
+          type: integer
+          nullable: true
+          description: Number of days from today until the first scheduled (non-rest) plan day. Populated only when today is before that first session; null once the campaign has started. Lets the UI render a "campaign starts in N days" countdown during the pre-launch window.
+        firstSession:
+          allOf:
+            - $ref: "#/components/schemas/PlanDay"
+          nullable: true
+          description: Preview of the first scheduled (non-rest) plan day. Populated alongside daysUntilStart only when today is before that session; null once the campaign has started.
 
     WorkoutSuggestions:
       type: object
