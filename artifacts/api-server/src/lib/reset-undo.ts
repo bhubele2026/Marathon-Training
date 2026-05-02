@@ -1,5 +1,10 @@
 import { randomBytes } from "node:crypto";
-import type { PlanDayRow } from "@workspace/db";
+import { and, gt, lte, sql } from "drizzle-orm";
+import {
+  db,
+  resetUndoSnapshotsTable,
+  type PlanDayRow,
+} from "@workspace/db";
 
 // Short window the runner has to hit "Undo" on a reset success toast before
 // the snapshot is dropped. Kept as a const so the route handler and the
@@ -63,73 +68,129 @@ export function snapshotPlanDay(row: PlanDayRow): PlanDaySnapshot {
   };
 }
 
-// In-memory store of pre-reset snapshots, keyed by an opaque undo token. The
-// snapshot lives only for RESET_UNDO_TTL_MS. After that the entry is dropped
-// and any later POST /plan/reset/undo for the same token returns 404.
+// Persistent snapshot store. Keeping the snapshot in the database (rather
+// than process memory) means an in-flight Undo survives:
+//   * a dev workflow restart between the reset and the undo click,
+//   * a production deploy/crash mid-window,
+//   * a load balancer routing the Undo request to a different replica.
 //
-// In-memory is fine here: the undo window is short, the snapshot is only
-// useful to the same browser session, and losing the entry on server restart
-// just means the runner has to re-edit by hand -- the same fallback they
-// have today. No DB migration needed.
-const snapshots = new Map<string, ResetSnapshot>();
+// Each row is keyed by an opaque token returned in the reset response and
+// lives for at most RESET_UNDO_TTL_MS. A periodic sweep drops expired rows
+// even when nobody calls /undo, and `consumeResetSnapshot` uses a single
+// `DELETE ... RETURNING` so a concurrent double-click (even from two
+// different replicas) can never run the restore twice.
 
-function purgeExpired(now: number): void {
-  for (const [token, snap] of snapshots) {
-    if (snap.expiresAt <= now) snapshots.delete(token);
-  }
+async function purgeExpired(now: Date): Promise<void> {
+  await db
+    .delete(resetUndoSnapshotsTable)
+    .where(lte(resetUndoSnapshotsTable.expiresAt, now));
 }
 
-// Proactive sweep so expired snapshots don't linger in memory between resets
-// when nobody calls /undo. Runs every TTL window. Unref'd so it never keeps
-// the process alive on its own. Skipped under Vitest where setInterval pins
-// the worker open and `_clearResetSnapshotsForTesting` is the source of truth.
+// Proactive sweep so expired snapshots don't linger between resets when
+// nobody calls /undo. Runs every TTL window. Unref'd so it never keeps the
+// process alive on its own. Skipped under Vitest where setInterval pins the
+// worker open and tests drive expiration explicitly.
 const sweepIntervalMs = RESET_UNDO_TTL_MS;
 if (process.env.VITEST !== "true" && process.env.NODE_ENV !== "test") {
-  const timer = setInterval(() => purgeExpired(Date.now()), sweepIntervalMs);
+  const timer = setInterval(() => {
+    purgeExpired(new Date()).catch(() => {
+      // Swallow sweep errors; the next tick will retry. We deliberately do
+      // not crash the process for a transient DB hiccup in the background
+      // sweep -- the same row will be picked up on the next pass or on the
+      // next consume/store call.
+    });
+  }, sweepIntervalMs);
   if (typeof timer.unref === "function") timer.unref();
 }
 
-export function storeResetSnapshot(
+export async function storeResetSnapshot(
   days: PlanDaySnapshot[],
   weeksAffected: number[],
   ttlMs: number = RESET_UNDO_TTL_MS,
-): { token: string; expiresInSeconds: number } {
-  const now = Date.now();
-  purgeExpired(now);
+): Promise<{ token: string; expiresInSeconds: number }> {
+  const now = new Date();
+  await purgeExpired(now);
   const token = randomBytes(18).toString("base64url");
-  snapshots.set(token, {
-    days,
+  const expiresAt = new Date(now.getTime() + ttlMs);
+  await db.insert(resetUndoSnapshotsTable).values({
+    token,
+    snapshot: days,
     weeksAffected: [...weeksAffected],
-    expiresAt: now + ttlMs,
+    expiresAt,
   });
   return { token, expiresInSeconds: Math.round(ttlMs / 1000) };
 }
 
-// Atomically reserve the snapshot for a single in-flight undo. The entry is
-// removed from the store immediately, so a concurrent second request gets
-// 404. On a successful restore the caller does nothing else; on failure the
-// caller MUST put the snapshot back via `releaseResetSnapshot` so the user
-// can retry within the remaining TTL.
-export function consumeResetSnapshot(token: string): ResetSnapshot | null {
-  const now = Date.now();
-  purgeExpired(now);
-  const snap = snapshots.get(token);
-  if (!snap) return null;
-  snapshots.delete(token);
-  if (snap.expiresAt <= now) return null;
-  return snap;
+// Atomically reserve the snapshot for a single in-flight undo via a
+// `DELETE ... WHERE expires_at > now() RETURNING ...`. Postgres guarantees
+// only one concurrent caller (across all replicas) wins the row; everyone
+// else sees an empty result and gets 404. On a successful restore the
+// caller does nothing else; on failure the caller MUST put the snapshot
+// back via `releaseResetSnapshot` so the user can retry within the
+// remaining TTL.
+export async function consumeResetSnapshot(
+  token: string,
+): Promise<ResetSnapshot | null> {
+  const now = new Date();
+  const deleted = await db
+    .delete(resetUndoSnapshotsTable)
+    .where(
+      and(
+        sql`${resetUndoSnapshotsTable.token} = ${token}`,
+        gt(resetUndoSnapshotsTable.expiresAt, now),
+      ),
+    )
+    .returning();
+  const row = deleted[0];
+  if (!row) return null;
+  return {
+    days: row.snapshot as PlanDaySnapshot[],
+    weeksAffected: row.weeksAffected as number[],
+    expiresAt: row.expiresAt.getTime(),
+  };
 }
 
 // Put a previously consumed snapshot back into the store -- used to roll back
 // a reservation when the restore transaction failed. Skipped silently if the
-// original TTL has already elapsed.
-export function releaseResetSnapshot(token: string, snap: ResetSnapshot): void {
+// original TTL has already elapsed. Uses ON CONFLICT DO NOTHING so a racing
+// store of the same token (vanishingly unlikely with 144 random bits) can't
+// crash the request.
+export async function releaseResetSnapshot(
+  token: string,
+  snap: ResetSnapshot,
+): Promise<void> {
   if (snap.expiresAt <= Date.now()) return;
-  snapshots.set(token, snap);
+  await db
+    .insert(resetUndoSnapshotsTable)
+    .values({
+      token,
+      snapshot: snap.days,
+      weeksAffected: snap.weeksAffected,
+      expiresAt: new Date(snap.expiresAt),
+    })
+    .onConflictDoNothing({ target: resetUndoSnapshotsTable.token });
 }
 
 // Test helper: drop everything in the store. Lets test suites start each
 // case with a clean undo registry.
-export function _clearResetSnapshotsForTesting(): void {
-  snapshots.clear();
+export async function _clearResetSnapshotsForTesting(): Promise<void> {
+  await db.delete(resetUndoSnapshotsTable);
+}
+
+// Test helper: force-expire a token by backdating its expires_at. Lets
+// tests exercise the TTL boundary without depending on real wall-clock
+// time, and works regardless of replica-vs-DB clock skew.
+export async function _expireResetSnapshotForTesting(
+  token: string,
+): Promise<void> {
+  await db
+    .update(resetUndoSnapshotsTable)
+    .set({ expiresAt: new Date(0) })
+    .where(sql`${resetUndoSnapshotsTable.token} = ${token}`);
+}
+
+// Test helper: run the periodic sweep on demand so tests can verify that
+// expired rows actually get pruned (and not just rejected on consume).
+export async function _runResetSnapshotSweepForTesting(): Promise<void> {
+  await purgeExpired(new Date());
 }

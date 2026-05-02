@@ -658,7 +658,7 @@ router.post("/plan/weeks/:week/reset", async (req, res): Promise<void> => {
   let undoToken: string | null = null;
   let undoExpiresInSeconds: number | null = null;
   if (result.snapshots.length > 0) {
-    const stored = storeResetSnapshot(result.snapshots, [week]);
+    const stored = await storeResetSnapshot(result.snapshots, [week]);
     undoToken = stored.token;
     undoExpiresInSeconds = stored.expiresInSeconds;
   }
@@ -702,7 +702,10 @@ router.post("/plan/reset", async (req, res): Promise<void> => {
   let undoToken: string | null = null;
   let undoExpiresInSeconds: number | null = null;
   if (result.snapshots.length > 0) {
-    const stored = storeResetSnapshot(result.snapshots, result.weeksAffected);
+    const stored = await storeResetSnapshot(
+      result.snapshots,
+      result.weeksAffected,
+    );
     undoToken = stored.token;
     undoExpiresInSeconds = stored.expiresInSeconds;
   }
@@ -736,7 +739,7 @@ router.post("/plan/reset/undo", async (req, res): Promise<void> => {
   // Atomically reserve the snapshot so a concurrent double-click can't run
   // the restore twice. If the transaction below fails we release it back
   // into the store so the user can retry within the remaining TTL.
-  const snapshot = consumeResetSnapshot(parsed.data.undoToken);
+  const snapshot = await consumeResetSnapshot(parsed.data.undoToken);
   if (!snapshot) {
     res.status(404).json({ error: "undo token not found or expired" });
     return;
@@ -803,7 +806,7 @@ router.post("/plan/reset/undo", async (req, res): Promise<void> => {
   } catch (err) {
     // Restore failed; release the reservation so the runner can retry within
     // the remaining TTL instead of being told the undo window has expired.
-    releaseResetSnapshot(parsed.data.undoToken, snapshot);
+    await releaseResetSnapshot(parsed.data.undoToken, snapshot);
     throw err;
   }
   req.log.info(
