@@ -130,9 +130,20 @@ export default function Log() {
                     <TableCell className="font-medium whitespace-nowrap">{formatDate(workout.date)}</TableCell>
                     <TableCell className="font-bold">{workout.sessionType}</TableCell>
                     <TableCell>
-                      <span className="text-[10px] bg-secondary text-secondary-foreground px-2 py-0.5 rounded font-bold uppercase tracking-wider">
-                        {workout.equipment}
-                      </span>
+                      <div
+                        className="flex flex-wrap gap-1"
+                        data-testid={`chip-rail-log-${workout.id}`}
+                      >
+                        {(workout.equipmentList ?? [workout.equipment]).map((eq, idx) => (
+                          <span
+                            key={`log-eq-${workout.id}-${idx}`}
+                            className="text-[10px] bg-secondary text-secondary-foreground px-2 py-0.5 rounded font-bold uppercase tracking-wider"
+                            data-testid={`chip-equipment-log-${workout.id}-${idx}`}
+                          >
+                            {eq}
+                          </span>
+                        ))}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right font-mono">{formatDistance(workout.distanceMi)}</TableCell>
                     <TableCell className="text-right font-mono">

@@ -319,6 +319,169 @@ describe("PATCH /api/workouts/:id", () => {
   });
 });
 
+describe("workouts equipmentList contract", () => {
+  it("POST persists the full equipmentList rail and rounds-trips it on GET", async () => {
+    const create = await request(app)
+      .post("/api/workouts")
+      .send({
+        date: "2099-08-01",
+        sessionType: T_STRENGTH,
+        equipment: "Tonal",
+        equipmentList: ["Tonal", "Peloton Bike"],
+        durationMin: 60,
+      });
+    expect(create.status).toBe(201);
+    expect(create.body).toEqual(
+      expect.objectContaining({
+        equipment: "Tonal",
+        equipmentList: ["Tonal", "Peloton Bike"],
+      }),
+    );
+
+    const list = await request(app)
+      .get("/api/workouts")
+      .query({ from: "2099-08-01", to: "2099-08-01" });
+    expect(list.status).toBe(200);
+    expect((list.body as Array<{ equipmentList: string[] | null }>)[0]).toEqual(
+      expect.objectContaining({
+        equipment: "Tonal",
+        equipmentList: ["Tonal", "Peloton Bike"],
+      }),
+    );
+  });
+
+  it("POST without equipmentList synthesizes a single-chip rail from the scalar", async () => {
+    const create = await request(app)
+      .post("/api/workouts")
+      .send({
+        date: "2099-08-02",
+        sessionType: T_RUN,
+        equipment: E_OUTDOOR,
+        distanceMi: 4,
+      });
+    expect(create.status).toBe(201);
+    expect(create.body).toEqual(
+      expect.objectContaining({
+        equipment: E_OUTDOOR,
+        equipmentList: [E_OUTDOOR],
+      }),
+    );
+  });
+
+  it("POST returns 400 when equipmentList lead chip (after canonical sort) disagrees with the scalar equipment", async () => {
+    const res = await request(app)
+      .post("/api/workouts")
+      .send({
+        date: "2099-08-03",
+        sessionType: T_STRENGTH,
+        equipment: "Peloton Bike",
+        equipmentList: ["Peloton Bike", "Tonal"],
+      });
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual(
+      expect.objectContaining({
+        error:
+          "equipmentList must be non-empty and equipmentList[0] must equal equipment when both are provided",
+      }),
+    );
+  });
+
+  it("POST canonically sorts a non-canonical equipmentList from a non-UI client", async () => {
+    const create = await request(app)
+      .post("/api/workouts")
+      .send({
+        date: "2099-08-04",
+        sessionType: T_STRENGTH,
+        equipment: "Tonal",
+        equipmentList: ["Peloton Bike", "Tonal"],
+      });
+    expect(create.status).toBe(201);
+    expect(create.body).toEqual(
+      expect.objectContaining({
+        equipment: "Tonal",
+        equipmentList: ["Tonal", "Peloton Bike"],
+      }),
+    );
+  });
+
+  it("PATCH updates the rail and canonically sorts it when only the rail is sent", async () => {
+    const { id } = await insertWorkout({
+      date: "2099-08-10",
+      sessionType: T_STRENGTH,
+      equipment: "Tonal",
+    });
+    const res = await request(app)
+      .patch(`/api/workouts/${id}`)
+      .send({ equipmentList: ["Peloton Bike", "Tonal"] });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(
+      expect.objectContaining({
+        equipment: "Tonal",
+        equipmentList: ["Tonal", "Peloton Bike"],
+      }),
+    );
+  });
+
+  it("PATCH with explicit equipmentList: null preserves the existing rail (treated as 'not provided')", async () => {
+    const { id } = await insertWorkout({
+      date: "2099-08-13",
+      sessionType: T_STRENGTH,
+      equipment: "Tonal",
+      equipmentList: ["Tonal", "Peloton Bike"],
+    });
+    const res = await request(app)
+      .patch(`/api/workouts/${id}`)
+      .send({ equipmentList: null, rpe: 6 });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(
+      expect.objectContaining({
+        rpe: 6,
+        equipment: "Tonal",
+        equipmentList: ["Tonal", "Peloton Bike"],
+      }),
+    );
+  });
+
+  it("PATCH preserves the rail when only unrelated fields change", async () => {
+    const { id } = await insertWorkout({
+      date: "2099-08-11",
+      sessionType: T_STRENGTH,
+      equipment: "Tonal",
+      equipmentList: ["Tonal", "Peloton Bike"],
+    });
+    const res = await request(app)
+      .patch(`/api/workouts/${id}`)
+      .send({ rpe: 7, notes: "edit pass" });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(
+      expect.objectContaining({
+        rpe: 7,
+        notes: "edit pass",
+        equipment: "Tonal",
+        equipmentList: ["Tonal", "Peloton Bike"],
+      }),
+    );
+  });
+
+  it("PATCH returns 400 when an explicit (equipment, equipmentList) pair disagrees on the lead chip", async () => {
+    const { id } = await insertWorkout({
+      date: "2099-08-12",
+      sessionType: T_STRENGTH,
+      equipment: "Tonal",
+    });
+    const res = await request(app)
+      .patch(`/api/workouts/${id}`)
+      .send({ equipment: "Tonal", equipmentList: ["Peloton Bike"] });
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual(
+      expect.objectContaining({
+        error:
+          "equipmentList must be non-empty and equipmentList[0] must equal equipment when both are provided",
+      }),
+    );
+  });
+});
+
 describe("DELETE /api/workouts/:id", () => {
   it("deletes the workout and returns 204", async () => {
     const { id } = await insertWorkout({

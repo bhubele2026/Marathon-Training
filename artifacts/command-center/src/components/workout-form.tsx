@@ -75,6 +75,29 @@ const EQUIPMENT_GROUPS: ReadonlyArray<{
   },
 ];
 
+// Canonical chip-rail priority. Lead chip is also persisted as the
+// scalar `equipment`, so order matters for back-compat readers.
+const CANONICAL_EQUIPMENT_PRIORITY = [
+  "Tonal",
+  "Peloton Bike",
+  "Peloton Row",
+  "Peloton Tread",
+  "Outdoor",
+  "Lifestyle",
+  "None",
+] as const;
+
+function sortEquipmentByCanonicalPriority(values: string[]): string[] {
+  const rank = new Map<string, number>(
+    CANONICAL_EQUIPMENT_PRIORITY.map((name, idx) => [name, idx]),
+  );
+  return [...values].sort((a, b) => {
+    const ra = rank.get(a) ?? Number.MAX_SAFE_INTEGER;
+    const rb = rank.get(b) ?? Number.MAX_SAFE_INTEGER;
+    return ra - rb;
+  });
+}
+
 // Best-effort modality inference from a chosen piece of equipment. Used to
 // pre-fill the Modality picker when the user changes equipment without
 // having explicitly set a modality yet (and never overwrites an explicit
@@ -96,6 +119,9 @@ function inferModalityFromEquipment(equipment: string): ModalityValue | null {
 const formSchema = z.object({
   date: z.string().min(1, "Date is required"),
   equipment: z.string().min(1, "Equipment is required"),
+  equipmentList: z
+    .array(z.string().min(1))
+    .min(1, "Pick at least one machine"),
   sessionType: z.string().min(1, "Session type is required"),
   durationMin: z.coerce.number().optional().nullable(),
   // Per-bucket actual minutes (Task #76). Coerced from string input so the
@@ -130,6 +156,7 @@ interface WorkoutFormProps {
 const KNOWN_FIELDS = [
   "date",
   "equipment",
+  "equipmentList",
   "sessionType",
   "durationMin",
   "strengthMin",
@@ -159,17 +186,22 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
       ? (initial.timeOfDay as TimeOfDayValue)
       : null;
   const initialEquipment = initial?.equipment || "None";
+  const initialEquipmentList: string[] =
+    initial?.equipmentList && initial.equipmentList.length > 0
+      ? sortEquipmentByCanonicalPriority(initial.equipmentList)
+      : [initialEquipment];
   const initialModality: ModalityValue | null =
     initial?.modality && (MODALITY_VALUES as readonly string[]).includes(initial.modality)
       ? (initial.modality as ModalityValue)
       : // For brand-new logs (no workoutId), prefill modality from equipment
         // so the user just confirms rather than setting it from scratch.
         !workoutId
-        ? inferModalityFromEquipment(initialEquipment)
+        ? inferModalityFromEquipment(initialEquipmentList[0]!)
         : null;
   const buildDefaults = (): FormValues => ({
     date: initial?.date || new Date().toISOString().split('T')[0],
-    equipment: initialEquipment,
+    equipment: initialEquipmentList[0]!,
+    equipmentList: initialEquipmentList,
     sessionType: initial?.sessionType || "",
     durationMin: initial?.durationMin ?? null,
     strengthMin: initial?.strengthMin ?? null,
@@ -253,8 +285,15 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
 
   const onSubmit = (data: FormValues) => {
     setServerFormErrors([]);
+    const sortedList = sortEquipmentByCanonicalPriority(
+      data.equipmentList && data.equipmentList.length > 0
+        ? data.equipmentList
+        : [data.equipment],
+    );
     const payload = {
       ...data,
+      equipment: sortedList[0]!,
+      equipmentList: sortedList,
       planDayId: data.planDayId ?? undefined,
       timeOfDay: data.timeOfDay ?? null,
       modality: data.modality ?? null,
@@ -427,50 +466,71 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
               />
               <FormField
                 control={form.control}
-                name="equipment"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Equipment / Machine</FormLabel>
-                    <Select
-                      onValueChange={(v) => {
-                        field.onChange(v);
-                        // If the user hasn't picked a modality yet, infer
-                        // one from the equipment they just chose so the
-                        // explicit cardio/strength tag isn't left blank.
-                        const currentModality = form.getValues("modality");
-                        if (!currentModality) {
-                          const inferred = inferModalityFromEquipment(v);
-                          if (inferred) {
-                            form.setValue("modality", inferred, {
-                              shouldDirty: false,
-                              shouldValidate: false,
-                            });
-                          }
+                name="equipmentList"
+                render={({ field }) => {
+                  const selected = new Set(field.value ?? []);
+                  const toggle = (value: string) => {
+                    const next = new Set(selected);
+                    if (next.has(value)) next.delete(value);
+                    else next.add(value);
+                    const sorted = sortEquipmentByCanonicalPriority(
+                      Array.from(next),
+                    );
+                    field.onChange(sorted);
+                    if (sorted.length > 0) {
+                      // Keep scalar `equipment` aligned with the lead chip
+                      // so the wire payload's invariant holds.
+                      form.setValue("equipment", sorted[0]!, {
+                        shouldDirty: true,
+                        shouldValidate: false,
+                      });
+                      const currentModality = form.getValues("modality");
+                      if (!currentModality) {
+                        const inferred = inferModalityFromEquipment(sorted[0]!);
+                        if (inferred) {
+                          form.setValue("modality", inferred, {
+                            shouldDirty: false,
+                            shouldValidate: false,
+                          });
                         }
-                      }}
-                      value={field.value}
-                    >
+                      }
+                    }
+                  };
+                  return (
+                    <FormItem className="col-span-2">
+                      <FormLabel>Equipment / Machines</FormLabel>
                       <FormControl>
-                        <SelectTrigger data-testid="select-equipment">
-                          <SelectValue placeholder="Select equipment" />
-                        </SelectTrigger>
+                        <div
+                          className="flex flex-wrap gap-2"
+                          data-testid="multi-equipment-picker"
+                        >
+                          {EQUIPMENT_GROUPS.flatMap((g) => g.items).map(
+                            (item) => {
+                              const isOn = selected.has(item.value);
+                              return (
+                                <button
+                                  type="button"
+                                  key={item.value}
+                                  onClick={() => toggle(item.value)}
+                                  data-testid={`toggle-equipment-${item.value}`}
+                                  data-state={isOn ? "on" : "off"}
+                                  className={
+                                    isOn
+                                      ? "px-3 py-1.5 rounded text-xs uppercase font-bold tracking-wider bg-primary text-primary-foreground border border-primary"
+                                      : "px-3 py-1.5 rounded text-xs uppercase font-bold tracking-wider bg-secondary/40 text-secondary-foreground border border-border hover:bg-secondary"
+                                  }
+                                >
+                                  {item.label}
+                                </button>
+                              );
+                            },
+                          )}
+                        </div>
                       </FormControl>
-                      <SelectContent>
-                        {EQUIPMENT_GROUPS.map((group) => (
-                          <SelectGroup key={group.label}>
-                            <SelectLabel>{group.label}</SelectLabel>
-                            {group.items.map((item) => (
-                              <SelectItem key={item.value} value={item.value}>
-                                {item.label}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
               />
               <FormField
                 control={form.control}

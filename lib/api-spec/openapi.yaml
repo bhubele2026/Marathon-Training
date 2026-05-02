@@ -927,6 +927,12 @@ components:
         planDayId: { type: integer, nullable: true }
         date: { type: string }
         equipment: { type: string }
+        equipmentList:
+          type: array
+          nullable: true
+          items: { type: string }
+          description: |
+            Ordered chip rail of every machine used in the logged session. The scalar `equipment` always equals `equipmentList[0]`. Nullable for legacy rows; clients should tolerate `null` (e.g. `equipmentList ?? [equipment]`).
         sessionType: { type: string }
         durationMin: { type: number, nullable: true }
         strengthMin:
@@ -971,6 +977,12 @@ components:
         planDayId: { type: integer, nullable: true }
         date: { type: string }
         equipment: { type: string }
+        equipmentList:
+          type: array
+          nullable: true
+          items: { type: string }
+          description: |
+            Optional ordered chip rail of machines used. When omitted, the server stores `[equipment]`. When provided, the server validates `equipmentList[0] === equipment`.
         sessionType: { type: string }
         durationMin: { type: number, nullable: true }
         strengthMin: { type: number, nullable: true }
@@ -997,6 +1009,12 @@ components:
       properties:
         date: { type: string }
         equipment: { type: string }
+        equipmentList:
+          type: array
+          nullable: true
+          items: { type: string }
+          description: |
+            Optional ordered chip rail of machines used. When `equipment` is also patched, the server validates `equipmentList[0] === equipment`. When only `equipmentList` is patched, the server rewrites the scalar to `equipmentList[0]`.
         sessionType: { type: string }
         durationMin: { type: number, nullable: true }
         strengthMin: { type: number, nullable: true }

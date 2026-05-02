@@ -85,6 +85,9 @@ export function useMissionActions() {
         data: {
           date: ctx.date,
           equipment: plan.equipment,
+          // Inherit the prescribed chip rail so logged sessions render
+          // the same multi-machine pills as the plan day.
+          equipmentList: plan.equipmentList ?? [plan.equipment],
           sessionType: plan.sessionType,
           durationMin: totalMin ?? plan.cardioMin ?? 0,
           strengthMin: liftMin,
@@ -127,6 +130,7 @@ export function useMissionActions() {
         data: {
           date: ctx.date,
           equipment: "None",
+          equipmentList: ["None"],
           sessionType: "Skipped",
           durationMin: 0,
           distanceMi: null,
@@ -164,6 +168,11 @@ export function useMissionActions() {
               ? {
                   date: logCtx.date,
                   equipment: logCtx.plan.equipment,
+                  // Preserve the planned multi-machine rail when the
+                  // user logs manually so a Tonal+Bike day arrives in
+                  // the form with both chips on, not just the scalar.
+                  equipmentList:
+                    logCtx.plan.equipmentList ?? [logCtx.plan.equipment],
                   sessionType: logCtx.plan.sessionType,
                   distanceMi: logCtx.plan.distanceMi,
                   // Pre-fill the rolled-up duration from the plan's total

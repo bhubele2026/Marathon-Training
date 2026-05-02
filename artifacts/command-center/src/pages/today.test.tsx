@@ -131,12 +131,8 @@ describe("Today page — pre-launch countdown", () => {
     expect(screen.getByText("Mission Brief")).toBeTruthy();
   });
 
-  // Task #77 chip rail: each machine the runner uses today renders as its
-  // own chip with a deterministic test id `chip-equipment-{date}-{idx}`.
-  // Both call sites — the Mission Brief and the pre-launch countdown's
-  // First Scheduled Session preview — share the same fallback semantics:
-  // when `equipmentList` is missing or empty the chip rail collapses to a
-  // single `[equipment]` chip so a legacy row never renders zero chips.
+  // Plan-day chip rail (chip-equipment-{date}-{idx}). Mission Brief and
+  // First Scheduled Session preview share the same fallback semantics.
   it("renders one chip per equipmentList entry on the Mission Brief (multi-equipment day)", () => {
     renderWithData({
       date: "2026-05-05",
@@ -196,5 +192,67 @@ describe("Today page — pre-launch countdown", () => {
 
     expect(screen.getByTestId("chip-equipment-2026-05-05-0").textContent).toBe("Tonal");
     expect(screen.queryByTestId("chip-equipment-2026-05-05-1")).toBeNull();
+  });
+
+  // Logged-session chip rail (chip-equipment-actual-{sessionId}-{idx}).
+  // Namespaced by session id so multi-session days don't collide.
+  const loggedSession = {
+    id: 555,
+    date: "2026-05-05",
+    sessionType: "Strength + Cardio",
+    equipment: "Tonal",
+    durationMin: 60,
+    strengthMin: 35,
+    cardioMin: 25,
+    runMin: null,
+    distanceMi: null,
+    pace: null,
+    avgHr: null,
+    rpe: 7,
+    strengthLoad: 60,
+    totalLoad: 85,
+    notes: null,
+    timeOfDay: null,
+    modality: null,
+    planDayId: 1,
+  };
+
+  it("renders one chip per equipmentList entry on the logged Mission Accomplished card (multi-machine session)", () => {
+    renderWithData({
+      date: "2026-05-05",
+      hasPlan: true,
+      plan: firstSession,
+      loggedWorkouts: [
+        { ...loggedSession, equipmentList: ["Tonal", "Peloton Bike"] },
+      ],
+      suggestions: null,
+      daysUntilStart: null,
+      firstSession: null,
+    });
+
+    expect(
+      screen.getByTestId("chip-equipment-actual-555-0").textContent,
+    ).toBe("Tonal");
+    expect(
+      screen.getByTestId("chip-equipment-actual-555-1").textContent,
+    ).toBe("Peloton Bike");
+    expect(screen.queryByTestId("chip-equipment-actual-555-2")).toBeNull();
+  });
+
+  it("falls back to a single [equipment] chip on the logged Mission Accomplished card when equipmentList is missing (legacy row)", () => {
+    renderWithData({
+      date: "2026-05-05",
+      hasPlan: true,
+      plan: firstSession,
+      loggedWorkouts: [{ ...loggedSession, equipmentList: undefined }],
+      suggestions: null,
+      daysUntilStart: null,
+      firstSession: null,
+    });
+
+    expect(
+      screen.getByTestId("chip-equipment-actual-555-0").textContent,
+    ).toBe("Tonal");
+    expect(screen.queryByTestId("chip-equipment-actual-555-1")).toBeNull();
   });
 });

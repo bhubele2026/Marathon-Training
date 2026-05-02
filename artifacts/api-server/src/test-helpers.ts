@@ -202,6 +202,10 @@ export interface WorkoutInput {
   strengthLoad?: number | null;
   planDayId?: number | null;
   notes?: string | null;
+  // Optional task #78 chip rail. When omitted the row's equipment_list
+  // column is left NULL, which simulates a pre-task-#78 legacy row and
+  // exercises the API's `[equipment]` fallback path through `toWorkout`.
+  equipmentList?: string[] | null;
 }
 
 export async function insertWorkout(w: WorkoutInput): Promise<{ id: number }> {
@@ -211,6 +215,7 @@ export async function insertWorkout(w: WorkoutInput): Promise<{ id: number }> {
       date: w.date,
       sessionType: w.sessionType,
       equipment: w.equipment,
+      equipmentList: w.equipmentList ?? null,
       rpe: w.rpe ?? null,
       avgHr: w.avgHr ?? null,
       pace: w.pace ?? null,

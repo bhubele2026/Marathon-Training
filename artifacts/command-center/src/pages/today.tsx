@@ -263,7 +263,21 @@ export default function Today() {
                     testId={`badge-time-of-day-today-${session.id}`}
                   />
                   <span className="text-xs font-mono normal-case tracking-normal text-muted-foreground ml-2">
-                    {session.sessionType} · {session.equipment}
+                    {session.sessionType}
+                  </span>
+                  <span
+                    className="flex flex-wrap gap-1 ml-2"
+                    data-testid={`chip-rail-actual-${session.id}`}
+                  >
+                    {(session.equipmentList ?? [session.equipment]).map((eq, idx) => (
+                      <span
+                        key={`actual-eq-${session.id}-${idx}`}
+                        className="text-[10px] bg-secondary text-secondary-foreground px-2 py-0.5 rounded font-bold uppercase tracking-wider"
+                        data-testid={`chip-equipment-actual-${session.id}-${idx}`}
+                      >
+                        {eq}
+                      </span>
+                    ))}
                   </span>
                 </CardTitle>
                 <div className="flex gap-2">

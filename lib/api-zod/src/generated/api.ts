@@ -618,6 +618,12 @@ export const GetTodayPlanResponse = zod.object({
         planDayId: zod.number().nullish(),
         date: zod.string(),
         equipment: zod.string(),
+        equipmentList: zod
+          .array(zod.string())
+          .nullish()
+          .describe(
+            "Ordered chip rail of every machine used in the logged session. The scalar `equipment` always equals `equipmentList[0]`. Nullable for legacy rows; clients should tolerate `null` (e.g. `equipmentList ?? [equipment]`).\n",
+          ),
         sessionType: zod.string(),
         durationMin: zod.number().nullish(),
         strengthMin: zod
@@ -763,6 +769,12 @@ export const ListWorkoutsResponseItem = zod.object({
   planDayId: zod.number().nullish(),
   date: zod.string(),
   equipment: zod.string(),
+  equipmentList: zod
+    .array(zod.string())
+    .nullish()
+    .describe(
+      "Ordered chip rail of every machine used in the logged session. The scalar `equipment` always equals `equipmentList[0]`. Nullable for legacy rows; clients should tolerate `null` (e.g. `equipmentList ?? [equipment]`).\n",
+    ),
   sessionType: zod.string(),
   durationMin: zod.number().nullish(),
   strengthMin: zod
@@ -816,6 +828,12 @@ export const CreateWorkoutBody = zod.object({
   planDayId: zod.number().nullish(),
   date: zod.string(),
   equipment: zod.string(),
+  equipmentList: zod
+    .array(zod.string())
+    .nullish()
+    .describe(
+      "Optional ordered chip rail of machines used. When omitted, the server stores `[equipment]`. When provided, the server validates `equipmentList[0] === equipment`.\n",
+    ),
   sessionType: zod.string(),
   durationMin: zod.number().nullish(),
   strengthMin: zod.number().nullish(),
@@ -839,6 +857,12 @@ export const UpdateWorkoutParams = zod.object({
 export const UpdateWorkoutBody = zod.object({
   date: zod.string().optional(),
   equipment: zod.string().optional(),
+  equipmentList: zod
+    .array(zod.string())
+    .nullish()
+    .describe(
+      "Optional ordered chip rail of machines used. When `equipment` is also patched, the server validates `equipmentList[0] === equipment`. When only `equipmentList` is patched, the server rewrites the scalar to `equipmentList[0]`.\n",
+    ),
   sessionType: zod.string().optional(),
   durationMin: zod.number().nullish(),
   strengthMin: zod.number().nullish(),
@@ -860,6 +884,12 @@ export const UpdateWorkoutResponse = zod.object({
   planDayId: zod.number().nullish(),
   date: zod.string(),
   equipment: zod.string(),
+  equipmentList: zod
+    .array(zod.string())
+    .nullish()
+    .describe(
+      "Ordered chip rail of every machine used in the logged session. The scalar `equipment` always equals `equipmentList[0]`. Nullable for legacy rows; clients should tolerate `null` (e.g. `equipmentList ?? [equipment]`).\n",
+    ),
   sessionType: zod.string(),
   durationMin: zod.number().nullish(),
   strengthMin: zod
@@ -1087,6 +1117,12 @@ export const GetRecentActivityResponseItem = zod.object({
   planDayId: zod.number().nullish(),
   date: zod.string(),
   equipment: zod.string(),
+  equipmentList: zod
+    .array(zod.string())
+    .nullish()
+    .describe(
+      "Ordered chip rail of every machine used in the logged session. The scalar `equipment` always equals `equipmentList[0]`. Nullable for legacy rows; clients should tolerate `null` (e.g. `equipmentList ?? [equipment]`).\n",
+    ),
   sessionType: zod.string(),
   durationMin: zod.number().nullish(),
   strengthMin: zod

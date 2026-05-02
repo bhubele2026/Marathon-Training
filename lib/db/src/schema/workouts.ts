@@ -5,6 +5,11 @@ export const workoutsTable = pgTable("workouts", {
   planDayId: integer("plan_day_id"),
   date: date("date").notNull(),
   equipment: text("equipment").notNull(),
+  // Ordered chip rail of every machine used in the session. The scalar
+  // `equipment` always equals `equipmentList[0]` in canonical priority
+  // (Tonal > Bike > Row > Tread > Outdoor > Lifestyle > None). Nullable
+  // for legacy rows; backfill + API fall back to `[equipment]`.
+  equipmentList: text("equipment_list").array(),
   sessionType: text("session_type").notNull(),
   durationMin: doublePrecision("duration_min"),
   // Three-bucket minute breakdown for the *actual* logged session, mirroring

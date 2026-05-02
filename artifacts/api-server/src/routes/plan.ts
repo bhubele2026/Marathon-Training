@@ -269,6 +269,7 @@ async function fetchRecentWorkoutsByPair(
     notes: string | null;
     time_of_day: string | null;
     modality: string | null;
+    equipment_list: string[] | null;
     created_at: Date;
   }>(sql`
     WITH ranked AS (
@@ -282,7 +283,7 @@ async function fetchRecentWorkoutsByPair(
       WHERE w.date < ${today}
         AND (w.session_type, w.equipment) IN (${pairValues})
     )
-    SELECT id, plan_day_id, date, equipment, session_type, duration_min,
+    SELECT id, plan_day_id, date, equipment, equipment_list, session_type, duration_min,
            strength_min, cardio_min, run_min,
            distance_mi, pace, avg_hr, rpe, strength_load, total_load, notes,
            time_of_day, modality, created_at
@@ -300,6 +301,7 @@ async function fetchRecentWorkoutsByPair(
       planDayId: r.plan_day_id,
       date: r.date,
       equipment: r.equipment,
+      equipmentList: r.equipment_list,
       sessionType: r.session_type,
       durationMin: r.duration_min,
       strengthMin: r.strength_min,

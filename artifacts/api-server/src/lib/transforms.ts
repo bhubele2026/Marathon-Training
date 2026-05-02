@@ -132,6 +132,17 @@ export function toWorkout(r: WorkoutRow) {
     planDayId: r.planDayId,
     date: r.date,
     equipment: r.equipment,
+    // Ordered chip rail of every machine the runner actually used in this
+    // logged session (task #78). Mirrors the same NULL/empty -> [scalar]
+    // fallback `toPlanDay` uses for the prescribed plan day so the
+    // logged-session UI (today.tsx "Mission Accomplished" card and
+    // log.tsx per-row chip column) can always render at least one chip
+    // even on rows logged before the equipment_list column existed (or
+    // before the post-merge backfill ran). The lead chip is guaranteed to
+    // equal the scalar `equipment` above by the POST/PATCH validation in
+    // routes/workouts.ts, so any back-compat code path that still reads
+    // the scalar agrees with the rail's first chip.
+    equipmentList: normalizeEquipmentList(r.equipmentList, r.equipment),
     sessionType: r.sessionType,
     durationMin: r.durationMin,
     // Per-bucket actual minutes mirroring the plan day breakdown so the

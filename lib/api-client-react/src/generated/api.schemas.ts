@@ -236,6 +236,9 @@ export interface Workout {
   planDayId?: number | null;
   date: string;
   equipment: string;
+  /** Ordered chip rail of every machine used in the logged session. The scalar `equipment` always equals `equipmentList[0]`. Nullable for legacy rows; clients should tolerate `null` (e.g. `equipmentList ?? [equipment]`).
+   */
+  equipmentList?: string[] | null;
   sessionType: string;
   durationMin?: number | null;
   /** Actual lift / strength minutes for this logged session. Mirrors the prescribed `strengthMin` on the matching plan day so /today and /plan/:week can render plan-vs-actual per bucket. Null when the user hasn't supplied a breakdown yet (legacy rows fall back to `durationMin`). */
@@ -297,6 +300,9 @@ export interface CreateWorkoutBody {
   planDayId?: number | null;
   date: string;
   equipment: string;
+  /** Optional ordered chip rail of machines used. When omitted, the server stores `[equipment]`. When provided, the server validates `equipmentList[0] === equipment`.
+   */
+  equipmentList?: string[] | null;
   sessionType: string;
   durationMin?: number | null;
   strengthMin?: number | null;
@@ -336,6 +342,9 @@ export const UpdateWorkoutBodyModality = {
 export interface UpdateWorkoutBody {
   date?: string;
   equipment?: string;
+  /** Optional ordered chip rail of machines used. When `equipment` is also patched, the server validates `equipmentList[0] === equipment`. When only `equipmentList` is patched, the server rewrites the scalar to `equipmentList[0]`.
+   */
+  equipmentList?: string[] | null;
   sessionType?: string;
   durationMin?: number | null;
   strengthMin?: number | null;

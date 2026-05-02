@@ -11,3 +11,6 @@ pnpm --filter @workspace/scripts run backfill-plan-day-minutes
 # populates equipment_list / seed_equipment_list on rows whose columns are
 # still NULL after the schema push. Idempotent — safe to re-run.
 pnpm --filter @workspace/scripts run backfill-plan-day-equipment
+# Backfill workouts.equipment_list from the scalar on legacy rows.
+# Idempotent — safe to re-run.
+pnpm --filter @workspace/scripts run backfill-workout-equipment
