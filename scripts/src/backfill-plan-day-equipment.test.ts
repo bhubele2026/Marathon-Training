@@ -157,6 +157,36 @@ describe("computeEquipmentBackfillUpdates", () => {
     ).toEqual({});
   });
 
+  it("does NOT match bare 'spin' inside a Peloton Row description (race-eve / Tonal+Row regression)", () => {
+    // Race-eve Saturday on even weeks reads:
+    //   "Race-eve: light Tonal mobility (15 min) + 15 min easy Peloton
+    //    Row spin. Stay loose, hydrate, fuel well."
+    // The bare `\bspin\b` Bike fallback used to match `spin` here and
+    // produced ['Tonal','Peloton Row','Peloton Bike'] — a corrupted
+    // chip rail for a session that never touches the bike.
+    expect(
+      computeEquipmentBackfillUpdates({
+        ...baseRow,
+        equipment: "Tonal",
+        description:
+          "Race-eve: light Tonal mobility (15 min) + 15 min easy Peloton Row spin. Stay loose, hydrate, fuel well.",
+        equipmentList: null,
+      }),
+    ).toEqual({ equipmentList: ["Tonal", "Peloton Row"] });
+  });
+
+  it("still classifies Bike sessions correctly when the description names the bike explicitly", () => {
+    expect(
+      computeEquipmentBackfillUpdates({
+        ...baseRow,
+        equipment: "Tonal",
+        description:
+          "Heavy upper-body Tonal (40 min, push/pull at 80-85% effort), then 25 min easy Peloton Bike spin",
+        equipmentList: null,
+      }),
+    ).toEqual({ equipmentList: ["Tonal", "Peloton Bike"] });
+  });
+
   it("repairs an empty equipment_list array (not just NULL) so the API/UI fallback never has to render zero chips", () => {
     expect(
       computeEquipmentBackfillUpdates({

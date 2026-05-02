@@ -366,11 +366,24 @@ export default function WeekDetail() {
               >
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <div>
                         <div className="text-sm font-bold uppercase tracking-wider">{day.day}</div>
                         <div className="text-xs text-muted-foreground">{formatDate(day.date)}</div>
                       </div>
+                      {/* Task #77: rest days still get a single-chip rail
+                          (e.g. "Off / Rest") so every day card in the
+                          week view has a consistent equipment rail and
+                          the eye can scan straight down the column. */}
+                      {(day.equipmentList ?? [day.equipment]).map((eq, idx) => (
+                        <span
+                          key={`${day.date}-eq-${idx}`}
+                          className="text-[10px] bg-secondary text-secondary-foreground px-2 py-1 rounded font-bold uppercase tracking-wider"
+                          data-testid={`chip-equipment-${day.date}-${idx}`}
+                        >
+                          {eq}
+                        </span>
+                      ))}
                       <CustomizedBadge day={day} />
                     </div>
                     <div className="text-sm text-muted-foreground font-medium uppercase tracking-wider flex items-center gap-2">

@@ -52,9 +52,14 @@ interface ParseInput {
 // `race-pace`, `Race-eve`, and `race tomorrow` while still being
 // treadmill-only sessions — matching `race` there would falsely add an
 // Outdoor chip.
+// Bike intentionally requires the literal word `bike`. Bare `\bspin\b`
+// would over-match descriptions like `Race-eve: ... easy Peloton Row
+// spin` (race week's Saturday, even-week variant) and falsely add a
+// Peloton Bike chip to a Tonal + Row session, corrupting the chip rail
+// for those rows during backfill.
 const CHIP_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
   [/\btonal\b/i, "Tonal"],
-  [/\bpeloton bike\b|\bbike spin\b|\beasy spin\b|\bspin\b/i, "Peloton Bike"],
+  [/\bpeloton bike\b|\bbike spin\b|\bbike\b/i, "Peloton Bike"],
   [/\bpeloton row\b|\brow\b/i, "Peloton Row"],
   [/\bpeloton tread\b|\btread\b|\btreadmill\b/i, "Peloton Tread"],
   [/\boutdoor\b|\boutside\b|\brace day\b/i, "Outdoor"],
