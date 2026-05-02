@@ -40,7 +40,9 @@ const formSchema = z.object({
   equipment: z.string().min(1, "Equipment is required"),
   description: z.string(),
   distanceMi: z.coerce.number().optional().nullable(),
+  strengthMin: z.coerce.number().optional().nullable(),
   cardioMin: z.coerce.number().optional().nullable(),
+  runMin: z.coerce.number().optional().nullable(),
   pace: z.string().optional().nullable(),
   strengthLoad: z.coerce.number().optional().nullable(),
   totalLoad: z.coerce.number(),
@@ -65,7 +67,9 @@ export function PlanDayForm({ open, onOpenChange, planDay }: PlanDayFormProps) {
     equipment: planDay.equipment,
     description: planDay.description ?? "",
     distanceMi: planDay.distanceMi ?? null,
+    strengthMin: planDay.strengthMin ?? null,
     cardioMin: planDay.cardioMin ?? null,
+    runMin: planDay.runMin ?? null,
     pace: planDay.pace ?? "",
     strengthLoad: planDay.strengthLoad ?? null,
     totalLoad: planDay.totalLoad ?? 0,
@@ -91,7 +95,9 @@ export function PlanDayForm({ open, onOpenChange, planDay }: PlanDayFormProps) {
           equipment: data.equipment,
           description: data.description,
           distanceMi: data.distanceMi ?? null,
+          strengthMin: data.strengthMin ?? null,
           cardioMin: data.cardioMin ?? null,
+          runMin: data.runMin ?? null,
           pace: data.pace ? data.pace : null,
           strengthLoad: data.strengthLoad ?? null,
           totalLoad: data.totalLoad,
@@ -220,12 +226,38 @@ export function PlanDayForm({ open, onOpenChange, planDay }: PlanDayFormProps) {
               />
               <FormField
                 control={form.control}
+                name="strengthMin"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Lift (min)</FormLabel>
+                    <FormControl>
+                      <Input type="number" placeholder="0" {...field} value={field.value ?? ""} data-testid="input-plan-strength-min" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
                 name="cardioMin"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Duration (min)</FormLabel>
+                    <FormLabel>Cardio (min)</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="45" {...field} value={field.value ?? ""} data-testid="input-plan-duration" />
+                      <Input type="number" placeholder="0" {...field} value={field.value ?? ""} data-testid="input-plan-cardio-min" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="runMin"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Run (min)</FormLabel>
+                    <FormControl>
+                      <Input type="number" placeholder="0" {...field} value={field.value ?? ""} data-testid="input-plan-run-min" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
