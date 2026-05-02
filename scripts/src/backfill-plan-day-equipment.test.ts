@@ -74,6 +74,61 @@ describe("parseEquipmentList", () => {
       }),
     ).toEqual(["Tonal", "Peloton Bike"]);
   });
+
+  // Regression coverage: the bare word "race" is not enough to add an
+  // Outdoor chip. Treadmill workouts and the Saturday race-eve session
+  // mention "race" in phrases like "race-pace", "Race-eve",
+  // "race tomorrow" while still being indoor sessions, and adding a
+  // bogus OUTDOOR chip there would mislead the runner about which gear
+  // to grab.
+  it("does NOT add Outdoor for a Tread race-pace workout", () => {
+    expect(
+      parseEquipmentList({
+        description:
+          "Tread race-pace (5 mi: warm-up, 3 x 1 mi at goal half-marathon pace w/ 2 min recovery, cool-down) — no lift today, recover for the long run",
+        equipment: "Peloton Tread",
+      }),
+    ).toEqual(["Peloton Tread"]);
+  });
+
+  it("does NOT add Outdoor for a race-eve Tonal + Peloton Bike session", () => {
+    expect(
+      parseEquipmentList({
+        description:
+          "Race-eve: light Tonal mobility (15 min) + 15 min easy Peloton Bike spin. Stay loose, hydrate, fuel well.",
+        equipment: "Tonal",
+      }),
+    ).toEqual(["Tonal", "Peloton Bike"]);
+  });
+
+  it("does NOT add Outdoor for a race-week Fri shakeout that mentions 'race tomorrow'", () => {
+    expect(
+      parseEquipmentList({
+        description:
+          "Easy Tread shakeout (3 mi) with 3 x 30s strides — no lift today, race tomorrow",
+        equipment: "Peloton Tread",
+      }),
+    ).toEqual(["Peloton Tread"]);
+  });
+
+  it("DOES add Outdoor for the literal RACE DAY banner", () => {
+    expect(
+      parseEquipmentList({
+        description:
+          "RACE DAY — Half Marathon (13.1 mi). Execute race plan, fuel every 4 mi, finish strong.",
+        equipment: "Outdoor",
+      }),
+    ).toEqual(["Outdoor"]);
+  });
+
+  it("DOES add Outdoor when the prose explicitly says 'outside'", () => {
+    expect(
+      parseEquipmentList({
+        description: "Long aerobic run outside (10 mi): conversational pace.",
+        equipment: "Peloton Tread",
+      }),
+    ).toEqual(["Peloton Tread", "Outdoor"]);
+  });
 });
 
 describe("computeEquipmentBackfillUpdates", () => {

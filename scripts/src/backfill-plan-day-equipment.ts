@@ -45,12 +45,19 @@ interface ParseInput {
 // renders. Order in this list does NOT determine the chip rail order —
 // the parser sorts matches by their first occurrence index in the
 // description so the rail mirrors the natural reading order of the prose.
+//
+// `Outdoor` only matches explicit outdoor phrases ("outdoor", "outside")
+// or the literal race-day banner ("RACE DAY"). It deliberately does NOT
+// match bare "race", because Tread workouts use phrases like
+// `race-pace`, `Race-eve`, and `race tomorrow` while still being
+// treadmill-only sessions — matching `race` there would falsely add an
+// Outdoor chip.
 const CHIP_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
   [/\btonal\b/i, "Tonal"],
   [/\bpeloton bike\b|\bbike spin\b|\beasy spin\b|\bspin\b/i, "Peloton Bike"],
   [/\bpeloton row\b|\brow\b/i, "Peloton Row"],
   [/\bpeloton tread\b|\btread\b|\btreadmill\b/i, "Peloton Tread"],
-  [/\boutdoor\b|\brace\b/i, "Outdoor"],
+  [/\boutdoor\b|\boutside\b|\brace day\b/i, "Outdoor"],
 ] as const;
 
 // Build the chip rail for one row. Per the task #77 contract the scalar
