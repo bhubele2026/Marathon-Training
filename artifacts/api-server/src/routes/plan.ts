@@ -452,7 +452,15 @@ async function ensureSeedSnapshot(tx: Tx, row: PlanDayRow): Promise<void> {
     .set({
       seedSessionType: row.sessionType,
       seedEquipment: row.equipment,
-      seedEquipmentList: row.equipmentList,
+      // Normalize the chip rail to `[equipment]` for legacy rows whose
+      // equipment_list column is still NULL (pre-backfill). Otherwise a
+      // subsequent scalar-equipment edit + reset cycle would restore a
+      // null seed list, causing the reset path to fall back to the
+      // edited live `equipmentList=[newEquipment]` and produce a
+      // mismatched scalar/list pair (scalar = original, list = edited).
+      // Storing the canonical fallback at snapshot time keeps the
+      // round-trip consistent regardless of whether the backfill has run.
+      seedEquipmentList: row.equipmentList ?? [row.equipment],
       seedDescription: row.description,
       seedDistanceMi: row.distanceMi,
       seedStrengthMin: row.strengthMin,

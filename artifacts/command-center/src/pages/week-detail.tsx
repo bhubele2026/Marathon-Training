@@ -359,7 +359,11 @@ export default function WeekDetail() {
 
           if (day.isRest) {
             return (
-              <Card key={day.id} className="border-dashed border-2 bg-muted/20">
+              <Card
+                key={day.id}
+                className="border-dashed border-2 bg-muted/20"
+                data-testid={`day-card-${day.date}`}
+              >
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
@@ -473,9 +477,15 @@ export default function WeekDetail() {
                     <div className="text-sm font-black uppercase tracking-wider">{day.day}</div>
                     <div className="text-xs text-muted-foreground mb-3">{formatDate(day.date)}</div>
                     <div className="mt-auto flex flex-wrap items-center gap-2">
-                      <span className="text-[10px] bg-secondary text-secondary-foreground px-2 py-1 rounded font-bold uppercase tracking-wider">
-                        {day.equipment}
-                      </span>
+                      {(day.equipmentList ?? [day.equipment]).map((eq, idx) => (
+                        <span
+                          key={`${day.date}-eq-${idx}`}
+                          className="text-[10px] bg-secondary text-secondary-foreground px-2 py-1 rounded font-bold uppercase tracking-wider"
+                          data-testid={`chip-equipment-${day.date}-${idx}`}
+                        >
+                          {eq}
+                        </span>
+                      ))}
                       <CustomizedBadge day={day} />
                       {hasSessions && (
                         <span className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider flex items-center gap-1">

@@ -83,6 +83,39 @@ describe("generator: per-day minute breakdown", () => {
     }
   });
 
+  it("emits the canonical equipment_list chip rail for every day", () => {
+    // Mon = rest (single chip)
+    expect(dayOf(1, "Mon").equipment_list).toEqual(["Off / Rest"]);
+
+    // Tue = Tonal + Peloton Bike
+    expect(dayOf(1, "Tue").equipment_list).toEqual(["Tonal", "Peloton Bike"]);
+
+    // Wed = Tonal accessory + Peloton Tread (chip rail leads with TONAL
+    // even though the scalar `equipment` stays "Peloton Tread")
+    expect(dayOf(1, "Wed").equipment_list).toEqual(["Tonal", "Peloton Tread"]);
+    expect(dayOf(1, "Wed").equipment).toBe("Peloton Tread");
+
+    // Thu = Tonal + Peloton Row
+    expect(dayOf(1, "Thu").equipment_list).toEqual(["Tonal", "Peloton Row"]);
+
+    // Foundation Fri (W1-6) pairs Tonal accessory with the Tread run.
+    expect(dayOf(3, "Fri").equipment_list).toEqual(["Tonal", "Peloton Tread"]);
+
+    // Build-phase Fri (W7+) drops the Tonal accessory.
+    expect(dayOf(12, "Fri").equipment_list).toEqual(["Peloton Tread"]);
+
+    // Sat alternates Bike (odd) / Row (even) as the cardio chip after Tonal.
+    expect(dayOf(1, "Sat").equipment_list).toEqual(["Tonal", "Peloton Bike"]);
+    expect(dayOf(2, "Sat").equipment_list).toEqual(["Tonal", "Peloton Row"]);
+
+    // Sun long-run weeks emit the single long-run equipment chip.
+    expect(dayOf(2, "Sun").equipment_list).toEqual(["Outdoor"]);
+    expect(dayOf(3, "Sun").equipment_list).toEqual(["Peloton Tread"]);
+
+    // Race week Sunday is Outdoor only.
+    expect(dayOf(52, "Sun").equipment_list).toEqual(["Outdoor"]);
+  });
+
   it("weekly planned_cardio sums NON-running cross-train minutes only (run minutes already live in planned_miles)", () => {
     for (const wk of PLAN.weekly) {
       const dailyCardioSum = PLAN.daily

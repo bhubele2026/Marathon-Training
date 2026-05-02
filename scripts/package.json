@@ -8,6 +8,7 @@
     "generate-plan": "tsx ./src/generate-plan.ts",
     "seed": "tsx ./src/seed.ts",
     "backfill-plan-day-minutes": "tsx ./src/backfill-plan-day-minutes.ts",
+    "backfill-plan-day-equipment": "tsx ./src/backfill-plan-day-equipment.ts",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

@@ -15,15 +15,14 @@ function planDayCustomizedFields(r: PlanDayRow): string[] {
   if (r.sessionType !== r.seedSessionType) fields.push("sessionType");
   if (r.equipment !== r.seedEquipment) fields.push("equipment");
   // The chip rail is generator-owned and replaced wholesale on edit, so
-  // structural equality (JSON) is the right comparison here. We treat a
-  // null seedEquipmentList as "no snapshot yet" and only flag a diff once
-  // both sides exist (the outer `seedSessionType == null` guard above
-  // already short-circuits the no-snapshot case for the row as a whole).
-  if (
-    r.seedEquipmentList != null &&
-    JSON.stringify(r.equipmentList ?? null) !==
-      JSON.stringify(r.seedEquipmentList)
-  ) {
+  // structural equality (JSON) is the right comparison here. Both sides are
+  // normalized through the same `?? [scalar]` fallback the API exposes via
+  // `toPlanDay` so a legacy NULL list on either the live row or the seed
+  // snapshot doesn't get falsely flagged as customized just because one
+  // side has been backfilled and the other hasn't.
+  const liveList = r.equipmentList ?? [r.equipment];
+  const seedList = r.seedEquipmentList ?? [r.seedEquipment ?? r.equipment];
+  if (JSON.stringify(liveList) !== JSON.stringify(seedList)) {
     fields.push("equipmentList");
   }
   if (r.description !== r.seedDescription) fields.push("description");

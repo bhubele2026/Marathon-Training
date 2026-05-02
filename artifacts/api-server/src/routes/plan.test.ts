@@ -558,6 +558,35 @@ describe("PATCH /api/plan/days/:id", () => {
     expect(reset.body.distanceMi).toBe(4);
     expect(reset.body.totalLoad).toBe(40);
   });
+
+  it("normalizes a NULL equipment_list to [equipment] at snapshot time so a scalar-edit + reset round-trip restores a consistent chip rail (task #77 regression)", async () => {
+    // Insert a row that simulates a pre-task-#77 legacy row whose
+    // equipment_list column is still NULL (the test helper doesn't write it
+    // and the column is nullable).
+    const week = 8103;
+    const phase = "Snapshot Equipment List";
+    await insertWeek(week, { startDate: "2099-04-22", endDate: "2099-04-28", phase });
+    const { id } = await insertPlanDay(week, phase, {
+      date: "2099-04-22", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, description: "original outdoor", distanceMi: 4, totalLoad: 40,
+    });
+
+    // Edit the scalar equipment to a different value. The PATCH handler
+    // collapses equipment_list to [E_GYM] on the live row.
+    await request(app).patch(`/api/plan/days/${id}`).send({
+      sessionType: T_STRENGTH, equipment: E_GYM, description: "edited",
+      distanceMi: null, strengthLoad: 100, totalLoad: 100, isRest: false,
+    });
+
+    // After reset, the live row's scalar equipment is the original
+    // E_OUTDOOR and the chip rail must be the matching [E_OUTDOOR] —
+    // not the edited [E_GYM] that would be returned if the snapshot had
+    // stored seed_equipment_list as NULL and the reset path fell back to
+    // the live (edited) list.
+    const reset = await request(app).post(`/api/plan/days/${id}/reset`).send({});
+    expect(reset.status).toBe(200);
+    expect(reset.body.equipment).toBe(E_OUTDOOR);
+    expect(reset.body.equipmentList).toEqual([E_OUTDOOR]);
+  });
 });
 
 describe("POST /api/plan/days/:id/swap", () => {

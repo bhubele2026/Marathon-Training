@@ -79,8 +79,28 @@ export default function Today() {
               <p className="text-lg font-black uppercase tracking-tight" data-testid="text-first-session-date">
                 {format(parseISO(today.firstSession.date), "EEE MMM d")} —{" "}
                 <span className="text-primary">{today.firstSession.sessionType}</span>
-                <span className="text-muted-foreground"> · {today.firstSession.equipment}</span>
+                <span className="text-muted-foreground">
+                  {" "}
+                  ·{" "}
+                  {(today.firstSession.equipmentList ?? [today.firstSession.equipment])
+                    .map((eq) => eq)
+                    .join(" · ")}
+                </span>
               </p>
+              <div className="flex flex-wrap gap-2 mt-3">
+                {(today.firstSession.equipmentList ?? [today.firstSession.equipment]).map((eq, idx) => {
+                  const date = today.firstSession!.date;
+                  return (
+                    <span
+                      key={`first-eq-${idx}`}
+                      className="text-[10px] bg-secondary text-secondary-foreground px-2 py-1 rounded font-bold uppercase tracking-wider"
+                      data-testid={`chip-equipment-${date}-${idx}`}
+                    >
+                      {eq}
+                    </span>
+                  );
+                })}
+              </div>
               <p className="text-sm text-muted-foreground mt-2">{today.firstSession.description}</p>
               <div className="space-y-4 mt-4 pt-4 border-t border-border">
                 <PlannedBreakdown
@@ -141,9 +161,18 @@ export default function Today() {
               <div className="bg-background p-6 rounded-md border border-border">
                 <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
                   <div className="space-y-4 flex-1">
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
                       <span className="font-black text-2xl uppercase tracking-tight">{today.plan?.sessionType}</span>
-                      <span className="px-3 py-1 bg-secondary text-secondary-foreground rounded text-sm uppercase font-bold tracking-wider">{today.plan?.equipment}</span>
+                      {today.plan &&
+                        (today.plan.equipmentList ?? [today.plan.equipment]).map((eq, idx) => (
+                          <span
+                            key={`today-eq-${idx}`}
+                            className="px-3 py-1 bg-secondary text-secondary-foreground rounded text-sm uppercase font-bold tracking-wider"
+                            data-testid={`chip-equipment-${today.plan!.date}-${idx}`}
+                          >
+                            {eq}
+                          </span>
+                        ))}
                     </div>
 
                     <p className="text-foreground text-lg leading-relaxed">{today.plan?.description}</p>
