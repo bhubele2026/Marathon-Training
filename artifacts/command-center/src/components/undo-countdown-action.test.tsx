@@ -1,6 +1,12 @@
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { Toast, ToastProvider, ToastViewport } from "@/components/ui/toast";
 import { UndoCountdownAction } from "./undo-countdown-action";
 
@@ -110,6 +116,55 @@ describe("UndoCountdownAction", () => {
     });
 
     expect(onUndo).toHaveBeenCalledTimes(1);
+  });
+
+  it("freezes the countdown while the toast is paused and resumes from the same value", () => {
+    renderInToast(
+      <UndoCountdownAction
+        expiresInSeconds={5}
+        onUndo={() => {}}
+        altText="Undo reset"
+        testId="undo-action"
+      />,
+    );
+
+    const button = screen.getByTestId("undo-action");
+    expect(button.textContent).toBe("Undo (5s)");
+
+    // Tick the visible label down to "Undo (3s)" so we have a clearly
+    // identifiable mid-countdown value to freeze on.
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(button.textContent).toBe("Undo (3s)");
+
+    // Radix Toast pauses its auto-dismiss timer when the viewport wrapper
+    // (role="region") receives a pointermove or focusin, mirroring the same
+    // hover/focus-pause behavior we want to test in the countdown action.
+    const wrapper = screen.getByRole("region");
+    act(() => {
+      fireEvent.pointerMove(wrapper);
+    });
+
+    // While paused, advancing the clock by far longer than the original TTL
+    // must not change the visible label or expire the action.
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+    expect(button.textContent).toBe("Undo (3s)");
+    expect((button as HTMLButtonElement).disabled).toBe(false);
+
+    // Resume by leaving the wrapper. The countdown should pick up from the
+    // same frozen value rather than jumping ahead by the paused duration.
+    act(() => {
+      fireEvent.pointerLeave(wrapper);
+    });
+    expect(button.textContent).toBe("Undo (3s)");
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(button.textContent).toBe("Undo (2s)");
   });
 
   it("does not fire the undo handler once the countdown has expired", () => {
