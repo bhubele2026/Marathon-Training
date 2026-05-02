@@ -534,6 +534,8 @@ components:
           sessionType,
           isRest,
           totalLoad,
+          isCustomized,
+          customizedFields,
         ]
       properties:
         id: { type: integer }
@@ -550,6 +552,13 @@ components:
         sessionType: { type: string }
         isRest: { type: boolean }
         totalLoad: { type: number }
+        isCustomized:
+          type: boolean
+          description: True when this day's prescription differs from the originally-seeded snapshot (i.e. it has been edited or swapped).
+        customizedFields:
+          type: array
+          items: { type: string }
+          description: camelCase field names whose current value differs from the seeded snapshot. Empty when isCustomized is false.
 
     UpdatePlanDayBody:
       type: object

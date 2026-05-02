@@ -3,7 +3,29 @@ import type { PlanWeekRow } from "@workspace/db";
 import type { WorkoutRow } from "@workspace/db";
 import type { MeasurementRow } from "@workspace/db";
 
+// Compare each mutable field against its seed_* snapshot. The snapshot is
+// only populated once a row has actually been edited (or swapped), so a row
+// that has never been touched returns an empty diff and reports as
+// non-customized. Once the snapshot exists, every mutable column is mirrored
+// into seed_* (see ensureSeedSnapshot in routes/plan.ts), so equality
+// checks below are well-defined for every field.
+function planDayCustomizedFields(r: PlanDayRow): string[] {
+  if (r.seedSessionType == null) return [];
+  const fields: string[] = [];
+  if (r.sessionType !== r.seedSessionType) fields.push("sessionType");
+  if (r.equipment !== r.seedEquipment) fields.push("equipment");
+  if (r.description !== r.seedDescription) fields.push("description");
+  if (r.distanceMi !== r.seedDistanceMi) fields.push("distanceMi");
+  if (r.cardioMin !== r.seedCardioMin) fields.push("cardioMin");
+  if (r.pace !== r.seedPace) fields.push("pace");
+  if (r.strengthLoad !== r.seedStrengthLoad) fields.push("strengthLoad");
+  if (r.totalLoad !== r.seedTotalLoad) fields.push("totalLoad");
+  if (r.isRest !== r.seedIsRest) fields.push("isRest");
+  return fields;
+}
+
 export function toPlanDay(r: PlanDayRow) {
+  const customizedFields = planDayCustomizedFields(r);
   return {
     id: r.id,
     week: r.week,
@@ -19,6 +41,8 @@ export function toPlanDay(r: PlanDayRow) {
     sessionType: r.sessionType,
     isRest: r.isRest,
     totalLoad: r.totalLoad,
+    isCustomized: customizedFields.length > 0,
+    customizedFields,
   };
 }
 

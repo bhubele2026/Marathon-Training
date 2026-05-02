@@ -15,6 +15,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -42,6 +47,7 @@ import {
   Settings2,
   ArrowLeftRight,
   Undo2,
+  Sparkles,
 } from "lucide-react";
 import { useMissionActions } from "@/hooks/use-mission-actions";
 import { cn } from "@/lib/utils";
@@ -52,6 +58,46 @@ import { TimeOfDayBadge } from "@/components/time-of-day-badge";
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+// Human-readable labels for the camelCase field names returned by the API in
+// PlanDay.customizedFields. Keep keys aligned with planDayCustomizedFields()
+// in the api-server transforms.
+const CUSTOMIZED_FIELD_LABELS: Record<string, string> = {
+  sessionType: "Session type",
+  equipment: "Equipment",
+  description: "Description",
+  distanceMi: "Distance",
+  cardioMin: "Duration",
+  pace: "Pace",
+  strengthLoad: "Strength load",
+  totalLoad: "Total load",
+  isRest: "Rest day",
+};
+
+function CustomizedBadge({ day }: { day: PlanDay }) {
+  if (!day.isCustomized) return null;
+  const labels = day.customizedFields
+    .map((f) => CUSTOMIZED_FIELD_LABELS[f] ?? f)
+    .filter((v, i, arr) => arr.indexOf(v) === i);
+  const tooltipText =
+    labels.length > 0
+      ? `Edited from original: ${labels.join(", ")}`
+      : "Edited from original";
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-2 py-1 rounded font-bold uppercase tracking-wider flex items-center gap-1 cursor-help"
+          data-testid={`badge-customized-${day.date}`}
+        >
+          <Sparkles className="h-3 w-3" />
+          Edited
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{tooltipText}</TooltipContent>
+    </Tooltip>
+  );
 }
 
 export default function WeekDetail() {
@@ -216,9 +262,12 @@ export default function WeekDetail() {
               <Card key={day.id} className="border-dashed border-2 bg-muted/20">
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-bold uppercase tracking-wider">{day.day}</div>
-                      <div className="text-xs text-muted-foreground">{formatDate(day.date)}</div>
+                    <div className="flex items-center gap-2">
+                      <div>
+                        <div className="text-sm font-bold uppercase tracking-wider">{day.day}</div>
+                        <div className="text-xs text-muted-foreground">{formatDate(day.date)}</div>
+                      </div>
+                      <CustomizedBadge day={day} />
                     </div>
                     <div className="text-sm text-muted-foreground font-medium uppercase tracking-wider flex items-center gap-2">
                       <Activity className="h-4 w-4 opacity-50" />
@@ -314,6 +363,7 @@ export default function WeekDetail() {
                       <span className="text-[10px] bg-secondary text-secondary-foreground px-2 py-1 rounded font-bold uppercase tracking-wider">
                         {day.equipment}
                       </span>
+                      <CustomizedBadge day={day} />
                       {hasSessions && (
                         <span className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider flex items-center gap-1">
                           <CheckCircle2 className="h-3 w-3" />

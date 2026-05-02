@@ -81,6 +81,16 @@ export const GetPlanWeekResponse = zod
             sessionType: zod.string(),
             isRest: zod.boolean(),
             totalLoad: zod.number(),
+            isCustomized: zod
+              .boolean()
+              .describe(
+                "True when this day's prescription differs from the originally-seeded snapshot (i.e. it has been edited or swapped).",
+              ),
+            customizedFields: zod
+              .array(zod.string())
+              .describe(
+                "camelCase field names whose current value differs from the seeded snapshot. Empty when isCustomized is false.",
+              ),
           })
           .and(
             zod.object({
@@ -139,6 +149,16 @@ export const UpdatePlanDayResponse = zod.object({
   sessionType: zod.string(),
   isRest: zod.boolean(),
   totalLoad: zod.number(),
+  isCustomized: zod
+    .boolean()
+    .describe(
+      "True when this day's prescription differs from the originally-seeded snapshot (i.e. it has been edited or swapped).",
+    ),
+  customizedFields: zod
+    .array(zod.string())
+    .describe(
+      "camelCase field names whose current value differs from the seeded snapshot. Empty when isCustomized is false.",
+    ),
 });
 
 export const SwapPlanDayParams = zod.object({
@@ -169,6 +189,16 @@ export const SwapPlanDayResponse = zod.object({
     sessionType: zod.string(),
     isRest: zod.boolean(),
     totalLoad: zod.number(),
+    isCustomized: zod
+      .boolean()
+      .describe(
+        "True when this day's prescription differs from the originally-seeded snapshot (i.e. it has been edited or swapped).",
+      ),
+    customizedFields: zod
+      .array(zod.string())
+      .describe(
+        "camelCase field names whose current value differs from the seeded snapshot. Empty when isCustomized is false.",
+      ),
   }),
   to: zod.object({
     id: zod.number(),
@@ -185,6 +215,16 @@ export const SwapPlanDayResponse = zod.object({
     sessionType: zod.string(),
     isRest: zod.boolean(),
     totalLoad: zod.number(),
+    isCustomized: zod
+      .boolean()
+      .describe(
+        "True when this day's prescription differs from the originally-seeded snapshot (i.e. it has been edited or swapped).",
+      ),
+    customizedFields: zod
+      .array(zod.string())
+      .describe(
+        "camelCase field names whose current value differs from the seeded snapshot. Empty when isCustomized is false.",
+      ),
   }),
   weeksAffected: zod
     .array(zod.number())
@@ -217,6 +257,16 @@ export const ResetPlanDayResponse = zod.object({
   sessionType: zod.string(),
   isRest: zod.boolean(),
   totalLoad: zod.number(),
+  isCustomized: zod
+    .boolean()
+    .describe(
+      "True when this day's prescription differs from the originally-seeded snapshot (i.e. it has been edited or swapped).",
+    ),
+  customizedFields: zod
+    .array(zod.string())
+    .describe(
+      "camelCase field names whose current value differs from the seeded snapshot. Empty when isCustomized is false.",
+    ),
 });
 
 export const GetTodayPlanResponse = zod.object({
@@ -238,6 +288,16 @@ export const GetTodayPlanResponse = zod.object({
       sessionType: zod.string(),
       isRest: zod.boolean(),
       totalLoad: zod.number(),
+      isCustomized: zod
+        .boolean()
+        .describe(
+          "True when this day's prescription differs from the originally-seeded snapshot (i.e. it has been edited or swapped).",
+        ),
+      customizedFields: zod
+        .array(zod.string())
+        .describe(
+          "camelCase field names whose current value differs from the seeded snapshot. Empty when isCustomized is false.",
+        ),
     })
     .nullish(),
   loggedWorkouts: zod

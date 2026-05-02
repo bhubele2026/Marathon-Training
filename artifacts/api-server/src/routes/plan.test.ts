@@ -620,6 +620,67 @@ describe("POST /api/plan/days/:id/swap", () => {
   });
 });
 
+describe("PlanDay.isCustomized indicator", () => {
+  it("is false on a freshly seeded day with no edits or swaps", async () => {
+    const week = 8400;
+    const phase = "Customized Fresh";
+    await insertWeek(week, { startDate: "2099-08-01", endDate: "2099-08-07", phase });
+    await insertPlanDay(week, phase, {
+      date: "2099-08-01", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 5, totalLoad: 50,
+    });
+
+    const res = await request(app).get(`/api/plan/weeks/${week}`);
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetPlanWeekResponse, res.body);
+    const day = res.body.days[0];
+    expect(day.isCustomized).toBe(false);
+    expect(day.customizedFields).toEqual([]);
+  });
+
+  it("flips to true with the changed field names after an edit, and resets back", async () => {
+    const week = 8401;
+    const phase = "Customized Edit";
+    await insertWeek(week, { startDate: "2099-08-08", endDate: "2099-08-14", phase });
+    const { id } = await insertPlanDay(week, phase, {
+      date: "2099-08-08", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, description: "easy", distanceMi: 4, totalLoad: 40,
+    });
+
+    const edit = await request(app).patch(`/api/plan/days/${id}`).send({
+      sessionType: T_RUN, equipment: E_OUTDOOR, description: "harder",
+      distanceMi: 7, cardioMin: null, pace: null, strengthLoad: null, totalLoad: 70, isRest: false,
+    });
+    expect(edit.status).toBe(200);
+    expect(edit.body.isCustomized).toBe(true);
+    expect(new Set(edit.body.customizedFields)).toEqual(
+      new Set(["description", "distanceMi", "totalLoad"]),
+    );
+
+    const reset = await request(app).post(`/api/plan/days/${id}/reset`).send({});
+    expect(reset.status).toBe(200);
+    expect(reset.body.isCustomized).toBe(false);
+    expect(reset.body.customizedFields).toEqual([]);
+  });
+
+  it("marks both partners as customized after a swap", async () => {
+    const week = 8402;
+    const phase = "Customized Swap";
+    await insertWeek(week, { startDate: "2099-08-15", endDate: "2099-08-21", phase });
+    const a = await insertPlanDay(week, phase, {
+      date: "2099-08-15", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, description: "monday run", distanceMi: 3, cardioMin: 30, totalLoad: 30,
+    });
+    const b = await insertPlanDay(week, phase, {
+      date: "2099-08-17", day: "Wed", sessionType: T_STRENGTH, equipment: E_GYM, description: "wednesday lift", strengthLoad: 100, totalLoad: 100,
+    });
+
+    const swap = await request(app).post(`/api/plan/days/${a.id}/swap`).send({ withDayId: b.id });
+    expect(swap.status).toBe(200);
+    expect(swap.body.from.isCustomized).toBe(true);
+    expect(swap.body.to.isCustomized).toBe(true);
+    expect(swap.body.from.customizedFields.length).toBeGreaterThan(0);
+    expect(swap.body.to.customizedFields.length).toBeGreaterThan(0);
+  });
+});
+
 describe("POST /api/plan/days/:id/reset", () => {
   it("returns 404 when the plan day does not exist", async () => {
     const res = await request(app).post("/api/plan/days/999999999/reset").send({});

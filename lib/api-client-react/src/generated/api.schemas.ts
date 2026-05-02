@@ -45,6 +45,10 @@ export interface PlanDay {
   sessionType: string;
   isRest: boolean;
   totalLoad: number;
+  /** True when this day's prescription differs from the originally-seeded snapshot (i.e. it has been edited or swapped). */
+  isCustomized: boolean;
+  /** camelCase field names whose current value differs from the seeded snapshot. Empty when isCustomized is false. */
+  customizedFields: string[];
 }
 
 /**
