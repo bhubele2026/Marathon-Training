@@ -80,6 +80,23 @@ export interface SwapPlanDayResponse {
   phaseChanged: boolean;
 }
 
+export interface ResetPlanWeekResponse {
+  week: number;
+  /** Number of plan days that actually had a seed snapshot to restore from. Untouched days are not counted. */
+  daysReset: number;
+  /** Total number of plan days in the week (including untouched ones). */
+  daysTotal: number;
+}
+
+export interface ResetPlanResponse {
+  /** Number of weeks that contained at least one previously-edited plan day. */
+  weeksReset: number;
+  /** Number of plan days that actually had a seed snapshot to restore from. Untouched days are not counted. */
+  daysReset: number;
+  /** Total number of plan days across the entire plan (including untouched ones). */
+  daysTotal: number;
+}
+
 export interface PlanWeek {
   week: number;
   phase: string;

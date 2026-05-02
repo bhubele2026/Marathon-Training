@@ -5,6 +5,7 @@ import {
   useListWorkouts,
   getListWorkoutsQueryKey,
   useResetPlanDay,
+  useResetPlanWeek,
   Workout,
   PlanDay,
   PlanDayWithSuggestions,
@@ -111,9 +112,11 @@ export default function WeekDetail() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const resetPlanDay = useResetPlanDay();
+  const resetPlanWeek = useResetPlanWeek();
   const [editPlanDay, setEditPlanDay] = useState<PlanDay | null>(null);
   const [movePlanDay, setMovePlanDay] = useState<PlanDay | null>(null);
   const [resetPlanDayCtx, setResetPlanDayCtx] = useState<PlanDay | null>(null);
+  const [resetWeekOpen, setResetWeekOpen] = useState(false);
 
   const { data: week, isLoading } = useGetPlanWeek(weekNum, {
     query: {
@@ -182,6 +185,32 @@ export default function WeekDetail() {
     );
   };
 
+  const confirmResetWeek = () => {
+    resetPlanWeek.mutate(
+      { week: weekNum },
+      {
+        onSuccess: (data) => {
+          if (data.daysReset === 0) {
+            toast({
+              title: "Nothing to reset",
+              description: `Week ${weekNum} hasn't been customized yet.`,
+            });
+          } else {
+            toast({
+              title: "Week reset",
+              description: `${data.daysReset} day${data.daysReset === 1 ? "" : "s"} in week ${weekNum} restored to the original plan.`,
+            });
+          }
+          invalidateMissionRelatedQueries(queryClient);
+          setResetWeekOpen(false);
+        },
+        onError: () => {
+          toast({ title: "Failed to reset week", variant: "destructive" });
+        },
+      },
+    );
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
       
@@ -228,6 +257,21 @@ export default function WeekDetail() {
           <p className="text-[10px] uppercase font-bold text-muted-foreground">Sessions</p>
           <p className="font-black text-lg">{week.completedSessions || 0} / {week.totalSessions || 0}</p>
         </div>
+      </div>
+
+      {/* Bulk reset for the whole week. Per-day reset still lives on each day
+          card; this button is the shortcut for "wipe every customization in
+          this week and start over". Logged workouts are not affected. */}
+      <div className="flex justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs uppercase font-bold tracking-wider"
+          onClick={() => setResetWeekOpen(true)}
+          data-testid="button-reset-week"
+        >
+          <Undo2 className="h-3 w-3 mr-1.5" /> Reset Week
+        </Button>
       </div>
 
       <div className="space-y-4">
@@ -561,6 +605,33 @@ export default function WeekDetail() {
               data-testid="button-confirm-reset-plan"
             >
               {resetPlanDay.isPending ? "Resetting..." : "Reset Plan"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={resetWeekOpen}
+        onOpenChange={(open) => !resetPlanWeek.isPending && setResetWeekOpen(open)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset all of Week {weekNum}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will undo every edit and swap you've made to Week {weekNum} and restore the original prescription for all {week.days.length} days. Logged workouts are not affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={resetPlanWeek.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={resetPlanWeek.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                confirmResetWeek();
+              }}
+              data-testid="button-confirm-reset-week"
+            >
+              {resetPlanWeek.isPending ? "Resetting..." : "Reset Week"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

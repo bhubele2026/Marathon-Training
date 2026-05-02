@@ -269,6 +269,48 @@ export const ResetPlanDayResponse = zod.object({
     ),
 });
 
+/**
+ * Restore every plan day in the given week back to its seeded prescription. Days that have never been edited are left alone. Logged workouts are not touched.
+ */
+export const ResetPlanWeekParams = zod.object({
+  week: zod.coerce.number(),
+});
+
+export const ResetPlanWeekResponse = zod.object({
+  week: zod.number(),
+  daysReset: zod
+    .number()
+    .describe(
+      "Number of plan days that actually had a seed snapshot to restore from. Untouched days are not counted.",
+    ),
+  daysTotal: zod
+    .number()
+    .describe(
+      "Total number of plan days in the week (including untouched ones).",
+    ),
+});
+
+/**
+ * Restore every plan day in the entire 52-week plan back to its seeded prescription. Days that have never been edited are left alone. Logged workouts are not touched.
+ */
+export const ResetPlanResponse = zod.object({
+  weeksReset: zod
+    .number()
+    .describe(
+      "Number of weeks that contained at least one previously-edited plan day.",
+    ),
+  daysReset: zod
+    .number()
+    .describe(
+      "Number of plan days that actually had a seed snapshot to restore from. Untouched days are not counted.",
+    ),
+  daysTotal: zod
+    .number()
+    .describe(
+      "Total number of plan days across the entire plan (including untouched ones).",
+    ),
+});
+
 export const GetTodayPlanResponse = zod.object({
   date: zod.string(),
   hasPlan: zod.boolean(),

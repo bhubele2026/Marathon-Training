@@ -1,17 +1,81 @@
-import { useGetPlanOverview, useListPlanWeeks } from "@workspace/api-client-react";
+import { useState } from "react";
+import {
+  useGetPlanOverview,
+  useListPlanWeeks,
+  useResetPlan,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
 import { formatDistance, formatDate } from "@/lib/format";
 import { useLocation } from "wouter";
-import { CalendarDays, Target, Activity, AlertTriangle } from "lucide-react";
+import {
+  CalendarDays,
+  Target,
+  Activity,
+  AlertTriangle,
+  RotateCcw,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { phaseColor } from "@/lib/phase-colors";
+
+const RESET_PLAN_CONFIRM_PHRASE = "RESET PLAN";
 
 export default function Plan() {
   const { data: overview, isLoading: loadingOverview } = useGetPlanOverview();
   const { data: weeks, isLoading: loadingWeeks } = useListPlanWeeks();
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const resetPlan = useResetPlan();
+  const [resetPlanOpen, setResetPlanOpen] = useState(false);
+  const [resetPlanConfirmText, setResetPlanConfirmText] = useState("");
+
+  const closeResetPlanDialog = (open: boolean) => {
+    if (resetPlan.isPending) return;
+    setResetPlanOpen(open);
+    if (!open) setResetPlanConfirmText("");
+  };
+
+  const confirmResetPlan = () => {
+    resetPlan.mutate(undefined, {
+      onSuccess: (data) => {
+        if (data.daysReset === 0) {
+          toast({
+            title: "Nothing to reset",
+            description: "The plan hasn't been customized yet.",
+          });
+        } else {
+          toast({
+            title: "Plan reset",
+            description: `${data.daysReset} day${data.daysReset === 1 ? "" : "s"} across ${data.weeksReset} week${data.weeksReset === 1 ? "" : "s"} restored to the original campaign.`,
+          });
+        }
+        invalidateMissionRelatedQueries(queryClient);
+        setResetPlanOpen(false);
+        setResetPlanConfirmText("");
+      },
+      onError: () => {
+        toast({ title: "Failed to reset plan", variant: "destructive" });
+      },
+    });
+  };
 
   if (loadingOverview || loadingWeeks) {
     return (
@@ -39,6 +103,15 @@ export default function Plan() {
             {overview.weeksRemaining} Weeks to Race Day · 13.1 mi · {formatDate(overview.raceDate)}
           </p>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs uppercase font-bold tracking-wider text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive self-start md:self-auto"
+          onClick={() => setResetPlanOpen(true)}
+          data-testid="button-reset-plan"
+        >
+          <RotateCcw className="h-3 w-3 mr-1.5" /> Reset Entire Plan
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -162,6 +235,52 @@ export default function Plan() {
           );
         })}
       </div>
+
+      <AlertDialog open={resetPlanOpen} onOpenChange={closeResetPlanDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset the entire 52-week plan?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This wipes every edit and swap you've ever made across all weeks
+              and restores the original campaign prescription. Logged workouts
+              are not affected, but any customized session, distance, or
+              equipment choice will be lost. To confirm, type{" "}
+              <span className="font-mono font-bold">{RESET_PLAN_CONFIRM_PHRASE}</span> below.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="reset-plan-confirm" className="text-xs uppercase tracking-wider">
+              Confirmation
+            </Label>
+            <Input
+              id="reset-plan-confirm"
+              autoFocus
+              value={resetPlanConfirmText}
+              onChange={(e) => setResetPlanConfirmText(e.target.value)}
+              placeholder={RESET_PLAN_CONFIRM_PHRASE}
+              disabled={resetPlan.isPending}
+              data-testid="input-confirm-reset-plan"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={resetPlan.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={
+                resetPlan.isPending ||
+                resetPlanConfirmText.trim().toUpperCase() !== RESET_PLAN_CONFIRM_PHRASE
+              }
+              onClick={(e) => {
+                e.preventDefault();
+                confirmResetPlan();
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-reset-plan"
+            >
+              {resetPlan.isPending ? "Resetting..." : "Reset Entire Plan"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -729,3 +729,178 @@ describe("POST /api/plan/days/:id/reset", () => {
     expect(after.body.longRunMi).toBe(5);
   });
 });
+
+describe("POST /api/plan/weeks/:week/reset", () => {
+  it("returns 404 when the week does not exist", async () => {
+    const res = await request(app)
+      .post(`/api/plan/weeks/${TEST_WEEK_MAX}/reset`)
+      .send({});
+    expect(res.status).toBe(404);
+    expectMatchesSchema(ErrorResponse, res.body);
+  });
+
+  it("reports zero days reset when nothing in the week was customized", async () => {
+    const week = 8400;
+    const phase = "Bulk Reset Untouched";
+    await insertWeek(week, { startDate: "2099-08-01", endDate: "2099-08-07", phase });
+    await insertPlanDay(week, phase, {
+      date: "2099-08-01", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 4, totalLoad: 40,
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-08-02", day: "Tue", sessionType: T_BIKE, equipment: E_SPIN, distanceMi: 0, cardioMin: 30, totalLoad: 30,
+    });
+
+    const res = await request(app).post(`/api/plan/weeks/${week}/reset`).send({});
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ week, daysReset: 0, daysTotal: 2 });
+  });
+
+  it("restores every edited day in the week and recomputes aggregates", async () => {
+    const week = 8401;
+    const phase = "Bulk Reset Edits";
+    await insertWeek(week, { startDate: "2099-08-08", endDate: "2099-08-14", phase });
+    const mon = await insertPlanDay(week, phase, {
+      date: "2099-08-08", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, description: "easy", distanceMi: 4, cardioMin: 40, totalLoad: 40,
+    });
+    const wed = await insertPlanDay(week, phase, {
+      date: "2099-08-10", day: "Wed", sessionType: T_BIKE, equipment: E_SPIN, description: "tempo", distanceMi: 0, cardioMin: 45, totalLoad: 45,
+    });
+    // Untouched day stays untouched after the bulk reset.
+    await insertPlanDay(week, phase, {
+      date: "2099-08-11", day: "Thu", sessionType: T_STRENGTH, equipment: E_GYM, description: "lift", strengthLoad: 80, totalLoad: 80,
+    });
+
+    await request(app).patch(`/api/plan/days/${mon.id}`).send({
+      sessionType: T_RUN, equipment: E_TREADMILL, description: "harder",
+      distanceMi: 9, cardioMin: 90, totalLoad: 100, isRest: false,
+    });
+    await request(app).patch(`/api/plan/days/${wed.id}`).send({
+      sessionType: T_REST, equipment: E_NONE, description: "skip",
+      distanceMi: null, cardioMin: null, strengthLoad: null, totalLoad: 0, isRest: true,
+    });
+
+    const res = await request(app).post(`/api/plan/weeks/${week}/reset`).send({});
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ week, daysReset: 2, daysTotal: 3 });
+
+    const after = await request(app).get(`/api/plan/weeks/${week}`);
+    expect(after.status).toBe(200);
+    const monAfter = (after.body.days as Array<{ date: string; sessionType: string; equipment: string; description: string; distanceMi: number | null; isRest: boolean }>).find((d) => d.date === "2099-08-08")!;
+    const wedAfter = (after.body.days as Array<{ date: string; sessionType: string; equipment: string; description: string; distanceMi: number | null; isRest: boolean }>).find((d) => d.date === "2099-08-10")!;
+    expect(monAfter.sessionType).toBe(T_RUN);
+    expect(monAfter.equipment).toBe(E_OUTDOOR);
+    expect(monAfter.description).toBe("easy");
+    expect(monAfter.distanceMi).toBe(4);
+    expect(wedAfter.sessionType).toBe(T_BIKE);
+    expect(wedAfter.isRest).toBe(false);
+    expect(wedAfter.equipment).toBe(E_SPIN);
+
+    expect(after.body.plannedMiles).toBe(4);
+    expect(after.body.plannedCardio).toBe(85);
+    expect(after.body.plannedTotalLoad).toBe(165);
+    expect(after.body.longRunMi).toBe(4);
+  });
+
+  it("does not affect days outside the target week", async () => {
+    const phase = "Bulk Reset Scope";
+    await insertWeek(8402, { startDate: "2099-09-01", endDate: "2099-09-07", phase });
+    await insertWeek(8403, { startDate: "2099-09-08", endDate: "2099-09-14", phase });
+    const inside = await insertPlanDay(8402, phase, {
+      date: "2099-09-01", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 3, totalLoad: 30,
+    });
+    const outside = await insertPlanDay(8403, phase, {
+      date: "2099-09-08", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 3, totalLoad: 30,
+    });
+
+    await request(app).patch(`/api/plan/days/${inside.id}`).send({
+      sessionType: T_RUN, equipment: E_TREADMILL, description: "edited inside",
+      distanceMi: 6, cardioMin: 60, totalLoad: 60, isRest: false,
+    });
+    await request(app).patch(`/api/plan/days/${outside.id}`).send({
+      sessionType: T_RUN, equipment: E_TREADMILL, description: "edited outside",
+      distanceMi: 6, cardioMin: 60, totalLoad: 60, isRest: false,
+    });
+
+    const res = await request(app).post(`/api/plan/weeks/8402/reset`).send({});
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ week: 8402, daysReset: 1, daysTotal: 1 });
+
+    const otherWeek = await request(app).get(`/api/plan/weeks/8403`);
+    const outsideAfter = (otherWeek.body.days as Array<{ date: string; equipment: string; description: string }>).find((d) => d.date === "2099-09-08")!;
+    expect(outsideAfter.equipment).toBe(E_TREADMILL);
+    expect(outsideAfter.description).toBe("edited outside");
+  });
+});
+
+describe("POST /api/plan/reset", () => {
+  // POST /plan/reset operates on every plan_day in the database, including
+  // any real seeded plan rows that may already have seed_* set from prior
+  // user edits. So these tests measure deltas relative to a baseline rather
+  // than asserting absolute counts.
+  it("does not count brand-new untouched test days as reset", async () => {
+    const baseline = (
+      await request(app).post(`/api/plan/reset`).send({})
+    ).body as { weeksReset: number; daysReset: number; daysTotal: number };
+
+    const week = 8500;
+    const phase = "Plan Reset Untouched";
+    await insertWeek(week, { startDate: "2099-10-01", endDate: "2099-10-07", phase });
+    await insertPlanDay(week, phase, {
+      date: "2099-10-01", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 4, totalLoad: 40,
+    });
+
+    const res = await request(app).post(`/api/plan/reset`).send({});
+    expect(res.status).toBe(200);
+    // The fresh test day was never edited, so it must not bump the counts.
+    expect(res.body.weeksReset).toBe(0);
+    expect(res.body.daysReset).toBe(0);
+    // Total days went up by exactly the one we inserted.
+    expect(res.body.daysTotal).toBe(baseline.daysTotal + 1);
+  });
+
+  it("restores every edited day across multiple weeks and recomputes their aggregates", async () => {
+    // Drain any prior edits so the delta we measure is solely from this test.
+    await request(app).post(`/api/plan/reset`).send({});
+
+    const phase = "Plan Reset Across Weeks";
+    await insertWeek(8501, { startDate: "2099-10-08", endDate: "2099-10-14", phase });
+    await insertWeek(8502, { startDate: "2099-10-15", endDate: "2099-10-21", phase });
+    const a = await insertPlanDay(8501, phase, {
+      date: "2099-10-08", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, description: "seed-a", distanceMi: 5, cardioMin: 50, totalLoad: 50,
+    });
+    const b = await insertPlanDay(8502, phase, {
+      date: "2099-10-15", day: "Mon", sessionType: T_BIKE, equipment: E_SPIN, description: "seed-b", distanceMi: 0, cardioMin: 60, totalLoad: 60,
+    });
+
+    await request(app).patch(`/api/plan/days/${a.id}`).send({
+      sessionType: T_STRENGTH, equipment: E_GYM, description: "edited-a",
+      distanceMi: null, cardioMin: null, strengthLoad: 200, totalLoad: 200, isRest: false,
+    });
+    await request(app).patch(`/api/plan/days/${b.id}`).send({
+      sessionType: T_REST, equipment: E_NONE, description: "edited-b",
+      distanceMi: null, cardioMin: null, strengthLoad: null, totalLoad: 0, isRest: true,
+    });
+
+    const res = await request(app).post(`/api/plan/reset`).send({});
+    expect(res.status).toBe(200);
+    expect(res.body.weeksReset).toBe(2);
+    expect(res.body.daysReset).toBe(2);
+
+    const after1 = await request(app).get(`/api/plan/weeks/8501`);
+    const after2 = await request(app).get(`/api/plan/weeks/8502`);
+    const aAfter = (after1.body.days as Array<{ date: string; sessionType: string; description: string; distanceMi: number | null }>).find((d) => d.date === "2099-10-08")!;
+    const bAfter = (after2.body.days as Array<{ date: string; sessionType: string; description: string; isRest: boolean }>).find((d) => d.date === "2099-10-15")!;
+    expect(aAfter.sessionType).toBe(T_RUN);
+    expect(aAfter.description).toBe("seed-a");
+    expect(aAfter.distanceMi).toBe(5);
+    expect(bAfter.sessionType).toBe(T_BIKE);
+    expect(bAfter.isRest).toBe(false);
+    expect(bAfter.description).toBe("seed-b");
+
+    expect(after1.body.plannedMiles).toBe(5);
+    expect(after1.body.plannedTotalLoad).toBe(50);
+    expect(after1.body.longRunMi).toBe(5);
+    expect(after2.body.plannedTotalLoad).toBe(60);
+    expect(after2.body.plannedCardio).toBe(60);
+  });
+});

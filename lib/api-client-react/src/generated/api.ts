@@ -33,6 +33,8 @@ import type {
   PlanWeekDetail,
   RaceWeekChecklistItem,
   RaceWeekStatus,
+  ResetPlanResponse,
+  ResetPlanWeekResponse,
   SetRaceWeekChecklistItemBody,
   SwapPlanDayBody,
   SwapPlanDayResponse,
@@ -577,6 +579,165 @@ export const useResetPlanDay = <
   TContext
 > => {
   return useMutation(getResetPlanDayMutationOptions(options));
+};
+
+/**
+ * Restore every plan day in the given week back to its seeded prescription. Days that have never been edited are left alone. Logged workouts are not touched.
+ */
+export const getResetPlanWeekUrl = (week: number) => {
+  return `/api/plan/weeks/${week}/reset`;
+};
+
+export const resetPlanWeek = async (
+  week: number,
+  options?: RequestInit,
+): Promise<ResetPlanWeekResponse> => {
+  return customFetch<ResetPlanWeekResponse>(getResetPlanWeekUrl(week), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getResetPlanWeekMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resetPlanWeek>>,
+    TError,
+    { week: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof resetPlanWeek>>,
+  TError,
+  { week: number },
+  TContext
+> => {
+  const mutationKey = ["resetPlanWeek"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof resetPlanWeek>>,
+    { week: number }
+  > = (props) => {
+    const { week } = props ?? {};
+
+    return resetPlanWeek(week, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ResetPlanWeekMutationResult = NonNullable<
+  Awaited<ReturnType<typeof resetPlanWeek>>
+>;
+
+export type ResetPlanWeekMutationError = ErrorType<Error>;
+
+export const useResetPlanWeek = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resetPlanWeek>>,
+    TError,
+    { week: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof resetPlanWeek>>,
+  TError,
+  { week: number },
+  TContext
+> => {
+  return useMutation(getResetPlanWeekMutationOptions(options));
+};
+
+/**
+ * Restore every plan day in the entire 52-week plan back to its seeded prescription. Days that have never been edited are left alone. Logged workouts are not touched.
+ */
+export const getResetPlanUrl = () => {
+  return `/api/plan/reset`;
+};
+
+export const resetPlan = async (
+  options?: RequestInit,
+): Promise<ResetPlanResponse> => {
+  return customFetch<ResetPlanResponse>(getResetPlanUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getResetPlanMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resetPlan>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof resetPlan>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["resetPlan"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof resetPlan>>,
+    void
+  > = () => {
+    return resetPlan(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ResetPlanMutationResult = NonNullable<
+  Awaited<ReturnType<typeof resetPlan>>
+>;
+
+export type ResetPlanMutationError = ErrorType<unknown>;
+
+export const useResetPlan = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resetPlan>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof resetPlan>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getResetPlanMutationOptions(options));
 };
 
 export const getGetTodayPlanUrl = () => {

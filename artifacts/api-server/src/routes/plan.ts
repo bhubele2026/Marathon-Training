@@ -527,6 +527,21 @@ router.post("/plan/days/:id/swap", async (req, res): Promise<void> => {
   });
 });
 
+// Restoring a row to its seed clears the seed_* snapshot too, so the row's
+// "edited" marker (seed_session_type IS NOT NULL) returns to false. That keeps
+// reset operations idempotent: a second reset reports 0 days touched.
+const CLEAR_SEED_FIELDS = {
+  seedSessionType: null,
+  seedEquipment: null,
+  seedDescription: null,
+  seedDistanceMi: null,
+  seedCardioMin: null,
+  seedPace: null,
+  seedStrengthLoad: null,
+  seedTotalLoad: null,
+  seedIsRest: null,
+} as const;
+
 router.post("/plan/days/:id/reset", async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
@@ -553,6 +568,7 @@ router.post("/plan/days/:id/reset", async (req, res): Promise<void> => {
         strengthLoad: existing.seedStrengthLoad,
         totalLoad: existing.seedTotalLoad ?? 0,
         isRest: existing.seedIsRest ?? existing.isRest,
+        ...CLEAR_SEED_FIELDS,
       })
       .where(eq(planDaysTable.id, id))
       .returning();
@@ -565,6 +581,92 @@ router.post("/plan/days/:id/reset", async (req, res): Promise<void> => {
   }
   req.log.info({ planDayId: id, week: result.week }, "plan day reset");
   res.json(toPlanDay(result));
+});
+
+// Restore every previously-edited plan day in a single week back to the
+// seeded prescription. Days that have never been touched (seed_* still null)
+// are skipped because there is nothing to restore from. Week aggregates are
+// recomputed once at the end so the response from /plan/weeks/:week reflects
+// the new totals immediately.
+function resetRow(row: PlanDayRow): PlanDayMutableFields {
+  return {
+    sessionType: row.seedSessionType ?? row.sessionType,
+    equipment: row.seedEquipment ?? row.equipment,
+    description: row.seedDescription ?? row.description,
+    distanceMi: row.seedDistanceMi,
+    cardioMin: row.seedCardioMin,
+    pace: row.seedPace,
+    strengthLoad: row.seedStrengthLoad,
+    totalLoad: row.seedTotalLoad ?? 0,
+    isRest: row.seedIsRest ?? row.isRest,
+  };
+}
+
+router.post("/plan/weeks/:week/reset", async (req, res): Promise<void> => {
+  const week = Number(req.params.week);
+  if (!Number.isInteger(week) || week <= 0) {
+    res.status(400).json({ error: "invalid week" });
+    return;
+  }
+  const result = await db.transaction(async (tx) => {
+    const weekRow = (
+      await tx
+        .select()
+        .from(planWeeksTable)
+        .where(eq(planWeeksTable.week, week))
+        .limit(1)
+    )[0];
+    if (!weekRow) return null;
+    const days = await tx
+      .select()
+      .from(planDaysTable)
+      .where(eq(planDaysTable.week, week));
+    const editedDays = days.filter((d) => d.seedSessionType != null);
+    for (const d of editedDays) {
+      await tx
+        .update(planDaysTable)
+        .set({ ...resetRow(d), ...CLEAR_SEED_FIELDS })
+        .where(eq(planDaysTable.id, d.id));
+    }
+    if (editedDays.length > 0) {
+      await recomputeWeekTotals(tx, week);
+    }
+    return { daysReset: editedDays.length, daysTotal: days.length };
+  });
+  if (!result) {
+    res.status(404).json({ error: "week not found" });
+    return;
+  }
+  req.log.info(
+    { week, daysReset: result.daysReset, daysTotal: result.daysTotal },
+    "plan week reset",
+  );
+  res.json({ week, ...result });
+});
+
+router.post("/plan/reset", async (req, res): Promise<void> => {
+  const result = await db.transaction(async (tx) => {
+    const days = await tx.select().from(planDaysTable);
+    const editedDays = days.filter((d) => d.seedSessionType != null);
+    const weeksTouched = new Set<number>();
+    for (const d of editedDays) {
+      await tx
+        .update(planDaysTable)
+        .set({ ...resetRow(d), ...CLEAR_SEED_FIELDS })
+        .where(eq(planDaysTable.id, d.id));
+      weeksTouched.add(d.week);
+    }
+    for (const w of weeksTouched) {
+      await recomputeWeekTotals(tx, w);
+    }
+    return {
+      weeksReset: weeksTouched.size,
+      daysReset: editedDays.length,
+      daysTotal: days.length,
+    };
+  });
+  req.log.info(result, "entire plan reset");
+  res.json(result);
 });
 
 export default router;
