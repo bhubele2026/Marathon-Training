@@ -125,7 +125,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/SwapPlanDayResponse" }
         "400":
-          description: Invalid id, request body, or partner day not in same week
+          description: Invalid id or request body
           content:
             application/json:
               schema:
@@ -553,7 +553,7 @@ components:
 
     UpdatePlanDayBody:
       type: object
-      description: Editable fields for a planned (prescribed) workout. Date, day, week, and phase are immutable - use the swap endpoint to move sessions between days within a week.
+      description: Editable fields for a planned (prescribed) workout. Date, day, week, and phase are immutable - use the swap endpoint to move sessions between days (within the same week or across weeks).
       properties:
         sessionType: { type: string }
         equipment: { type: string }
@@ -571,14 +571,21 @@ components:
       properties:
         withDayId:
           type: integer
-          description: id of the partner plan_day to swap session content with. Must be in the same week.
+          description: id of the partner plan_day to swap session content with. May be in the same week or in any other week of the plan.
 
     SwapPlanDayResponse:
       type: object
-      required: [from, to]
+      required: [from, to, weeksAffected, phaseChanged]
       properties:
         from: { $ref: "#/components/schemas/PlanDay" }
         to: { $ref: "#/components/schemas/PlanDay" }
+        weeksAffected:
+          type: array
+          description: Plan-week numbers whose aggregates were recomputed by this swap. One element for an in-week swap, two for a cross-week swap.
+          items: { type: integer }
+        phaseChanged:
+          type: boolean
+          description: True when the swap moved sessions across a phase boundary (the two days started out in different phases).
 
     PlanWeek:
       type: object

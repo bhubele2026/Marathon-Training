@@ -12,6 +12,7 @@ import {
   T_BIKE,
   T_STRENGTH,
   T_REST,
+  T_LONG_RUN,
   E_OUTDOOR,
   E_TREADMILL,
   E_SPIN,
@@ -458,14 +459,101 @@ describe("POST /api/plan/days/:id/swap", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns 400 when the two days are in different weeks", async () => {
+  it("trades sessions across weeks while preserving date / day / week / phase", async () => {
     const phase = "Swap Cross Week";
     await insertWeek(8201, { startDate: "2099-05-08", endDate: "2099-05-14", phase });
     await insertWeek(8202, { startDate: "2099-05-15", endDate: "2099-05-21", phase });
-    const a = await insertPlanDay(8201, phase, { date: "2099-05-08", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 3, totalLoad: 30 });
-    const b = await insertPlanDay(8202, phase, { date: "2099-05-15", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 3, totalLoad: 30 });
+    const a = await insertPlanDay(8201, phase, {
+      date: "2099-05-08", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, description: "wk1 mon run", distanceMi: 3, cardioMin: 30, totalLoad: 30,
+    });
+    const b = await insertPlanDay(8202, phase, {
+      date: "2099-05-15", day: "Mon", sessionType: T_STRENGTH, equipment: E_GYM, description: "wk2 mon lift", strengthLoad: 100, totalLoad: 100,
+    });
     const res = await request(app).post(`/api/plan/days/${a.id}/swap`).send({ withDayId: b.id });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
+
+    // Calendar slots and week assignments stay put; only the prescription
+    // content trades places.
+    expect(res.body.from.date).toBe("2099-05-08");
+    expect(res.body.from.week).toBe(8201);
+    expect(res.body.from.sessionType).toBe(T_STRENGTH);
+    expect(res.body.from.description).toBe("wk2 mon lift");
+    expect(res.body.to.date).toBe("2099-05-15");
+    expect(res.body.to.week).toBe(8202);
+    expect(res.body.to.sessionType).toBe(T_RUN);
+    expect(res.body.to.description).toBe("wk1 mon run");
+
+    expect(res.body.weeksAffected).toEqual(expect.arrayContaining([8201, 8202]));
+    expect(res.body.weeksAffected).toHaveLength(2);
+    expect(res.body.phaseChanged).toBe(false);
+  });
+
+  it("recomputes plannedMiles / plannedTotalLoad / longRunMi for both weeks atomically", async () => {
+    const phase = "Swap Cross Totals";
+    await insertWeek(8210, { startDate: "2099-06-05", endDate: "2099-06-11", phase });
+    await insertWeek(8211, { startDate: "2099-06-12", endDate: "2099-06-18", phase });
+    // Week 8210 has a single 4-mile easy run.
+    const a = await insertPlanDay(8210, phase, {
+      date: "2099-06-05", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 4, cardioMin: 40, totalLoad: 40,
+    });
+    // Week 8211 has a single 12-mile long run.
+    const b = await insertPlanDay(8211, phase, {
+      date: "2099-06-12", day: "Mon", sessionType: T_LONG_RUN, equipment: E_OUTDOOR, distanceMi: 12, cardioMin: 120, totalLoad: 120,
+    });
+
+    // Prime each week's aggregates via no-op edits so the "before" snapshot
+    // reflects the actual day rows rather than the zero values insertWeek
+    // wrote without running through the recomputation path.
+    await request(app).patch(`/api/plan/days/${a.id}`).send({
+      sessionType: T_RUN, equipment: E_OUTDOOR, description: "",
+      distanceMi: 4, cardioMin: 40, pace: null, strengthLoad: 0, totalLoad: 40, isRest: false,
+    });
+    await request(app).patch(`/api/plan/days/${b.id}`).send({
+      sessionType: T_LONG_RUN, equipment: E_OUTDOOR, description: "",
+      distanceMi: 12, cardioMin: 120, pace: null, strengthLoad: 0, totalLoad: 120, isRest: false,
+    });
+
+    const before10 = await request(app).get(`/api/plan/weeks/8210`);
+    const before11 = await request(app).get(`/api/plan/weeks/8211`);
+    expect(before10.body.plannedMiles).toBe(4);
+    expect(before10.body.longRunMi).toBe(4);
+    expect(before10.body.plannedTotalLoad).toBe(40);
+    expect(before11.body.plannedMiles).toBe(12);
+    expect(before11.body.longRunMi).toBe(12);
+    expect(before11.body.plannedTotalLoad).toBe(120);
+
+    const swap = await request(app).post(`/api/plan/days/${a.id}/swap`).send({ withDayId: b.id });
+    expect(swap.status).toBe(200);
+
+    // After the swap, the long run lives in week 8210 and the easy run lives
+    // in week 8211 -- both weeks' aggregates should have been recomputed.
+    const after10 = await request(app).get(`/api/plan/weeks/8210`);
+    const after11 = await request(app).get(`/api/plan/weeks/8211`);
+    expect(after10.body.plannedMiles).toBe(12);
+    expect(after10.body.longRunMi).toBe(12);
+    expect(after10.body.plannedTotalLoad).toBe(120);
+    expect(after11.body.plannedMiles).toBe(4);
+    expect(after11.body.longRunMi).toBe(4);
+    expect(after11.body.plannedTotalLoad).toBe(40);
+  });
+
+  it("flags phaseChanged when the partner day is in a different phase", async () => {
+    await insertWeek(8220, { startDate: "2099-07-03", endDate: "2099-07-09", phase: "Foundation Build" });
+    await insertWeek(8221, { startDate: "2099-07-10", endDate: "2099-07-16", phase: "Race-Specific" });
+    const a = await insertPlanDay(8220, "Foundation Build", {
+      date: "2099-07-03", day: "Fri", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 3, totalLoad: 30,
+    });
+    const b = await insertPlanDay(8221, "Race-Specific", {
+      date: "2099-07-10", day: "Fri", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 8, totalLoad: 80,
+    });
+    const res = await request(app).post(`/api/plan/days/${a.id}/swap`).send({ withDayId: b.id });
+    expect(res.status).toBe(200);
+    expect(res.body.phaseChanged).toBe(true);
+    // The phase column itself is anchored to the calendar slot, not the
+    // prescription, so the phase metadata stays put even though the work
+    // moved.
+    expect(res.body.from.phase).toBe("Foundation Build");
+    expect(res.body.to.phase).toBe("Race-Specific");
   });
 
   it("trades session content while preserving date / day / week / phase", async () => {

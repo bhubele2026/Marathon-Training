@@ -48,7 +48,7 @@ export interface PlanDay {
 }
 
 /**
- * Editable fields for a planned (prescribed) workout. Date, day, week, and phase are immutable - use the swap endpoint to move sessions between days within a week.
+ * Editable fields for a planned (prescribed) workout. Date, day, week, and phase are immutable - use the swap endpoint to move sessions between days (within the same week or across weeks).
  */
 export interface UpdatePlanDayBody {
   sessionType?: string;
@@ -63,13 +63,17 @@ export interface UpdatePlanDayBody {
 }
 
 export interface SwapPlanDayBody {
-  /** id of the partner plan_day to swap session content with. Must be in the same week. */
+  /** id of the partner plan_day to swap session content with. May be in the same week or in any other week of the plan. */
   withDayId: number;
 }
 
 export interface SwapPlanDayResponse {
   from: PlanDay;
   to: PlanDay;
+  /** Plan-week numbers whose aggregates were recomputed by this swap. One element for an in-week swap, two for a cross-week swap. */
+  weeksAffected: number[];
+  /** True when the swap moved sessions across a phase boundary (the two days started out in different phases). */
+  phaseChanged: boolean;
 }
 
 export interface PlanWeek {

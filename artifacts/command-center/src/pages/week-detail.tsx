@@ -114,9 +114,6 @@ export default function WeekDetail() {
     suggestions: day.suggestions ?? null,
   });
 
-  const swapCandidates = (current: PlanDay): PlanDay[] =>
-    week.days.filter((d) => d.id !== current.id);
-
   const confirmReset = () => {
     if (!resetPlanDayCtx) return;
     const target = resetPlanDayCtx;
@@ -476,7 +473,6 @@ export default function WeekDetail() {
           open={!!movePlanDay}
           onOpenChange={(open) => !open && setMovePlanDay(null)}
           day={movePlanDay}
-          candidates={swapCandidates(movePlanDay)}
         />
       )}
       <AlertDialog

@@ -121,7 +121,7 @@ export const UpdatePlanDayBody = zod
     isRest: zod.boolean().optional(),
   })
   .describe(
-    "Editable fields for a planned (prescribed) workout. Date, day, week, and phase are immutable - use the swap endpoint to move sessions between days within a week.",
+    "Editable fields for a planned (prescribed) workout. Date, day, week, and phase are immutable - use the swap endpoint to move sessions between days (within the same week or across weeks).",
   );
 
 export const UpdatePlanDayResponse = zod.object({
@@ -149,7 +149,7 @@ export const SwapPlanDayBody = zod.object({
   withDayId: zod
     .number()
     .describe(
-      "id of the partner plan_day to swap session content with. Must be in the same week.",
+      "id of the partner plan_day to swap session content with. May be in the same week or in any other week of the plan.",
     ),
 });
 
@@ -186,6 +186,16 @@ export const SwapPlanDayResponse = zod.object({
     isRest: zod.boolean(),
     totalLoad: zod.number(),
   }),
+  weeksAffected: zod
+    .array(zod.number())
+    .describe(
+      "Plan-week numbers whose aggregates were recomputed by this swap. One element for an in-week swap, two for a cross-week swap.",
+    ),
+  phaseChanged: zod
+    .boolean()
+    .describe(
+      "True when the swap moved sessions across a phase boundary (the two days started out in different phases).",
+    ),
 });
 
 export const ResetPlanDayParams = zod.object({

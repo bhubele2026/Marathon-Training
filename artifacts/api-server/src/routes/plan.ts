@@ -322,13 +322,15 @@ router.get("/plan/today", async (_req, res) => {
 // --- Plan editing ---------------------------------------------------------
 //
 // PATCH /plan/days/:id - edit the prescribed values on a plan day in place.
-// POST  /plan/days/:id/swap - swap session content with another day in the
-//                             same week; calendar dates stay put.
+// POST  /plan/days/:id/swap - swap session content with another day. Partner
+//                             may be in the same week or in any other week
+//                             of the plan; calendar dates stay put.
 // POST  /plan/days/:id/reset - restore the row to its seeded prescription.
 //
 // All three keep `plan_weeks` aggregates (plannedMiles, plannedTotalLoad,
 // plannedStrength, plannedCardio, longRunMi) consistent by recomputing them
-// from the affected week's plan_days inside a transaction, and lazily snapshot
+// from each affected week's plan_days inside a single transaction (one week
+// for in-week edits, both weeks for cross-week swaps), and lazily snapshot
 // the current row into the seed_* columns the first time it is mutated so
 // reset always has something to restore from on already-deployed databases.
 
@@ -470,16 +472,14 @@ router.post("/plan/days/:id/swap", async (req, res): Promise<void> => {
         .limit(1)
     )[0];
     if (!a || !b) return { kind: "not-found" as const };
-    if (a.week !== b.week) {
-      return { kind: "different-week" as const };
-    }
     await ensureSeedSnapshot(tx, a);
     await ensureSeedSnapshot(tx, b);
     const aFields = pickMutableFields(a);
     const bFields = pickMutableFields(b);
     // Overwrite a with b's prescription and vice-versa. date / day / week /
-    // phase / id / seed_* stay put so the calendar position and the original
-    // prescription snapshot are preserved.
+    // phase / id / seed_* stay put so the calendar position, the phase
+    // boundaries, and the original prescription snapshot are preserved even
+    // when the two days come from different weeks.
     const updatedA = await tx
       .update(planDaysTable)
       .set(bFields)
@@ -490,22 +490,41 @@ router.post("/plan/days/:id/swap", async (req, res): Promise<void> => {
       .set(aFields)
       .where(eq(planDaysTable.id, b.id))
       .returning();
-    await recomputeWeekTotals(tx, a.week);
-    return { kind: "ok" as const, a: updatedA[0]!, b: updatedB[0]! };
+    // Recompute aggregates for every week touched by the swap. For a
+    // cross-week swap that's both weeks (deduped); for an in-week swap it's
+    // just the one. Both happen inside this transaction so the two weeks
+    // either both get their new totals or the swap rolls back together.
+    const weeksAffected = a.week === b.week ? [a.week] : [a.week, b.week];
+    for (const w of weeksAffected) {
+      await recomputeWeekTotals(tx, w);
+    }
+    return {
+      kind: "ok" as const,
+      a: updatedA[0]!,
+      b: updatedB[0]!,
+      weeksAffected,
+      phaseChanged: a.phase !== b.phase,
+    };
   });
   if (result.kind === "not-found") {
     res.status(404).json({ error: "plan day not found" });
     return;
   }
-  if (result.kind === "different-week") {
-    res.status(400).json({ error: "plan days must be in the same week to swap" });
-    return;
-  }
   req.log.info(
-    { fromId: id, toId: withDayId, week: result.a.week },
+    {
+      fromId: id,
+      toId: withDayId,
+      weeksAffected: result.weeksAffected,
+      phaseChanged: result.phaseChanged,
+    },
     "plan days swapped",
   );
-  res.json({ from: toPlanDay(result.a), to: toPlanDay(result.b) });
+  res.json({
+    from: toPlanDay(result.a),
+    to: toPlanDay(result.b),
+    weeksAffected: result.weeksAffected,
+    phaseChanged: result.phaseChanged,
+  });
 });
 
 router.post("/plan/days/:id/reset", async (req, res): Promise<void> => {
