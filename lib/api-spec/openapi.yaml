@@ -923,6 +923,22 @@ components:
         equipment: { type: string }
         sessionType: { type: string }
         durationMin: { type: number, nullable: true }
+        strengthMin:
+          type: number
+          nullable: true
+          description: Actual lift / strength minutes for this logged session. Mirrors the prescribed `strengthMin` on the matching plan day so /today and /plan/:week can render plan-vs-actual per bucket. Null when the user hasn't supplied a breakdown yet (legacy rows fall back to `durationMin`).
+        cardioMin:
+          type: number
+          nullable: true
+          description: Actual non-running cross-train minutes (bike, row, spin). Does NOT include treadmill or outdoor running minutes — those live in `runMin`. Null when the user hasn't supplied a breakdown yet.
+        runMin:
+          type: number
+          nullable: true
+          description: Actual running minutes (treadmill or outdoor). Null when the user hasn't supplied a breakdown yet.
+        totalMin:
+          type: number
+          nullable: true
+          description: Sum of strengthMin, cardioMin, and runMin. Null when ALL three buckets are null (legacy row with only `durationMin` populated); otherwise nulls in individual buckets are treated as 0. Server-computed so the UI's TOTAL · LIFT · CARDIO · RUN tile is consistent with the same field on plan days.
         distanceMi: { type: number, nullable: true }
         pace: { type: string, nullable: true }
         avgHr: { type: integer, nullable: true }
@@ -951,6 +967,9 @@ components:
         equipment: { type: string }
         sessionType: { type: string }
         durationMin: { type: number, nullable: true }
+        strengthMin: { type: number, nullable: true }
+        cardioMin: { type: number, nullable: true }
+        runMin: { type: number, nullable: true }
         distanceMi: { type: number, nullable: true }
         pace: { type: string, nullable: true }
         avgHr: { type: integer, nullable: true }
@@ -974,6 +993,9 @@ components:
         equipment: { type: string }
         sessionType: { type: string }
         durationMin: { type: number, nullable: true }
+        strengthMin: { type: number, nullable: true }
+        cardioMin: { type: number, nullable: true }
+        runMin: { type: number, nullable: true }
         distanceMi: { type: number, nullable: true }
         pace: { type: string, nullable: true }
         avgHr: { type: integer, nullable: true }

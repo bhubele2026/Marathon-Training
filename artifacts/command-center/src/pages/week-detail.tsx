@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
-import { formatDistance, formatLoad, formatDate, formatDuration } from "@/lib/format";
+import { formatDistance, formatLoad, formatDate } from "@/lib/format";
 import {
   ChevronLeft,
   ChevronRight,
@@ -60,6 +60,7 @@ import { sortWorkoutsByTimeOfDay } from "@/lib/time-of-day";
 import { TimeOfDayBadge } from "@/components/time-of-day-badge";
 import { UndoCountdownAction } from "@/components/undo-countdown-action";
 import { PlannedBreakdown } from "@/components/planned-breakdown";
+import { ActualBreakdown } from "@/components/actual-breakdown";
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -392,14 +393,27 @@ export default function WeekDetail() {
                           className="flex items-center justify-between gap-3 bg-background/60 border border-border rounded px-3 py-2"
                           data-testid={`session-${day.date}-${session.id}`}
                         >
-                          <div className="text-xs font-mono flex items-center gap-2">
+                          <div className="text-xs font-mono flex flex-wrap items-center gap-x-3 gap-y-1">
                             <TimeOfDayBadge
                               value={session.timeOfDay}
                               testId={`badge-time-of-day-week-${session.id}`}
                             />
                             <span className="font-bold uppercase tracking-wider">{session.sessionType}</span>
                             {session.distanceMi != null && <span>{formatDistance(session.distanceMi)}</span>}
-                            {session.durationMin != null && <span>{formatDuration(session.durationMin)}</span>}
+                            {/* Per-bucket actual minutes (Task #76). For
+                                rest days the planned bucket values are
+                                all zero, so this collapses to a single
+                                Total tile (or the legacy Duration tile
+                                for older logs). */}
+                            <ActualBreakdown
+                              totalMin={session.totalMin}
+                              strengthMin={session.strengthMin}
+                              cardioMin={session.cardioMin}
+                              runMin={session.runMin}
+                              durationMin={session.durationMin}
+                              variant="compact"
+                              testIdPrefix={`session-${day.date}-${session.id}`}
+                            />
                           </div>
                           <div className="flex gap-1">
                             <Button
@@ -527,9 +541,24 @@ export default function WeekDetail() {
                                 {session.distanceMi != null && (
                                   <span><span className="text-muted-foreground">Dist</span> {formatDistance(session.distanceMi)}</span>
                                 )}
-                                {session.durationMin != null && (
-                                  <span><span className="text-muted-foreground">Dur</span> {formatDuration(session.durationMin)}</span>
-                                )}
+                                {/* Per-bucket actuals with planned context
+                                    (Task #76) — replaces the bare "Dur"
+                                    tile so the user sees the gap between
+                                    prescribed and actual minutes per
+                                    bucket without leaving the row. */}
+                                <ActualBreakdown
+                                  totalMin={session.totalMin}
+                                  strengthMin={session.strengthMin}
+                                  cardioMin={session.cardioMin}
+                                  runMin={session.runMin}
+                                  durationMin={session.durationMin}
+                                  plannedTotalMin={day.totalMin}
+                                  plannedStrengthMin={day.strengthMin}
+                                  plannedCardioMin={day.cardioMin}
+                                  plannedRunMin={day.runMin}
+                                  variant="compact"
+                                  testIdPrefix={`session-${day.date}-${session.id}`}
+                                />
                                 {session.pace && (
                                   <span><span className="text-muted-foreground">Pace</span> {session.pace}/mi</span>
                                 )}

@@ -54,6 +54,13 @@ describe("POST /api/workouts", () => {
         sessionType: T_RUN,
         equipment: E_OUTDOOR,
         durationMin: 45,
+        // Per-bucket actuals weren't sent, so they remain null on the
+        // wire and `totalMin` collapses to null too — the UI uses that
+        // signal to fall back to the legacy Duration tile.
+        strengthMin: null,
+        cardioMin: null,
+        runMin: null,
+        totalMin: null,
         distanceMi: 5.2,
         pace: "8:39",
         avgHr: 152,
@@ -66,6 +73,32 @@ describe("POST /api/workouts", () => {
     );
     // createdAt is serialized to an ISO string in the wire format.
     expect(() => new Date(res.body.createdAt as string).toISOString()).not.toThrow();
+  });
+
+  it("persists per-bucket actual minutes and exposes a server-computed totalMin (Task #76)", async () => {
+    const res = await request(app)
+      .post("/api/workouts")
+      .send({
+        date: "2099-04-11",
+        sessionType: T_STRENGTH,
+        equipment: E_GYM,
+        durationMin: 100,
+        strengthMin: 40,
+        cardioMin: 28,
+        runMin: 32,
+      });
+    expect(res.status).toBe(201);
+    expectMatchesSchema(UpdateWorkoutResponse, res.body);
+    expect(res.body).toEqual(
+      expect.objectContaining({
+        strengthMin: 40,
+        cardioMin: 28,
+        runMin: 32,
+        // Server-computed sum, not the rolled-up `durationMin` (so the
+        // breakdown total can never disagree with its parts).
+        totalMin: 100,
+      }),
+    );
   });
 
   it("returns 400 when the body fails validation", async () => {
@@ -140,6 +173,63 @@ describe("GET /api/workouts", () => {
   });
 });
 
+describe("GET /api/workouts (per-bucket actuals)", () => {
+  it("round-trips strength/cardio/run minutes and computes totalMin per row", async () => {
+    // Two rows: one with a partial breakdown (only lift+cardio), one
+    // with no breakdown at all. The list endpoint must report each
+    // row's actuals + a totalMin that's null only when ALL three buckets
+    // are null — partial-fill rows still get a real total.
+    await insertWorkout({
+      date: "2099-08-01",
+      sessionType: T_STRENGTH,
+      equipment: E_GYM,
+      durationMin: 70,
+      strengthMin: 45,
+      cardioMin: 25,
+    });
+    await insertWorkout({
+      date: "2099-08-02",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      durationMin: 30,
+      // No per-bucket actuals — legacy duration-only row.
+    });
+
+    const res = await request(app)
+      .get("/api/workouts")
+      .query({ from: "2099-08-01", to: "2099-08-31" });
+    expect(res.status).toBe(200);
+    expectMatchesSchema(ListWorkoutsResponse, res.body);
+    const rows = res.body as Array<{
+      date: string;
+      strengthMin: number | null;
+      cardioMin: number | null;
+      runMin: number | null;
+      totalMin: number | null;
+    }>;
+    // Sorted by date desc — legacy row first, partial-fill row second.
+    expect(rows.map((r) => r.date)).toEqual(["2099-08-02", "2099-08-01"]);
+    expect(rows[0]).toEqual(
+      expect.objectContaining({
+        strengthMin: null,
+        cardioMin: null,
+        runMin: null,
+        totalMin: null,
+      }),
+    );
+    expect(rows[1]).toEqual(
+      expect.objectContaining({
+        strengthMin: 45,
+        cardioMin: 25,
+        runMin: null,
+        // 45 + 25 + 0 (null run treated as 0 in the sum, but at least
+        // one bucket was populated so totalMin is non-null).
+        totalMin: 70,
+      }),
+    );
+  });
+});
+
 describe("PATCH /api/workouts/:id", () => {
   it("updates fields and returns the updated row", async () => {
     const { id } = await insertWorkout({
@@ -166,6 +256,35 @@ describe("PATCH /api/workouts/:id", () => {
         date: "2099-06-10",
         sessionType: T_RUN,
         equipment: E_OUTDOOR,
+      }),
+    );
+  });
+
+  it("updates per-bucket actual minutes and recomputes totalMin (Task #76)", async () => {
+    const { id } = await insertWorkout({
+      date: "2099-06-15",
+      sessionType: T_STRENGTH,
+      equipment: E_GYM,
+      durationMin: 70,
+      strengthMin: 45,
+      cardioMin: 25,
+      runMin: null,
+    });
+    const res = await request(app)
+      .patch(`/api/workouts/${id}`)
+      .send({ strengthMin: 50, runMin: 10 });
+    expect(res.status).toBe(200);
+    expectMatchesSchema(UpdateWorkoutResponse, res.body);
+    expect(res.body).toEqual(
+      expect.objectContaining({
+        strengthMin: 50,
+        // Untouched bucket stays put.
+        cardioMin: 25,
+        runMin: 10,
+        // Recomputed: 50 + 25 + 10. Note that legacy `durationMin` is
+        // intentionally untouched here because the UI surfaces totalMin
+        // for the breakdown view.
+        totalMin: 85,
       }),
     );
   });

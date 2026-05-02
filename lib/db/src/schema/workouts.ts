@@ -7,6 +7,21 @@ export const workoutsTable = pgTable("workouts", {
   equipment: text("equipment").notNull(),
   sessionType: text("session_type").notNull(),
   durationMin: doublePrecision("duration_min"),
+  // Three-bucket minute breakdown for the *actual* logged session, mirroring
+  // the prescribed split on plan_days (strength_min / cardio_min / run_min).
+  // Pre-task #76 the workouts table only carried `duration_min`, which made
+  // it impossible to compare actuals against the planned breakdown ("you ran
+  // 28 min vs planned 36 min, you lifted 40 min vs planned 45 min"). We now
+  // capture each bucket independently:
+  //   * strength_min: Tonal / lift minutes
+  //   * cardio_min:   non-running cross-train minutes (bike, row, spin)
+  //   * run_min:      treadmill or outdoor running minutes
+  // All three are nullable so existing rows logged before these columns
+  // existed remain valid; the UI falls back to `duration_min` when none of
+  // the buckets are populated.
+  strengthMin: doublePrecision("strength_min"),
+  cardioMin: doublePrecision("cardio_min"),
+  runMin: doublePrecision("run_min"),
   distanceMi: doublePrecision("distance_mi"),
   pace: text("pace"),
   avgHr: integer("avg_hr"),

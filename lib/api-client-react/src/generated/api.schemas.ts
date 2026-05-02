@@ -235,6 +235,14 @@ export interface Workout {
   equipment: string;
   sessionType: string;
   durationMin?: number | null;
+  /** Actual lift / strength minutes for this logged session. Mirrors the prescribed `strengthMin` on the matching plan day so /today and /plan/:week can render plan-vs-actual per bucket. Null when the user hasn't supplied a breakdown yet (legacy rows fall back to `durationMin`). */
+  strengthMin?: number | null;
+  /** Actual non-running cross-train minutes (bike, row, spin). Does NOT include treadmill or outdoor running minutes — those live in `runMin`. Null when the user hasn't supplied a breakdown yet. */
+  cardioMin?: number | null;
+  /** Actual running minutes (treadmill or outdoor). Null when the user hasn't supplied a breakdown yet. */
+  runMin?: number | null;
+  /** Sum of strengthMin, cardioMin, and runMin. Null when ALL three buckets are null (legacy row with only `durationMin` populated); otherwise nulls in individual buckets are treated as 0. Server-computed so the UI's TOTAL · LIFT · CARDIO · RUN tile is consistent with the same field on plan days. */
+  totalMin?: number | null;
   distanceMi?: number | null;
   pace?: string | null;
   avgHr?: number | null;
@@ -288,6 +296,9 @@ export interface CreateWorkoutBody {
   equipment: string;
   sessionType: string;
   durationMin?: number | null;
+  strengthMin?: number | null;
+  cardioMin?: number | null;
+  runMin?: number | null;
   distanceMi?: number | null;
   pace?: string | null;
   avgHr?: number | null;
@@ -324,6 +335,9 @@ export interface UpdateWorkoutBody {
   equipment?: string;
   sessionType?: string;
   durationMin?: number | null;
+  strengthMin?: number | null;
+  cardioMin?: number | null;
+  runMin?: number | null;
   distanceMi?: number | null;
   pace?: string | null;
   avgHr?: number | null;

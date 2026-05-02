@@ -187,6 +187,12 @@ export interface WorkoutInput {
   pace?: string | null;
   distanceMi?: number | null;
   durationMin?: number | null;
+  // Per-bucket actual minutes (Task #76). Optional so existing tests that
+  // only care about totals keep working; new tests can pass these to
+  // exercise the plan-vs-actual breakdown UI / aggregations.
+  strengthMin?: number | null;
+  cardioMin?: number | null;
+  runMin?: number | null;
   totalLoad?: number | null;
   strengthLoad?: number | null;
   planDayId?: number | null;
@@ -205,6 +211,9 @@ export async function insertWorkout(w: WorkoutInput): Promise<{ id: number }> {
       pace: w.pace ?? null,
       distanceMi: w.distanceMi ?? null,
       durationMin: w.durationMin ?? null,
+      strengthMin: w.strengthMin ?? null,
+      cardioMin: w.cardioMin ?? null,
+      runMin: w.runMin ?? null,
       totalLoad: w.totalLoad ?? null,
       strengthLoad: w.strengthLoad ?? null,
       planDayId: w.planDayId ?? null,

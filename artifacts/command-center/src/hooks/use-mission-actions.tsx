@@ -67,13 +67,29 @@ export function useMissionActions() {
       return;
     }
     const { plan } = ctx;
+    // Mirror the prescribed per-bucket minutes onto the actual workout so
+    // the plan-vs-actual breakdown on /today and /plan/:week shows a
+    // perfect match for "Crushed It". Falls back to plan.cardioMin for
+    // legacy `durationMin` consumers (e.g. equipment usage chart) when
+    // totalMin is null.
+    const liftMin = plan.strengthMin ?? null;
+    const cardioMin = plan.cardioMin ?? null;
+    const runMin = plan.runMin ?? null;
+    const totalMin =
+      plan.totalMin ??
+      (liftMin == null && cardioMin == null && runMin == null
+        ? null
+        : (liftMin ?? 0) + (cardioMin ?? 0) + (runMin ?? 0));
     createWorkout.mutate(
       {
         data: {
           date: ctx.date,
           equipment: plan.equipment,
           sessionType: plan.sessionType,
-          durationMin: plan.cardioMin ?? 0,
+          durationMin: totalMin ?? plan.cardioMin ?? 0,
+          strengthMin: liftMin,
+          cardioMin: cardioMin,
+          runMin: runMin,
           distanceMi: plan.distanceMi ?? null,
           pace: ctx.suggestions?.pace ?? plan.pace ?? "",
           avgHr: ctx.suggestions?.avgHr ?? null,
@@ -150,7 +166,17 @@ export function useMissionActions() {
                   equipment: logCtx.plan.equipment,
                   sessionType: logCtx.plan.sessionType,
                   distanceMi: logCtx.plan.distanceMi,
-                  durationMin: logCtx.plan.cardioMin,
+                  // Pre-fill the rolled-up duration from the plan's total
+                  // minutes when available so it matches the per-bucket
+                  // pre-fill below; fall back to the legacy cardioMin
+                  // value for plan rows that haven't been backfilled yet.
+                  durationMin: logCtx.plan.totalMin ?? logCtx.plan.cardioMin,
+                  // Pre-fill the per-bucket actuals from the plan day so
+                  // the user just confirms the breakdown rather than
+                  // typing it from scratch (same UX as "Crushed It").
+                  strengthMin: logCtx.plan.strengthMin,
+                  cardioMin: logCtx.plan.cardioMin,
+                  runMin: logCtx.plan.runMin,
                   totalLoad: logCtx.plan.totalLoad,
                   planDayId: logCtx.plan.id,
                   rpe: logCtx.suggestions?.rpe ?? null,

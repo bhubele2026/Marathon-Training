@@ -584,6 +584,30 @@ export const GetTodayPlanResponse = zod.object({
         equipment: zod.string(),
         sessionType: zod.string(),
         durationMin: zod.number().nullish(),
+        strengthMin: zod
+          .number()
+          .nullish()
+          .describe(
+            "Actual lift \/ strength minutes for this logged session. Mirrors the prescribed `strengthMin` on the matching plan day so \/today and \/plan\/:week can render plan-vs-actual per bucket. Null when the user hasn't supplied a breakdown yet (legacy rows fall back to `durationMin`).",
+          ),
+        cardioMin: zod
+          .number()
+          .nullish()
+          .describe(
+            "Actual non-running cross-train minutes (bike, row, spin). Does NOT include treadmill or outdoor running minutes — those live in `runMin`. Null when the user hasn't supplied a breakdown yet.",
+          ),
+        runMin: zod
+          .number()
+          .nullish()
+          .describe(
+            "Actual running minutes (treadmill or outdoor). Null when the user hasn't supplied a breakdown yet.",
+          ),
+        totalMin: zod
+          .number()
+          .nullish()
+          .describe(
+            "Sum of strengthMin, cardioMin, and runMin. Null when ALL three buckets are null (legacy row with only `durationMin` populated); otherwise nulls in individual buckets are treated as 0. Server-computed so the UI's TOTAL · LIFT · CARDIO · RUN tile is consistent with the same field on plan days.",
+          ),
         distanceMi: zod.number().nullish(),
         pace: zod.string().nullish(),
         avgHr: zod.number().nullish(),
@@ -699,6 +723,30 @@ export const ListWorkoutsResponseItem = zod.object({
   equipment: zod.string(),
   sessionType: zod.string(),
   durationMin: zod.number().nullish(),
+  strengthMin: zod
+    .number()
+    .nullish()
+    .describe(
+      "Actual lift \/ strength minutes for this logged session. Mirrors the prescribed `strengthMin` on the matching plan day so \/today and \/plan\/:week can render plan-vs-actual per bucket. Null when the user hasn't supplied a breakdown yet (legacy rows fall back to `durationMin`).",
+    ),
+  cardioMin: zod
+    .number()
+    .nullish()
+    .describe(
+      "Actual non-running cross-train minutes (bike, row, spin). Does NOT include treadmill or outdoor running minutes — those live in `runMin`. Null when the user hasn't supplied a breakdown yet.",
+    ),
+  runMin: zod
+    .number()
+    .nullish()
+    .describe(
+      "Actual running minutes (treadmill or outdoor). Null when the user hasn't supplied a breakdown yet.",
+    ),
+  totalMin: zod
+    .number()
+    .nullish()
+    .describe(
+      "Sum of strengthMin, cardioMin, and runMin. Null when ALL three buckets are null (legacy row with only `durationMin` populated); otherwise nulls in individual buckets are treated as 0. Server-computed so the UI's TOTAL · LIFT · CARDIO · RUN tile is consistent with the same field on plan days.",
+    ),
   distanceMi: zod.number().nullish(),
   pace: zod.string().nullish(),
   avgHr: zod.number().nullish(),
@@ -728,6 +776,9 @@ export const CreateWorkoutBody = zod.object({
   equipment: zod.string(),
   sessionType: zod.string(),
   durationMin: zod.number().nullish(),
+  strengthMin: zod.number().nullish(),
+  cardioMin: zod.number().nullish(),
+  runMin: zod.number().nullish(),
   distanceMi: zod.number().nullish(),
   pace: zod.string().nullish(),
   avgHr: zod.number().nullish(),
@@ -748,6 +799,9 @@ export const UpdateWorkoutBody = zod.object({
   equipment: zod.string().optional(),
   sessionType: zod.string().optional(),
   durationMin: zod.number().nullish(),
+  strengthMin: zod.number().nullish(),
+  cardioMin: zod.number().nullish(),
+  runMin: zod.number().nullish(),
   distanceMi: zod.number().nullish(),
   pace: zod.string().nullish(),
   avgHr: zod.number().nullish(),
@@ -766,6 +820,30 @@ export const UpdateWorkoutResponse = zod.object({
   equipment: zod.string(),
   sessionType: zod.string(),
   durationMin: zod.number().nullish(),
+  strengthMin: zod
+    .number()
+    .nullish()
+    .describe(
+      "Actual lift \/ strength minutes for this logged session. Mirrors the prescribed `strengthMin` on the matching plan day so \/today and \/plan\/:week can render plan-vs-actual per bucket. Null when the user hasn't supplied a breakdown yet (legacy rows fall back to `durationMin`).",
+    ),
+  cardioMin: zod
+    .number()
+    .nullish()
+    .describe(
+      "Actual non-running cross-train minutes (bike, row, spin). Does NOT include treadmill or outdoor running minutes — those live in `runMin`. Null when the user hasn't supplied a breakdown yet.",
+    ),
+  runMin: zod
+    .number()
+    .nullish()
+    .describe(
+      "Actual running minutes (treadmill or outdoor). Null when the user hasn't supplied a breakdown yet.",
+    ),
+  totalMin: zod
+    .number()
+    .nullish()
+    .describe(
+      "Sum of strengthMin, cardioMin, and runMin. Null when ALL three buckets are null (legacy row with only `durationMin` populated); otherwise nulls in individual buckets are treated as 0. Server-computed so the UI's TOTAL · LIFT · CARDIO · RUN tile is consistent with the same field on plan days.",
+    ),
   distanceMi: zod.number().nullish(),
   pace: zod.string().nullish(),
   avgHr: zod.number().nullish(),
@@ -969,6 +1047,30 @@ export const GetRecentActivityResponseItem = zod.object({
   equipment: zod.string(),
   sessionType: zod.string(),
   durationMin: zod.number().nullish(),
+  strengthMin: zod
+    .number()
+    .nullish()
+    .describe(
+      "Actual lift \/ strength minutes for this logged session. Mirrors the prescribed `strengthMin` on the matching plan day so \/today and \/plan\/:week can render plan-vs-actual per bucket. Null when the user hasn't supplied a breakdown yet (legacy rows fall back to `durationMin`).",
+    ),
+  cardioMin: zod
+    .number()
+    .nullish()
+    .describe(
+      "Actual non-running cross-train minutes (bike, row, spin). Does NOT include treadmill or outdoor running minutes — those live in `runMin`. Null when the user hasn't supplied a breakdown yet.",
+    ),
+  runMin: zod
+    .number()
+    .nullish()
+    .describe(
+      "Actual running minutes (treadmill or outdoor). Null when the user hasn't supplied a breakdown yet.",
+    ),
+  totalMin: zod
+    .number()
+    .nullish()
+    .describe(
+      "Sum of strengthMin, cardioMin, and runMin. Null when ALL three buckets are null (legacy row with only `durationMin` populated); otherwise nulls in individual buckets are treated as 0. Server-computed so the UI's TOTAL · LIFT · CARDIO · RUN tile is consistent with the same field on plan days.",
+    ),
   distanceMi: zod.number().nullish(),
   pace: zod.string().nullish(),
   avgHr: zod.number().nullish(),

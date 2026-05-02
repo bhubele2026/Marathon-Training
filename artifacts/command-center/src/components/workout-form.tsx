@@ -98,6 +98,13 @@ const formSchema = z.object({
   equipment: z.string().min(1, "Equipment is required"),
   sessionType: z.string().min(1, "Session type is required"),
   durationMin: z.coerce.number().optional().nullable(),
+  // Per-bucket actual minutes (Task #76). Coerced from string input so the
+  // <input type="number"> values flow through cleanly. All optional so a
+  // user can keep logging only `durationMin` if they don't care about the
+  // breakdown — only the buckets they fill in get persisted.
+  strengthMin: z.coerce.number().optional().nullable(),
+  cardioMin: z.coerce.number().optional().nullable(),
+  runMin: z.coerce.number().optional().nullable(),
   distanceMi: z.coerce.number().optional().nullable(),
   pace: z.string().optional().nullable(),
   avgHr: z.coerce.number().optional().nullable(),
@@ -125,6 +132,9 @@ const KNOWN_FIELDS = [
   "equipment",
   "sessionType",
   "durationMin",
+  "strengthMin",
+  "cardioMin",
+  "runMin",
   "distanceMi",
   "pace",
   "avgHr",
@@ -162,6 +172,9 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
     equipment: initialEquipment,
     sessionType: initial?.sessionType || "",
     durationMin: initial?.durationMin ?? null,
+    strengthMin: initial?.strengthMin ?? null,
+    cardioMin: initial?.cardioMin ?? null,
+    runMin: initial?.runMin ?? null,
     distanceMi: initial?.distanceMi ?? null,
     pace: initial?.pace || "",
     avgHr: initial?.avgHr ?? null,
@@ -466,7 +479,79 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
                   <FormItem>
                     <FormLabel>Duration (min)</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="45" {...field} value={field.value ?? ""} />
+                      <Input
+                        type="number"
+                        placeholder="45"
+                        data-testid="input-duration-min"
+                        {...field}
+                        value={field.value ?? ""}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {/*
+                Per-bucket minute breakdown (Task #76). These three fields
+                let the user log how the prescribed lift / cardio / run
+                minutes actually broke out, so /today and /plan/:week can
+                show "ran 28 vs planned 36, lifted 40 vs planned 45"
+                instead of comparing only the bare totals. All three are
+                optional — leaving them blank still records the rolled-up
+                `Duration (min)` above unchanged.
+              */}
+              <FormField
+                control={form.control}
+                name="strengthMin"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Lift Min</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        placeholder="0"
+                        data-testid="input-strength-min"
+                        {...field}
+                        value={field.value ?? ""}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="cardioMin"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Cardio Min</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        placeholder="0"
+                        data-testid="input-cardio-min"
+                        {...field}
+                        value={field.value ?? ""}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="runMin"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Run Min</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        placeholder="0"
+                        data-testid="input-run-min"
+                        {...field}
+                        value={field.value ?? ""}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

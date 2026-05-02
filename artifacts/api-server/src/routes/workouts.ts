@@ -50,6 +50,13 @@ router.post("/workouts", async (req, res): Promise<void> => {
     equipment: d.equipment,
     sessionType: d.sessionType,
     durationMin: d.durationMin ?? null,
+    // Per-bucket actual minutes (Task #76). Nullable so existing
+    // duration-only logging flows still work; the form / Crushed-It
+    // shortcut populate these alongside `durationMin` when a plan day
+    // breakdown is available.
+    strengthMin: d.strengthMin ?? null,
+    cardioMin: d.cardioMin ?? null,
+    runMin: d.runMin ?? null,
     distanceMi: d.distanceMi ?? null,
     pace: d.pace ?? null,
     avgHr: d.avgHr ?? null,

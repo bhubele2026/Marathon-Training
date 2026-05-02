@@ -254,6 +254,12 @@ async function fetchRecentWorkoutsByPair(
     equipment: string;
     session_type: string;
     duration_min: number | null;
+    // Per-bucket actual minutes (Task #76). Selected so the recent-row
+    // sample we hand back to the suggestions / plan-vs-actual logic
+    // carries the same shape as the rest of the workouts surface.
+    strength_min: number | null;
+    cardio_min: number | null;
+    run_min: number | null;
     distance_mi: number | null;
     pace: string | null;
     avg_hr: number | null;
@@ -277,6 +283,7 @@ async function fetchRecentWorkoutsByPair(
         AND (w.session_type, w.equipment) IN (${pairValues})
     )
     SELECT id, plan_day_id, date, equipment, session_type, duration_min,
+           strength_min, cardio_min, run_min,
            distance_mi, pace, avg_hr, rpe, strength_load, total_load, notes,
            time_of_day, modality, created_at
     FROM ranked
@@ -295,6 +302,9 @@ async function fetchRecentWorkoutsByPair(
       equipment: r.equipment,
       sessionType: r.session_type,
       durationMin: r.duration_min,
+      strengthMin: r.strength_min,
+      cardioMin: r.cardio_min,
+      runMin: r.run_min,
       distanceMi: r.distance_mi,
       pace: r.pace,
       avgHr: r.avg_hr,

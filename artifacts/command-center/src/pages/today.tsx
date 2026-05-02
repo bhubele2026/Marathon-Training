@@ -2,12 +2,13 @@ import { useGetTodayPlan } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatDistance, formatLoad, formatDuration } from "@/lib/format";
+import { formatDistance, formatLoad } from "@/lib/format";
 import { CheckCircle2, Activity, Trash2, Edit, Zap, Pencil, XCircle, Rocket } from "lucide-react";
 import { useMissionActions } from "@/hooks/use-mission-actions";
 import { QuickLogActivity } from "@/components/quick-log-activity";
 import { TimeOfDayBadge } from "@/components/time-of-day-badge";
 import { PlannedBreakdown } from "@/components/planned-breakdown";
+import { ActualBreakdown } from "@/components/actual-breakdown";
 import { format, parseISO } from "date-fns";
 
 export default function Today() {
@@ -256,18 +257,30 @@ export default function Today() {
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent className="p-6">
+              <CardContent className="p-6 space-y-6">
+                {/* Per-bucket actual minutes (Task #76). Shows TOTAL · LIFT
+                    · CARDIO · RUN with the planned values inline beneath
+                    each tile so the user can see where the gap was. Falls
+                    back to a single Duration tile for legacy rows that
+                    only have `durationMin`. */}
+                <ActualBreakdown
+                  totalMin={session.totalMin}
+                  strengthMin={session.strengthMin}
+                  cardioMin={session.cardioMin}
+                  runMin={session.runMin}
+                  durationMin={session.durationMin}
+                  plannedTotalMin={today.plan?.totalMin}
+                  plannedStrengthMin={today.plan?.strengthMin}
+                  plannedCardioMin={today.plan?.cardioMin}
+                  plannedRunMin={today.plan?.runMin}
+                  variant="prominent"
+                  testIdPrefix={`session-today-${session.id}`}
+                />
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
                   {session.distanceMi != null && (
                     <div>
                       <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Distance</p>
                       <p className="text-xl font-black">{formatDistance(session.distanceMi)}</p>
-                    </div>
-                  )}
-                  {session.durationMin != null && (
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Duration</p>
-                      <p className="text-xl font-black">{formatDuration(session.durationMin)}</p>
                     </div>
                   )}
                   {session.pace && (

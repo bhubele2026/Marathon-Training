@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatDistance, formatDuration, formatLoad, formatDate } from "@/lib/format";
+import { formatDistance, formatLoad, formatDate } from "@/lib/format";
 import { Edit, Trash2, Plus } from "lucide-react";
 import { WorkoutForm } from "@/components/workout-form";
+import { ActualBreakdown } from "@/components/actual-breakdown";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -134,7 +135,26 @@ export default function Log() {
                       </span>
                     </TableCell>
                     <TableCell className="text-right font-mono">{formatDistance(workout.distanceMi)}</TableCell>
-                    <TableCell className="text-right font-mono">{formatDuration(workout.durationMin)}</TableCell>
+                    <TableCell className="text-right font-mono">
+                      {/* Per-bucket actual breakdown (Task #76). Renders
+                          TOTAL · LIFT · CARDIO · RUN inline so the table
+                          shows how each session's time broke down across
+                          buckets, not just the rolled-up duration. The
+                          /log table has no plan-day join here, so the
+                          tiles render without "/ planned" annotations.
+                          For legacy duration-only rows the component
+                          falls back to a single Total tile so the cell
+                          still renders the same number it always has. */}
+                      <ActualBreakdown
+                        totalMin={workout.totalMin}
+                        strengthMin={workout.strengthMin}
+                        cardioMin={workout.cardioMin}
+                        runMin={workout.runMin}
+                        durationMin={workout.durationMin}
+                        variant="compact"
+                        testIdPrefix={`log-row-${workout.id}`}
+                      />
+                    </TableCell>
                     <TableCell className="text-right font-mono">{workout.pace || '-'}</TableCell>
                     <TableCell className="text-right font-mono">{formatLoad(workout.totalLoad)}</TableCell>
                     <TableCell className="text-right">

@@ -101,6 +101,17 @@ export function toWorkout(r: WorkoutRow) {
     equipment: r.equipment,
     sessionType: r.sessionType,
     durationMin: r.durationMin,
+    // Per-bucket actual minutes mirroring the plan day breakdown so the
+    // /today and /plan/:week pages can render plan-vs-actual per bucket.
+    // `totalMin` is server-computed (same helper as toPlanDay) so a row
+    // where the user only filled in some buckets still gets a consistent
+    // total — and a row with no breakdown at all (legacy `durationMin`-only
+    // entries) returns null so the UI can fall back gracefully instead of
+    // misreporting "0 min".
+    strengthMin: r.strengthMin,
+    cardioMin: r.cardioMin,
+    runMin: r.runMin,
+    totalMin: computeTotalMin(r),
     distanceMi: r.distanceMi,
     pace: r.pace,
     avgHr: r.avgHr,
