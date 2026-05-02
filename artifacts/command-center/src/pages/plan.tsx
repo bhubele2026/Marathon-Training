@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { UndoCountdownAction } from "@/components/undo-countdown-action";
+import { FullResetDialog } from "@/components/full-reset-dialog";
 import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
 import { formatDistance, formatDate } from "@/lib/format";
 import { useLocation } from "wouter";
@@ -40,7 +41,6 @@ import { cn } from "@/lib/utils";
 import { phaseColor } from "@/lib/phase-colors";
 
 const RESET_PLAN_CONFIRM_PHRASE = "RESET PLAN";
-const FULL_RESET_CONFIRM_PHRASE = "WIPE EVERYTHING";
 
 export default function Plan() {
   const { data: overview, isLoading: loadingOverview } = useGetPlanOverview();
@@ -54,20 +54,11 @@ export default function Plan() {
   const [resetPlanOpen, setResetPlanOpen] = useState(false);
   const [resetPlanConfirmText, setResetPlanConfirmText] = useState("");
   const [fullResetOpen, setFullResetOpen] = useState(false);
-  const [fullResetConfirmText, setFullResetConfirmText] = useState("");
 
   const closeResetPlanDialog = (open: boolean) => {
     if (resetPlan.isPending) return;
     setResetPlanOpen(open);
     if (!open) setResetPlanConfirmText("");
-  };
-
-  // Lock the dialog open while the reset is in flight so the user can't
-  // half-cancel a destructive operation that's already running on the server.
-  const closeFullResetDialog = (open: boolean) => {
-    if (fullResetPlan.isPending) return;
-    setFullResetOpen(open);
-    if (!open) setFullResetConfirmText("");
   };
 
   const handleUndoReset = (undoToken: string) => {
@@ -137,9 +128,14 @@ export default function Plan() {
           title: "Campaign reset to day one",
           description: `${data.workoutsWiped} workout${data.workoutsWiped === 1 ? "" : "s"} and ${data.measurementsWiped} measurement${data.measurementsWiped === 1 ? "" : "s"} wiped. Reseeded ${data.weeksSeeded} weeks / ${data.daysSeeded} days from scratch.`,
         });
-        invalidateMissionRelatedQueries(queryClient);
+        // A full reset touches EVERY mutable table, so invalidate the
+        // entire react-query cache instead of the curated mission-only
+        // set. This guarantees /measurements, /equipment, /log, /plan/:n,
+        // and any other view backed by an api hook re-fetches against
+        // the freshly reseeded state — anything narrower risks showing
+        // stale data after the wipe.
+        queryClient.invalidateQueries();
         setFullResetOpen(false);
-        setFullResetConfirmText("");
       },
       onError: () => {
         toast({
@@ -390,52 +386,12 @@ export default function Plan() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={fullResetOpen} onOpenChange={closeFullResetDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Wipe everything and start over?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This is a nuclear reset. It permanently deletes every logged
-              workout, every body measurement, the race-week checklist, every
-              plan customization, then reseeds the canonical 52-week plan
-              from scratch and reinserts only the seeded baseline weight.
-              There is no undo. Type{" "}
-              <span className="font-mono font-bold">{FULL_RESET_CONFIRM_PHRASE}</span> below to confirm.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="space-y-2 py-2">
-            <Label htmlFor="full-reset-confirm" className="text-xs uppercase tracking-wider">
-              Confirmation
-            </Label>
-            <Input
-              id="full-reset-confirm"
-              autoFocus
-              value={fullResetConfirmText}
-              onChange={(e) => setFullResetConfirmText(e.target.value)}
-              placeholder={FULL_RESET_CONFIRM_PHRASE}
-              disabled={fullResetPlan.isPending}
-              data-testid="input-confirm-full-reset"
-            />
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={fullResetPlan.isPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={
-                fullResetPlan.isPending ||
-                fullResetConfirmText.trim().toUpperCase() !== FULL_RESET_CONFIRM_PHRASE
-              }
-              onClick={(e) => {
-                e.preventDefault();
-                confirmFullReset();
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              data-testid="button-confirm-full-reset"
-            >
-              {fullResetPlan.isPending ? "Wiping..." : "Wipe Everything"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <FullResetDialog
+        open={fullResetOpen}
+        onOpenChange={setFullResetOpen}
+        onConfirm={confirmFullReset}
+        isPending={fullResetPlan.isPending}
+      />
     </div>
   );
 }
