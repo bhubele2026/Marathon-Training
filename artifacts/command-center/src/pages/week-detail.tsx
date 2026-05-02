@@ -51,6 +51,7 @@ import {
 } from "lucide-react";
 import { useMissionActions } from "@/hooks/use-mission-actions";
 import { cn } from "@/lib/utils";
+import { phaseColor } from "@/lib/phase-colors";
 import { PlanDayForm } from "@/components/plan-day-form";
 import { MoveDayPicker } from "@/components/move-day-picker";
 import { sortWorkoutsByTimeOfDay } from "@/lib/time-of-day";
@@ -197,10 +198,23 @@ export default function WeekDetail() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-card border border-border rounded-lg p-4">
+      <div
+        className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-card border border-border border-l-4 rounded-lg p-4"
+        style={{ borderLeftColor: phaseColor(week.phase) }}
+      >
         <div>
           <p className="text-[10px] uppercase font-bold text-muted-foreground">Phase</p>
-          <p className="font-black text-lg">{week.phase}</p>
+          <p
+            className="font-black text-lg flex items-center gap-2"
+            data-testid="week-phase-label"
+          >
+            <span
+              className="h-3 w-3 rounded-sm shrink-0"
+              style={{ backgroundColor: phaseColor(week.phase) }}
+              aria-hidden
+            />
+            {week.phase}
+          </p>
         </div>
         <div>
           <p className="text-[10px] uppercase font-bold text-muted-foreground">Volume</p>

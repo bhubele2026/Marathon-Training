@@ -6,6 +6,7 @@ import { formatDistance, formatDate } from "@/lib/format";
 import { useLocation } from "wouter";
 import { CalendarDays, Target, Activity, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { phaseColor } from "@/lib/phase-colors";
 
 export default function Plan() {
   const { data: overview, isLoading: loadingOverview } = useGetPlanOverview();
@@ -50,9 +51,15 @@ export default function Plan() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card
+          className="border-l-4"
+          style={{ borderLeftColor: phaseColor(overview.currentPhase) }}
+        >
           <CardContent className="p-6 flex items-center gap-4">
-            <Activity className="h-8 w-8 text-muted-foreground" />
+            <Activity
+              className="h-8 w-8"
+              style={{ color: phaseColor(overview.currentPhase) }}
+            />
             <div>
               <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Phase</p>
               <div className="text-2xl font-black">{overview.currentPhase}</div>
@@ -71,9 +78,22 @@ export default function Plan() {
       </div>
 
       <div className="space-y-12">
-        {Object.entries(groupedWeeks).map(([phase, phaseWeeks]) => (
+        {Object.entries(groupedWeeks).map(([phase, phaseWeeks]) => {
+          const color = phaseColor(phase);
+          return (
           <div key={phase} className="space-y-4">
-            <h3 className="text-xl font-bold uppercase tracking-wider border-b border-border pb-2 sticky top-0 bg-background/95 backdrop-blur z-10">{phase}</h3>
+            <h3
+              className="text-xl font-bold uppercase tracking-wider border-b-2 pb-2 sticky top-0 bg-background/95 backdrop-blur z-10 flex items-center gap-3"
+              style={{ borderBottomColor: color }}
+              data-testid={`phase-header-${phase}`}
+            >
+              <span
+                className="h-4 w-1.5 rounded-sm shrink-0"
+                style={{ backgroundColor: color }}
+                aria-hidden
+              />
+              {phase}
+            </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {phaseWeeks.map(week => {
                 const isCurrent = week.week === overview.currentWeek;
@@ -85,9 +105,12 @@ export default function Plan() {
                   <Card 
                     key={week.week} 
                     className={cn(
-                      "cursor-pointer transition-all hover:border-primary/50 hover:shadow-md",
-                      isCurrent && "border-primary shadow-sm bg-primary/5"
+                      "cursor-pointer transition-all hover:shadow-md border-l-4",
+                      isCurrent
+                        ? "ring-2 ring-primary shadow-sm bg-primary/5"
+                        : "hover:border-primary/30"
                     )}
+                    style={{ borderLeftColor: color }}
                     onClick={() => setLocation(`/plan/${week.week}`)}
                   >
                     <CardContent className="p-5">
@@ -136,7 +159,8 @@ export default function Plan() {
               })}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

@@ -23,6 +23,7 @@ import { useMissionActions } from "@/hooks/use-mission-actions";
 import { QuickLogActivity } from "@/components/quick-log-activity";
 import { RaceWeekBanner } from "@/components/race-week-banner";
 import { TimeOfDayBadge } from "@/components/time-of-day-badge";
+import { phaseColor } from "@/lib/phase-colors";
 
 export default function Dashboard() {
   const { data: summary, isLoading: loadingSummary } = useGetDashboardSummary();
@@ -51,13 +52,28 @@ export default function Dashboard() {
 
       {/* Top Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-card">
+        <Card
+          className="bg-card border-l-4"
+          style={{ borderLeftColor: phaseColor(summary.currentPhase) }}
+        >
           <CardContent className="p-6">
             <div className="flex items-center justify-between space-x-2">
               <div>
                 <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Mission Status</p>
                 <div className="text-3xl font-black mt-1">Week {summary.currentWeek}</div>
-                <p className="text-sm text-primary font-semibold uppercase mt-1">{summary.currentPhase}</p>
+                <p
+                  className="text-sm font-semibold uppercase mt-1 flex items-center gap-2"
+                  data-testid="dashboard-current-phase"
+                >
+                  <span
+                    className="h-2.5 w-2.5 rounded-sm shrink-0"
+                    style={{ backgroundColor: phaseColor(summary.currentPhase) }}
+                    aria-hidden
+                  />
+                  <span style={{ color: phaseColor(summary.currentPhase) }}>
+                    {summary.currentPhase}
+                  </span>
+                </p>
               </div>
               <CalendarDays className="h-8 w-8 text-muted-foreground opacity-50" />
             </div>

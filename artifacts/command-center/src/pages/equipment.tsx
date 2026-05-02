@@ -16,21 +16,7 @@ import {
 import { formatDistance, formatDuration, formatLoad, formatDate } from "@/lib/format";
 import { Activity, Dumbbell, Clock, Route } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const PHASE_COLORS = [
-  "hsl(24 95% 53%)",
-  "hsl(199 89% 48%)",
-  "hsl(142 71% 45%)",
-  "hsl(271 76% 53%)",
-  "hsl(346 87% 55%)",
-  "hsl(48 96% 53%)",
-  "hsl(180 65% 40%)",
-  "hsl(217 91% 60%)",
-];
-
-function phaseColor(index: number) {
-  return PHASE_COLORS[index % PHASE_COLORS.length];
-}
+import { phaseColor } from "@/lib/phase-colors";
 
 interface EquipmentStats {
   sessions: number;
@@ -352,11 +338,11 @@ export default function Equipment() {
           <Card>
             <CardContent className="p-5">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-5">
-                {phaseSummary.phases.map((phase, i) => (
+                {phaseSummary.phases.map((phase) => (
                   <div key={phase} className="flex items-center gap-2">
                     <span
                       className="h-3 w-3 rounded-sm shrink-0"
-                      style={{ backgroundColor: phaseColor(i) }}
+                      style={{ backgroundColor: phaseColor(phase) }}
                       aria-hidden
                     />
                     <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
@@ -412,7 +398,7 @@ export default function Equipment() {
                                     const segValue = Math.max(planned, actual);
                                     if (segValue === 0) return null;
                                     const segPct = (segValue / barTotal) * 100;
-                                    const color = phaseColor(i);
+                                    const color = phaseColor(phaseSummary.phases[i]);
                                     const fillRatio =
                                       planned === 0
                                         ? actual > 0
