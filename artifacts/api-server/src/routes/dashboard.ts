@@ -132,13 +132,22 @@ interface EquipmentRow extends Record<string, unknown> {
   planned_minutes: number;
   planned_load: number;
   planned_distance: number;
+  planned_to_date_sessions: number;
+  planned_to_date_minutes: number;
+  planned_to_date_load: number;
+  planned_to_date_distance: number;
 }
 
 router.get("/dashboard/equipment-usage", async (_req, res) => {
+  const today = todayISO();
   // Join planned aggregates from plan_days (excluding rest) with the existing
   // actual aggregates from workouts. FULL OUTER JOIN so machines that only
   // appear on one side still show up. The canonical arsenal is then forced
   // to render first, even when neither side has data yet.
+  //
+  // `planned_to_date_*` is the same plan aggregation but bounded by `date <=
+  // today` so the UI can compare actuals against the share of the plan that
+  // should have happened by now, not the full 52-week target.
   const rows = await db.execute<EquipmentRow>(
     sql`
       WITH actuals AS (
@@ -156,7 +165,11 @@ router.get("/dashboard/equipment-usage", async (_req, res) => {
           COUNT(*)::int AS planned_sessions,
           COALESCE(SUM(cardio_min), 0)::float AS planned_minutes,
           COALESCE(SUM(total_load), 0)::float AS planned_load,
-          COALESCE(SUM(distance_mi), 0)::float AS planned_distance
+          COALESCE(SUM(distance_mi), 0)::float AS planned_distance,
+          COUNT(*) FILTER (WHERE date <= ${today})::int AS planned_to_date_sessions,
+          COALESCE(SUM(cardio_min) FILTER (WHERE date <= ${today}), 0)::float AS planned_to_date_minutes,
+          COALESCE(SUM(total_load) FILTER (WHERE date <= ${today}), 0)::float AS planned_to_date_load,
+          COALESCE(SUM(distance_mi) FILTER (WHERE date <= ${today}), 0)::float AS planned_to_date_distance
         FROM plan_days
         WHERE is_rest = false
           AND equipment NOT IN ('Off / Rest', 'Off / Mobility', 'None', 'Rest')
@@ -171,7 +184,11 @@ router.get("/dashboard/equipment-usage", async (_req, res) => {
         COALESCE(p.planned_sessions, 0)::int AS planned_sessions,
         COALESCE(p.planned_minutes, 0)::float AS planned_minutes,
         COALESCE(p.planned_load, 0)::float AS planned_load,
-        COALESCE(p.planned_distance, 0)::float AS planned_distance
+        COALESCE(p.planned_distance, 0)::float AS planned_distance,
+        COALESCE(p.planned_to_date_sessions, 0)::int AS planned_to_date_sessions,
+        COALESCE(p.planned_to_date_minutes, 0)::float AS planned_to_date_minutes,
+        COALESCE(p.planned_to_date_load, 0)::float AS planned_to_date_load,
+        COALESCE(p.planned_to_date_distance, 0)::float AS planned_to_date_distance
       FROM actuals a
       FULL OUTER JOIN planned p ON a.equipment = p.equipment
     `,
@@ -187,6 +204,10 @@ router.get("/dashboard/equipment-usage", async (_req, res) => {
     plannedMinutes: r?.planned_minutes ?? 0,
     plannedLoad: r?.planned_load ?? 0,
     plannedDistance: r?.planned_distance ?? 0,
+    plannedToDateSessions: r?.planned_to_date_sessions ?? 0,
+    plannedToDateMinutes: r?.planned_to_date_minutes ?? 0,
+    plannedToDateLoad: r?.planned_to_date_load ?? 0,
+    plannedToDateDistance: r?.planned_to_date_distance ?? 0,
   });
   const arsenal = ARSENAL.map((name) => {
     const r = byName.get(name);

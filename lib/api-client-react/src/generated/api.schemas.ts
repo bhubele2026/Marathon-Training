@@ -244,6 +244,14 @@ export interface EquipmentUsage {
   plannedMinutes: number;
   plannedLoad: number;
   plannedDistance: number;
+  /** Planned non-rest sessions for this machine on or before today. Use to compare actuals against the share of the plan that should have happened so far rather than the full campaign. */
+  plannedToDateSessions: number;
+  /** Planned cardio minutes for this machine on or before today. */
+  plannedToDateMinutes: number;
+  /** Planned total load for this machine on or before today. */
+  plannedToDateLoad: number;
+  /** Planned distance (mi) for this machine on or before today. */
+  plannedToDateDistance: number;
 }
 
 export interface EquipmentPhaseRow {

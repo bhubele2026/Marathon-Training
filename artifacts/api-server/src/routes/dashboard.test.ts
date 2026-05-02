@@ -275,6 +275,10 @@ describe("GET /api/dashboard/equipment-usage", () => {
       plannedMinutes: number;
       plannedLoad: number;
       plannedDistance: number;
+      plannedToDateSessions: number;
+      plannedToDateMinutes: number;
+      plannedToDateLoad: number;
+      plannedToDateDistance: number;
     }>;
 
     // First four rows must always be the canonical arsenal in order, even
@@ -285,9 +289,14 @@ describe("GET /api/dashboard/equipment-usage", () => {
     for (const r of rows.slice(0, 4)) {
       expect(typeof r.plannedSessions).toBe("number");
       expect(typeof r.sessions).toBe("number");
+      expect(typeof r.plannedToDateSessions).toBe("number");
     }
 
     const outdoor = rows.find((r) => r.equipment === E_OUTDOOR);
+    // The fixture plan dates are in 2099, so nothing in this test's plan
+    // is "due so far" relative to today — plannedToDate* must be zero
+    // even though plannedSessions/etc. are non-zero. This is the whole
+    // point of the new field: early-campaign machines aren't flagged.
     expect(outdoor).toEqual({
       equipment: E_OUTDOOR,
       sessions: 2,
@@ -298,6 +307,10 @@ describe("GET /api/dashboard/equipment-usage", () => {
       plannedMinutes: 80,
       plannedLoad: 450,
       plannedDistance: 9,
+      plannedToDateSessions: 0,
+      plannedToDateMinutes: 0,
+      plannedToDateLoad: 0,
+      plannedToDateDistance: 0,
     });
 
     // Planned-only equipment surfaces with zero actuals.
@@ -312,6 +325,10 @@ describe("GET /api/dashboard/equipment-usage", () => {
       plannedMinutes: 30,
       plannedLoad: 180,
       plannedDistance: 3,
+      plannedToDateSessions: 0,
+      plannedToDateMinutes: 0,
+      plannedToDateLoad: 0,
+      plannedToDateDistance: 0,
     });
 
     // Actual-only equipment surfaces with zero planned.
@@ -326,7 +343,76 @@ describe("GET /api/dashboard/equipment-usage", () => {
       plannedMinutes: 0,
       plannedLoad: 0,
       plannedDistance: 0,
+      plannedToDateSessions: 0,
+      plannedToDateMinutes: 0,
+      plannedToDateLoad: 0,
+      plannedToDateDistance: 0,
     });
+  });
+
+  it("counts planned work whose date is on or before today as planned-to-date, and excludes future-dated plan", async () => {
+    // Use a clearly past date so we can lock the assertion regardless of
+    // when the test runs. The route reads `today` from the system clock,
+    // and 2000-01-01 is unambiguously <= today.
+    const pastWeek = 8901;
+    const futureWeek = 8902;
+    const phase = "Planned-to-date Phase";
+    await insertWeek(pastWeek, {
+      startDate: "2000-01-03",
+      endDate: "2000-01-09",
+      phase,
+    });
+    await insertWeek(futureWeek, {
+      startDate: "2099-09-06",
+      endDate: "2099-09-12",
+      phase,
+    });
+    // Past-dated plan day (counts toward planned-to-date).
+    await insertPlanDay(pastWeek, phase, {
+      date: "2000-01-03",
+      day: "Mon",
+      sessionType: T_RUN,
+      equipment: E_TREADMILL,
+      cardioMin: 20,
+      distanceMi: 2,
+      totalLoad: 100,
+    });
+    // Future-dated plan day (planned only, not yet due).
+    await insertPlanDay(futureWeek, phase, {
+      date: "2099-09-06",
+      day: "Mon",
+      sessionType: T_RUN,
+      equipment: E_TREADMILL,
+      cardioMin: 40,
+      distanceMi: 5,
+      totalLoad: 250,
+    });
+
+    const res = await request(app).get("/api/dashboard/equipment-usage");
+    expect(res.status).toBe(200);
+    const rows = res.body as Array<{
+      equipment: string;
+      plannedSessions: number;
+      plannedMinutes: number;
+      plannedLoad: number;
+      plannedDistance: number;
+      plannedToDateSessions: number;
+      plannedToDateMinutes: number;
+      plannedToDateLoad: number;
+      plannedToDateDistance: number;
+    }>;
+    const tread = rows.find((r) => r.equipment === E_TREADMILL);
+    expect(tread).toBeDefined();
+    // Full-campaign aggregates include both plan days.
+    expect(tread!.plannedSessions).toBe(2);
+    expect(tread!.plannedMinutes).toBe(60);
+    expect(tread!.plannedDistance).toBe(7);
+    expect(tread!.plannedLoad).toBe(350);
+    // Planned-to-date only counts the past-dated plan day.
+    expect(tread!.plannedToDateSessions).toBe(1);
+    expect(tread!.plannedToDateMinutes).toBe(20);
+    expect(tread!.plannedToDateDistance).toBe(2);
+    expect(tread!.plannedToDateLoad).toBe(100);
   });
 });
 

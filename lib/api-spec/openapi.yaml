@@ -733,6 +733,10 @@ components:
           plannedMinutes,
           plannedLoad,
           plannedDistance,
+          plannedToDateSessions,
+          plannedToDateMinutes,
+          plannedToDateLoad,
+          plannedToDateDistance,
         ]
       properties:
         equipment: { type: string }
@@ -744,6 +748,18 @@ components:
         plannedMinutes: { type: number }
         plannedLoad: { type: number }
         plannedDistance: { type: number }
+        plannedToDateSessions:
+          type: integer
+          description: Planned non-rest sessions for this machine on or before today. Use to compare actuals against the share of the plan that should have happened so far rather than the full campaign.
+        plannedToDateMinutes:
+          type: number
+          description: Planned cardio minutes for this machine on or before today.
+        plannedToDateLoad:
+          type: number
+          description: Planned total load for this machine on or before today.
+        plannedToDateDistance:
+          type: number
+          description: Planned distance (mi) for this machine on or before today.
 
     EquipmentPhaseSummary:
       type: object

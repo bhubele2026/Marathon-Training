@@ -350,6 +350,20 @@ export const GetEquipmentUsageResponseItem = zod.object({
   plannedMinutes: zod.number(),
   plannedLoad: zod.number(),
   plannedDistance: zod.number(),
+  plannedToDateSessions: zod
+    .number()
+    .describe(
+      "Planned non-rest sessions for this machine on or before today. Use to compare actuals against the share of the plan that should have happened so far rather than the full campaign.",
+    ),
+  plannedToDateMinutes: zod
+    .number()
+    .describe("Planned cardio minutes for this machine on or before today."),
+  plannedToDateLoad: zod
+    .number()
+    .describe("Planned total load for this machine on or before today."),
+  plannedToDateDistance: zod
+    .number()
+    .describe("Planned distance (mi) for this machine on or before today."),
 });
 export const GetEquipmentUsageResponse = zod.array(
   GetEquipmentUsageResponseItem,

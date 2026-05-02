@@ -20,6 +20,107 @@ interface EquipmentStats {
   plannedMinutes: number;
   plannedDistance: number;
   plannedLoad: number;
+  plannedToDateSessions: number;
+  plannedToDateMinutes: number;
+  plannedToDateDistance: number;
+  plannedToDateLoad: number;
+}
+
+type PaceStatus = "behind" | "on-track" | "ahead" | "idle";
+
+function paceStatus(actual: number, plannedToDate: number): PaceStatus {
+  if (plannedToDate <= 0) return "idle";
+  const ratio = actual / plannedToDate;
+  if (ratio < 0.85) return "behind";
+  if (ratio > 1.15) return "ahead";
+  return "on-track";
+}
+
+const PACE_STYLES: Record<PaceStatus, { bar: string; track: string; badge: string; label: string }> = {
+  behind: {
+    bar: "bg-amber-500",
+    track: "bg-amber-500/15",
+    badge: "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    label: "Behind",
+  },
+  "on-track": {
+    bar: "bg-emerald-500",
+    track: "bg-emerald-500/15",
+    badge: "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    label: "On track",
+  },
+  ahead: {
+    bar: "bg-sky-500",
+    track: "bg-sky-500/15",
+    badge: "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400",
+    label: "Ahead",
+  },
+  idle: {
+    bar: "bg-muted-foreground/40",
+    track: "bg-muted/40",
+    badge: "border-border bg-muted/30 text-muted-foreground",
+    label: "Not yet scheduled",
+  },
+};
+
+function PacingIndicator({
+  actualSessions,
+  plannedToDateSessions,
+  plannedSessions,
+}: {
+  actualSessions: number;
+  plannedToDateSessions: number;
+  plannedSessions: number;
+}) {
+  const status = paceStatus(actualSessions, plannedToDateSessions);
+  const styles = PACE_STYLES[status];
+  const isIdle = status === "idle";
+  const ratio = isIdle ? 0 : actualSessions / Math.max(1, plannedToDateSessions);
+  const fillPct = Math.max(0, Math.min(1, ratio)) * 100;
+  const deltaPct = isIdle ? 0 : Math.round((ratio - 1) * 100);
+  const deltaLabel = isIdle
+    ? styles.label
+    : deltaPct === 0
+      ? "On plan"
+      : deltaPct > 0
+        ? `+${deltaPct}% ahead`
+        : `${deltaPct}% behind`;
+
+  return (
+    <div className="mb-4">
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+          Pace vs plan
+        </div>
+        <span
+          className={cn(
+            "text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border",
+            styles.badge,
+          )}
+        >
+          {deltaLabel}
+        </span>
+      </div>
+      <div
+        className={cn("relative h-2 w-full overflow-hidden rounded-full", styles.track)}
+        role="progressbar"
+        aria-valuenow={Math.round(fillPct)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label="Actual sessions vs planned to date"
+      >
+        <div
+          className={cn("h-full transition-all", styles.bar)}
+          style={{ width: `${fillPct}%` }}
+        />
+      </div>
+      <div className="mt-1 text-[10px] tracking-wider text-muted-foreground/80 font-mono">
+        {isIdle
+          ? `0 of ${plannedSessions} planned this campaign`
+          : `${actualSessions} of ${plannedToDateSessions} due so far · ${plannedSessions} planned total`}
+      </div>
+    </div>
+  );
 }
 
 function PlannedActualRow({
@@ -77,6 +178,10 @@ export default function Equipment() {
       plannedMinutes: acc.plannedMinutes + eq.plannedMinutes,
       plannedDistance: acc.plannedDistance + eq.plannedDistance,
       plannedLoad: acc.plannedLoad + eq.plannedLoad,
+      plannedToDateSessions: acc.plannedToDateSessions + eq.plannedToDateSessions,
+      plannedToDateMinutes: acc.plannedToDateMinutes + eq.plannedToDateMinutes,
+      plannedToDateDistance: acc.plannedToDateDistance + eq.plannedToDateDistance,
+      plannedToDateLoad: acc.plannedToDateLoad + eq.plannedToDateLoad,
     }),
     {
       sessions: 0,
@@ -87,6 +192,10 @@ export default function Equipment() {
       plannedMinutes: 0,
       plannedDistance: 0,
       plannedLoad: 0,
+      plannedToDateSessions: 0,
+      plannedToDateMinutes: 0,
+      plannedToDateDistance: 0,
+      plannedToDateLoad: 0,
     },
   );
 
@@ -124,6 +233,11 @@ export default function Equipment() {
                 />
                 <div className="font-black text-lg uppercase tracking-wider">All Arsenal</div>
               </div>
+              <PacingIndicator
+                actualSessions={combined.sessions}
+                plannedToDateSessions={combined.plannedToDateSessions}
+                plannedSessions={combined.plannedSessions}
+              />
               <div className="grid grid-cols-2 gap-4">
                 <PlannedActualRow
                   label="Sessions"
@@ -166,6 +280,11 @@ export default function Equipment() {
                 <div className="font-black text-lg uppercase tracking-wider mb-4 border-b border-border pb-2">
                   {eq.equipment}
                 </div>
+                <PacingIndicator
+                  actualSessions={eq.sessions}
+                  plannedToDateSessions={eq.plannedToDateSessions}
+                  plannedSessions={eq.plannedSessions}
+                />
                 <div className="grid grid-cols-2 gap-4">
                   <PlannedActualRow
                     label="Sessions"
