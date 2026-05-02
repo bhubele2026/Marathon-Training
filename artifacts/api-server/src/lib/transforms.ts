@@ -63,6 +63,7 @@ export function toWorkout(r: WorkoutRow) {
     strengthLoad: r.strengthLoad,
     totalLoad: r.totalLoad,
     notes: r.notes,
+    timeOfDay: r.timeOfDay,
     createdAt: r.createdAt.toISOString(),
   };
 }

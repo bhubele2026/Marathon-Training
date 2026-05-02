@@ -21,7 +21,18 @@ router.get("/workouts", async (req, res): Promise<void> => {
     .select()
     .from(workoutsTable)
     .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(desc(workoutsTable.date), desc(workoutsTable.createdAt))
+    .orderBy(
+      desc(workoutsTable.date),
+      // Within a single day, surface AM tags before PM, then Other, then
+      // untagged. Falls back to createdAt desc so the newest log wins ties.
+      sql`CASE ${workoutsTable.timeOfDay}
+        WHEN 'AM' THEN 0
+        WHEN 'PM' THEN 1
+        WHEN 'Other' THEN 2
+        ELSE 3
+      END`,
+      desc(workoutsTable.createdAt),
+    )
     .limit(limit ?? 500);
   res.json(rows.map(toWorkout));
 });
@@ -46,6 +57,7 @@ router.post("/workouts", async (req, res): Promise<void> => {
     strengthLoad: d.strengthLoad ?? null,
     totalLoad: d.totalLoad ?? null,
     notes: d.notes ?? null,
+    timeOfDay: d.timeOfDay ?? null,
   }).returning();
   res.status(201).json(toWorkout(inserted[0]!));
 });

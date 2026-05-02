@@ -37,6 +37,11 @@ import {
   extractValidationError,
 } from "@/lib/api-errors";
 
+const TIME_OF_DAY_VALUES = ["AM", "PM", "Other"] as const;
+type TimeOfDayValue = (typeof TIME_OF_DAY_VALUES)[number];
+// Sentinel for "no tag" since native <select> can't hold a literal null value.
+const TIME_OF_DAY_NONE = "__none__";
+
 const formSchema = z.object({
   date: z.string().min(1, "Date is required"),
   equipment: z.string().min(1, "Equipment is required"),
@@ -50,6 +55,7 @@ const formSchema = z.object({
   totalLoad: z.coerce.number().optional().nullable(),
   notes: z.string().optional().nullable(),
   planDayId: z.number().optional().nullable(),
+  timeOfDay: z.enum(TIME_OF_DAY_VALUES).nullable().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -75,6 +81,7 @@ const KNOWN_FIELDS = [
   "totalLoad",
   "notes",
   "planDayId",
+  "timeOfDay",
 ] as const satisfies ReadonlyArray<Path<FormValues>>;
 
 export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutId }: WorkoutFormProps) {
@@ -84,6 +91,10 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
   const updateWorkout = useUpdateWorkout();
   const [serverFormErrors, setServerFormErrors] = useState<string[]>([]);
 
+  const initialTimeOfDay: TimeOfDayValue | null =
+    initial?.timeOfDay && (TIME_OF_DAY_VALUES as readonly string[]).includes(initial.timeOfDay)
+      ? (initial.timeOfDay as TimeOfDayValue)
+      : null;
   const buildDefaults = (): FormValues => ({
     date: initial?.date || new Date().toISOString().split('T')[0],
     equipment: initial?.equipment || "None",
@@ -97,6 +108,7 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
     totalLoad: initial?.totalLoad ?? null,
     notes: initial?.notes || "",
     planDayId: initial?.planDayId ?? null,
+    timeOfDay: initialTimeOfDay,
   });
 
   const form = useForm<FormValues>({
@@ -168,6 +180,7 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
     const payload = {
       ...data,
       planDayId: data.planDayId ?? undefined,
+      timeOfDay: data.timeOfDay ?? null,
     };
 
     if (workoutId) {
@@ -228,6 +241,34 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
                     <FormControl>
                       <Input type="date" {...field} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="timeOfDay"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Time of Day</FormLabel>
+                    <Select
+                      value={field.value ?? TIME_OF_DAY_NONE}
+                      onValueChange={(v) =>
+                        field.onChange(v === TIME_OF_DAY_NONE ? null : (v as TimeOfDayValue))
+                      }
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-time-of-day">
+                          <SelectValue placeholder="Untagged" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={TIME_OF_DAY_NONE}>Untagged</SelectItem>
+                        <SelectItem value="AM">AM</SelectItem>
+                        <SelectItem value="PM">PM</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

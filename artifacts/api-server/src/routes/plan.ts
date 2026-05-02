@@ -158,6 +158,18 @@ function pairKey(sessionType: string, equipment: string): string {
   return `${sessionType}\u0000${equipment}`;
 }
 
+// SQL ordering expression for the workouts.time_of_day tag. AM sorts first,
+// then PM, then Other, then untagged rows. Used together with createdAt to
+// produce a stable same-day ordering of multi-session days.
+const timeOfDayOrderExpr = sql`
+  CASE ${workoutsTable.timeOfDay}
+    WHEN 'AM' THEN 0
+    WHEN 'PM' THEN 1
+    WHEN 'Other' THEN 2
+    ELSE 3
+  END
+`;
+
 // Build the suggestions payload for a plan day from a pre-fetched list of its
 // recent comparable workouts (already filtered to the same session_type +
 // equipment, ordered most-recent first, capped to N).
@@ -232,6 +244,7 @@ async function fetchRecentWorkoutsByPair(
     strength_load: number | null;
     total_load: number | null;
     notes: string | null;
+    time_of_day: string | null;
     created_at: Date;
   }>(sql`
     WITH ranked AS (
@@ -246,7 +259,8 @@ async function fetchRecentWorkoutsByPair(
         AND (w.session_type, w.equipment) IN (${pairValues})
     )
     SELECT id, plan_day_id, date, equipment, session_type, duration_min,
-           distance_mi, pace, avg_hr, rpe, strength_load, total_load, notes, created_at
+           distance_mi, pace, avg_hr, rpe, strength_load, total_load, notes,
+           time_of_day, created_at
     FROM ranked
     WHERE rn <= ${RECENT_LIMIT}
     ORDER BY session_type, equipment, date DESC, created_at DESC
@@ -270,6 +284,7 @@ async function fetchRecentWorkoutsByPair(
       strengthLoad: r.strength_load,
       totalLoad: r.total_load,
       notes: r.notes,
+      timeOfDay: r.time_of_day,
       createdAt: r.created_at instanceof Date ? r.created_at : new Date(r.created_at),
     });
   }
@@ -286,11 +301,14 @@ async function suggestionsForPlan(plan: PlanDayRow, today: string) {
 router.get("/plan/today", async (_req, res) => {
   const today = todayISO();
   const planRow = (await db.select().from(planDaysTable).where(eq(planDaysTable.date, today)).limit(1))[0];
+  // Order same-day sessions by their time-of-day tag (AM, PM, Other, then
+  // untagged) and then by createdAt ascending so tagged AM workouts logged
+  // late in the evening still surface above PM ones.
   const loggedRows = await db
     .select()
     .from(workoutsTable)
     .where(eq(workoutsTable.date, today))
-    .orderBy(asc(workoutsTable.createdAt));
+    .orderBy(asc(timeOfDayOrderExpr), asc(workoutsTable.createdAt));
   const suggestions = planRow && !planRow.isRest ? await suggestionsForPlan(planRow, today) : null;
   res.json({
     date: today,

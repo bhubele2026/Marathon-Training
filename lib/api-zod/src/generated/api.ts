@@ -246,11 +246,17 @@ export const GetTodayPlanResponse = zod.object({
         strengthLoad: zod.number().nullish(),
         totalLoad: zod.number().nullish(),
         notes: zod.string().nullish(),
+        timeOfDay: zod
+          .enum(["AM", "PM", "Other"])
+          .nullish()
+          .describe(
+            "Optional tag used to order and label same-day sessions. AM sorts before PM, PM before Other; rows with no tag fall back to createdAt order.",
+          ),
         createdAt: zod.coerce.date(),
       }),
     )
     .describe(
-      "All workouts logged for today, ordered by createdAt ascending. Empty when nothing has been logged yet.",
+      "All workouts logged for today, ordered by timeOfDay (AM, PM, Other, then untagged) and then createdAt ascending. Empty when nothing has been logged yet.",
     ),
   suggestions: zod
     .object({
@@ -289,6 +295,12 @@ export const ListWorkoutsResponseItem = zod.object({
   strengthLoad: zod.number().nullish(),
   totalLoad: zod.number().nullish(),
   notes: zod.string().nullish(),
+  timeOfDay: zod
+    .enum(["AM", "PM", "Other"])
+    .nullish()
+    .describe(
+      "Optional tag used to order and label same-day sessions. AM sorts before PM, PM before Other; rows with no tag fall back to createdAt order.",
+    ),
   createdAt: zod.coerce.date(),
 });
 export const ListWorkoutsResponse = zod.array(ListWorkoutsResponseItem);
@@ -306,6 +318,7 @@ export const CreateWorkoutBody = zod.object({
   strengthLoad: zod.number().nullish(),
   totalLoad: zod.number().nullish(),
   notes: zod.string().nullish(),
+  timeOfDay: zod.enum(["AM", "PM", "Other"]).nullish(),
 });
 
 export const UpdateWorkoutParams = zod.object({
@@ -324,6 +337,7 @@ export const UpdateWorkoutBody = zod.object({
   strengthLoad: zod.number().nullish(),
   totalLoad: zod.number().nullish(),
   notes: zod.string().nullish(),
+  timeOfDay: zod.enum(["AM", "PM", "Other"]).nullish(),
 });
 
 export const UpdateWorkoutResponse = zod.object({
@@ -340,6 +354,12 @@ export const UpdateWorkoutResponse = zod.object({
   strengthLoad: zod.number().nullish(),
   totalLoad: zod.number().nullish(),
   notes: zod.string().nullish(),
+  timeOfDay: zod
+    .enum(["AM", "PM", "Other"])
+    .nullish()
+    .describe(
+      "Optional tag used to order and label same-day sessions. AM sorts before PM, PM before Other; rows with no tag fall back to createdAt order.",
+    ),
   createdAt: zod.coerce.date(),
 });
 
@@ -513,6 +533,12 @@ export const GetRecentActivityResponseItem = zod.object({
   strengthLoad: zod.number().nullish(),
   totalLoad: zod.number().nullish(),
   notes: zod.string().nullish(),
+  timeOfDay: zod
+    .enum(["AM", "PM", "Other"])
+    .nullish()
+    .describe(
+      "Optional tag used to order and label same-day sessions. AM sorts before PM, PM before Other; rows with no tag fall back to createdAt order.",
+    ),
   createdAt: zod.coerce.date(),
 });
 export const GetRecentActivityResponse = zod.array(

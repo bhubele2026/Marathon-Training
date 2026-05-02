@@ -22,6 +22,7 @@ import { Activity, CalendarDays, CheckCircle2, TrendingDown, Target, Zap, Edit, 
 import { useMissionActions } from "@/hooks/use-mission-actions";
 import { QuickLogActivity } from "@/components/quick-log-activity";
 import { RaceWeekBanner } from "@/components/race-week-banner";
+import { TimeOfDayBadge } from "@/components/time-of-day-badge";
 
 export default function Dashboard() {
   const { data: summary, isLoading: loadingSummary } = useGetDashboardSummary();
@@ -147,7 +148,11 @@ export default function Dashboard() {
                               className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-background border border-border rounded px-3 py-2"
                               data-testid={`session-dashboard-${session.id}`}
                             >
-                              <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                                <TimeOfDayBadge
+                                  value={session.timeOfDay}
+                                  testId={`badge-time-of-day-dashboard-${session.id}`}
+                                />
                                 <span className="text-xs uppercase font-bold tracking-wider text-muted-foreground">
                                   {session.sessionType}
                                 </span>

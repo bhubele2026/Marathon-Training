@@ -131,6 +131,19 @@ export interface PlanOverview {
   longRunTarget?: number;
 }
 
+/**
+ * Optional tag used to order and label same-day sessions. AM sorts before PM, PM before Other; rows with no tag fall back to createdAt order.
+ */
+export type WorkoutTimeOfDay =
+  | (typeof WorkoutTimeOfDay)[keyof typeof WorkoutTimeOfDay]
+  | null;
+
+export const WorkoutTimeOfDay = {
+  AM: "AM",
+  PM: "PM",
+  Other: "Other",
+} as const;
+
 export interface Workout {
   id: number;
   planDayId?: number | null;
@@ -145,6 +158,8 @@ export interface Workout {
   strengthLoad?: number | null;
   totalLoad?: number | null;
   notes?: string | null;
+  /** Optional tag used to order and label same-day sessions. AM sorts before PM, PM before Other; rows with no tag fall back to createdAt order. */
+  timeOfDay?: WorkoutTimeOfDay;
   createdAt: string;
 }
 
@@ -152,10 +167,20 @@ export interface TodayPlan {
   date: string;
   hasPlan: boolean;
   plan?: PlanDay | null;
-  /** All workouts logged for today, ordered by createdAt ascending. Empty when nothing has been logged yet. */
+  /** All workouts logged for today, ordered by timeOfDay (AM, PM, Other, then untagged) and then createdAt ascending. Empty when nothing has been logged yet. */
   loggedWorkouts: Workout[];
   suggestions?: WorkoutSuggestions | null;
 }
+
+export type CreateWorkoutBodyTimeOfDay =
+  | (typeof CreateWorkoutBodyTimeOfDay)[keyof typeof CreateWorkoutBodyTimeOfDay]
+  | null;
+
+export const CreateWorkoutBodyTimeOfDay = {
+  AM: "AM",
+  PM: "PM",
+  Other: "Other",
+} as const;
 
 export interface CreateWorkoutBody {
   planDayId?: number | null;
@@ -170,7 +195,18 @@ export interface CreateWorkoutBody {
   strengthLoad?: number | null;
   totalLoad?: number | null;
   notes?: string | null;
+  timeOfDay?: CreateWorkoutBodyTimeOfDay;
 }
+
+export type UpdateWorkoutBodyTimeOfDay =
+  | (typeof UpdateWorkoutBodyTimeOfDay)[keyof typeof UpdateWorkoutBodyTimeOfDay]
+  | null;
+
+export const UpdateWorkoutBodyTimeOfDay = {
+  AM: "AM",
+  PM: "PM",
+  Other: "Other",
+} as const;
 
 export interface UpdateWorkoutBody {
   date?: string;
@@ -184,6 +220,7 @@ export interface UpdateWorkoutBody {
   strengthLoad?: number | null;
   totalLoad?: number | null;
   notes?: string | null;
+  timeOfDay?: UpdateWorkoutBodyTimeOfDay;
 }
 
 export interface Measurement {

@@ -666,7 +666,7 @@ components:
           nullable: true
         loggedWorkouts:
           type: array
-          description: All workouts logged for today, ordered by createdAt ascending. Empty when nothing has been logged yet.
+          description: All workouts logged for today, ordered by timeOfDay (AM, PM, Other, then untagged) and then createdAt ascending. Empty when nothing has been logged yet.
           items: { $ref: "#/components/schemas/Workout" }
         suggestions:
           allOf:
@@ -704,6 +704,11 @@ components:
         strengthLoad: { type: number, nullable: true }
         totalLoad: { type: number, nullable: true }
         notes: { type: string, nullable: true }
+        timeOfDay:
+          type: string
+          enum: [AM, PM, Other]
+          nullable: true
+          description: Optional tag used to order and label same-day sessions. AM sorts before PM, PM before Other; rows with no tag fall back to createdAt order.
         createdAt: { type: string, format: date-time }
 
     CreateWorkoutBody:
@@ -722,6 +727,10 @@ components:
         strengthLoad: { type: number, nullable: true }
         totalLoad: { type: number, nullable: true }
         notes: { type: string, nullable: true }
+        timeOfDay:
+          type: string
+          enum: [AM, PM, Other]
+          nullable: true
 
     UpdateWorkoutBody:
       type: object
@@ -737,6 +746,10 @@ components:
         strengthLoad: { type: number, nullable: true }
         totalLoad: { type: number, nullable: true }
         notes: { type: string, nullable: true }
+        timeOfDay:
+          type: string
+          enum: [AM, PM, Other]
+          nullable: true
 
     Measurement:
       type: object

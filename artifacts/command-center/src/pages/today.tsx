@@ -6,6 +6,7 @@ import { formatDistance, formatLoad, formatDuration } from "@/lib/format";
 import { CheckCircle2, Activity, Trash2, Edit, Zap, Pencil, XCircle } from "lucide-react";
 import { useMissionActions } from "@/hooks/use-mission-actions";
 import { QuickLogActivity } from "@/components/quick-log-activity";
+import { TimeOfDayBadge } from "@/components/time-of-day-badge";
 
 export default function Today() {
   const { data: today, isLoading } = useGetTodayPlan();
@@ -137,6 +138,11 @@ export default function Today() {
                 <CardTitle className="text-lg uppercase tracking-wider flex items-center gap-2">
                   <CheckCircle2 className="h-5 w-5 text-primary" />
                   Mission Accomplished
+                  <TimeOfDayBadge
+                    value={session.timeOfDay}
+                    className="ml-2"
+                    testId={`badge-time-of-day-today-${session.id}`}
+                  />
                   <span className="text-xs font-mono normal-case tracking-normal text-muted-foreground ml-2">
                     {session.sessionType} · {session.equipment}
                   </span>

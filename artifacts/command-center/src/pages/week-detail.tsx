@@ -47,6 +47,8 @@ import { useMissionActions } from "@/hooks/use-mission-actions";
 import { cn } from "@/lib/utils";
 import { PlanDayForm } from "@/components/plan-day-form";
 import { MoveDayPicker } from "@/components/move-day-picker";
+import { sortWorkoutsByTimeOfDay } from "@/lib/time-of-day";
+import { TimeOfDayBadge } from "@/components/time-of-day-badge";
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -87,7 +89,10 @@ export default function WeekDetail() {
 
   if (!week) return <div>Week not found</div>;
 
-  // Map: date -> all workouts logged for that date, ordered by createdAt ascending.
+  // Map: date -> all workouts logged for that date, ordered by time-of-day
+  // tag (AM, PM, Other, then untagged) and then createdAt ascending so an AM
+  // strength session logged in the evening still surfaces above an earlier
+  // PM run.
   const workoutsByDate = new Map<string, Workout[]>();
   for (const w of workouts ?? []) {
     const list = workoutsByDate.get(w.date);
@@ -95,7 +100,7 @@ export default function WeekDetail() {
     else workoutsByDate.set(w.date, [w]);
   }
   for (const list of workoutsByDate.values()) {
-    list.sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
+    sortWorkoutsByTimeOfDay(list);
   }
 
   const today = todayISO();
@@ -242,10 +247,14 @@ export default function WeekDetail() {
                           className="flex items-center justify-between gap-3 bg-background/60 border border-border rounded px-3 py-2"
                           data-testid={`session-${day.date}-${session.id}`}
                         >
-                          <div className="text-xs font-mono">
-                            <span className="font-bold uppercase tracking-wider mr-2">{session.sessionType}</span>
-                            {session.distanceMi != null && <span className="mr-2">{formatDistance(session.distanceMi)}</span>}
-                            {session.durationMin != null && <span className="mr-2">{formatDuration(session.durationMin)}</span>}
+                          <div className="text-xs font-mono flex items-center gap-2">
+                            <TimeOfDayBadge
+                              value={session.timeOfDay}
+                              testId={`badge-time-of-day-week-${session.id}`}
+                            />
+                            <span className="font-bold uppercase tracking-wider">{session.sessionType}</span>
+                            {session.distanceMi != null && <span>{formatDistance(session.distanceMi)}</span>}
+                            {session.durationMin != null && <span>{formatDuration(session.durationMin)}</span>}
                           </div>
                           <div className="flex gap-1">
                             <Button
@@ -360,7 +369,11 @@ export default function WeekDetail() {
                               className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-muted/30 border border-border rounded p-3"
                               data-testid={`session-${day.date}-${session.id}`}
                             >
-                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs font-mono">
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-mono">
+                                <TimeOfDayBadge
+                                  value={session.timeOfDay}
+                                  testId={`badge-time-of-day-week-${session.id}`}
+                                />
                                 <span className="font-bold uppercase tracking-wider">{session.sessionType}</span>
                                 {session.distanceMi != null && (
                                   <span><span className="text-muted-foreground">Dist</span> {formatDistance(session.distanceMi)}</span>

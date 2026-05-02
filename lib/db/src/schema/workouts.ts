@@ -14,6 +14,10 @@ export const workoutsTable = pgTable("workouts", {
   strengthLoad: doublePrecision("strength_load"),
   totalLoad: doublePrecision("total_load"),
   notes: text("notes"),
+  // Optional tag for ordering and labeling same-day sessions ("AM" / "PM" /
+  // "Other"). Nullable so existing rows logged before this column existed
+  // continue to render and sort by createdAt as before.
+  timeOfDay: text("time_of_day"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   dateIdx: index("workouts_date_idx").on(t.date),

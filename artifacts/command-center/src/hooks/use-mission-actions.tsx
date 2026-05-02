@@ -11,6 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { WorkoutForm } from "@/components/workout-form";
 import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
 import { crushSass, skipSass } from "@/lib/sass";
+import { defaultTimeOfDayForNow } from "@/lib/time-of-day";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -62,6 +63,9 @@ export function useMissionActions() {
           totalLoad: plan.totalLoad ?? 0,
           notes: "Crushed it as planned.",
           planDayId: plan.id,
+          // Tag with AM/PM based on the local clock so multi-session days
+          // sort sensibly without forcing the user into the form.
+          timeOfDay: defaultTimeOfDayForNow(),
         },
       },
       {
