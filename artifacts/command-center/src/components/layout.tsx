@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./theme-toggle";
+import { QuickLogFab } from "./quick-log-fab";
 
 interface LayoutProps {
   children: ReactNode;
@@ -88,6 +89,8 @@ export function Layout({ children }: LayoutProps) {
           {children}
         </div>
       </main>
+
+      <QuickLogFab />
     </div>
   );
 }

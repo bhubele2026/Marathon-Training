@@ -1,21 +1,9 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Dog, Trees, Home, Mountain, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { WorkoutForm } from "@/components/workout-form";
-
-type LifestylePreset = {
-  label: string;
-  icon: typeof Dog;
-  sessionType: string;
-};
-
-const LIFESTYLE_PRESETS: LifestylePreset[] = [
-  { label: "Walk Dogs", icon: Dog, sessionType: "Dog Walk" },
-  { label: "Mow Lawn", icon: Trees, sessionType: "Mow Lawn" },
-  { label: "Yard Work", icon: Home, sessionType: "Yard Work" },
-  { label: "Hike", icon: Mountain, sessionType: "Hike" },
-];
+import { LIFESTYLE_PRESETS } from "@/lib/lifestyle-presets";
 
 interface QuickLogActivityProps {
   testIdSuffix?: string;
