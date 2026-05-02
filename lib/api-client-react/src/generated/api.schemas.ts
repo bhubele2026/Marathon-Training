@@ -347,6 +347,8 @@ export interface EquipmentPhaseRow {
   counts: number[];
   /** Logged workouts per phase (matched by workout date falling inside the phase's plan weeks), in the same order as `phases`. */
   actualCounts: number[];
+  /** Planned non-rest sessions per phase whose date is on or before today, in the same order as `phases`. Use to detect phases the athlete has fallen behind on (compare `actualCounts[i]` against `plannedToDateCounts[i]`). A value of 0 means the phase is entirely in the future and should not be flagged. */
+  plannedToDateCounts: number[];
   total: number;
   /** Sum of `actualCounts` across all phases. */
   actualTotal: number;

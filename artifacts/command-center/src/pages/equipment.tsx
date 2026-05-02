@@ -379,106 +379,154 @@ export default function Equipment() {
                       {phaseSummary.rows.map((row) => {
                         const barTotal = Math.max(row.total, row.actualTotal);
                         const widthPct = barTotal === 0 ? 0 : (barTotal / maxTotal) * 100;
+                        const behindPhases = row.plannedToDateCounts
+                          .map((plannedToDate, i) => {
+                            const actual = row.actualCounts[i] ?? 0;
+                            return { i, plannedToDate, actual };
+                          })
+                          .filter(({ plannedToDate, actual }) =>
+                            plannedToDate > 0 && actual / plannedToDate < 0.85,
+                          );
+                        const behindIdx = new Set(behindPhases.map((p) => p.i));
                         return (
                           <div
                             key={row.equipment}
-                            className="grid grid-cols-[7rem_1fr_4.25rem] items-center gap-3"
+                            className="grid grid-cols-[7rem_1fr_4.25rem] items-start gap-3"
                           >
-                            <div className="font-bold uppercase tracking-wider text-xs truncate">
+                            <div className="font-bold uppercase tracking-wider text-xs truncate pt-1">
                               {row.equipment}
                             </div>
-                            <div className="relative h-7 rounded-sm bg-muted/40 overflow-hidden">
-                              {barTotal > 0 && (
-                                <div
-                                  className="absolute inset-y-0 left-0 flex"
-                                  style={{ width: `${widthPct}%` }}
-                                >
-                                  {row.counts.map((planned, i) => {
-                                    const actual = row.actualCounts[i] ?? 0;
-                                    const segValue = Math.max(planned, actual);
-                                    if (segValue === 0) return null;
-                                    const segPct = (segValue / barTotal) * 100;
-                                    const color = phaseColor(phaseSummary.phases[i]);
-                                    const fillRatio =
-                                      planned === 0
-                                        ? actual > 0
-                                          ? 1
-                                          : 0
-                                        : Math.min(1, actual / planned);
-                                    const fillPct = fillRatio * 100;
-                                    const overshoot = planned > 0 && actual > planned;
-                                    return (
-                                      <Tooltip
-                                        key={`${row.equipment}-${phaseSummary.phases[i]}`}
-                                      >
-                                        <TooltipTrigger asChild>
-                                          <div
-                                            className="relative h-full cursor-default border-r border-background/30 last:border-r-0 transition-opacity hover:opacity-90"
-                                            style={{ width: `${segPct}%` }}
-                                          >
+                            <div>
+                              <div className="relative h-7 rounded-sm bg-muted/40 overflow-hidden">
+                                {barTotal > 0 && (
+                                  <div
+                                    className="absolute inset-y-0 left-0 flex"
+                                    style={{ width: `${widthPct}%` }}
+                                  >
+                                    {row.counts.map((planned, i) => {
+                                      const actual = row.actualCounts[i] ?? 0;
+                                      const plannedToDate = row.plannedToDateCounts[i] ?? 0;
+                                      const segValue = Math.max(planned, actual);
+                                      if (segValue === 0) return null;
+                                      const segPct = (segValue / barTotal) * 100;
+                                      const color = phaseColor(phaseSummary.phases[i]);
+                                      const fillRatio =
+                                        planned === 0
+                                          ? actual > 0
+                                            ? 1
+                                            : 0
+                                          : Math.min(1, actual / planned);
+                                      const fillPct = fillRatio * 100;
+                                      const overshoot = planned > 0 && actual > planned;
+                                      const isBehind = behindIdx.has(i);
+                                      const behindShortfall = isBehind
+                                        ? plannedToDate - actual
+                                        : 0;
+                                      return (
+                                        <Tooltip
+                                          key={`${row.equipment}-${phaseSummary.phases[i]}`}
+                                        >
+                                          <TooltipTrigger asChild>
                                             <div
-                                              className="absolute inset-0"
-                                              style={{
-                                                backgroundColor: color,
-                                                opacity: 0.25,
-                                              }}
-                                              aria-hidden
-                                            />
-                                            <div
-                                              className="absolute inset-y-0 left-0"
-                                              style={{
-                                                width: `${fillPct}%`,
-                                                backgroundColor: color,
-                                              }}
-                                              aria-hidden
-                                            />
-                                            {overshoot && (
+                                              className={cn(
+                                                "relative h-full cursor-default border-r border-background/30 last:border-r-0 transition-opacity hover:opacity-90",
+                                                isBehind &&
+                                                  "ring-1 ring-inset ring-amber-500/80",
+                                              )}
+                                              style={{ width: `${segPct}%` }}
+                                            >
                                               <div
-                                                className="absolute inset-y-0 right-0 w-0.5 bg-foreground/70"
+                                                className="absolute inset-0"
+                                                style={{
+                                                  backgroundColor: color,
+                                                  opacity: 0.25,
+                                                }}
                                                 aria-hidden
-                                                title="Over plan"
                                               />
-                                            )}
-                                            {segPct >= 14 && (
-                                              <div className="relative h-full flex items-center justify-center text-[10px] font-bold text-white tabular-nums drop-shadow-[0_1px_1px_rgba(0,0,0,0.6)]">
-                                                {actual}/{planned}
+                                              <div
+                                                className="absolute inset-y-0 left-0"
+                                                style={{
+                                                  width: `${fillPct}%`,
+                                                  backgroundColor: color,
+                                                }}
+                                                aria-hidden
+                                              />
+                                              {overshoot && (
+                                                <div
+                                                  className="absolute inset-y-0 right-0 w-0.5 bg-foreground/70"
+                                                  aria-hidden
+                                                  title="Over plan"
+                                                />
+                                              )}
+                                              {isBehind && (
+                                                <div
+                                                  className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-amber-500 ring-1 ring-background"
+                                                  aria-hidden
+                                                  title="Behind plan-to-date"
+                                                />
+                                              )}
+                                              {segPct >= 14 && (
+                                                <div className="relative h-full flex items-center justify-center text-[10px] font-bold text-white tabular-nums drop-shadow-[0_1px_1px_rgba(0,0,0,0.6)]">
+                                                  {actual}/{planned}
+                                                </div>
+                                              )}
+                                            </div>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <div className="font-bold uppercase tracking-wider">
+                                              {phaseSummary.phases[i]}
+                                            </div>
+                                            <div className="text-xs">
+                                              {actual} of {planned} planned session
+                                              {planned === 1 ? "" : "s"}
+                                              {planned > 0 && (
+                                                <>
+                                                  {" "}· {Math.round((actual / planned) * 100)}%
+                                                </>
+                                              )}
+                                            </div>
+                                            {isBehind && (
+                                              <div className="text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-400 font-bold mt-0.5">
+                                                Behind by {behindShortfall} session
+                                                {behindShortfall === 1 ? "" : "s"} · {actual}/
+                                                {plannedToDate} due so far
                                               </div>
                                             )}
-                                          </div>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                          <div className="font-bold uppercase tracking-wider">
-                                            {phaseSummary.phases[i]}
-                                          </div>
-                                          <div className="text-xs">
-                                            {actual} of {planned} planned session
-                                            {planned === 1 ? "" : "s"}
-                                            {planned > 0 && (
-                                              <>
-                                                {" "}· {Math.round((actual / planned) * 100)}%
-                                              </>
+                                            {overshoot && (
+                                              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">
+                                                {actual - planned} over plan
+                                              </div>
                                             )}
-                                          </div>
-                                          {overshoot && (
-                                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">
-                                              {actual - planned} over plan
-                                            </div>
-                                          )}
-                                          {planned === 0 && actual > 0 && (
-                                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">
-                                              Unplanned
-                                            </div>
-                                          )}
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    );
-                                  })}
+                                            {planned === 0 && actual > 0 && (
+                                              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">
+                                                Unplanned
+                                              </div>
+                                            )}
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                              {behindPhases.length > 0 && (
+                                <div className="mt-1 flex items-start gap-1 text-[10px] uppercase tracking-wider font-bold text-amber-600 dark:text-amber-400">
+                                  <span
+                                    className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"
+                                    aria-hidden
+                                  />
+                                  <span>
+                                    Behind in:{" "}
+                                    {behindPhases
+                                      .map(({ i }) => phaseSummary.phases[i])
+                                      .join(", ")}
+                                  </span>
                                 </div>
                               )}
                             </div>
                             <div
                               className={cn(
-                                "text-right font-mono text-xs leading-tight",
+                                "text-right font-mono text-xs leading-tight pt-1",
                                 row.total === 0 && row.actualTotal === 0 && "text-muted-foreground/50",
                               )}
                             >

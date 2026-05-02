@@ -992,7 +992,7 @@ components:
 
     EquipmentPhaseRow:
       type: object
-      required: [equipment, counts, actualCounts, total, actualTotal]
+      required: [equipment, counts, actualCounts, plannedToDateCounts, total, actualTotal]
       properties:
         equipment: { type: string }
         counts:
@@ -1002,6 +1002,10 @@ components:
         actualCounts:
           type: array
           description: Logged workouts per phase (matched by workout date falling inside the phase's plan weeks), in the same order as `phases`.
+          items: { type: integer }
+        plannedToDateCounts:
+          type: array
+          description: Planned non-rest sessions per phase whose date is on or before today, in the same order as `phases`. Use to detect phases the athlete has fallen behind on (compare `actualCounts[i]` against `plannedToDateCounts[i]`). A value of 0 means the phase is entirely in the future and should not be flagged.
           items: { type: integer }
         total: { type: integer }
         actualTotal:

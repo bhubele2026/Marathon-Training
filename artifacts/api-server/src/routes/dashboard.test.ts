@@ -462,6 +462,7 @@ describe("GET /api/dashboard/equipment-phase-summary", () => {
         equipment: string;
         counts: number[];
         actualCounts: number[];
+        plannedToDateCounts: number[];
         total: number;
         actualTotal: number;
       }>;
@@ -479,6 +480,7 @@ describe("GET /api/dashboard/equipment-phase-summary", () => {
     for (const r of body.rows) {
       expect(r.counts).toHaveLength(body.phases.length);
       expect(r.actualCounts).toHaveLength(body.phases.length);
+      expect(r.plannedToDateCounts).toHaveLength(body.phases.length);
       expect(r.total).toBe(r.counts.reduce((s, n) => s + n, 0));
       expect(r.actualTotal).toBe(r.actualCounts.reduce((s, n) => s + n, 0));
     }
@@ -491,6 +493,10 @@ describe("GET /api/dashboard/equipment-phase-summary", () => {
     expect(outdoor!.actualCounts[idxA]).toBe(1);
     expect(outdoor!.actualCounts[idxB]).toBe(0);
     expect(outdoor!.actualTotal).toBe(1);
+    // Plan dates are all in 2099 -> nothing is "due so far" yet, so the
+    // behind-detection signal must be zero across both phases.
+    expect(outdoor!.plannedToDateCounts[idxA]).toBe(0);
+    expect(outdoor!.plannedToDateCounts[idxB]).toBe(0);
 
     const treadmill = body.rows.find((r) => r.equipment === E_TREADMILL);
     expect(treadmill).toBeDefined();
@@ -501,6 +507,65 @@ describe("GET /api/dashboard/equipment-phase-summary", () => {
     expect(treadmill!.actualCounts[idxA]).toBe(1);
     expect(treadmill!.actualCounts[idxB]).toBe(2);
     expect(treadmill!.actualTotal).toBe(3);
+    expect(treadmill!.plannedToDateCounts[idxA]).toBe(0);
+    expect(treadmill!.plannedToDateCounts[idxB]).toBe(0);
+  });
+
+  it("flags planned-to-date counts only for phases whose plan dates have already passed", async () => {
+    // Past phase: every planned day is on or before today, so plannedToDate
+    // should equal counts. Future phase: nothing is due yet, so
+    // plannedToDate must stay at zero (front-end uses this to skip flagging
+    // future phases as "behind").
+    const pastPhase = "__test__Phase Past";
+    const futurePhase = "__test__Phase Future";
+    await insertWeek(8801, {
+      startDate: "2000-01-03",
+      endDate: "2000-01-09",
+      phase: pastPhase,
+    });
+    await insertWeek(8802, {
+      startDate: "2099-12-07",
+      endDate: "2099-12-13",
+      phase: futurePhase,
+    });
+    // Past phase: 3 planned outdoor sessions, all dated in the year 2000.
+    await insertPlanDay(8801, pastPhase, { date: "2000-01-03", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR });
+    await insertPlanDay(8801, pastPhase, { date: "2000-01-04", day: "Tue", sessionType: T_RUN, equipment: E_OUTDOOR });
+    await insertPlanDay(8801, pastPhase, { date: "2000-01-05", day: "Wed", sessionType: T_RUN, equipment: E_OUTDOOR });
+    // Only one was actually executed -> the chart should flag this phase.
+    await insertWorkout({ date: "2000-01-03", sessionType: T_RUN, equipment: E_OUTDOOR });
+    // Future phase: planned but nothing due yet.
+    await insertPlanDay(8802, futurePhase, { date: "2099-12-07", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR });
+    await insertPlanDay(8802, futurePhase, { date: "2099-12-08", day: "Tue", sessionType: T_RUN, equipment: E_OUTDOOR });
+
+    const res = await request(app).get("/api/dashboard/equipment-phase-summary");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetEquipmentPhaseSummaryResponse, res.body);
+
+    const body = res.body as {
+      phases: string[];
+      rows: Array<{
+        equipment: string;
+        counts: number[];
+        actualCounts: number[];
+        plannedToDateCounts: number[];
+      }>;
+    };
+    const idxPast = body.phases.indexOf(pastPhase);
+    const idxFuture = body.phases.indexOf(futurePhase);
+    expect(idxPast).toBeGreaterThanOrEqual(0);
+    expect(idxFuture).toBeGreaterThanOrEqual(0);
+
+    const outdoor = body.rows.find((r) => r.equipment === E_OUTDOOR);
+    expect(outdoor).toBeDefined();
+    // Past phase: all 3 planned sessions are due, only 1 actual.
+    expect(outdoor!.counts[idxPast]).toBe(3);
+    expect(outdoor!.plannedToDateCounts[idxPast]).toBe(3);
+    expect(outdoor!.actualCounts[idxPast]).toBe(1);
+    // Future phase: planned but not yet due.
+    expect(outdoor!.counts[idxFuture]).toBe(2);
+    expect(outdoor!.plannedToDateCounts[idxFuture]).toBe(0);
+    expect(outdoor!.actualCounts[idxFuture]).toBe(0);
   });
 });
 

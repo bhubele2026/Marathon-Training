@@ -233,8 +233,16 @@ router.get("/dashboard/equipment-phase-summary", async (_req, res) => {
   const phases = phaseRows.rows.map((r) => r.phase);
   const phaseIndex = new Map(phases.map((p, i) => [p, i]));
 
-  const countRows = await db.execute<{ phase: string; equipment: string; sessions: number }>(
-    sql`SELECT phase, equipment, COUNT(*)::int AS sessions
+  const today = todayISO();
+  const countRows = await db.execute<{
+    phase: string;
+    equipment: string;
+    sessions: number;
+    planned_to_date: number;
+  }>(
+    sql`SELECT phase, equipment,
+          COUNT(*)::int AS sessions,
+          COUNT(*) FILTER (WHERE date <= ${today})::int AS planned_to_date
         FROM plan_days
         WHERE is_rest = false
           AND equipment NOT IN ('Off / Rest', 'Off / Mobility', 'None', 'Rest')
@@ -259,15 +267,18 @@ router.get("/dashboard/equipment-phase-summary", async (_req, res) => {
   interface Row {
     counts: number[];
     actualCounts: number[];
+    plannedToDateCounts: number[];
   }
   const rowsByEquipment = new Map<string, Row>();
+  const emptyRow = (): Row => ({
+    counts: phases.map(() => 0),
+    actualCounts: phases.map(() => 0),
+    plannedToDateCounts: phases.map(() => 0),
+  });
   const ensure = (name: string): Row => {
     let row = rowsByEquipment.get(name);
     if (!row) {
-      row = {
-        counts: phases.map(() => 0),
-        actualCounts: phases.map(() => 0),
-      };
+      row = emptyRow();
       rowsByEquipment.set(name, row);
     }
     return row;
@@ -278,7 +289,9 @@ router.get("/dashboard/equipment-phase-summary", async (_req, res) => {
   for (const r of countRows.rows) {
     const idx = phaseIndex.get(r.phase);
     if (idx === undefined) continue;
-    ensure(r.equipment).counts[idx] = r.sessions;
+    const row = ensure(r.equipment);
+    row.counts[idx] = r.sessions;
+    row.plannedToDateCounts[idx] = r.planned_to_date;
   }
   for (const r of actualRows.rows) {
     const idx = phaseIndex.get(r.phase);
@@ -290,15 +303,13 @@ router.get("/dashboard/equipment-phase-summary", async (_req, res) => {
     equipment,
     counts: row.counts,
     actualCounts: row.actualCounts,
+    plannedToDateCounts: row.plannedToDateCounts,
     total: row.counts.reduce((s, n) => s + n, 0),
     actualTotal: row.actualCounts.reduce((s, n) => s + n, 0),
   });
 
   const arsenalRows = ARSENAL.map((name) => {
-    const row = rowsByEquipment.get(name) ?? {
-      counts: phases.map(() => 0),
-      actualCounts: phases.map(() => 0),
-    };
+    const row = rowsByEquipment.get(name) ?? emptyRow();
     rowsByEquipment.delete(name);
     return buildRow(name, row);
   });
