@@ -174,6 +174,77 @@ describe("Plan page — bike/row cardio summary (task #109)", () => {
     expect(screen.queryByTestId("week-volume-cardio-actual-2")).toBeNull();
   });
 
+  it("shows a long-run chip under the mileage headline on run weeks (task #115)", () => {
+    renderWith([
+      {
+        week: 2,
+        phase: "Run Block",
+        startDate: "2026-05-11",
+        endDate: "2026-05-17",
+        plannedStrength: 0,
+        plannedCardio: 0,
+        plannedTotalLoad: 0,
+        plannedMiles: 20,
+        longRunMi: 8,
+        actualMiles: 12,
+        actualCardio: 0,
+        completedSessions: 1,
+        totalSessions: 4,
+        missedSessions: 0,
+        dominantCardioEquipment: null,
+      },
+    ]);
+    const chip = screen.getByTestId("week-volume-miles-chip-2");
+    expect(chip.textContent).toContain("Long Run 8.00 mi");
+  });
+
+  it("falls back to a session count chip on run weeks with no long run (task #115)", () => {
+    renderWith([
+      {
+        week: 3,
+        phase: "Run Block",
+        startDate: "2026-05-18",
+        endDate: "2026-05-24",
+        plannedStrength: 0,
+        plannedCardio: 0,
+        plannedTotalLoad: 0,
+        plannedMiles: 5,
+        longRunMi: 0,
+        actualMiles: 0,
+        actualCardio: 0,
+        completedSessions: 0,
+        totalSessions: 3,
+        missedSessions: 0,
+        dominantCardioEquipment: null,
+      },
+    ]);
+    const chip = screen.getByTestId("week-volume-miles-chip-3");
+    expect(chip.textContent).toContain("3 Sessions");
+  });
+
+  it("does not render the run-week chip on bike/row weeks (task #115)", () => {
+    renderWith([
+      {
+        week: 1,
+        phase: "Bike Block",
+        startDate: "2026-05-04",
+        endDate: "2026-05-10",
+        plannedStrength: 0,
+        plannedCardio: 180,
+        plannedTotalLoad: 0,
+        plannedMiles: 0,
+        longRunMi: 0,
+        actualMiles: 0,
+        actualCardio: 120,
+        completedSessions: 2,
+        totalSessions: 3,
+        missedSessions: 0,
+        dominantCardioEquipment: "Peloton Bike",
+      },
+    ]);
+    expect(screen.queryByTestId("week-volume-miles-chip-1")).toBeNull();
+  });
+
   it("colors the mileage headline green when planned miles are met", () => {
     renderWith([
       {

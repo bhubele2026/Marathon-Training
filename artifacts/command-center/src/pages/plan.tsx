@@ -338,18 +338,37 @@ export default function Plan() {
                               )}
                             </div>
                           ) : (
-                            <p
-                              className={cn(
-                                "font-mono font-medium",
-                                adherenceTextClass(
-                                  adherenceStatus(week.actualMiles, week.plannedMiles),
-                                ),
-                              )}
-                              data-testid={`week-volume-miles-${week.week}`}
-                              data-adherence={adherenceStatus(week.actualMiles, week.plannedMiles)}
-                            >
-                              {formatDistance(week.actualMiles)} / {formatDistance(week.plannedMiles)}
-                            </p>
+                            <div className="space-y-1">
+                              <p
+                                className={cn(
+                                  "font-mono font-medium",
+                                  adherenceTextClass(
+                                    adherenceStatus(week.actualMiles, week.plannedMiles),
+                                  ),
+                                )}
+                                data-testid={`week-volume-miles-${week.week}`}
+                                data-adherence={adherenceStatus(week.actualMiles, week.plannedMiles)}
+                              >
+                                {formatDistance(week.actualMiles)} / {formatDistance(week.plannedMiles)}
+                              </p>
+                              {/*
+                                Task #115: mirror the bike/row dominant-machine
+                                chip on run-week cards so both card variants
+                                share the same headline + chip rhythm. Lead
+                                with the long run distance when present (the
+                                signature run of the week), and fall back to
+                                a session count so the chip is never blank
+                                on edge-case weeks where longRunMi = 0.
+                              */}
+                              <span
+                                className="inline-block text-[10px] bg-secondary text-secondary-foreground px-2 py-0.5 rounded font-bold uppercase tracking-wider"
+                                data-testid={`week-volume-miles-chip-${week.week}`}
+                              >
+                                {(week.longRunMi ?? 0) > 0
+                                  ? `Long Run ${formatDistance(week.longRunMi)}`
+                                  : `${week.totalSessions || 0} Session${(week.totalSessions || 0) === 1 ? "" : "s"}`}
+                              </span>
+                            </div>
                           )}
                         </div>
                         <div>
