@@ -35,9 +35,16 @@ export function Layout({ children }: LayoutProps) {
     <div className="flex min-h-screen bg-background text-foreground flex-col md:flex-row">
       <aside className="w-full md:w-64 border-r border-border bg-card flex flex-col hidden md:flex shrink-0">
         <div className="p-6 border-b border-border flex items-center justify-between">
-          <div>
-            <h1 className="font-bold text-xl tracking-tight text-primary uppercase">Marathon</h1>
-            <p className="text-xs text-muted-foreground uppercase font-medium tracking-widest">Command Center</p>
+          <div className="flex items-center gap-3">
+            <img
+              src="/h2-logo.png"
+              alt="H2 logo"
+              className="h-12 w-12 object-contain shrink-0"
+            />
+            <div>
+              <h1 className="font-bold text-xl tracking-tight text-primary uppercase leading-none">Marathon</h1>
+              <p className="text-xs text-muted-foreground uppercase font-medium tracking-widest mt-1">Command Center</p>
+            </div>
           </div>
         </div>
         <nav className="flex-1 py-4 flex flex-col gap-1 px-3">
@@ -65,7 +72,12 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Mobile nav header */}
       <header className="md:hidden border-b border-border bg-card p-4 flex items-center justify-between">
-        <div>
+        <div className="flex items-center gap-2">
+          <img
+            src="/h2-logo.png"
+            alt="H2 logo"
+            className="h-8 w-8 object-contain shrink-0"
+          />
           <h1 className="font-bold text-lg tracking-tight text-primary uppercase">Marathon</h1>
         </div>
       </header>
