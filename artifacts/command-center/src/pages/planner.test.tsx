@@ -1,4 +1,20 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+// jsdom doesn't ship ResizeObserver, but cmdk (used by the quick-add
+// popover) constructs one on mount. Stub it so the popover content
+// renders in tests.
+if (typeof globalThis.ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+}
+// jsdom doesn't implement scrollIntoView, but cmdk calls it on the
+// active CommandItem when the popover opens.
+if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = function () {};
+}
 import {
   cleanup,
   render,
@@ -1100,6 +1116,162 @@ describe("Plan Template Library — search filter and category grouping", () => 
     expect(screen.getByTestId("planner-template-marathon")).toBeTruthy();
     const summary = screen.getByTestId("planner-template-search-summary");
     expect(summary.textContent).toMatch(/templates across .* categories/);
+  });
+});
+
+describe("Plan Template Library — tag-cloud filter", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    window.localStorage.clear();
+  });
+
+  it("toggling a chip narrows the visible templates to those carrying that tag", () => {
+    renderPlanner();
+    // Pre-filter sanity: a non-pfitzinger template is in the DOM.
+    expect(screen.getByTestId("planner-template-marathon_hansons")).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId("planner-template-tag-chip-pfitzinger"));
+
+    // Every pfitzinger template remains visible.
+    expect(screen.getByTestId("planner-template-hm_pfitz")).toBeTruthy();
+    expect(screen.getByTestId("planner-template-marathon_pfitz_12_55")).toBeTruthy();
+    expect(screen.getByTestId("planner-template-marathon_pfitz_18_70")).toBeTruthy();
+    // Non-matching templates are filtered out.
+    expect(screen.queryByTestId("planner-template-marathon_hansons")).toBeNull();
+    expect(screen.queryByTestId("planner-template-pelo_bike_pz_beginner")).toBeNull();
+
+    // Summary line reflects the active tag filter.
+    const summary = screen.getByTestId("planner-template-search-summary");
+    expect(summary.textContent).toMatch(/templates? match/);
+    expect(summary.textContent).toContain("#pfitzinger");
+  });
+
+  it("composes multiple selected chips with AND semantics", () => {
+    renderPlanner();
+
+    fireEvent.click(screen.getByTestId("planner-template-tag-chip-pfitzinger"));
+    fireEvent.click(
+      screen.getByTestId("planner-template-tag-chip-half-marathon"),
+    );
+
+    // Only hm_pfitz carries BOTH tags.
+    expect(screen.getByTestId("planner-template-hm_pfitz")).toBeTruthy();
+    // Other pfitzinger templates (marathon distance) are filtered out.
+    expect(screen.queryByTestId("planner-template-marathon_pfitz_12_55")).toBeNull();
+    expect(screen.queryByTestId("planner-template-marathon_pfitz_18_70")).toBeNull();
+    // Other half-marathon templates (non-pfitzinger) are filtered out too.
+    expect(screen.queryByTestId("planner-template-hm_hansons")).toBeNull();
+    expect(screen.queryByTestId("planner-template-half_marathon")).toBeNull();
+  });
+
+  it("composes the chip filter with the free-text query (AND)", () => {
+    renderPlanner();
+
+    fireEvent.click(screen.getByTestId("planner-template-tag-chip-pfitzinger"));
+    fireEvent.change(screen.getByTestId("planner-template-search"), {
+      target: { value: "hansons" },
+    });
+
+    // No template carries both `pfitzinger` AND matches "hansons" text.
+    expect(screen.getByTestId("planner-template-empty")).toBeTruthy();
+  });
+
+  it("Clear restores the full unfiltered list", () => {
+    renderPlanner();
+    fireEvent.click(screen.getByTestId("planner-template-tag-chip-pfitzinger"));
+    expect(screen.queryByTestId("planner-template-marathon_hansons")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("planner-template-tag-cloud-clear"));
+
+    // Previously-hidden templates return.
+    expect(screen.getByTestId("planner-template-marathon_hansons")).toBeTruthy();
+    expect(screen.getByTestId("planner-template-pelo_bike_pz_beginner")).toBeTruthy();
+    // The Clear button itself disappears once nothing is selected.
+    expect(screen.queryByTestId("planner-template-tag-cloud-clear")).toBeNull();
+    // Summary returns to the default copy.
+    expect(
+      screen.getByTestId("planner-template-search-summary").textContent,
+    ).toMatch(/templates across .* categories/);
+  });
+
+  it("toggling the same chip twice deselects it (acts like Clear for a single tag)", () => {
+    renderPlanner();
+    const chip = screen.getByTestId("planner-template-tag-chip-pfitzinger");
+
+    fireEvent.click(chip);
+    expect(screen.queryByTestId("planner-template-marathon_hansons")).toBeNull();
+
+    fireEvent.click(chip);
+    expect(screen.getByTestId("planner-template-marathon_hansons")).toBeTruthy();
+  });
+});
+
+describe("Quick-add popover (entries-mode) — tag-cloud filter", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    window.localStorage.clear();
+  });
+
+  it("toggling a chip in the quick-add popover narrows the option list", () => {
+    renderPlanner();
+    // Enter entries-mode by applying any template; this exposes the
+    // quick-add combobox at the bottom of the composition editor.
+    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
+
+    // Open the quick-add popover.
+    fireEvent.click(screen.getByTestId("planner-entry-add-select"));
+    expect(screen.getByTestId("planner-entry-add-popover")).toBeTruthy();
+
+    // Pre-filter sanity: a non-pfitzinger option is in the popover.
+    expect(
+      screen.getByTestId("planner-entry-add-option-marathon_hansons"),
+    ).toBeTruthy();
+
+    // Toggle the pfitzinger chip inside the popover.
+    fireEvent.click(
+      screen.getByTestId("planner-entry-add-tag-chip-pfitzinger"),
+    );
+
+    // Pfitzinger options remain.
+    expect(
+      screen.getByTestId("planner-entry-add-option-hm_pfitz"),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId("planner-entry-add-option-marathon_pfitz_18_70"),
+    ).toBeTruthy();
+    // Non-matching options are filtered out.
+    expect(
+      screen.queryByTestId("planner-entry-add-option-marathon_hansons"),
+    ).toBeNull();
+    expect(
+      screen.queryByTestId("planner-entry-add-option-pelo_bike_pz_beginner"),
+    ).toBeNull();
+  });
+
+  it("Clear in the quick-add popover restores the full option list", () => {
+    renderPlanner();
+    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
+
+    fireEvent.click(screen.getByTestId("planner-entry-add-select"));
+    fireEvent.click(
+      screen.getByTestId("planner-entry-add-tag-chip-pfitzinger"),
+    );
+    expect(
+      screen.queryByTestId("planner-entry-add-option-marathon_hansons"),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByTestId("planner-entry-add-tag-cloud-clear"));
+
+    expect(
+      screen.getByTestId("planner-entry-add-option-marathon_hansons"),
+    ).toBeTruthy();
+    expect(
+      screen.queryByTestId("planner-entry-add-tag-cloud-clear"),
+    ).toBeNull();
   });
 });
 
