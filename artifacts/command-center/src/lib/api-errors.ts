@@ -42,6 +42,32 @@ export function extractValidationError(error: unknown): ValidationEnvelope | nul
   return { formErrors, fieldErrors };
 }
 
+/**
+ * Build a human-readable toast description for a failed mutation. When the
+ * error carries a structured validation envelope (Zod's `flatten()` shape
+ * served by the API on 400 responses), surface the first form-level message
+ * or, failing that, the first "field: message" pair so runners see the real
+ * reason instead of "HTTP 400 Bad Request". Falls back to `err.message` for
+ * non-validation errors and to `fallback` when nothing else is available.
+ */
+export function describeValidationError(
+  error: unknown,
+  fallback = "Unknown error",
+): string {
+  const envelope = extractValidationError(error);
+  if (envelope) {
+    const firstForm = envelope.formErrors[0];
+    if (firstForm) return firstForm;
+    const firstField = Object.entries(envelope.fieldErrors)[0];
+    if (firstField) {
+      const [field, messages] = firstField;
+      return `${field}: ${messages[0] ?? "invalid"}`;
+    }
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
+
 export type ApplyValidationErrorsResult = {
   formErrors: string[];
 };

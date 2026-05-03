@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import type { UseFormReturn } from "react-hook-form";
 import {
   applyValidationErrorsToForm,
+  describeValidationError,
   extractValidationError,
   type ValidationEnvelope,
 } from "./api-errors";
@@ -79,6 +80,75 @@ describe("extractValidationError", () => {
         rpe: ["Required"],
       },
     });
+  });
+});
+
+describe("describeValidationError", () => {
+  it("prefers the first form-level error when present", () => {
+    expect(
+      describeValidationError({
+        status: 400,
+        data: {
+          error: {
+            formErrors: ["Body is missing entirely", "second"],
+            fieldErrors: { rpe: ["Required"] },
+          },
+        },
+      }),
+    ).toBe("Body is missing entirely");
+  });
+
+  it("falls back to the first field error when there are no form errors", () => {
+    expect(
+      describeValidationError({
+        status: 400,
+        data: {
+          error: {
+            formErrors: [],
+            fieldErrors: {
+              rpe: ["Expected number, received string"],
+              date: ["Required"],
+            },
+          },
+        },
+      }),
+    ).toBe("rpe: Expected number, received string");
+  });
+
+  it("labels the field as 'invalid' when its message list is empty", () => {
+    expect(
+      describeValidationError({
+        status: 400,
+        data: {
+          error: {
+            formErrors: [],
+            fieldErrors: { rpe: [] as string[] },
+          },
+        },
+      }),
+    ).toBe("Unknown error");
+  });
+
+  it("uses err.message for non-validation errors", () => {
+    expect(describeValidationError(new Error("HTTP 500 Internal"))).toBe(
+      "HTTP 500 Internal",
+    );
+  });
+
+  it("uses the provided fallback when nothing else is available", () => {
+    expect(describeValidationError(null, "Save failed")).toBe("Save failed");
+    expect(describeValidationError(undefined, "Save failed")).toBe("Save failed");
+    expect(describeValidationError("oops", "Save failed")).toBe("Save failed");
+  });
+
+  it("ignores 500-status responses even if they look envelope-shaped", () => {
+    expect(
+      describeValidationError({
+        status: 500,
+        data: { error: { formErrors: ["nope"], fieldErrors: {} } },
+        message: "HTTP 500",
+      }),
+    ).toBe("Unknown error");
   });
 });
 

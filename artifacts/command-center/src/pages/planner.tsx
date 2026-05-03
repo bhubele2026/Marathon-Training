@@ -72,7 +72,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
-import { extractValidationError } from "@/lib/api-errors";
+import { describeValidationError } from "@/lib/api-errors";
 
 // FOCUS_TYPES, FocusType, and MARATHON_TAIL_WEEKS are imported from
 // @workspace/plan-generator above so the planner page, the validator, and
@@ -966,7 +966,7 @@ export default function Planner() {
         onError: (err: unknown) => {
           toast({
             title: "Save failed",
-            description: err instanceof Error ? err.message : "Unknown error",
+            description: describeValidationError(err),
             variant: "destructive",
           });
         },
@@ -1021,8 +1021,7 @@ export default function Planner() {
                   onError: (err: unknown) => {
                     toast({
                       title: "Apply failed",
-                      description:
-                        err instanceof Error ? err.message : "Unknown error",
+                      description: describeValidationError(err),
                       variant: "destructive",
                     });
                   },
@@ -1031,8 +1030,7 @@ export default function Planner() {
               onError: (err: unknown) => {
                 toast({
                   title: "Activate failed",
-                  description:
-                    err instanceof Error ? err.message : "Unknown error",
+                  description: describeValidationError(err),
                   variant: "destructive",
                 });
               },
@@ -1042,7 +1040,7 @@ export default function Planner() {
         onError: (err: unknown) => {
           toast({
             title: "Save failed",
-            description: err instanceof Error ? err.message : "Unknown error",
+            description: describeValidationError(err),
             variant: "destructive",
           });
         },
@@ -1111,7 +1109,7 @@ export default function Planner() {
         onError: (err: unknown) => {
           toast({
             title: "Activate failed",
-            description: err instanceof Error ? err.message : "Unknown error",
+            description: describeValidationError(err),
             variant: "destructive",
           });
         },
@@ -1137,7 +1135,7 @@ export default function Planner() {
         onError: (err: unknown) => {
           toast({
             title: "Duplicate failed",
-            description: err instanceof Error ? err.message : "Unknown error",
+            description: describeValidationError(err),
             variant: "destructive",
           });
         },
@@ -1168,7 +1166,7 @@ export default function Planner() {
         onError: (err: unknown) => {
           toast({
             title: "Delete failed",
-            description: err instanceof Error ? err.message : "Unknown error",
+            description: describeValidationError(err),
             variant: "destructive",
           });
         },
@@ -1198,26 +1196,9 @@ export default function Planner() {
           invalidatePlannerLists();
         },
         onError: (err: unknown) => {
-          const envelope = extractValidationError(err);
-          let description: string;
-          if (envelope) {
-            const firstForm = envelope.formErrors[0];
-            const firstField = Object.entries(envelope.fieldErrors)[0];
-            if (firstForm) {
-              description = firstForm;
-            } else if (firstField) {
-              const [field, messages] = firstField;
-              description = `${field}: ${messages[0] ?? "invalid"}`;
-            } else {
-              description =
-                err instanceof Error ? err.message : "Unknown error";
-            }
-          } else {
-            description = err instanceof Error ? err.message : "Unknown error";
-          }
           toast({
             title: "Create failed",
-            description,
+            description: describeValidationError(err),
             variant: "destructive",
           });
         },
