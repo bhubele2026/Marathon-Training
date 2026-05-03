@@ -492,6 +492,11 @@ export default function Planner() {
     useState(false);
   const [showHiddenQuickAddChips, setShowHiddenQuickAddChips] =
     useState(false);
+  // Tag cloud collapse state. Defaults closed so the wide chip wall
+  // doesn't dominate the card on open; trigger button reveals the panel
+  // and keeps any selected-count badge visible at all times.
+  const [templateTagCloudOpen, setTemplateTagCloudOpen] = useState(false);
+  const [quickAddTagCloudOpen, setQuickAddTagCloudOpen] = useState(false);
   // Per-category collapse state for the grouped template grid. Default
   // is "Run" expanded (the most common path) and the rest collapsed so
   // 50+ cards don't unfurl on first open. Toggled by the section
@@ -1987,9 +1992,43 @@ export default function Planner() {
               className="space-y-2"
               data-testid="planner-template-tag-cloud"
             >
+              <button
+                type="button"
+                onClick={() => setTemplateTagCloudOpen((o) => !o)}
+                aria-expanded={templateTagCloudOpen}
+                aria-controls="planner-template-tag-cloud-panel"
+                data-testid="planner-template-tag-cloud-trigger"
+                className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded border border-border bg-background hover:bg-muted text-left"
+              >
+                <span className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  Filter by tag
+                  {selectedTemplateTags.size > 0 && (
+                    <span
+                      className="text-[10px] px-1.5 py-0.5 rounded bg-primary text-primary-foreground tabular-nums"
+                      data-testid="planner-template-tag-cloud-trigger-count"
+                    >
+                      {selectedTemplateTags.size} selected
+                    </span>
+                  )}
+                </span>
+                <ChevronDown
+                  className={
+                    templateTagCloudOpen
+                      ? "h-3 w-3 text-muted-foreground rotate-180 transition-transform"
+                      : "h-3 w-3 text-muted-foreground transition-transform"
+                  }
+                />
+              </button>
+              <div
+                id="planner-template-tag-cloud-panel"
+                hidden={!templateTagCloudOpen}
+                className={
+                  templateTagCloudOpen ? "space-y-2" : "space-y-2 hidden"
+                }
+              >
               <div className="flex items-center justify-between gap-2">
                 <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                  Filter by tag
+                  Sort
                 </Label>
                 <div className="flex items-center gap-2">
                   {/* Sort mode toggle: A-Z vs by template count.
@@ -2112,6 +2151,7 @@ export default function Planner() {
                     </>
                   );
                 })()}
+              </div>
               </div>
             </div>
           )}
@@ -2949,9 +2989,45 @@ export default function Planner() {
                         className="border-b px-2 py-2 space-y-1.5"
                         data-testid="planner-entry-add-tag-cloud"
                       >
+                        <button
+                          type="button"
+                          onClick={() => setQuickAddTagCloudOpen((o) => !o)}
+                          aria-expanded={quickAddTagCloudOpen}
+                          aria-controls="planner-entry-add-tag-cloud-panel"
+                          data-testid="planner-entry-add-tag-cloud-trigger"
+                          className="w-full flex items-center justify-between gap-2 text-left"
+                        >
+                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                            Filter by tag
+                            {quickAddSelectedTags.size > 0 && (
+                              <span
+                                className="text-[10px] px-1.5 py-0.5 rounded bg-primary text-primary-foreground tabular-nums"
+                                data-testid="planner-entry-add-tag-cloud-trigger-count"
+                              >
+                                {quickAddSelectedTags.size} selected
+                              </span>
+                            )}
+                          </span>
+                          <ChevronDown
+                            className={
+                              quickAddTagCloudOpen
+                                ? "h-3 w-3 text-muted-foreground rotate-180 transition-transform"
+                                : "h-3 w-3 text-muted-foreground transition-transform"
+                            }
+                          />
+                        </button>
+                        <div
+                          id="planner-entry-add-tag-cloud-panel"
+                          hidden={!quickAddTagCloudOpen}
+                          className={
+                            quickAddTagCloudOpen
+                              ? "space-y-1.5"
+                              : "space-y-1.5 hidden"
+                          }
+                        >
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                            Filter by tag
+                            Sort
                           </span>
                           <div className="flex items-center gap-2">
                             <div
@@ -3073,6 +3149,7 @@ export default function Planner() {
                               </>
                             );
                           })()}
+                        </div>
                         </div>
                       </div>
                     )}
