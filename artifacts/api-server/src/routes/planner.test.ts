@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import {
   db,
   measurementsTable,
+  planWeeksTable,
   plannerConfigsTable,
   resetUndoSnapshotsTable,
   workoutsTable,
@@ -383,6 +384,86 @@ describe("POST /api/planner/apply", () => {
       });
     expect(res.status).toBe(400);
     expect(JSON.stringify(res.body)).toMatch(/at least one template entry/);
+  });
+
+  it("Marathon First-Timer 24w starter ends on the template's Taper, not an auto-pinned Marathon-Specific tail", async () => {
+    // Composed entries: 6w Aerobic Base + 18w Pfitzinger marathon. The
+    // marathon template's expand() places Taper as the LAST block, so the
+    // final plan_weeks row's phase MUST be "Taper". If the legacy
+    // auto-pinned 16w Marathon-Specific tail leaked through, the final
+    // week would be tagged "Marathon-Specific" instead.
+    const startDate = "2026-05-04"; // Monday
+    const marathonDate = "2026-10-18"; // Sunday, exactly 24 weeks out
+    const create = await request(app)
+      .post("/api/planner/configs")
+      .send({
+        name: "Marathon First-Timer 24w",
+        startDate,
+        marathonDate,
+        blocks: [],
+        entries: [
+          { templateId: "aerobic_base", weeks: 6 },
+          { templateId: "marathon", weeks: 18 },
+        ],
+      });
+    expect(create.status).toBe(201);
+
+    const apply = await request(app).post("/api/planner/apply");
+    expect(apply.status).toBe(200);
+    expect(apply.body.totalWeeks).toBe(24);
+    expect(apply.body.weeksSeeded).toBe(24);
+
+    const weeks = await db
+      .select()
+      .from(planWeeksTable)
+      .orderBy(planWeeksTable.week);
+    expect(weeks).toHaveLength(24);
+    const finalWeek = weeks[weeks.length - 1]!;
+    expect(finalWeek.week).toBe(24);
+    expect(finalWeek.phase).toBe("Taper");
+    expect(finalWeek.phase).not.toBe("Marathon-Specific");
+  });
+
+  it("mixing two templates via entries produces plan_weeks summing to entries.weeks (no auto-pinned tail)", async () => {
+    // 8w Aerobic Base + 12w Half Marathon = 20-week composed plan. The
+    // total plan_weeks count must equal sum(entries.weeks), proving no
+    // 16-week Marathon-Specific tail was silently appended.
+    const startDate = "2026-05-04"; // Monday
+    const marathonDate = "2026-09-20"; // Sunday, exactly 20 weeks out
+    const entries = [
+      { templateId: "aerobic_base", weeks: 8 },
+      { templateId: "half_marathon", weeks: 12 },
+    ];
+    const entriesSum = entries.reduce((s, e) => s + e.weeks, 0);
+
+    const create = await request(app)
+      .post("/api/planner/configs")
+      .send({
+        name: "Mixed entries 20w",
+        startDate,
+        marathonDate,
+        blocks: [],
+        entries,
+      });
+    expect(create.status).toBe(201);
+
+    const apply = await request(app).post("/api/planner/apply");
+    expect(apply.status).toBe(200);
+    expect(apply.body.totalWeeks).toBe(entriesSum);
+    expect(apply.body.weeksSeeded).toBe(entriesSum);
+    expect(apply.body.daysSeeded).toBe(entriesSum * 7);
+
+    const weeks = await db
+      .select()
+      .from(planWeeksTable)
+      .orderBy(planWeeksTable.week);
+    expect(weeks).toHaveLength(entriesSum);
+    // Final week is owned by the half_marathon template's Taper block,
+    // NOT by an auto-pinned Marathon-Specific tail.
+    expect(weeks[weeks.length - 1]!.phase).toBe("Taper");
+    // No Marathon-Specific phase anywhere — neither template emits it.
+    const phases = weeks.map((w) => w.phase);
+    expect(phases).not.toContain("Marathon-Specific");
   });
 
   it("activating a different config without applying does NOT shift the race anchor", async () => {
