@@ -483,6 +483,15 @@ export default function Planner() {
       return next;
     });
   }
+  // Once the runner has applied at least one filter (free-text or
+  // chip), zero-count chips are collapsed behind a "+N hidden" toggle
+  // so a wide tag catalog doesn't leave a forest of muted chips
+  // crowding the cloud. Per-surface so the two clouds expand
+  // independently.
+  const [showHiddenTemplateChips, setShowHiddenTemplateChips] =
+    useState(false);
+  const [showHiddenQuickAddChips, setShowHiddenQuickAddChips] =
+    useState(false);
   // Per-category collapse state for the grouped template grid. Default
   // is "Run" expanded (the most common path) and the rest collapsed so
   // 50+ cards don't unfurl on first open. Toggled by the section
@@ -591,6 +600,26 @@ export default function Planner() {
   // the runner picks a template.
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [quickAddSearch, setQuickAddSearch] = useState("");
+  // Reset the "show hidden" toggles whenever the runner clears their
+  // filters so the next filter session starts from the
+  // collapsed-by-default state instead of remembering a stale
+  // expansion. (The popover also resets quickAddSearch /
+  // quickAddSelectedTags on close, so this also covers "popover
+  // closed" implicitly.)
+  const templateFiltersActive =
+    templateSearch.trim().length > 0 || selectedTemplateTags.size > 0;
+  useEffect(() => {
+    if (!templateFiltersActive && showHiddenTemplateChips) {
+      setShowHiddenTemplateChips(false);
+    }
+  }, [templateFiltersActive, showHiddenTemplateChips]);
+  const quickAddFiltersActive =
+    quickAddSearch.trim().length > 0 || quickAddSelectedTags.size > 0;
+  useEffect(() => {
+    if (!quickAddFiltersActive && showHiddenQuickAddChips) {
+      setShowHiddenQuickAddChips(false);
+    }
+  }, [quickAddFiltersActive, showHiddenQuickAddChips]);
   // Marathon mode toggle. When true (legacy default), the planner
   // auto-pins a trailing 16-week Marathon-Specific block, the validator
   // requires (totalWeeks - 16) user-block weeks, and the preview / pinned
@@ -2013,40 +2042,76 @@ export default function Planner() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-1">
-                {allTemplateTags.map((tag) => {
-                  const active = selectedTemplateTags.has(tag);
-                  const count = templateTagCounts.get(tag) ?? 0;
-                  // De-emphasize (and disable) chips that would yield
-                  // zero results if added to the current selection so
-                  // runners avoid over-narrowing dead-ends. Active
-                  // chips are always interactive (clicking deselects).
-                  const wouldZero = !active && count === 0;
+                {(() => {
+                  // Once the runner has applied at least one filter
+                  // (free-text or chip), zero-count chips collapse
+                  // behind a "+N hidden" toggle so the cloud stays
+                  // scannable on a wide tag catalog. Active chips
+                  // never hide so deselecting stays one click away.
+                  const filtersActive = hasActiveSearch || hasActiveTags;
+                  const isHidden = (tag: string) => {
+                    const active = selectedTemplateTags.has(tag);
+                    const count = templateTagCounts.get(tag) ?? 0;
+                    return filtersActive && !active && count === 0;
+                  };
+                  const visibleTags = showHiddenTemplateChips
+                    ? allTemplateTags
+                    : allTemplateTags.filter((t) => !isHidden(t));
+                  const hiddenCount = allTemplateTags.filter(isHidden).length;
                   return (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => toggleTemplateTag(tag)}
-                      aria-pressed={active}
-                      disabled={wouldZero}
-                      data-testid={`planner-template-tag-chip-${tag}`}
-                      className={
-                        active
-                          ? "text-[10px] px-1.5 py-0.5 rounded border border-primary bg-primary text-primary-foreground"
-                          : wouldZero
-                            ? "text-[10px] px-1.5 py-0.5 rounded border border-border bg-background text-muted-foreground/40 opacity-50 cursor-not-allowed"
-                            : "text-[10px] px-1.5 py-0.5 rounded border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
-                      }
-                    >
-                      {tag}
-                      <span
-                        className="ml-1 opacity-70 tabular-nums"
-                        data-testid={`planner-template-tag-chip-count-${tag}`}
-                      >
-                        · {count}
-                      </span>
-                    </button>
+                    <>
+                      {visibleTags.map((tag) => {
+                        const active = selectedTemplateTags.has(tag);
+                        const count = templateTagCounts.get(tag) ?? 0;
+                        // De-emphasize (and disable) zero-count chips
+                        // that the runner has expanded back into view
+                        // so they still signal "dead end" without
+                        // pretending to be clickable.
+                        const wouldZero = !active && count === 0;
+                        return (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() => toggleTemplateTag(tag)}
+                            aria-pressed={active}
+                            disabled={wouldZero}
+                            data-testid={`planner-template-tag-chip-${tag}`}
+                            className={
+                              active
+                                ? "text-[10px] px-1.5 py-0.5 rounded border border-primary bg-primary text-primary-foreground"
+                                : wouldZero
+                                  ? "text-[10px] px-1.5 py-0.5 rounded border border-border bg-background text-muted-foreground/40 opacity-50 cursor-not-allowed"
+                                  : "text-[10px] px-1.5 py-0.5 rounded border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                            }
+                          >
+                            {tag}
+                            <span
+                              className="ml-1 opacity-70 tabular-nums"
+                              data-testid={`planner-template-tag-chip-count-${tag}`}
+                            >
+                              · {count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                      {hiddenCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setShowHiddenTemplateChips((s) => !s)
+                          }
+                          aria-pressed={showHiddenTemplateChips}
+                          data-testid="planner-template-tag-cloud-toggle-hidden"
+                          className="text-[10px] px-1.5 py-0.5 rounded border border-dashed border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                        >
+                          {showHiddenTemplateChips
+                            ? "Show less"
+                            : `+${hiddenCount} hidden`}
+                        </button>
+                      )}
+                    </>
                   );
-                })}
+                })()}
               </div>
             </div>
           )}
@@ -2937,40 +3002,77 @@ export default function Planner() {
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
-                          {allQuickAddTags.map((tag) => {
-                            const active = quickAddSelectedTags.has(tag);
-                            const count = quickAddTagCounts.get(tag) ?? 0;
-                            // De-emphasize (and disable) chips that
-                            // would yield zero results if added so
-                            // runners avoid dead-end clicks. Active
-                            // chips stay interactive (click deselects).
-                            const wouldZero = !active && count === 0;
+                          {(() => {
+                            // Mirror the Plan Template Library
+                            // behaviour: collapse zero-count chips
+                            // behind a "+N hidden" toggle once a
+                            // filter is active so the popover stays
+                            // tidy on a wide tag catalog.
+                            const filtersActive =
+                              quickAddSearch.trim().length > 0 ||
+                              quickAddSelectedTags.size > 0;
+                            const isHidden = (tag: string) => {
+                              const active = quickAddSelectedTags.has(tag);
+                              const count = quickAddTagCounts.get(tag) ?? 0;
+                              return filtersActive && !active && count === 0;
+                            };
+                            const visibleTags = showHiddenQuickAddChips
+                              ? allQuickAddTags
+                              : allQuickAddTags.filter((t) => !isHidden(t));
+                            const hiddenCount =
+                              allQuickAddTags.filter(isHidden).length;
                             return (
-                              <button
-                                key={tag}
-                                type="button"
-                                onClick={() => toggleQuickAddTag(tag)}
-                                aria-pressed={active}
-                                disabled={wouldZero}
-                                data-testid={`planner-entry-add-tag-chip-${tag}`}
-                                className={
-                                  active
-                                    ? "text-[10px] px-1.5 py-0.5 rounded border border-primary bg-primary text-primary-foreground"
-                                    : wouldZero
-                                      ? "text-[10px] px-1.5 py-0.5 rounded border border-border bg-background text-muted-foreground/40 opacity-50 cursor-not-allowed"
-                                      : "text-[10px] px-1.5 py-0.5 rounded border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
-                                }
-                              >
-                                {tag}
-                                <span
-                                  className="ml-1 opacity-70 tabular-nums"
-                                  data-testid={`planner-entry-add-tag-chip-count-${tag}`}
-                                >
-                                  · {count}
-                                </span>
-                              </button>
+                              <>
+                                {visibleTags.map((tag) => {
+                                  const active =
+                                    quickAddSelectedTags.has(tag);
+                                  const count =
+                                    quickAddTagCounts.get(tag) ?? 0;
+                                  const wouldZero = !active && count === 0;
+                                  return (
+                                    <button
+                                      key={tag}
+                                      type="button"
+                                      onClick={() => toggleQuickAddTag(tag)}
+                                      aria-pressed={active}
+                                      disabled={wouldZero}
+                                      data-testid={`planner-entry-add-tag-chip-${tag}`}
+                                      className={
+                                        active
+                                          ? "text-[10px] px-1.5 py-0.5 rounded border border-primary bg-primary text-primary-foreground"
+                                          : wouldZero
+                                            ? "text-[10px] px-1.5 py-0.5 rounded border border-border bg-background text-muted-foreground/40 opacity-50 cursor-not-allowed"
+                                            : "text-[10px] px-1.5 py-0.5 rounded border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                                      }
+                                    >
+                                      {tag}
+                                      <span
+                                        className="ml-1 opacity-70 tabular-nums"
+                                        data-testid={`planner-entry-add-tag-chip-count-${tag}`}
+                                      >
+                                        · {count}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                                {hiddenCount > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setShowHiddenQuickAddChips((s) => !s)
+                                    }
+                                    aria-pressed={showHiddenQuickAddChips}
+                                    data-testid="planner-entry-add-tag-cloud-toggle-hidden"
+                                    className="text-[10px] px-1.5 py-0.5 rounded border border-dashed border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                                  >
+                                    {showHiddenQuickAddChips
+                                      ? "Show less"
+                                      : `+${hiddenCount} hidden`}
+                                  </button>
+                                )}
+                              </>
                             );
-                          })}
+                          })()}
                         </div>
                       </div>
                     )}

@@ -1269,18 +1269,43 @@ describe("Plan Template Library — tag-cloud filter", () => {
     expect(afterMarathon).toBeGreaterThan(0);
   });
 
-  it("disables (mutes) chips whose addition would yield zero matches", () => {
+  it("hides zero-count chips behind a '+N hidden' toggle once a filter is active; expanded chips stay disabled", () => {
     renderPlanner();
-    // hansons is interactive on a fresh catalog.
+    // hansons is interactive on a fresh catalog and no toggle is
+    // shown because no filter is applied yet.
     const hansons = screen.getByTestId(
       "planner-template-tag-chip-hansons",
     ) as HTMLButtonElement;
     expect(hansons.disabled).toBe(false);
+    expect(
+      screen.queryByTestId("planner-template-tag-cloud-toggle-hidden"),
+    ).toBeNull();
 
     // Selecting pfitzinger creates a dead-end for hansons (no template
-    // carries both tags), so the hansons chip becomes disabled.
+    // carries both tags), so the hansons chip is collapsed out of the
+    // cloud and hides behind the "+N hidden" toggle.
     fireEvent.click(screen.getByTestId("planner-template-tag-chip-pfitzinger"));
 
+    expect(
+      screen.queryByTestId("planner-template-tag-chip-hansons"),
+    ).toBeNull();
+    const toggle = screen.getByTestId(
+      "planner-template-tag-cloud-toggle-hidden",
+    );
+    expect(toggle.textContent).toMatch(/^\+\d+ hidden$/);
+
+    // The currently-selected chip itself stays interactive (and
+    // visible) so the runner can deselect it without hunting for the
+    // Clear button.
+    const pfitzAfter = screen.getByTestId(
+      "planner-template-tag-chip-pfitzinger",
+    ) as HTMLButtonElement;
+    expect(pfitzAfter.disabled).toBe(false);
+
+    // Expanding the toggle reveals the hidden chips (still disabled
+    // so the dead-end signal is preserved) and switches the toggle
+    // label to a collapse affordance.
+    fireEvent.click(toggle);
     const hansonsAfter = screen.getByTestId(
       "planner-template-tag-chip-hansons",
     ) as HTMLButtonElement;
@@ -1288,13 +1313,78 @@ describe("Plan Template Library — tag-cloud filter", () => {
     expect(
       screen.getByTestId("planner-template-tag-chip-count-hansons").textContent,
     ).toContain("0");
+    expect(
+      screen.getByTestId("planner-template-tag-cloud-toggle-hidden").textContent,
+    ).toBe("Show less");
 
-    // The currently-selected chip itself stays interactive so the
-    // runner can deselect it without hunting for the Clear button.
-    const pfitzAfter = screen.getByTestId(
-      "planner-template-tag-chip-pfitzinger",
-    ) as HTMLButtonElement;
-    expect(pfitzAfter.disabled).toBe(false);
+    // Clearing the selection brings every chip back and removes the
+    // toggle entirely.
+    fireEvent.click(screen.getByTestId("planner-template-tag-cloud-clear"));
+    expect(
+      screen.queryByTestId("planner-template-tag-cloud-toggle-hidden"),
+    ).toBeNull();
+    expect(
+      (
+        screen.getByTestId(
+          "planner-template-tag-chip-hansons",
+        ) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+  });
+
+  it("hides zero-count chips under a free-text-only filter and resets the toggle when the search clears", () => {
+    renderPlanner();
+    // No filter: lift-only is visible and there is no toggle yet.
+    expect(
+      screen.getByTestId("planner-template-tag-chip-lift-only"),
+    ).toBeTruthy();
+    expect(
+      screen.queryByTestId("planner-template-tag-cloud-toggle-hidden"),
+    ).toBeNull();
+
+    // Free-text search alone (no chip selection) is enough to trigger
+    // the collapse — searching "marathon" zeroes out lift-only.
+    fireEvent.change(screen.getByTestId("planner-template-search"), {
+      target: { value: "marathon" },
+    });
+    expect(
+      screen.queryByTestId("planner-template-tag-chip-lift-only"),
+    ).toBeNull();
+    const toggle = screen.getByTestId(
+      "planner-template-tag-cloud-toggle-hidden",
+    );
+    fireEvent.click(toggle);
+    expect(
+      (
+        screen.getByTestId(
+          "planner-template-tag-chip-lift-only",
+        ) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+
+    // Clearing the search drops the toggle back to its collapsed
+    // default so a fresh filter session starts clean instead of
+    // remembering the previous expansion.
+    fireEvent.change(screen.getByTestId("planner-template-search"), {
+      target: { value: "" },
+    });
+    expect(
+      screen.queryByTestId("planner-template-tag-cloud-toggle-hidden"),
+    ).toBeNull();
+
+    // Re-applying a filter yields the collapsed state again, not an
+    // already-expanded one.
+    fireEvent.change(screen.getByTestId("planner-template-search"), {
+      target: { value: "marathon" },
+    });
+    expect(
+      screen.queryByTestId("planner-template-tag-chip-lift-only"),
+    ).toBeNull();
+    expect(
+      screen
+        .getByTestId("planner-template-tag-cloud-toggle-hidden")
+        .textContent,
+    ).toMatch(/^\+\d+ hidden$/);
   });
 });
 
@@ -1371,22 +1461,38 @@ describe("Quick-add popover (entries-mode) — tag-cloud filter", () => {
     expect(afterSearch).toBeGreaterThan(0);
   });
 
-  it("disables quick-add chips that would yield zero matches under the current selection", () => {
+  it("hides zero-count quick-add chips behind a '+N hidden' toggle once a filter is active; expanded chips stay disabled", () => {
     renderPlanner();
     fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
     fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
     fireEvent.click(screen.getByTestId("planner-entry-add-select"));
 
-    // hansons is interactive at first.
+    // hansons is interactive at first and no toggle is shown.
     const hansons = screen.getByTestId(
       "planner-entry-add-tag-chip-hansons",
     ) as HTMLButtonElement;
     expect(hansons.disabled).toBe(false);
+    expect(
+      screen.queryByTestId("planner-entry-add-tag-cloud-toggle-hidden"),
+    ).toBeNull();
 
     fireEvent.click(
       screen.getByTestId("planner-entry-add-tag-chip-pfitzinger"),
     );
 
+    // hansons collapses out of the cloud, replaced by a "+N hidden"
+    // expander mirroring the Plan Template Library card.
+    expect(
+      screen.queryByTestId("planner-entry-add-tag-chip-hansons"),
+    ).toBeNull();
+    const toggle = screen.getByTestId(
+      "planner-entry-add-tag-cloud-toggle-hidden",
+    );
+    expect(toggle.textContent).toMatch(/^\+\d+ hidden$/);
+
+    // Expanding shows the hidden chips, still disabled with their
+    // zero count, and flips the toggle label.
+    fireEvent.click(toggle);
     const hansonsAfter = screen.getByTestId(
       "planner-entry-add-tag-chip-hansons",
     ) as HTMLButtonElement;
@@ -1395,6 +1501,53 @@ describe("Quick-add popover (entries-mode) — tag-cloud filter", () => {
       screen.getByTestId("planner-entry-add-tag-chip-count-hansons")
         .textContent,
     ).toContain("0");
+    expect(
+      screen.getByTestId("planner-entry-add-tag-cloud-toggle-hidden")
+        .textContent,
+    ).toBe("Show less");
+  });
+
+  it("hides zero-count quick-add chips under a free-text-only filter and resets the toggle when the search clears", () => {
+    renderPlanner();
+    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
+    fireEvent.click(screen.getByTestId("planner-entry-add-select"));
+
+    expect(
+      screen.getByTestId("planner-entry-add-tag-chip-lift-only"),
+    ).toBeTruthy();
+    expect(
+      screen.queryByTestId("planner-entry-add-tag-cloud-toggle-hidden"),
+    ).toBeNull();
+
+    // Free-text typing in the popover (no chip selection) is enough
+    // to collapse zero-count chips.
+    fireEvent.change(screen.getByTestId("planner-entry-add-search"), {
+      target: { value: "marathon" },
+    });
+    expect(
+      screen.queryByTestId("planner-entry-add-tag-chip-lift-only"),
+    ).toBeNull();
+    const toggle = screen.getByTestId(
+      "planner-entry-add-tag-cloud-toggle-hidden",
+    );
+    fireEvent.click(toggle);
+    expect(
+      (
+        screen.getByTestId(
+          "planner-entry-add-tag-chip-lift-only",
+        ) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+
+    // Clearing the search resets the expansion so the next filter
+    // session starts collapsed by default.
+    fireEvent.change(screen.getByTestId("planner-entry-add-search"), {
+      target: { value: "" },
+    });
+    expect(
+      screen.queryByTestId("planner-entry-add-tag-cloud-toggle-hidden"),
+    ).toBeNull();
   });
 
   it("Clear in the quick-add popover restores the full option list", () => {
@@ -1430,7 +1583,7 @@ describe("Planner template tag-cloud chip counts", () => {
     window.localStorage.clear();
   });
 
-  it("renders each chip with its template count and updates the other chips' counts when one is selected; zero-count chips become disabled", () => {
+  it("renders each chip with its template count and updates the other chips' counts when one is selected; zero-count chips collapse behind a '+N hidden' toggle and stay disabled when expanded", () => {
     renderPlanner();
 
     // The catalog has multiple "marathon" templates and multiple
@@ -1471,16 +1624,6 @@ describe("Planner template tag-cloud chip counts", () => {
     fireEvent.click(marathonChip);
 
     expect(readCount("marathon")).toBe(marathonBefore);
-    expect(readCount("lift-only")).toBe(0);
-    // Zero-count chip is rendered disabled so runners can't add it
-    // to the selection and over-narrow into a dead end.
-    expect(
-      (
-        screen.getByTestId(
-          "planner-template-tag-chip-lift-only",
-        ) as HTMLButtonElement
-      ).disabled,
-    ).toBe(true);
     // The active chip itself stays interactive (clicking deselects).
     expect(
       (
@@ -1489,6 +1632,24 @@ describe("Planner template tag-cloud chip counts", () => {
         ) as HTMLButtonElement
       ).disabled,
     ).toBe(false);
+    // Zero-count chips like lift-only collapse behind the
+    // "+N hidden" toggle so the cloud stays scannable.
+    expect(
+      screen.queryByTestId("planner-template-tag-chip-lift-only"),
+    ).toBeNull();
+    fireEvent.click(
+      screen.getByTestId("planner-template-tag-cloud-toggle-hidden"),
+    );
+    // Once expanded the chip reappears with its zero count and stays
+    // disabled so runners can't over-narrow into a dead end.
+    expect(readCount("lift-only")).toBe(0);
+    expect(
+      (
+        screen.getByTestId(
+          "planner-template-tag-chip-lift-only",
+        ) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
   });
 });
 
