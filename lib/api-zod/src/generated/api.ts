@@ -1049,6 +1049,22 @@ export const GetWeeklyMileageResponseItem = zod.object({
   phase: zod.string().optional(),
   plannedMiles: zod.number(),
   actualMiles: zod.number(),
+  plannedCardioMin: zod
+    .number()
+    .describe(
+      "Total planned cross-train cardio minutes for the week (bike \/ row \/ spin etc., not running). Lets the dashboard chart show non-zero bars for bike-only or row-only weeks whose `plannedMiles` is 0.\n",
+    ),
+  actualCardioMin: zod
+    .number()
+    .describe(
+      "Sum of `cardio_min` across logged workouts dated within the week.\n",
+    ),
+  dominantCardioEquipment: zod
+    .string()
+    .nullish()
+    .describe(
+      'Equipment with the most planned cardio minutes for the week, used to label cardio-only weeks in the chart tooltip (e.g. \"Peloton Bike\"). Null when the week has no planned cross-train cardio.\n',
+    ),
 });
 export const GetWeeklyMileageResponse = zod.array(GetWeeklyMileageResponseItem);
 

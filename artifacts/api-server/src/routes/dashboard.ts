@@ -102,23 +102,57 @@ router.get("/dashboard/weight-trend", async (_req, res) => {
 });
 
 router.get("/dashboard/weekly-mileage", async (_req, res) => {
-  const rows = await db.execute<{ week: number; start_date: string; phase: string; planned_miles: number; actual_miles: number }>(
+  // Mileage and cardio-minutes per plan_week. Bike-only / row-only weeks
+  // have plannedMiles == 0, so the chart also surfaces planned/actual
+  // cross-train cardio minutes (and the dominant cardio machine for the
+  // tooltip label) so those weeks no longer render as zero-height bars.
+  const rows = await db.execute<{
+    week: number;
+    start_date: string;
+    phase: string;
+    planned_miles: number;
+    actual_miles: number;
+    planned_cardio_min: number;
+    actual_cardio_min: number;
+  }>(
     sql`
       SELECT pw.week, TO_CHAR(pw.start_date, 'YYYY-MM-DD') AS start_date, pw.phase,
         pw.planned_miles::float AS planned_miles,
-        COALESCE(SUM(w.distance_mi), 0)::float AS actual_miles
+        COALESCE(pw.planned_cardio, 0)::float AS planned_cardio_min,
+        COALESCE(SUM(w.distance_mi), 0)::float AS actual_miles,
+        COALESCE(SUM(w.cardio_min), 0)::float AS actual_cardio_min
       FROM plan_weeks pw
       LEFT JOIN workouts w ON w.date BETWEEN pw.start_date AND pw.end_date
-      GROUP BY pw.week, pw.start_date, pw.phase, pw.planned_miles
+      GROUP BY pw.week, pw.start_date, pw.phase, pw.planned_miles, pw.planned_cardio
       ORDER BY pw.week ASC
     `,
   );
+  // Per-week dominant cardio machine: the equipment with the highest total
+  // planned cardio_min across non-rest plan days. Mirrors the logic in
+  // /api/plan/weeks so the chart tooltip can label bike-only / row-only
+  // weeks (e.g. "60 min · Peloton Bike"). Ties broken by equipment name.
+  const cardioEq = await db.execute<{ week: number; equipment: string }>(
+    sql`
+      SELECT DISTINCT ON (week) week, equipment
+      FROM (
+        SELECT week, equipment, SUM(cardio_min)::int AS total_min
+        FROM plan_days
+        WHERE is_rest = false AND COALESCE(cardio_min, 0) > 0
+        GROUP BY week, equipment
+      ) agg
+      ORDER BY week, total_min DESC, equipment ASC
+    `,
+  );
+  const dominantByWeek = new Map(cardioEq.rows.map((r) => [r.week, r.equipment]));
   res.json(rows.rows.map((r) => ({
     week: r.week,
     startDate: r.start_date,
     phase: r.phase,
     plannedMiles: r.planned_miles,
     actualMiles: r.actual_miles,
+    plannedCardioMin: r.planned_cardio_min,
+    actualCardioMin: r.actual_cardio_min,
+    dominantCardioEquipment: dominantByWeek.get(r.week) ?? null,
   })));
 });
 

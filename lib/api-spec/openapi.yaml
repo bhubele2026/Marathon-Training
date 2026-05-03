@@ -1355,13 +1355,40 @@ components:
 
     WeeklyMileagePoint:
       type: object
-      required: [week, plannedMiles, actualMiles]
+      required:
+        [
+          week,
+          plannedMiles,
+          actualMiles,
+          plannedCardioMin,
+          actualCardioMin,
+        ]
       properties:
         week: { type: integer }
         startDate: { type: string }
         phase: { type: string }
         plannedMiles: { type: number }
         actualMiles: { type: number }
+        plannedCardioMin:
+          type: number
+          description: >
+            Total planned cross-train cardio minutes for the week
+            (bike / row / spin etc., not running). Lets the dashboard
+            chart show non-zero bars for bike-only or row-only weeks
+            whose `plannedMiles` is 0.
+        actualCardioMin:
+          type: number
+          description: >
+            Sum of `cardio_min` across logged workouts dated within
+            the week.
+        dominantCardioEquipment:
+          type: string
+          nullable: true
+          description: >
+            Equipment with the most planned cardio minutes for the
+            week, used to label cardio-only weeks in the chart tooltip
+            (e.g. "Peloton Bike"). Null when the week has no planned
+            cross-train cardio.
 
     EquipmentUsage:
       type: object

@@ -312,22 +312,46 @@ export default function Dashboard() {
                     phases={uniquePhases(mileage?.map((m) => m.phase))}
                     showActualSwatch
                   />
+                  <p className="text-xs text-muted-foreground mb-2" data-testid="mileage-chart-cardio-note">
+                    Bike / row weeks plot cross-train minutes on the right
+                    axis so cardio-only weeks aren't zero-height bars.
+                  </p>
                   <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={mileage}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
                         <XAxis dataKey="week" tickFormatter={(v) => `W${v}`} />
-                        <YAxis />
+                        <YAxis yAxisId="miles" />
+                        <YAxis
+                          yAxisId="cardio"
+                          orientation="right"
+                          tickFormatter={(v) => `${v}m`}
+                        />
                         <Tooltip
                           contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
                           labelFormatter={(label, payload) => {
-                            const phase = payload?.[0]?.payload?.phase;
-                            return phase ? `Week ${label} · ${phase}` : `Week ${label}`;
+                            const row = payload?.[0]?.payload as
+                              | { phase?: string; dominantCardioEquipment?: string | null; plannedMiles?: number; plannedCardioMin?: number }
+                              | undefined;
+                            const base = row?.phase ? `Week ${label} · ${row.phase}` : `Week ${label}`;
+                            const cardioOnly =
+                              (row?.plannedMiles ?? 0) === 0 &&
+                              (row?.plannedCardioMin ?? 0) > 0;
+                            if (cardioOnly && row?.dominantCardioEquipment) {
+                              return `${base} · ${row.dominantCardioEquipment}`;
+                            }
+                            return base;
+                          }}
+                          formatter={(value, name) => {
+                            if (name === "Planned cardio" || name === "Actual cardio") {
+                              return [`${Number(value).toFixed(0)} min`, name];
+                            }
+                            return [`${Number(value).toFixed(1)} mi`, name];
                           }}
                         />
                         <Legend />
-                        <Bar dataKey="plannedMiles" name="Planned" fill="hsl(var(--muted-foreground))" opacity={0.3} radius={[2, 2, 0, 0]} />
-                        <Bar dataKey="actualMiles" name="Actual" radius={[2, 2, 0, 0]}>
+                        <Bar yAxisId="miles" dataKey="plannedMiles" name="Planned" fill="hsl(var(--muted-foreground))" opacity={0.3} radius={[2, 2, 0, 0]} />
+                        <Bar yAxisId="miles" dataKey="actualMiles" name="Actual" radius={[2, 2, 0, 0]}>
                           {(mileage ?? []).map((row, i) => (
                             <Cell
                               key={`mileage-${row.week}-${i}`}
@@ -335,6 +359,22 @@ export default function Dashboard() {
                             />
                           ))}
                         </Bar>
+                        <Bar
+                          yAxisId="cardio"
+                          dataKey="plannedCardioMin"
+                          name="Planned cardio"
+                          fill="hsl(var(--muted-foreground))"
+                          opacity={0.2}
+                          radius={[2, 2, 0, 0]}
+                        />
+                        <Bar
+                          yAxisId="cardio"
+                          dataKey="actualCardioMin"
+                          name="Actual cardio"
+                          fill="hsl(var(--chart-2, var(--primary)))"
+                          opacity={0.7}
+                          radius={[2, 2, 0, 0]}
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>

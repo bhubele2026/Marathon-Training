@@ -212,6 +212,9 @@ describe("GET /api/dashboard/weekly-mileage", () => {
       phase: string;
       plannedMiles: number;
       actualMiles: number;
+      plannedCardioMin: number;
+      actualCardioMin: number;
+      dominantCardioEquipment: string | null;
     }>;
     const ours = rows.find((r) => r.week === week);
     expect(ours).toEqual({
@@ -220,6 +223,80 @@ describe("GET /api/dashboard/weekly-mileage", () => {
       phase,
       plannedMiles: 25,
       actualMiles: 10,
+      plannedCardioMin: 0,
+      actualCardioMin: 0,
+      dominantCardioEquipment: null,
+    });
+  });
+
+  it("surfaces cardio minutes and dominant equipment for bike/row weeks", async () => {
+    // Bike-only week: plannedMiles is 0 but plannedCardio is high. Without
+    // the cardio fields the chart bar would be zero-height; the chart now
+    // plots planned/actual cardio minutes on a secondary axis and labels
+    // the tooltip with the dominant cardio machine.
+    const week = 8402;
+    const phase = "Cross Train";
+    await insertWeek(week, {
+      startDate: "2099-07-13",
+      endDate: "2099-07-19",
+      phase,
+      plannedMiles: 0,
+      plannedCardio: 120,
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-07-13",
+      day: "Mon",
+      sessionType: "Bike",
+      equipment: "Peloton Bike",
+      cardioMin: 60,
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-07-15",
+      day: "Wed",
+      sessionType: "Bike",
+      equipment: "Peloton Bike",
+      cardioMin: 60,
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-07-17",
+      day: "Fri",
+      sessionType: "Row",
+      equipment: "Peloton Row",
+      cardioMin: 30,
+    });
+    await insertWorkout({
+      date: "2099-07-13",
+      sessionType: "Bike",
+      equipment: "Peloton Bike",
+      cardioMin: 45,
+    });
+    await insertWorkout({
+      date: "2099-07-15",
+      sessionType: "Bike",
+      equipment: "Peloton Bike",
+      cardioMin: 50,
+    });
+
+    const res = await request(app).get("/api/dashboard/weekly-mileage");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetWeeklyMileageResponse, res.body);
+
+    const rows = res.body as Array<{
+      week: number;
+      plannedMiles: number;
+      actualMiles: number;
+      plannedCardioMin: number;
+      actualCardioMin: number;
+      dominantCardioEquipment: string | null;
+    }>;
+    const ours = rows.find((r) => r.week === week);
+    expect(ours).toMatchObject({
+      week,
+      plannedMiles: 0,
+      actualMiles: 0,
+      plannedCardioMin: 120,
+      actualCardioMin: 95,
+      dominantCardioEquipment: "Peloton Bike",
     });
   });
 });
