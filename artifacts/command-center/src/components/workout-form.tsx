@@ -3,6 +3,7 @@ import { useForm, type Path } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { AlertCircle, Sparkles } from "lucide-react";
+import { LIFESTYLE_EQUIPMENT } from "@workspace/plan-generator";
 import {
   Dialog,
   DialogContent,
@@ -69,7 +70,7 @@ const EQUIPMENT_GROUPS: ReadonlyArray<{
   {
     label: "Other",
     items: [
-      { value: "Lifestyle", label: "Lifestyle" },
+      { value: LIFESTYLE_EQUIPMENT, label: LIFESTYLE_EQUIPMENT },
       { value: "None", label: "None / Rest" },
     ],
   },
@@ -83,7 +84,7 @@ const CANONICAL_EQUIPMENT_PRIORITY = [
   "Peloton Row",
   "Peloton Tread",
   "Outdoor",
-  "Lifestyle",
+  LIFESTYLE_EQUIPMENT,
   "None",
 ] as const;
 

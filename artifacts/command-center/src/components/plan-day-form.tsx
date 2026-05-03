@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { LIFESTYLE_EQUIPMENT } from "@workspace/plan-generator";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -203,7 +204,7 @@ export function PlanDayForm({ open, onOpenChange, planDay }: PlanDayFormProps) {
                         <SelectItem value="Peloton Bike">Peloton Bike</SelectItem>
                         <SelectItem value="Peloton Row">Peloton Row</SelectItem>
                         <SelectItem value="Outdoor">Outdoor</SelectItem>
-                        <SelectItem value="Lifestyle">Lifestyle</SelectItem>
+                        <SelectItem value={LIFESTYLE_EQUIPMENT}>{LIFESTYLE_EQUIPMENT}</SelectItem>
                         <SelectItem value="None">None / Rest</SelectItem>
                       </SelectContent>
                     </Select>

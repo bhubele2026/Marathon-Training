@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, Clock } from "lucide-react";
 import { WorkoutForm } from "@/components/workout-form";
 import { LIFESTYLE_PRESETS } from "@/lib/lifestyle-presets";
+import { LIFESTYLE_EQUIPMENT } from "@workspace/plan-generator";
 
 interface QuickLogActivityProps {
   testIdSuffix?: string;
@@ -109,7 +110,7 @@ export function QuickLogActivity({ testIdSuffix }: QuickLogActivityProps = {}) {
           onOpenChange={setQuickLogOpen}
           initial={{
             date: new Date().toISOString().split("T")[0],
-            equipment: "Lifestyle",
+            equipment: LIFESTYLE_EQUIPMENT,
             sessionType: quickLogPreset?.sessionType ?? "",
           }}
         />

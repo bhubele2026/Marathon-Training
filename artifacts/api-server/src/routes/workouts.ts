@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, workoutsTable } from "@workspace/db";
 import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { CreateWorkoutBody, UpdateWorkoutBody, ListWorkoutsQueryParams } from "@workspace/api-zod";
+import { LIFESTYLE_EQUIPMENT } from "@workspace/plan-generator";
 import { toWorkout } from "../lib/transforms";
 
 const router: IRouter = Router();
@@ -15,7 +16,7 @@ const CANONICAL_EQUIPMENT_PRIORITY = [
   "Peloton Row",
   "Peloton Tread",
   "Outdoor",
-  "Lifestyle",
+  LIFESTYLE_EQUIPMENT,
   "None",
 ] as const;
 

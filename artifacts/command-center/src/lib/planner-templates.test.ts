@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { PLAN_TEMPLATES } from "@workspace/plan-generator";
 import {
   type CategorizableTemplate,
+  categorizeTemplate,
   countTemplatesByTag,
   filterTemplatesByTags,
   getAllTemplateTags,
@@ -370,5 +372,37 @@ describe("countTemplatesByTag", () => {
       ).length;
       expect(counts.get(tag) ?? 0).toBe(expected);
     }
+  });
+});
+
+describe("categorizeTemplate", () => {
+  it("routes the Race Countdown scaffold (Runner-defined hint) to Custom, not Conditioning", () => {
+    const raceCountdown = PLAN_TEMPLATES.find((t) => t.id === "race_countdown");
+    expect(raceCountdown).toBeDefined();
+    expect(categorizeTemplate(raceCountdown!)).toBe("Custom");
+  });
+
+  it("routes any template whose equipment hint says runner-defined to Custom", () => {
+    const t: CategorizableTemplate = {
+      id: "free_form_demo",
+      name: "Free-form demo",
+      source: "test",
+      goalDistance: "Custom race",
+      metadata: { equipmentMixHint: "Runner-defined" },
+      tags: [],
+    } as CategorizableTemplate;
+    expect(categorizeTemplate(t)).toBe("Custom");
+  });
+
+  it("routes templates carrying the 'scaffold' tag to Custom regardless of hint", () => {
+    const t: CategorizableTemplate = {
+      id: "scaf",
+      name: "Scaffold",
+      source: "test",
+      goalDistance: "Custom race",
+      metadata: { equipmentMixHint: "Run-only" },
+      tags: ["scaffold"],
+    } as CategorizableTemplate;
+    expect(categorizeTemplate(t)).toBe("Custom");
   });
 });

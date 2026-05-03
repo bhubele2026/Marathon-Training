@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/sheet";
 import { WorkoutForm } from "@/components/workout-form";
 import { LIFESTYLE_PRESETS } from "@/lib/lifestyle-presets";
+import { LIFESTYLE_EQUIPMENT } from "@workspace/plan-generator";
 
 export function QuickLogFab() {
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -75,7 +76,7 @@ export function QuickLogFab() {
         onOpenChange={setFormOpen}
         initial={{
           date: new Date().toISOString().split("T")[0],
-          equipment: "Lifestyle",
+          equipment: LIFESTYLE_EQUIPMENT,
           sessionType: preset?.sessionType ?? "",
         }}
       />

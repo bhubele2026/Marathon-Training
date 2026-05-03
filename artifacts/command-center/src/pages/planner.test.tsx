@@ -1983,6 +1983,130 @@ describe("Plan Template Library — tag-cloud filter persistence", () => {
   });
 });
 
+describe("Tag-cloud sort toggle", () => {
+  const TEMPLATE_SORT_KEY = "planner.templateTagSort.v1";
+  const QUICKADD_SORT_KEY = "planner.quickAddTagSort.v1";
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    window.localStorage.clear();
+  });
+
+  function templateChipOrder(): string[] {
+    return screen
+      .getAllByTestId(/^planner-template-tag-chip-(?!count-)/)
+      .map((el) => el.getAttribute("data-testid")!.replace(
+        "planner-template-tag-chip-",
+        "",
+      ));
+  }
+
+  function quickAddChipOrder(): string[] {
+    return screen
+      .getAllByTestId(/^planner-entry-add-tag-chip-(?!count-)/)
+      .map((el) => el.getAttribute("data-testid")!.replace(
+        "planner-entry-add-tag-chip-",
+        "",
+      ));
+  }
+
+  it("Plan Template Library: clicking A–Z reorders chips alphabetically; By count restores count order", () => {
+    renderPlanner();
+
+    const countOrder = templateChipOrder();
+    const alphaSorted = [...countOrder].sort((a, b) => a.localeCompare(b));
+    // The default is "By count", and the catalog has tags whose count
+    // ordering is not already alphabetical — so the two orders differ.
+    expect(countOrder).not.toEqual(alphaSorted);
+    expect(
+      screen
+        .getByTestId("planner-template-tag-cloud-sort-count")
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+
+    fireEvent.click(screen.getByTestId("planner-template-tag-cloud-sort-alpha"));
+
+    expect(
+      screen
+        .getByTestId("planner-template-tag-cloud-sort-alpha")
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(templateChipOrder()).toEqual(alphaSorted);
+
+    fireEvent.click(screen.getByTestId("planner-template-tag-cloud-sort-count"));
+    expect(
+      screen
+        .getByTestId("planner-template-tag-cloud-sort-count")
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(templateChipOrder()).toEqual(countOrder);
+  });
+
+  it("Plan Template Library: sort choice persists to localStorage and survives a remount", () => {
+    const first = renderPlanner();
+    fireEvent.click(screen.getByTestId("planner-template-tag-cloud-sort-alpha"));
+    expect(window.localStorage.getItem(TEMPLATE_SORT_KEY)).toBe("alpha");
+    const alphaOrder = templateChipOrder();
+
+    first.unmount();
+    renderPlanner();
+
+    expect(
+      screen
+        .getByTestId("planner-template-tag-cloud-sort-alpha")
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(templateChipOrder()).toEqual(alphaOrder);
+  });
+
+  it("Quick-add popover: A–Z reorders chips and persists separately from the library toggle", () => {
+    renderPlanner();
+    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
+    fireEvent.click(screen.getByTestId("planner-entry-add-select"));
+
+    const countOrder = quickAddChipOrder();
+    const alphaSorted = [...countOrder].sort((a, b) => a.localeCompare(b));
+    expect(countOrder).not.toEqual(alphaSorted);
+
+    fireEvent.click(
+      screen.getByTestId("planner-entry-add-tag-cloud-sort-alpha"),
+    );
+    expect(
+      screen
+        .getByTestId("planner-entry-add-tag-cloud-sort-alpha")
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(quickAddChipOrder()).toEqual(alphaSorted);
+
+    // Quick-add toggle persists under its OWN storage key — not the
+    // template-library key — so the two surfaces don't bleed into one
+    // another.
+    expect(window.localStorage.getItem(QUICKADD_SORT_KEY)).toBe("alpha");
+    // Library toggle untouched, so its persisted mode stays at the
+    // default "count" — not changed to "alpha" by the quick-add click.
+    expect(window.localStorage.getItem(TEMPLATE_SORT_KEY)).toBe("count");
+  });
+
+  it("Quick-add popover: sort choice survives a remount via the QUICKADD_SORT_KEY", () => {
+    window.localStorage.setItem(QUICKADD_SORT_KEY, "alpha");
+    renderPlanner();
+    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
+    fireEvent.click(screen.getByTestId("planner-entry-add-select"));
+
+    expect(
+      screen
+        .getByTestId("planner-entry-add-tag-cloud-sort-alpha")
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    const observed = quickAddChipOrder();
+    const sorted = [...observed].sort((a, b) => a.localeCompare(b));
+    expect(observed).toEqual(sorted);
+  });
+});
+
 describe("defaultBlankConfig", () => {
   it("produces a payload that passes validatePlannerConfig (legacy blocks-mode)", () => {
     const blank = defaultBlankConfig();

@@ -1,13 +1,13 @@
 import { Router, type IRouter } from "express";
 import { db, planWeeksTable, planDaysTable, workoutsTable, measurementsTable } from "@workspace/db";
 import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { LIFESTYLE_EQUIPMENT } from "@workspace/plan-generator";
 import { toWorkout } from "../lib/transforms";
 import { readActiveRaceDate } from "./planner";
 
 const router: IRouter = Router();
 const START_WEIGHT = 281.6;
 const GOAL_WEIGHT = 210;
-const LIFESTYLE_EQUIPMENT = "Lifestyle";
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useListWorkouts, useDeleteWorkout } from "@workspace/api-client-react";
+import { LIFESTYLE_EQUIPMENT } from "@workspace/plan-generator";
 import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -91,7 +92,7 @@ export default function Log() {
               <SelectItem value="Peloton Bike">Peloton Bike</SelectItem>
               <SelectItem value="Peloton Row">Peloton Row</SelectItem>
               <SelectItem value="Outdoor">Outdoor</SelectItem>
-              <SelectItem value="Lifestyle">Lifestyle</SelectItem>
+              <SelectItem value={LIFESTYLE_EQUIPMENT}>{LIFESTYLE_EQUIPMENT}</SelectItem>
               <SelectItem value="None">None / Rest</SelectItem>
             </SelectContent>
           </Select>

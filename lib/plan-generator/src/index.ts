@@ -73,6 +73,12 @@ export type BodyRow = {
   notes: string;
 };
 
+// Canonical equipment tag for non-training movement (dog walks, yard
+// work, hikes etc.). Centralized so dashboard rollups, plan filters,
+// log forms, and seed scripts all share one literal — a typo in any
+// one of them silently breaks the Lifestyle filter / mileage exclusion.
+export const LIFESTYLE_EQUIPMENT = "Lifestyle";
+
 export const PLAN_START_ISO = "2026-05-04";
 export const RACE_DATE_ISO = "2027-05-02";
 export const TOTAL_WEEKS = 52;
