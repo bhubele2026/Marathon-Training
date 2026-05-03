@@ -811,6 +811,137 @@ describe("Planner template library (entries-mode)", () => {
   });
 });
 
+describe("Planner template entry end-date picker", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  // half_marathon template's published range is 10–16w (default 12).
+  it("picking a new end date updates the entry's weeks via the snap+clamp helper", () => {
+    renderPlanner();
+    fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
+    const list = screen.getByTestId("planner-composition-list");
+    const weeksInput = within(list).getByTestId(
+      "planner-entry-0-weeks",
+    ) as HTMLInputElement;
+    expect(weeksInput.value).toBe("12");
+    const endInput = within(list).getByTestId(
+      "planner-entry-0-end-date",
+    ) as HTMLInputElement;
+    const startMs = Date.parse(`${SAMPLE_CONFIG.startDate}T00:00:00Z`);
+    // Pick the Sunday 14 weeks out (within the 10–16w range).
+    const target = new Date(startMs + (14 * 7 - 1) * 86400000)
+      .toISOString()
+      .slice(0, 10);
+    fireEvent.change(endInput, { target: { value: target } });
+    expect(
+      (within(list).getByTestId("planner-entry-0-weeks") as HTMLInputElement)
+        .value,
+    ).toBe("14");
+    expect(
+      within(list).getByTestId("planner-entry-0-weeks-badge").textContent,
+    ).toBe("14w");
+  });
+
+  it("picking an end date past the template's max clamps to maxWeeks", () => {
+    renderPlanner();
+    fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
+    const list = screen.getByTestId("planner-composition-list");
+    const endInput = within(list).getByTestId(
+      "planner-entry-0-end-date",
+    ) as HTMLInputElement;
+    const startMs = Date.parse(`${SAMPLE_CONFIG.startDate}T00:00:00Z`);
+    // half_marathon maxWeeks = 16; pick 30 weeks out → clamps to 16.
+    const target = new Date(startMs + (30 * 7 - 1) * 86400000)
+      .toISOString()
+      .slice(0, 10);
+    fireEvent.change(endInput, { target: { value: target } });
+    expect(
+      (within(list).getByTestId("planner-entry-0-weeks") as HTMLInputElement)
+        .value,
+    ).toBe("16");
+  });
+
+  it("picking an end date before the template's min clamps to minWeeks", () => {
+    renderPlanner();
+    fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
+    const list = screen.getByTestId("planner-composition-list");
+    const endInput = within(list).getByTestId(
+      "planner-entry-0-end-date",
+    ) as HTMLInputElement;
+    const startMs = Date.parse(`${SAMPLE_CONFIG.startDate}T00:00:00Z`);
+    // half_marathon minWeeks = 10; pick 2 weeks out → clamps to 10.
+    const target = new Date(startMs + (2 * 7 - 1) * 86400000)
+      .toISOString()
+      .slice(0, 10);
+    fireEvent.change(endInput, { target: { value: target } });
+    expect(
+      (within(list).getByTestId("planner-entry-0-weeks") as HTMLInputElement)
+        .value,
+    ).toBe("10");
+  });
+
+  it("picking a mid-week end date snaps to the nearest whole-week boundary", () => {
+    renderPlanner();
+    fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
+    const list = screen.getByTestId("planner-composition-list");
+    const endInput = within(list).getByTestId(
+      "planner-entry-0-end-date",
+    ) as HTMLInputElement;
+    const startMs = Date.parse(`${SAMPLE_CONFIG.startDate}T00:00:00Z`);
+    // 14 weeks would be start + 97 days (days+1=98, 98/7=14). Pick
+    // start + 95 days (Fri of week 14) → days+1=96, round(96/7)=14.
+    const target = new Date(startMs + 95 * 86400000)
+      .toISOString()
+      .slice(0, 10);
+    fireEvent.change(endInput, { target: { value: target } });
+    expect(
+      (within(list).getByTestId("planner-entry-0-weeks") as HTMLInputElement)
+        .value,
+    ).toBe("14");
+  });
+
+  it("apply dialog end-date picker drives the staged entry's weeks", () => {
+    renderPlanner();
+    // Stage one entry first so the 2nd Apply opens the dialog with a
+    // proposed start cursor.
+    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
+    const stagedHeader = screen.getByText(/Composition · 1 entry · (\d+)\/\1w/);
+    const stagedWeeks = Number(stagedHeader.textContent!.match(/(\d+)\/\1w/)![1]);
+    fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
+    const startInput = screen.getByTestId(
+      "planner-pending-apply-start-date",
+    ) as HTMLInputElement;
+    const endInput = screen.getByTestId(
+      "planner-pending-apply-end-date",
+    ) as HTMLInputElement;
+    // Default weeks for half_marathon = 12 → end = start + 83 days.
+    const cursorMs = Date.parse(`${startInput.value}T00:00:00Z`);
+    expect(endInput.value).toBe(
+      new Date(cursorMs + (12 * 7 - 1) * 86400000).toISOString().slice(0, 10),
+    );
+    // Stretch to 14 weeks via the end-date picker (within 10–16w range).
+    const target = new Date(cursorMs + (14 * 7 - 1) * 86400000)
+      .toISOString()
+      .slice(0, 10);
+    fireEvent.change(endInput, { target: { value: target } });
+    expect(
+      screen.getByTestId("planner-pending-apply-weeks-readout").textContent,
+    ).toMatch(/^14w/);
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
+    // 2nd entry now has 14w → composition shows stagedWeeks + 14.
+    const total = stagedWeeks + 14;
+    const re = new RegExp(`Composition · 2 entries · ${total}\\/${total}w`);
+    expect(screen.getByText(re)).toBeTruthy();
+  });
+});
+
 describe("Planner Apply Template race-date overrun warning", () => {
   afterEach(() => {
     cleanup();

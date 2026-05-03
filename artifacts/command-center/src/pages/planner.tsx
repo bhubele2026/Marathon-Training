@@ -138,6 +138,31 @@ function nextMondayISO(): string {
     .slice(0, 10);
 }
 
+// Given a Monday `startISO` and an arbitrary user-picked end date,
+// snaps the end to the nearest week boundary (Sunday `weeks*7-1` days
+// after the start) and clamps the resulting week count to
+// [minWeeks, maxWeeks]. Returns null if either date is malformed or
+// the picked end is before the start. `clamped` is true when the
+// user's intent was outside the template's published range.
+function weeksFromEndDateISO(
+  startISO: string,
+  endISO: string,
+  minWeeks: number,
+  maxWeeks: number,
+): { weeks: number; clamped: boolean; rawWeeks: number } | null {
+  if (!ISO_DATE_RE.test(startISO) || !ISO_DATE_RE.test(endISO)) return null;
+  const startMs = Date.parse(`${startISO}T00:00:00Z`);
+  const endMs = Date.parse(`${endISO}T00:00:00Z`);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return null;
+  const days = Math.round((endMs - startMs) / 86400000);
+  // weeks satisfies endISO == startISO + (weeks*7 - 1) days, so
+  // weeks = round((days + 1) / 7). Snap to nearest whole week.
+  const rawWeeks = Math.max(1, Math.round((days + 1) / 7));
+  const clamped = rawWeeks < minWeeks || rawWeeks > maxWeeks;
+  const weeks = Math.min(maxWeeks, Math.max(minWeeks, rawWeeks));
+  return { weeks, clamped, rawWeeks };
+}
+
 function totalWeeksBetween(startISO: string, raceISO: string): number {
   const start = Date.parse(`${startISO}T00:00:00Z`);
   const race = Date.parse(`${raceISO}T00:00:00Z`);
@@ -2738,8 +2763,28 @@ export default function Planner() {
                               <span className="uppercase tracking-wider">
                                 Ends
                               </span>
-                              <span className="font-mono tabular-nums">
-                                {proj.endDateISO}
+                              <Input
+                                type="date"
+                                value={proj.endDateISO}
+                                className="h-6 w-36 text-xs"
+                                onChange={(ev) => {
+                                  const v = ev.target.value;
+                                  if (!v) return;
+                                  const r = weeksFromEndDateISO(
+                                    proj.startDateISO,
+                                    v,
+                                    tpl.minWeeks,
+                                    tpl.maxWeeks,
+                                  );
+                                  if (r) updateEntry(i, { weeks: r.weeks });
+                                }}
+                                data-testid={`planner-entry-${i}-end-date`}
+                              />
+                              <span
+                                className="font-mono tabular-nums"
+                                data-testid={`planner-entry-${i}-weeks-badge`}
+                              >
+                                {e.weeks}w
                               </span>
                               {i > 0 && e.startDate && (
                                 <Button
@@ -3554,6 +3599,53 @@ export default function Planner() {
                   (the end of the previous entry).
                 </p>
               )}
+            {pendingApplyTemplate && pendingApplyStartDate && (
+              <div className="space-y-1">
+                <Label htmlFor="planner-pending-end-date">
+                  Entry end date
+                </Label>
+                <Input
+                  id="planner-pending-end-date"
+                  type="date"
+                  value={addDaysISO(
+                    pendingApplyStartDate,
+                    pendingApplyTemplate.weeks * 7 - 1,
+                  )}
+                  onChange={(ev) => {
+                    const v = ev.target.value;
+                    if (!v || !pendingApplyTemplate) return;
+                    const tpl = getTemplateById(pendingApplyTemplate.templateId);
+                    if (!tpl) return;
+                    const r = weeksFromEndDateISO(
+                      pendingApplyStartDate,
+                      v,
+                      tpl.minWeeks,
+                      tpl.maxWeeks,
+                    );
+                    if (!r) return;
+                    setPendingApplyTemplate({
+                      ...pendingApplyTemplate,
+                      weeks: r.weeks,
+                    });
+                  }}
+                  data-testid="planner-pending-apply-end-date"
+                />
+                <p
+                  className="text-[10px] text-muted-foreground"
+                  data-testid="planner-pending-apply-weeks-readout"
+                >
+                  {pendingApplyTemplate.weeks}w
+                  {(() => {
+                    const tpl = getTemplateById(
+                      pendingApplyTemplate.templateId,
+                    );
+                    return tpl
+                      ? ` · range ${tpl.minWeeks}–${tpl.maxWeeks}w`
+                      : "";
+                  })()}
+                </p>
+              </div>
+            )}
             {pendingApplyPreview && (
               <div
                 className="rounded-md border bg-muted/40 p-2 text-xs"
