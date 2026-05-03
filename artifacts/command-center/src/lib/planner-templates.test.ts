@@ -1,106 +1,197 @@
 import { describe, expect, it } from "vitest";
 import {
+  type CategorizableTemplate,
   countTemplatesByTag,
   filterTemplatesByTags,
   getAllTemplateTags,
-  type CategorizableTemplate,
+  sortTagsByCount,
 } from "./planner-templates";
 
-function tpl(
-  id: string,
-  tags: string[],
-  overrides: Partial<CategorizableTemplate> = {},
-): CategorizableTemplate {
+function tpl(id: string, tags: string[]): CategorizableTemplate {
   return {
     id,
     name: id,
-    source: "Test",
-    goalDistance: "Marathon",
-    metadata: { equipmentMixHint: "Run" },
+    source: "test",
+    goalDistance: "marathon",
+    metadata: { equipmentMixHint: "run" },
     tags,
-    ...overrides,
   } as CategorizableTemplate;
 }
 
 describe("getAllTemplateTags", () => {
-  it("returns the empty list for an empty catalog", () => {
+  it("returns distinct tags sorted alphabetically", () => {
+    const templates = [
+      tpl("a", ["polarized", "hill focus"]),
+      tpl("b", ["base", "polarized"]),
+      tpl("c", ["taper"]),
+    ];
+    expect(getAllTemplateTags(templates)).toEqual([
+      "base",
+      "hill focus",
+      "polarized",
+      "taper",
+    ]);
+  });
+
+  it("returns an empty list when there are no tags", () => {
     expect(getAllTemplateTags([])).toEqual([]);
+    expect(getAllTemplateTags([tpl("a", [])])).toEqual([]);
+  });
+});
+
+describe("countTemplatesByTag", () => {
+  it("counts every tag once per template when no selection is active", () => {
+    const templates = [
+      tpl("a", ["polarized", "hill focus"]),
+      tpl("b", ["polarized"]),
+      tpl("c", ["taper"]),
+    ];
+    const counts = countTemplatesByTag(templates, new Set());
+    expect(counts.get("polarized")).toBe(2);
+    expect(counts.get("hill focus")).toBe(1);
+    expect(counts.get("taper")).toBe(1);
   });
 
-  it("returns distinct tags across the catalog (de-duplicated)", () => {
-    const tags = getAllTemplateTags([
-      tpl("a", ["polarized", "marathon"]),
-      tpl("b", ["polarized", "hansons"]),
-      tpl("c", ["marathon", "hansons"]),
-    ]);
-    // Each label appears exactly once.
-    expect([...tags].sort()).toEqual(["hansons", "marathon", "polarized"]);
-    expect(new Set(tags).size).toBe(tags.length);
+  it("uses AND-semantics with a single selected tag (excludes templates missing it)", () => {
+    const templates = [
+      tpl("a", ["polarized", "hill focus"]),
+      tpl("b", ["polarized", "taper"]),
+      tpl("c", ["hill focus"]),
+    ];
+    const counts = countTemplatesByTag(templates, new Set(["polarized"]));
+    // Templates a and b carry "polarized"; c is excluded entirely so its
+    // "hill focus" tag does not leak into the counts beyond a's contribution.
+    expect(counts.get("polarized")).toBe(2);
+    expect(counts.get("hill focus")).toBe(1);
+    expect(counts.get("taper")).toBe(1);
   });
 
-  it("alphabetizes the result regardless of template insertion order", () => {
-    const tags = getAllTemplateTags([
-      tpl("x", ["zebra", "apple"]),
-      tpl("y", ["mango"]),
-      tpl("z", ["banana", "apple"]),
-    ]);
-    expect(tags).toEqual(["apple", "banana", "mango", "zebra"]);
+  it("uses AND-semantics with multiple selected tags (not OR)", () => {
+    const templates = [
+      tpl("a", ["polarized", "hill focus", "base"]),
+      tpl("b", ["polarized", "hill focus", "taper"]),
+      tpl("c", ["polarized", "base"]), // missing "hill focus"
+      tpl("d", ["hill focus", "taper"]), // missing "polarized"
+      tpl("e", ["recovery"]), // unrelated
+    ];
+    const counts = countTemplatesByTag(
+      templates,
+      new Set(["polarized", "hill focus"]),
+    );
+    // Only a and b carry BOTH selected tags. Under OR semantics c and d
+    // would also contribute and the numbers below would be larger.
+    expect(counts.get("polarized")).toBe(2);
+    expect(counts.get("hill focus")).toBe(2);
+    expect(counts.get("base")).toBe(1); // only from a
+    expect(counts.get("taper")).toBe(1); // only from b
+    // Tags that live exclusively on excluded templates do not appear.
+    expect(counts.has("recovery")).toBe(false);
+    // No phantom keys for tags that never co-occurred with the selection.
+    expect(counts.size).toBe(4);
   });
 
-  it("ignores templates that carry no tags without throwing", () => {
-    const tags = getAllTemplateTags([
-      tpl("a", []),
-      tpl("b", ["tempo"]),
-      tpl("c", []),
+  it("count for an already-selected tag equals the size of the current match set", () => {
+    const templates = [
+      tpl("a", ["polarized", "hill focus"]),
+      tpl("b", ["polarized", "taper"]),
+      tpl("c", ["taper"]),
+    ];
+    const selected = new Set(["polarized"]);
+    const counts = countTemplatesByTag(templates, selected);
+    const matched = filterTemplatesByTags(templates, selected).length;
+    expect(counts.get("polarized")).toBe(matched);
+  });
+
+  it("returns an empty map when no templates carry the selected tags", () => {
+    const templates = [tpl("a", ["polarized"])];
+    const counts = countTemplatesByTag(templates, new Set(["nonexistent"]));
+    expect(counts.size).toBe(0);
+  });
+});
+
+describe("sortTagsByCount", () => {
+  it("pins selected tags to the front regardless of count", () => {
+    const tags = ["a", "b", "c"];
+    const counts = new Map([
+      ["a", 10],
+      ["b", 1],
+      ["c", 5],
     ]);
-    expect(tags).toEqual(["tempo"]);
+    const sorted = sortTagsByCount(tags, counts, new Set(["b"]));
+    expect(sorted).toEqual(["b", "a", "c"]);
+  });
+
+  it("sorts by count descending", () => {
+    const tags = ["a", "b", "c"];
+    const counts = new Map([
+      ["a", 1],
+      ["b", 5],
+      ["c", 3],
+    ]);
+    expect(sortTagsByCount(tags, counts, new Set())).toEqual(["b", "c", "a"]);
+  });
+
+  it("breaks count ties alphabetically", () => {
+    const tags = ["delta", "alpha", "charlie", "bravo"];
+    const counts = new Map([
+      ["alpha", 2],
+      ["bravo", 2],
+      ["charlie", 2],
+      ["delta", 2],
+    ]);
+    expect(sortTagsByCount(tags, counts, new Set())).toEqual([
+      "alpha",
+      "bravo",
+      "charlie",
+      "delta",
+    ]);
+  });
+
+  it("treats tags missing from the counts map as count=0", () => {
+    const tags = ["known", "missing-a", "missing-b"];
+    const counts = new Map([["known", 1]]);
+    const sorted = sortTagsByCount(tags, counts, new Set());
+    // "known" has count 1, the others tie at 0 and sort alphabetically.
+    expect(sorted).toEqual(["known", "missing-a", "missing-b"]);
+  });
+
+  it("orders selected-pinned first, then by count desc, then alphabetical", () => {
+    const tags = ["polarized", "taper", "base", "hills"];
+    const counts = new Map([
+      ["polarized", 1],
+      ["taper", 5],
+      ["base", 5],
+      ["hills", 3],
+    ]);
+    const sorted = sortTagsByCount(tags, counts, new Set(["polarized"]));
+    expect(sorted).toEqual(["polarized", "base", "taper", "hills"]);
+  });
+
+  it("does not mutate the input array", () => {
+    const tags = ["b", "a"];
+    const original = [...tags];
+    sortTagsByCount(tags, new Map(), new Set());
+    expect(tags).toEqual(original);
   });
 });
 
 describe("filterTemplatesByTags", () => {
-  const catalog: CategorizableTemplate[] = [
-    tpl("hm_pfitz", ["half-marathon", "pfitzinger", "threshold"]),
-    tpl("marathon_pfitz", ["marathon", "pfitzinger", "threshold"]),
-    tpl("marathon_hansons", ["marathon", "hansons", "threshold"]),
-    tpl("base_lydiard", ["base", "lydiard", "easy"]),
-  ];
-
-  it("is a no-op when no tags are selected (returns a fresh copy)", () => {
-    const out = filterTemplatesByTags(catalog, new Set<string>());
-    expect(out).toEqual(catalog);
-    // Returns a fresh array (callers may mutate without affecting the input).
-    expect(out).not.toBe(catalog);
+  it("returns all templates when the selection is empty", () => {
+    const templates = [tpl("a", ["x"]), tpl("b", [])];
+    expect(filterTemplatesByTags(templates, new Set())).toHaveLength(2);
   });
 
-  it("narrows to templates that carry the single selected tag", () => {
-    const out = filterTemplatesByTags(
-      catalog,
-      new Set(["pfitzinger"]),
+  it("keeps only templates carrying every selected tag (AND semantics)", () => {
+    const templates = [
+      tpl("a", ["polarized", "hill focus"]),
+      tpl("b", ["polarized"]),
+      tpl("c", ["hill focus"]),
+    ];
+    const result = filterTemplatesByTags(
+      templates,
+      new Set(["polarized", "hill focus"]),
     );
-    expect(out.map((t) => t.id)).toEqual(["hm_pfitz", "marathon_pfitz"]);
-  });
-
-  it("composes selections with AND semantics, not OR", () => {
-    const out = filterTemplatesByTags(
-      catalog,
-      new Set(["marathon", "pfitzinger"]),
-    );
-    // Only the template carrying BOTH tags survives — the hansons
-    // marathon and the half-marathon pfitz are filtered out.
-    expect(out.map((t) => t.id)).toEqual(["marathon_pfitz"]);
-  });
-
-  it("returns zero matches when an unknown tag is part of the selection", () => {
-    const out = filterTemplatesByTags(
-      catalog,
-      new Set(["pfitzinger", "does-not-exist"]),
-    );
-    expect(out).toEqual([]);
-  });
-
-  it("returns zero matches when the only selected tag is unknown", () => {
-    const out = filterTemplatesByTags(catalog, new Set(["zzz-nope"]));
-    expect(out).toEqual([]);
+    expect(result.map((t) => t.id)).toEqual(["a"]);
   });
 });
 
