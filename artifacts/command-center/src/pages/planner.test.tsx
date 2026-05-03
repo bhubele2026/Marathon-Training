@@ -1205,6 +1205,97 @@ describe("Plan Template Library — tag-cloud filter", () => {
     fireEvent.click(chip);
     expect(screen.getByTestId("planner-template-marathon_hansons")).toBeTruthy();
   });
+
+  it("each chip carries a count badge of how many templates it would surface", () => {
+    renderPlanner();
+
+    // pfitzinger appears on 4 templates (hm_pfitz, marathon_pfitz_12_55,
+    // marathon_pfitz_18_70, hm_pfitz advanced) — sanity-check it shows
+    // a positive count rather than the literal zero placeholder.
+    const pfitzCount = screen.getByTestId(
+      "planner-template-tag-chip-count-pfitzinger",
+    );
+    const match = pfitzCount.textContent?.match(/(\d+)/);
+    expect(match).not.toBeNull();
+    const initialCount = Number(match![1]);
+    expect(initialCount).toBeGreaterThan(1);
+  });
+
+  it("chip counts narrow as the free-text query narrows the catalog", () => {
+    renderPlanner();
+    const before = Number(
+      screen
+        .getByTestId("planner-template-tag-chip-count-pfitzinger")
+        .textContent?.match(/(\d+)/)?.[1],
+    );
+
+    fireEvent.change(screen.getByTestId("planner-template-search"), {
+      target: { value: "half" },
+    });
+
+    const after = Number(
+      screen
+        .getByTestId("planner-template-tag-chip-count-pfitzinger")
+        .textContent?.match(/(\d+)/)?.[1],
+    );
+    // Restricting the free-text query to "half" can only shrink (or
+    // preserve) the count of pfitzinger templates surfaced. Use <= so
+    // adding a half-marathon pfitzinger template later doesn't make
+    // this brittle; the >0 lower bound keeps the assertion meaningful.
+    expect(after).toBeLessThanOrEqual(before);
+    expect(after).toBeGreaterThan(0);
+  });
+
+  it("chip counts narrow as additional chips are selected (AND semantics)", () => {
+    renderPlanner();
+    const beforeMarathon = Number(
+      screen
+        .getByTestId("planner-template-tag-chip-count-marathon")
+        .textContent?.match(/(\d+)/)?.[1],
+    );
+
+    fireEvent.click(screen.getByTestId("planner-template-tag-chip-pfitzinger"));
+
+    const afterMarathon = Number(
+      screen
+        .getByTestId("planner-template-tag-chip-count-marathon")
+        .textContent?.match(/(\d+)/)?.[1],
+    );
+    // Adding pfitzinger can only shrink (or preserve) the marathon
+    // count to those marathon templates that are also pfitzinger. Use
+    // <= so adding more crossover templates doesn't make this brittle;
+    // the >0 lower bound keeps the assertion meaningful.
+    expect(afterMarathon).toBeLessThanOrEqual(beforeMarathon);
+    expect(afterMarathon).toBeGreaterThan(0);
+  });
+
+  it("disables (mutes) chips whose addition would yield zero matches", () => {
+    renderPlanner();
+    // hansons is interactive on a fresh catalog.
+    const hansons = screen.getByTestId(
+      "planner-template-tag-chip-hansons",
+    ) as HTMLButtonElement;
+    expect(hansons.disabled).toBe(false);
+
+    // Selecting pfitzinger creates a dead-end for hansons (no template
+    // carries both tags), so the hansons chip becomes disabled.
+    fireEvent.click(screen.getByTestId("planner-template-tag-chip-pfitzinger"));
+
+    const hansonsAfter = screen.getByTestId(
+      "planner-template-tag-chip-hansons",
+    ) as HTMLButtonElement;
+    expect(hansonsAfter.disabled).toBe(true);
+    expect(
+      screen.getByTestId("planner-template-tag-chip-count-hansons").textContent,
+    ).toContain("0");
+
+    // The currently-selected chip itself stays interactive so the
+    // runner can deselect it without hunting for the Clear button.
+    const pfitzAfter = screen.getByTestId(
+      "planner-template-tag-chip-pfitzinger",
+    ) as HTMLButtonElement;
+    expect(pfitzAfter.disabled).toBe(false);
+  });
 });
 
 describe("Quick-add popover (entries-mode) — tag-cloud filter", () => {
@@ -1249,6 +1340,61 @@ describe("Quick-add popover (entries-mode) — tag-cloud filter", () => {
     expect(
       screen.queryByTestId("planner-entry-add-option-pelo_bike_pz_beginner"),
     ).toBeNull();
+  });
+
+  it("quick-add chips carry counts that narrow with the popover's free-text query and selected chips", () => {
+    renderPlanner();
+    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
+    fireEvent.click(screen.getByTestId("planner-entry-add-select"));
+
+    const initial = Number(
+      screen
+        .getByTestId("planner-entry-add-tag-chip-count-pfitzinger")
+        .textContent?.match(/(\d+)/)?.[1],
+    );
+    expect(initial).toBeGreaterThan(1);
+
+    // Free-text search inside the popover narrows the count.
+    fireEvent.change(screen.getByTestId("planner-entry-add-search"), {
+      target: { value: "half" },
+    });
+    const afterSearch = Number(
+      screen
+        .getByTestId("planner-entry-add-tag-chip-count-pfitzinger")
+        .textContent?.match(/(\d+)/)?.[1],
+    );
+    // Use <= so adding more pfitzinger half-marathon templates later
+    // doesn't make this brittle; the >0 lower bound keeps the
+    // assertion meaningful.
+    expect(afterSearch).toBeLessThanOrEqual(initial);
+    expect(afterSearch).toBeGreaterThan(0);
+  });
+
+  it("disables quick-add chips that would yield zero matches under the current selection", () => {
+    renderPlanner();
+    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
+    fireEvent.click(screen.getByTestId("planner-entry-add-select"));
+
+    // hansons is interactive at first.
+    const hansons = screen.getByTestId(
+      "planner-entry-add-tag-chip-hansons",
+    ) as HTMLButtonElement;
+    expect(hansons.disabled).toBe(false);
+
+    fireEvent.click(
+      screen.getByTestId("planner-entry-add-tag-chip-pfitzinger"),
+    );
+
+    const hansonsAfter = screen.getByTestId(
+      "planner-entry-add-tag-chip-hansons",
+    ) as HTMLButtonElement;
+    expect(hansonsAfter.disabled).toBe(true);
+    expect(
+      screen.getByTestId("planner-entry-add-tag-chip-count-hansons")
+        .textContent,
+    ).toContain("0");
   });
 
   it("Clear in the quick-add popover restores the full option list", () => {

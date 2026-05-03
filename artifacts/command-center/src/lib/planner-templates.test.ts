@@ -196,14 +196,30 @@ describe("filterTemplatesByTags", () => {
 });
 
 describe("countTemplatesByTag", () => {
-  const templates: CategorizableTemplate[] = [
-    tpl("a", ["marathon", "polarized", "advanced"]),
-    tpl("b", ["marathon", "pyramidal", "advanced"]),
-    tpl("c", ["half-marathon", "polarized", "intermediate"]),
-    tpl("d", ["5k", "beginner"]),
+  const catalog: CategorizableTemplate[] = [
+    tpl("hm_pfitz", ["half-marathon", "pfitzinger", "threshold"]),
+    tpl("marathon_pfitz", ["marathon", "pfitzinger", "threshold"]),
+    tpl("marathon_hansons", ["marathon", "hansons", "threshold"]),
+    tpl("base_lydiard", ["base", "lydiard", "easy"]),
   ];
 
+  it("returns the catalog-wide tag counts when nothing is selected", () => {
+    const counts = countTemplatesByTag(catalog, new Set<string>());
+    expect(counts.get("threshold")).toBe(3);
+    expect(counts.get("pfitzinger")).toBe(2);
+    expect(counts.get("marathon")).toBe(2);
+    expect(counts.get("half-marathon")).toBe(1);
+    expect(counts.get("hansons")).toBe(1);
+    expect(counts.get("lydiard")).toBe(1);
+  });
+
   it("with no selection counts every distinct tag across all templates", () => {
+    const templates: CategorizableTemplate[] = [
+      tpl("a", ["marathon", "polarized", "advanced"]),
+      tpl("b", ["marathon", "pyramidal", "advanced"]),
+      tpl("c", ["half-marathon", "polarized", "intermediate"]),
+      tpl("d", ["5k", "beginner"]),
+    ];
     const counts = countTemplatesByTag(templates, new Set());
     expect(counts.get("marathon")).toBe(2);
     expect(counts.get("polarized")).toBe(2);
@@ -215,7 +231,13 @@ describe("countTemplatesByTag", () => {
     expect(counts.get("beginner")).toBe(1);
   });
 
-  it("with one selected tag scopes counts to templates carrying that tag (and the selected tag's count equals the matching set size)", () => {
+  it("with one selected tag scopes counts to templates carrying that tag", () => {
+    const templates: CategorizableTemplate[] = [
+      tpl("a", ["marathon", "polarized", "advanced"]),
+      tpl("b", ["marathon", "pyramidal", "advanced"]),
+      tpl("c", ["half-marathon", "polarized", "intermediate"]),
+      tpl("d", ["5k", "beginner"]),
+    ];
     const counts = countTemplatesByTag(templates, new Set(["marathon"]));
     // Templates a + b match -> tags on those two.
     expect(counts.get("marathon")).toBe(2);
@@ -229,7 +251,27 @@ describe("countTemplatesByTag", () => {
     expect(counts.has("intermediate")).toBe(false);
   });
 
+  it("counts what would remain if a chip were added (AND semantics)", () => {
+    const counts = countTemplatesByTag(catalog, new Set(["pfitzinger"]));
+    // pfitzinger itself: clicking again is a no-op, so it equals the
+    // current pfitzinger-filtered match count.
+    expect(counts.get("pfitzinger")).toBe(2);
+    // marathon + pfitzinger -> only marathon_pfitz survives.
+    expect(counts.get("marathon")).toBe(1);
+    expect(counts.get("half-marathon")).toBe(1);
+    expect(counts.get("threshold")).toBe(2);
+    // Tags that no pfitzinger template carries report 0 (chip dead-end).
+    expect(counts.get("hansons") ?? 0).toBe(0);
+    expect(counts.get("lydiard") ?? 0).toBe(0);
+  });
+
   it("uses AND-semantics when multiple tags are selected", () => {
+    const templates: CategorizableTemplate[] = [
+      tpl("a", ["marathon", "polarized", "advanced"]),
+      tpl("b", ["marathon", "pyramidal", "advanced"]),
+      tpl("c", ["half-marathon", "polarized", "intermediate"]),
+      tpl("d", ["5k", "beginner"]),
+    ];
     const counts = countTemplatesByTag(
       templates,
       new Set(["marathon", "advanced"]),
@@ -252,7 +294,21 @@ describe("countTemplatesByTag", () => {
     expect(narrower.has("pyramidal")).toBe(false);
   });
 
+  it("returns an empty map when the current selection already matches nothing", () => {
+    const counts = countTemplatesByTag(
+      catalog,
+      new Set(["pfitzinger", "hansons"]),
+    );
+    expect(counts.size).toBe(0);
+  });
+
   it("omits tags that no matching template carries (zero count means absent from the map)", () => {
+    const templates: CategorizableTemplate[] = [
+      tpl("a", ["marathon", "polarized", "advanced"]),
+      tpl("b", ["marathon", "pyramidal", "advanced"]),
+      tpl("c", ["half-marathon", "polarized", "intermediate"]),
+      tpl("d", ["5k", "beginner"]),
+    ];
     // No template carries both marathon AND beginner -> empty match
     // set -> the returned map has no entries at all.
     const counts = countTemplatesByTag(
@@ -263,5 +319,18 @@ describe("countTemplatesByTag", () => {
     // A tag that exists in the catalog but isn't on any matching
     // template is therefore absent (callers read it as count 0).
     expect(counts.get("pyramidal")).toBeUndefined();
+  });
+
+  it("matches the count produced by filterTemplatesByTags for every chip", () => {
+    const allTags = getAllTemplateTags(catalog);
+    const selected = new Set(["threshold"]);
+    const counts = countTemplatesByTag(catalog, selected);
+    for (const tag of allTags) {
+      const expected = filterTemplatesByTags(
+        catalog,
+        new Set([...selected, tag]),
+      ).length;
+      expect(counts.get(tag) ?? 0).toBe(expected);
+    }
   });
 });
