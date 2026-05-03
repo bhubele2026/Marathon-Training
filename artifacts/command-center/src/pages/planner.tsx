@@ -204,6 +204,7 @@ import {
   filterTemplatesByTags,
   getAllTemplateTags,
   countTemplatesByTag,
+  sortTagsByCount,
   groupTemplatesByCategory,
 } from "../lib/planner-templates";
 export { categorizeTemplate };
@@ -543,14 +544,14 @@ export default function Planner() {
   );
   const hasActiveSearch = templateSearch.trim().length > 0;
   const hasActiveTags = selectedTemplateTags.size > 0;
-  // Distinct tags across the catalog, sorted alphabetically. Memoized
-  // so the chip cloud doesn't re-build on every keystroke in the
-  // search input.
-  const allTemplateTags = useMemo(
+  // Distinct tags across the catalog. Memoized so the chip cloud
+  // doesn't re-build on every keystroke in the search input. The final
+  // chip order is derived per-surface below via sortTagsByCount so the
+  // most-used tags come first under the active filter context.
+  const allDistinctTags = useMemo(
     () => getAllTemplateTags(templates),
     [templates],
   );
-  const allQuickAddTags = allTemplateTags;
   // Per-chip "would-still-match" counts for each tag cloud, scoped to
   // the surface's own free-text search + currently selected tags so a
   // chip's "tag · N" annotation reflects how many templates would
@@ -571,6 +572,18 @@ export default function Planner() {
         quickAddSelectedTags,
       ),
     [templates, quickAddSearch, quickAddSelectedTags],
+  );
+  // Chip render order per surface: selected tags pinned first, then
+  // by template count (descending), alphabetical as a tiebreaker. The
+  // order updates whenever counts change (e.g. when the runner narrows
+  // the free-text search or selects another tag).
+  const allTemplateTags = useMemo(
+    () => sortTagsByCount(allDistinctTags, templateTagCounts, selectedTemplateTags),
+    [allDistinctTags, templateTagCounts, selectedTemplateTags],
+  );
+  const allQuickAddTags = useMemo(
+    () => sortTagsByCount(allDistinctTags, quickAddTagCounts, quickAddSelectedTags),
+    [allDistinctTags, quickAddTagCounts, quickAddSelectedTags],
   );
 
   const configs = listQuery.data?.configs ?? [];

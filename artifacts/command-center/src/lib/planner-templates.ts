@@ -142,6 +142,31 @@ export function countTemplatesByTag(
   return counts;
 }
 
+// Order tags for the chip cloud so the most useful chips come first.
+// Sort key (highest priority first):
+//   1. Currently selected tags stay pinned at the front so the active
+//      filter is always visible regardless of count.
+//   2. Higher template count (broadest tags) before lower counts so
+//      runners see the most-used tags first and rarely-used ones fall
+//      to the end of the cloud.
+//   3. Alphabetical as a stable tiebreaker.
+// Tags missing from the counts map are treated as count=0.
+export function sortTagsByCount(
+  tags: readonly string[],
+  counts: ReadonlyMap<string, number>,
+  selectedTags: ReadonlySet<string>,
+): string[] {
+  return [...tags].sort((a, b) => {
+    const aSel = selectedTags.has(a) ? 1 : 0;
+    const bSel = selectedTags.has(b) ? 1 : 0;
+    if (aSel !== bSel) return bSel - aSel;
+    const aCount = counts.get(a) ?? 0;
+    const bCount = counts.get(b) ?? 0;
+    if (aCount !== bCount) return bCount - aCount;
+    return a.localeCompare(b);
+  });
+}
+
 // Narrow templates to those that carry EVERY selected tag (AND
 // semantics). An empty selection is a no-op so callers can compose
 // this with the free-text filter unconditionally.
