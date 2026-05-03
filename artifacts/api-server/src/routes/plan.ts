@@ -83,6 +83,7 @@ router.get("/plan/weeks", async (_req, res) => {
   const actuals = await db.execute<{
     week: number;
     actual_miles: number;
+    actual_cardio: number;
     completed_sessions: number;
     total_sessions: number;
     missed_sessions: number;
@@ -90,6 +91,7 @@ router.get("/plan/weeks", async (_req, res) => {
     sql`
       SELECT pw.week,
         COALESCE(SUM(w.distance_mi) FILTER (WHERE w.session_type <> 'Skipped'), 0)::float AS actual_miles,
+        COALESCE(SUM(w.cardio_min) FILTER (WHERE w.session_type <> 'Skipped'), 0)::float AS actual_cardio,
         COUNT(DISTINCT w.id) FILTER (WHERE w.session_type <> 'Skipped')::int AS completed_sessions,
         (SELECT COUNT(*) FROM plan_days pd WHERE pd.week = pw.week AND pd.is_rest = false)::int AS total_sessions,
         (
@@ -133,6 +135,7 @@ router.get("/plan/weeks", async (_req, res) => {
       const a = byWeek.get(w.week);
       return toPlanWeek(w, {
         actualMiles: a?.actual_miles ?? 0,
+        actualCardio: a?.actual_cardio ?? 0,
         completedSessions: a?.completed_sessions ?? 0,
         totalSessions: a?.total_sessions ?? 0,
         missedSessions: a?.missed_sessions ?? 0,
@@ -150,9 +153,14 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
     return;
   }
   const days = await db.select().from(planDaysTable).where(eq(planDaysTable.week, week)).orderBy(asc(planDaysTable.date));
-  const actuals = await db.execute<{ actual_miles: number; completed: number }>(
+  const actuals = await db.execute<{
+    actual_miles: number;
+    actual_cardio: number;
+    completed: number;
+  }>(
     sql`SELECT
           COALESCE(SUM(distance_mi) FILTER (WHERE session_type <> 'Skipped'), 0)::float AS actual_miles,
+          COALESCE(SUM(cardio_min) FILTER (WHERE session_type <> 'Skipped'), 0)::float AS actual_cardio,
           COUNT(*) FILTER (WHERE session_type <> 'Skipped')::int AS completed
         FROM workouts WHERE date BETWEEN ${weekRow.startDate} AND ${weekRow.endDate}`,
   );
@@ -185,6 +193,7 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
   res.json({
     ...toPlanWeek(weekRow, {
       actualMiles: actuals.rows[0]?.actual_miles ?? 0,
+      actualCardio: actuals.rows[0]?.actual_cardio ?? 0,
       completedSessions: actuals.rows[0]?.completed ?? 0,
       totalSessions,
       dominantCardioEquipment,

@@ -300,8 +300,18 @@ export default function WeekDetail() {
           */}
           {week.plannedMiles === 0 && (week.plannedCardio ?? 0) > 0 ? (
             <div className="space-y-1" data-testid="week-volume-cardio">
-              <p className="font-black text-lg">
-                {Math.round(week.plannedCardio ?? 0)} min cardio
+              {/*
+                Task #109: show actual cardio minutes alongside planned
+                so bike/row weeks get the same plan-vs-actual framing run
+                weeks already get from "actualMiles / plannedMiles".
+                actualCardio sums workouts.cardio_min for the week,
+                excluding Skipped sessions.
+              */}
+              <p
+                className="font-black text-lg"
+                data-testid="week-volume-cardio-actual"
+              >
+                {Math.round(week.actualCardio ?? 0)} / {Math.round(week.plannedCardio ?? 0)} min cardio
               </p>
               {week.dominantCardioEquipment && (
                 <span

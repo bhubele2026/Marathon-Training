@@ -1037,6 +1037,14 @@ components:
         plannedMiles: { type: number }
         longRunMi: { type: number }
         actualMiles: { type: number, nullable: true }
+        actualCardio:
+          type: number
+          nullable: true
+          description: |
+            Total `cardio_min` across the week's logged workouts (excluding
+            Skipped sessions). Mirrors `actualMiles` so bike/row weeks can
+            render an actual-vs-planned cardio-minute headline (task #109)
+            in the same style run weeks render miles.
         completedSessions: { type: integer, nullable: true }
         totalSessions: { type: integer, nullable: true }
         missedSessions: { type: integer, nullable: true }

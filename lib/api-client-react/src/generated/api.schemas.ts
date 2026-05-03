@@ -157,6 +157,12 @@ export interface PlanWeek {
   plannedMiles: number;
   longRunMi: number;
   actualMiles?: number | null;
+  /** Total `cardio_min` across the week's logged workouts (excluding
+Skipped sessions). Mirrors `actualMiles` so bike/row weeks can
+render an actual-vs-planned cardio-minute headline (task #109)
+in the same style run weeks render miles.
+ */
+  actualCardio?: number | null;
   completedSessions?: number | null;
   totalSessions?: number | null;
   missedSessions?: number | null;

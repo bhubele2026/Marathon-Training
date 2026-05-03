@@ -264,6 +264,61 @@ describe("GET /api/plan/weeks", () => {
     expect(rowDetail.body.dominantCardioEquipment).toBe(E_ROW);
   });
 
+  it("aggregates actualCardio from workouts.cardio_min for bike-only weeks (task #109)", async () => {
+    // Bike-only week with planned cardio time. We log three cardio
+    // workouts inside the range and one outside; a Skipped session that
+    // happens to carry cardio_min must be excluded so the headline matches
+    // what the runner actually completed.
+    const week = 8901;
+    const E_BIKE = `${TEST_TAG}peloton_bike_109`;
+    await insertWeek(week, {
+      startDate: "2099-12-07",
+      endDate: "2099-12-13",
+      phase: "Bike Block",
+      plannedMiles: 0,
+      plannedCardio: 180,
+    });
+    await insertPlanDay(week, "Bike Block", {
+      date: "2099-12-08", day: "Tue", sessionType: T_BIKE,
+      equipment: E_BIKE, cardioMin: 60,
+    });
+    await insertPlanDay(week, "Bike Block", {
+      date: "2099-12-10", day: "Thu", sessionType: T_BIKE,
+      equipment: E_BIKE, cardioMin: 60,
+    });
+    await insertPlanDay(week, "Bike Block", {
+      date: "2099-12-12", day: "Sat", sessionType: T_BIKE,
+      equipment: E_BIKE, cardioMin: 60,
+    });
+
+    await insertWorkout({
+      date: "2099-12-08", sessionType: T_BIKE, equipment: E_BIKE, cardioMin: 55,
+    });
+    await insertWorkout({
+      date: "2099-12-10", sessionType: T_BIKE, equipment: E_BIKE, cardioMin: 65,
+    });
+    // Outside the range — must not contribute.
+    await insertWorkout({
+      date: "2099-12-20", sessionType: T_BIKE, equipment: E_BIKE, cardioMin: 40,
+    });
+    // Skipped session with cardio_min — must not contribute.
+    await insertWorkout({
+      date: "2099-12-12", sessionType: "Skipped", equipment: E_BIKE, cardioMin: 30,
+    });
+
+    const list = await request(app).get("/api/plan/weeks");
+    expect(list.status).toBe(200);
+    const row = (list.body as Array<{ week: number; actualCardio: number; plannedCardio: number }>)
+      .find((r) => r.week === week);
+    expect(row?.actualCardio).toBe(120);
+    expect(row?.plannedCardio).toBe(180);
+
+    const detail = await request(app).get(`/api/plan/weeks/${week}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.actualCardio).toBe(120);
+    expect(detail.body.plannedCardio).toBe(180);
+  });
+
   it("returns zero aggregates for a week with no workouts or non-rest plan days", async () => {
     const week = 8202;
     const phase = "Empty Phase";

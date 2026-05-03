@@ -104,6 +104,7 @@ export function toPlanWeek(
   r: PlanWeekRow,
   extras?: {
     actualMiles?: number;
+    actualCardio?: number;
     completedSessions?: number;
     totalSessions?: number;
     missedSessions?: number;
@@ -121,6 +122,7 @@ export function toPlanWeek(
     plannedMiles: r.plannedMiles,
     longRunMi: r.longRunMi,
     actualMiles: extras?.actualMiles ?? null,
+    actualCardio: extras?.actualCardio ?? null,
     completedSessions: extras?.completedSessions ?? null,
     totalSessions: extras?.totalSessions ?? null,
     missedSessions: extras?.missedSessions ?? null,

@@ -36,6 +36,12 @@ export const ListPlanWeeksResponseItem = zod.object({
   plannedMiles: zod.number(),
   longRunMi: zod.number(),
   actualMiles: zod.number().nullish(),
+  actualCardio: zod
+    .number()
+    .nullish()
+    .describe(
+      "Total `cardio_min` across the week's logged workouts (excluding\nSkipped sessions). Mirrors `actualMiles` so bike\/row weeks can\nrender an actual-vs-planned cardio-minute headline (task #109)\nin the same style run weeks render miles.\n",
+    ),
   completedSessions: zod.number().nullish(),
   totalSessions: zod.number().nullish(),
   missedSessions: zod.number().nullish(),
@@ -64,6 +70,12 @@ export const GetPlanWeekResponse = zod
     plannedMiles: zod.number(),
     longRunMi: zod.number(),
     actualMiles: zod.number().nullish(),
+    actualCardio: zod
+      .number()
+      .nullish()
+      .describe(
+        "Total `cardio_min` across the week's logged workouts (excluding\nSkipped sessions). Mirrors `actualMiles` so bike\/row weeks can\nrender an actual-vs-planned cardio-minute headline (task #109)\nin the same style run weeks render miles.\n",
+      ),
     completedSessions: zod.number().nullish(),
     totalSessions: zod.number().nullish(),
     missedSessions: zod.number().nullish(),

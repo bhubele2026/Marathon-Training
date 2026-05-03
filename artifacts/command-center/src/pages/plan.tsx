@@ -304,8 +304,19 @@ export default function Plan() {
                           */}
                           {week.plannedMiles === 0 && (week.plannedCardio ?? 0) > 0 ? (
                             <div className="space-y-1" data-testid={`week-volume-cardio-${week.week}`}>
-                              <p className="font-mono font-medium">
-                                {Math.round(week.plannedCardio ?? 0)} min cardio
+                              {/*
+                                Task #109: mirror the run-week
+                                "actualMiles / plannedMiles" framing on
+                                bike/row weeks so the runner can see
+                                plan-vs-actual cardio time at a glance.
+                                actualCardio sums workouts.cardio_min for
+                                the week (excluding Skipped sessions).
+                              */}
+                              <p
+                                className="font-mono font-medium"
+                                data-testid={`week-volume-cardio-actual-${week.week}`}
+                              >
+                                {Math.round(week.actualCardio ?? 0)} / {Math.round(week.plannedCardio ?? 0)} min cardio
                               </p>
                               {week.dominantCardioEquipment && (
                                 <span
