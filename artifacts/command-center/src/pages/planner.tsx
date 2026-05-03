@@ -39,7 +39,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -2420,11 +2422,32 @@ export default function Planner() {
                   <SelectValue placeholder="Pick a template…" />
                 </SelectTrigger>
                 <SelectContent>
-                  {templates.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name} ({t.defaultWeeks}w default)
-                    </SelectItem>
-                  ))}
+                  {(() => {
+                    type T = (typeof templates)[number];
+                    const buckets = new Map<TemplateCategory, T[]>();
+                    for (const cat of TEMPLATE_CATEGORIES) buckets.set(cat, []);
+                    for (const tpl of templates) {
+                      buckets.get(categorizeTemplate(tpl))!.push(tpl);
+                    }
+                    // TEMPLATE_CATEGORIES already lists Custom last so the
+                    // less-common Custom-slot templates stay pinned to the
+                    // bottom, below the more frequently picked
+                    // Run/Bike/Row/Strength/Hybrid/Conditioning sections.
+                    return TEMPLATE_CATEGORIES.flatMap((cat) => {
+                      const list = buckets.get(cat) ?? [];
+                      if (list.length === 0) return [];
+                      return [
+                        <SelectGroup key={cat}>
+                          <SelectLabel>{cat}</SelectLabel>
+                          {list.map((t) => (
+                            <SelectItem key={t.id} value={t.id}>
+                              {t.name} ({t.defaultWeeks}w default)
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>,
+                      ];
+                    });
+                  })()}
                 </SelectContent>
               </Select>
             </div>
