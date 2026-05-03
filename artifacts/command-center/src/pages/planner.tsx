@@ -7,6 +7,13 @@ import {
   getGetPlannerConfigQueryKey,
   type PhaseBlock,
 } from "@workspace/api-client-react";
+import {
+  FOCUS_TYPES,
+  MARATHON_TAIL_WEEKS,
+  previewWeeklyMileage,
+  type FocusType,
+  type WeekMileagePreview,
+} from "@workspace/plan-generator";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,21 +42,10 @@ import { ArrowDown, ArrowUp, Plus, Trash2, Save, Play, Lock } from "lucide-react
 import { useToast } from "@/hooks/use-toast";
 import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
 
-// Mirror of the FocusType union from @workspace/plan-generator. Duplicated
-// here so the Planner page doesn't have to take a runtime dep on the lib —
-// it only needs the labels for the select dropdown and the auto-pin tail.
-const FOCUS_TYPES = [
-  "Base",
-  "Time on Feet",
-  "Cardio + Weight Loss",
-  "Speed",
-  "Marathon-Specific",
-  "Taper",
-  "Recovery",
-  "Custom",
-] as const;
-type FocusType = (typeof FOCUS_TYPES)[number];
-const MARATHON_TAIL_WEEKS = 16;
+// FOCUS_TYPES, FocusType, and MARATHON_TAIL_WEEKS are imported from
+// @workspace/plan-generator above so the planner page, the validator, and
+// the generator never drift on the canonical set of focus types or the
+// auto-pinned tail length.
 
 // ---- Pure date helpers (also tested via the generator's totalWeeksFromDates,
 // but kept inline so the Planner page stays self-contained for SSR / build) --
@@ -326,6 +322,42 @@ export default function Planner() {
       },
     );
   }
+
+  // ---- Mileage preview --------------------------------------------------
+  // Compute the per-week mileage projection using the same recipes the
+  // generator will use at Apply time. We always append the auto-pinned
+  // 16-week Marathon-Specific tail so the curve matches what regenerating
+  // would produce. The helper doesn't validate dates/sums so the preview
+  // updates live as the runner edits block weeks.
+  const mileagePreview = useMemo<WeekMileagePreview[]>(() => {
+    try {
+      return previewWeeklyMileage(draftToBlocks(draft), {
+        appendMarathonTail: true,
+      });
+    } catch {
+      return [];
+    }
+  }, [draft]);
+
+  // Per-block slices keyed by blockIndex (user blocks are 0..draft.length-1,
+  // the auto-pinned tail is draft.length).
+  const mileageByBlock = useMemo(() => {
+    const map = new Map<number, WeekMileagePreview[]>();
+    for (const w of mileagePreview) {
+      const arr = map.get(w.blockIndex) ?? [];
+      arr.push(w);
+      map.set(w.blockIndex, arr);
+    }
+    return map;
+  }, [mileagePreview]);
+
+  // Peak mileage across the entire plan, used so per-block sparklines all
+  // share the same y-axis ceiling — that way two adjacent blocks are visually
+  // comparable instead of each auto-scaling to its own peak.
+  const peakTotalMi = useMemo(
+    () => mileagePreview.reduce((m, w) => Math.max(m, w.totalMi), 0),
+    [mileagePreview],
+  );
 
   // ---- Phase block timeline (preview) ----------------------------------
   // Compute the global start week of each block plus the auto-pinned tail
@@ -630,6 +662,11 @@ export default function Planner() {
                     </div>
                   </div>
                 )}
+                <BlockSparkline
+                  weeks={mileageByBlock.get(i) ?? []}
+                  peakTotalMi={peakTotalMi}
+                  testId={`planner-block-${i}-sparkline`}
+                />
               </li>
             ))}
             {draft.length === 0 && (
@@ -638,16 +675,23 @@ export default function Planner() {
                 Marathon-Specific tail is already pinned.
               </li>
             )}
-            <li className="border rounded-lg p-3 bg-muted/40 border-dashed flex items-center gap-2">
-              <Lock className="h-4 w-4 text-muted-foreground" />
-              <span className="text-xs font-mono text-muted-foreground w-6">
-                #{draft.length + 1}
-              </span>
-              <Badge variant="secondary">Marathon-Specific</Badge>
-              <span className="text-sm">{MARATHON_TAIL_WEEKS} weeks</span>
-              <span className="ml-auto text-xs uppercase tracking-wider text-muted-foreground">
-                Auto-pinned
-              </span>
+            <li className="border rounded-lg p-3 bg-muted/40 border-dashed">
+              <div className="flex items-center gap-2">
+                <Lock className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs font-mono text-muted-foreground w-6">
+                  #{draft.length + 1}
+                </span>
+                <Badge variant="secondary">Marathon-Specific</Badge>
+                <span className="text-sm">{MARATHON_TAIL_WEEKS} weeks</span>
+                <span className="ml-auto text-xs uppercase tracking-wider text-muted-foreground">
+                  Auto-pinned
+                </span>
+              </div>
+              <BlockSparkline
+                weeks={mileageByBlock.get(draft.length) ?? []}
+                peakTotalMi={peakTotalMi}
+                testId="planner-block-tail-sparkline"
+              />
             </li>
           </ol>
         </CardContent>
@@ -660,7 +704,12 @@ export default function Planner() {
             Plan Preview
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
+          <MileageCurve
+            weeks={mileagePreview}
+            blocks={previewBlocks}
+            testId="planner-mileage-curve"
+          />
           <ol
             className="space-y-1 text-sm font-mono"
             data-testid="planner-preview"
@@ -748,6 +797,260 @@ export default function Planner() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+// Compact inline sparkline for a single phase block. Plots two polylines
+// (total weekly mileage and Sunday long run) on a fixed-height SVG so two
+// blocks rendered side-by-side are visually comparable. Empty / single-week
+// blocks fall back to a tiny "—" placeholder so the row height stays stable
+// while the runner is in the middle of editing weeks.
+function BlockSparkline({
+  weeks,
+  peakTotalMi,
+  testId,
+}: {
+  weeks: WeekMileagePreview[];
+  peakTotalMi: number;
+  testId: string;
+}) {
+  if (weeks.length === 0) {
+    return (
+      <div
+        className="mt-3 h-10 flex items-center text-[10px] uppercase tracking-wider text-muted-foreground"
+        data-testid={testId}
+      >
+        Mileage preview unavailable
+      </div>
+    );
+  }
+  const W = 280;
+  const H = 40;
+  const PAD_X = 2;
+  const PAD_Y = 4;
+  const ceiling = Math.max(1, peakTotalMi);
+  const x = (i: number) =>
+    weeks.length === 1
+      ? W / 2
+      : PAD_X + (i / (weeks.length - 1)) * (W - PAD_X * 2);
+  const y = (mi: number) =>
+    H - PAD_Y - (mi / ceiling) * (H - PAD_Y * 2);
+  const totalPath = weeks
+    .map((w, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(w.totalMi).toFixed(1)}`)
+    .join(" ");
+  const longPath = weeks
+    .map((w, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(w.longRunMi).toFixed(1)}`)
+    .join(" ");
+  const peakWeekMi = weeks.reduce((m, w) => Math.max(m, w.totalMi), 0);
+  const peakLongMi = weeks.reduce((m, w) => Math.max(m, w.longRunMi), 0);
+  return (
+    <div className="mt-3" data-testid={testId}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full h-10 block"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <path
+          d={totalPath}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.25}
+          className="text-primary"
+          vectorEffect="non-scaling-stroke"
+        />
+        <path
+          d={longPath}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1}
+          strokeDasharray="3 2"
+          className="text-muted-foreground"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+      <div className="flex justify-between text-[10px] uppercase tracking-wider text-muted-foreground mt-1">
+        <span>
+          <span className="text-primary">●</span> Total · peak{" "}
+          <span className="font-semibold tabular-nums">
+            {peakWeekMi.toFixed(1)}mi
+          </span>
+        </span>
+        <span>
+          <span className="text-muted-foreground">— —</span> Long · peak{" "}
+          <span className="font-semibold tabular-nums">
+            {peakLongMi.toFixed(1)}mi
+          </span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// Full plan-wide mileage curve shown in the Plan Preview card. Renders a
+// pure-SVG area-style chart of total weekly miles + the Sunday long run,
+// with vertical guides at every phase block boundary so the runner can see
+// at a glance where each block bends the curve. Y-axis is auto-scaled to
+// the peak week so taper/recovery dips are visible without zooming.
+function MileageCurve({
+  weeks,
+  blocks,
+  testId,
+}: {
+  weeks: WeekMileagePreview[];
+  blocks: Array<{ label: string; startWeek: number; endWeek: number }>;
+  testId: string;
+}) {
+  if (weeks.length === 0) {
+    return (
+      <div
+        className="h-40 flex items-center justify-center text-sm text-muted-foreground border rounded-md"
+        data-testid={testId}
+      >
+        Add a phase block to see the projected mileage curve.
+      </div>
+    );
+  }
+  const W = 720;
+  const H = 180;
+  const PAD_L = 32;
+  const PAD_R = 12;
+  const PAD_T = 12;
+  const PAD_B = 22;
+  const innerW = W - PAD_L - PAD_R;
+  const innerH = H - PAD_T - PAD_B;
+  const peak = Math.max(
+    1,
+    weeks.reduce((m, w) => Math.max(m, w.totalMi), 0),
+  );
+  const ceiling = Math.ceil(peak / 5) * 5;
+  const totalWeeks = weeks.length;
+  const x = (week: number) =>
+    PAD_L +
+    (totalWeeks === 1
+      ? innerW / 2
+      : ((week - 1) / (totalWeeks - 1)) * innerW);
+  const y = (mi: number) => PAD_T + innerH - (mi / ceiling) * innerH;
+
+  const totalPoints = weeks
+    .map((w) => `${x(w.week).toFixed(1)},${y(w.totalMi).toFixed(1)}`)
+    .join(" ");
+  const longPoints = weeks
+    .map((w) => `${x(w.week).toFixed(1)},${y(w.longRunMi).toFixed(1)}`)
+    .join(" ");
+  const areaPath = `M${x(weeks[0]!.week).toFixed(1)},${y(0).toFixed(1)} L${totalPoints
+    .split(" ")
+    .join(" L")} L${x(weeks[weeks.length - 1]!.week).toFixed(1)},${y(0).toFixed(1)} Z`;
+
+  // Y-axis ticks at 0 / 50% / peak.
+  const yTicks = [0, ceiling / 2, ceiling];
+
+  return (
+    <div data-testid={testId}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-xs uppercase tracking-wider text-muted-foreground">
+          Projected weekly mileage
+        </div>
+        <div className="flex gap-3 text-[10px] uppercase tracking-wider text-muted-foreground">
+          <span>
+            <span className="text-primary">●</span> Total
+          </span>
+          <span>
+            <span className="text-muted-foreground">— —</span> Long run
+          </span>
+          <span>
+            Peak{" "}
+            <span className="font-semibold tabular-nums text-foreground">
+              {peak.toFixed(1)}mi
+            </span>
+          </span>
+        </div>
+      </div>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full h-44 block"
+        preserveAspectRatio="none"
+        role="img"
+        aria-label="Projected weekly mileage curve"
+      >
+        {/* Y-axis grid + labels */}
+        {yTicks.map((t, i) => (
+          <g key={i}>
+            <line
+              x1={PAD_L}
+              x2={W - PAD_R}
+              y1={y(t)}
+              y2={y(t)}
+              stroke="currentColor"
+              strokeWidth={0.5}
+              strokeDasharray="2 3"
+              className="text-border"
+              vectorEffect="non-scaling-stroke"
+            />
+            <text
+              x={PAD_L - 4}
+              y={y(t) + 3}
+              textAnchor="end"
+              fontSize={9}
+              className="fill-muted-foreground"
+            >
+              {Math.round(t)}
+            </text>
+          </g>
+        ))}
+        {/* Block boundary verticals */}
+        {blocks.map((b, i) => {
+          const startX = x(b.startWeek);
+          const endX = x(b.endWeek);
+          return (
+            <g key={i}>
+              {i > 0 && (
+                <line
+                  x1={startX}
+                  x2={startX}
+                  y1={PAD_T}
+                  y2={H - PAD_B}
+                  stroke="currentColor"
+                  strokeWidth={0.5}
+                  className="text-border"
+                  vectorEffect="non-scaling-stroke"
+                />
+              )}
+              <text
+                x={(startX + endX) / 2}
+                y={H - 6}
+                textAnchor="middle"
+                fontSize={8}
+                className="fill-muted-foreground uppercase tracking-wider"
+              >
+                {b.label.length > 14 ? `${b.label.slice(0, 12)}…` : b.label}
+              </text>
+            </g>
+          );
+        })}
+        {/* Area under total */}
+        <path d={areaPath} className="fill-primary/10" />
+        {/* Total polyline */}
+        <polyline
+          points={totalPoints}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.5}
+          className="text-primary"
+          vectorEffect="non-scaling-stroke"
+        />
+        {/* Long run polyline */}
+        <polyline
+          points={longPoints}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1}
+          strokeDasharray="4 3"
+          className="text-muted-foreground"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
     </div>
   );
 }

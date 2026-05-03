@@ -353,6 +353,9 @@ importers:
       '@workspace/api-client-react':
         specifier: workspace:*
         version: link:../../lib/api-client-react
+      '@workspace/plan-generator':
+        specifier: workspace:*
+        version: link:../../lib/plan-generator
       class-variance-authority:
         specifier: 'catalog:'
         version: 0.7.1

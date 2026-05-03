@@ -1298,6 +1298,109 @@ function buildWeekDays(opts: {
   return [monDay, tueDay, wedDay, thuDay, friDay, satDay, sunDay];
 }
 
+// ---------------------------------------------------------------------------
+// MILEAGE PREVIEW (Task #81) — lightweight per-week mileage projection used
+// by the Phase Planner UI to render sparklines per block and a full
+// 52-week mileage curve before the runner clicks Apply.
+//
+// Unlike `generatePlanFromConfig` this helper:
+//   - Does NOT validate dates (so the runner sees a live preview while still
+//     editing block weeks / dates).
+//   - Skips strength + cardio + day-by-day prose generation; it only computes
+//     the three mileage buckets the runner cares about for shaping decisions:
+//     wed easy run, fri quality run, and sun long run (or 26.2 mi marathon
+//     on the trailing race week).
+//   - Optionally appends the auto-pinned 16-week Marathon-Specific tail so
+//     the curve lines up with what Apply will eventually produce.
+// ---------------------------------------------------------------------------
+
+export interface WeekMileagePreview {
+  // 1-based plan-wide week index across all blocks (after appending the
+  // optional Marathon-Specific tail).
+  week: number;
+  // 0-based index into the iterated block list (user blocks first, then the
+  // auto-pinned Marathon-Specific tail when appendMarathonTail is true).
+  blockIndex: number;
+  blockLabel: string;
+  focusType: FocusType;
+  // 1-based week index inside the block (1..block.weeks).
+  weekInBlock: number;
+  isCutback: boolean;
+  isRaceWeek: boolean;
+  easyMi: number;
+  qualityMi: number;
+  longRunMi: number;
+  totalMi: number;
+}
+
+export interface PreviewWeeklyMileageOptions {
+  // When true, the trailing 16-week Marathon-Specific block is appended so
+  // the preview matches the eventual generated plan. Defaults to true.
+  appendMarathonTail?: boolean;
+}
+
+export function previewWeeklyMileage(
+  userBlocks: PhaseBlock[],
+  opts: PreviewWeeklyMileageOptions = {},
+): WeekMileagePreview[] {
+  const appendTail = opts.appendMarathonTail ?? true;
+  const blocks: PhaseBlock[] = appendTail
+    ? [
+        ...userBlocks,
+        {
+          focusType: "Marathon-Specific",
+          weeks: MARATHON_TAIL_WEEKS,
+          customName: null,
+          customNotes: null,
+        },
+      ]
+    : userBlocks;
+
+  const totalWeeks = blocks.reduce(
+    (s, b) => s + Math.max(0, b.weeks || 0),
+    0,
+  );
+  const out: WeekMileagePreview[] = [];
+  let week = 0;
+  blocks.forEach((b, blockIndex) => {
+    const w = b.weeks || 0;
+    if (w < 1) return;
+    const recipe = RECIPES[b.focusType];
+    for (let weekInBlock = 1; weekInBlock <= w; weekInBlock++) {
+      week += 1;
+      const isRaceWeek = week === totalWeeks && appendTail;
+      const isCutback = recipe.useCutbacks
+        ? w >= 4 && weekInBlock % 4 === 0 && weekInBlock !== w
+        : false;
+      const easyMi = recipe.easyRunMi(weekInBlock, w, isCutback);
+      // Recovery blocks turn Friday into a rest day in `buildWeekDays`, so
+      // the actual generated weekly mileage is easy + long only. Mirror
+      // that here so the preview matches `planned_miles` exactly.
+      const qualityMi = recipe.isRecovery
+        ? 0
+        : recipe.qualityRunMi(weekInBlock, w, isCutback);
+      const longMi = isRaceWeek
+        ? MARATHON_DISTANCE_MI
+        : recipe.longRunMi(weekInBlock, w, isCutback);
+      const totalMi = r1(easyMi + qualityMi + longMi);
+      out.push({
+        week,
+        blockIndex,
+        blockLabel: recipe.phaseLabel(b),
+        focusType: b.focusType,
+        weekInBlock,
+        isCutback,
+        isRaceWeek,
+        easyMi: r1(easyMi),
+        qualityMi: r1(qualityMi),
+        longRunMi: r1(longMi),
+        totalMi,
+      });
+    }
+  });
+  return out;
+}
+
 export function generatePlanFromConfig(
   config: PlannerConfig,
 ): { daily: DailyRow[]; weekly: WeeklyRow[]; body: BodyRow[] } {
