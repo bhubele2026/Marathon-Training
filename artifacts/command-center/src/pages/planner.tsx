@@ -69,6 +69,8 @@ import {
   ChevronDown,
   ChevronUp,
   ExternalLink,
+  Search,
+  X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
@@ -168,6 +170,62 @@ export function defaultBlankConfig(): {
   };
 }
 
+// Categories for grouping the Plan Template Library. The catalog grew
+// from 16 to 54+ templates so a flat grid is unbrowsable; we bucket
+// each template by its primary modality (cardio machine vs strength
+// vs custom slot) so the runner can collapse irrelevant sections.
+const TEMPLATE_CATEGORIES = [
+  "Run",
+  "Bike",
+  "Row",
+  "Strength",
+  "Hybrid",
+  "Conditioning",
+  "Custom",
+] as const;
+type TemplateCategory = (typeof TEMPLATE_CATEGORIES)[number];
+
+// Accepts both the in-process PlanTemplate (which carries an expand fn)
+// and the API-shaped PlanTemplate (no expand) so the picker can
+// categorize whichever the templatesQuery returns.
+type CategorizableTemplate = Pick<
+  PlanTemplate,
+  "id" | "goalDistance" | "metadata"
+>;
+function categorizeTemplate(tpl: CategorizableTemplate): TemplateCategory {
+  if (tpl.id.endsWith("_custom")) return "Custom";
+  const eq = tpl.metadata.equipmentMixHint.toLowerCase();
+  const goal = tpl.goalDistance.toLowerCase();
+  // HYROX is a hybrid race format regardless of equipment list phrasing.
+  if (eq.includes("hyrox") || goal.includes("hyrox")) return "Hybrid";
+  // Recovery / mobility / maintenance plans don't fit a single modality.
+  if (
+    goal.includes("recovery") ||
+    goal.includes("mobility") ||
+    goal.includes("hold fitness") ||
+    eq.startsWith("mat-only")
+  ) {
+    return "Conditioning";
+  }
+  const hasStrength =
+    eq.includes("tonal") ||
+    eq.includes("kettlebell") ||
+    eq.includes("barbell");
+  const hasBike = eq.includes("bike");
+  const hasRow = eq.includes("row") || eq.includes("concept2");
+  const hasRun =
+    eq.includes("run") || eq.includes("walk") || eq.includes("hike") ||
+    eq.includes("tread");
+  // Strength + cardio = hybrid (strength-priority programs that pair
+  // lifting with running/biking/rowing).
+  if (hasStrength && (hasBike || hasRow || hasRun)) return "Hybrid";
+  if (hasStrength) return "Strength";
+  if (hasBike && !hasRun && !hasRow) return "Bike";
+  if (hasRow && !hasRun && !hasBike) return "Row";
+  if (hasRun) return "Run";
+  return "Conditioning";
+}
+
 interface DraftBlock {
   focusType: FocusType;
   weeks: number;
@@ -235,6 +293,32 @@ export default function Planner() {
   const [expandedTemplates, setExpandedTemplates] = useState<Set<string>>(
     () => new Set(),
   );
+  // Free-text filter applied to the Plan Template Library — matches
+  // template name, source (author / book), and equipment hint
+  // (case-insensitive). When non-empty, every category section that
+  // contains a match auto-expands so results are visible without an
+  // extra click.
+  const [templateSearch, setTemplateSearch] = useState("");
+  // Per-category collapse state for the grouped template grid. Default
+  // is "Run" expanded (the most common path) and the rest collapsed so
+  // 50+ cards don't unfurl on first open. Toggled by the section
+  // header chevron.
+  const [collapsedCategories, setCollapsedCategories] = useState<
+    Set<TemplateCategory>
+  >(
+    () =>
+      new Set<TemplateCategory>(
+        TEMPLATE_CATEGORIES.filter((c) => c !== "Run"),
+      ),
+  );
+  function toggleCategory(cat: TemplateCategory) {
+    setCollapsedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  }
   function toggleTemplateDetails(id: string) {
     setExpandedTemplates((prev) => {
       const next = new Set(prev);
@@ -317,6 +401,40 @@ export default function Planner() {
   const templates = templatesQuery.data?.templates ?? PLAN_TEMPLATES;
   const starters = templatesQuery.data?.starters ?? STARTER_SHORTCUTS;
   const isApplying = updateMutation.isPending || applyMutation.isPending;
+
+  // Group templates by category, applying the free-text search filter
+  // (case-insensitive match against name, source, and equipment hint).
+  // Empty categories are dropped so the section list adapts to the
+  // current filter.
+  const groupedTemplates = useMemo(() => {
+    type T = (typeof templates)[number];
+    const q = templateSearch.trim().toLowerCase();
+    const matches = (tpl: T): boolean => {
+      if (!q) return true;
+      return (
+        tpl.name.toLowerCase().includes(q) ||
+        tpl.source.toLowerCase().includes(q) ||
+        tpl.metadata.equipmentMixHint.toLowerCase().includes(q) ||
+        tpl.goalDistance.toLowerCase().includes(q)
+      );
+    };
+    const buckets = new Map<TemplateCategory, T[]>();
+    for (const cat of TEMPLATE_CATEGORIES) buckets.set(cat, []);
+    for (const tpl of templates) {
+      if (!matches(tpl)) continue;
+      const cat = categorizeTemplate(tpl);
+      buckets.get(cat)!.push(tpl);
+    }
+    return TEMPLATE_CATEGORIES.map((cat) => ({
+      cat,
+      list: buckets.get(cat) ?? [],
+    })).filter((g) => g.list.length > 0);
+  }, [templates, templateSearch]);
+  const totalMatchedTemplates = groupedTemplates.reduce(
+    (s, g) => s + g.list.length,
+    0,
+  );
+  const hasActiveSearch = templateSearch.trim().length > 0;
 
   const configs = listQuery.data?.configs ?? [];
   const activeId = listQuery.data?.activeId ?? null;
@@ -1547,13 +1665,95 @@ export default function Planner() {
             </div>
           </div>
 
-          {/* Template grid */}
+          {/* Search + filter */}
           <div className="space-y-2">
+            <Label
+              htmlFor="planner-template-search"
+              className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1"
+            >
+              <Search className="h-3 w-3" /> Search templates
+            </Label>
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
+              <Input
+                id="planner-template-search"
+                value={templateSearch}
+                onChange={(e) => setTemplateSearch(e.target.value)}
+                placeholder="Filter by name, source, equipment, or goal…"
+                className="h-8 pl-7 pr-8"
+                data-testid="planner-template-search"
+              />
+              {templateSearch && (
+                <button
+                  type="button"
+                  onClick={() => setTemplateSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label="Clear search"
+                  data-testid="planner-template-search-clear"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+            <p
+              className="text-[10px] text-muted-foreground"
+              data-testid="planner-template-search-summary"
+            >
+              {hasActiveSearch
+                ? `${totalMatchedTemplates} template${totalMatchedTemplates === 1 ? "" : "s"} match "${templateSearch.trim()}"`
+                : `${templates.length} templates across ${TEMPLATE_CATEGORIES.length} categories`}
+            </p>
+          </div>
+
+          {/* Grouped template grid */}
+          <div className="space-y-3">
             <h3 className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-              <BookOpen className="h-3 w-3" /> Templates
+              <BookOpen className="h-3 w-3" /> Templates by category
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {templates.map((tpl) => {
+            {totalMatchedTemplates === 0 && (
+              <p
+                className="text-xs text-muted-foreground italic"
+                data-testid="planner-template-empty"
+              >
+                No templates match that filter. Try a different name, author,
+                or piece of equipment.
+              </p>
+            )}
+            {groupedTemplates.map(({ cat, list }) => {
+              // Auto-expand any section with active matches when the runner
+              // is searching, even if they previously collapsed it.
+              const isCollapsed =
+                !hasActiveSearch && collapsedCategories.has(cat);
+              return (
+                <div
+                  key={cat}
+                  className="border rounded-md"
+                  data-testid={`planner-template-category-${cat.toLowerCase()}`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleCategory(cat)}
+                    className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-muted/40"
+                    aria-expanded={!isCollapsed}
+                    data-testid={`planner-template-category-toggle-${cat.toLowerCase()}`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{cat}</span>
+                      <Badge variant="secondary" className="text-[10px]">
+                        {list.length}
+                      </Badge>
+                    </span>
+                    {isCollapsed ? (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </button>
+                  <div
+                    hidden={isCollapsed}
+                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 p-3 pt-0"
+                  >
+              {list.map((tpl) => {
                 const weeks = tplWeeks[tpl.id] ?? tpl.defaultWeeks;
                 const outOfRange =
                   weeks < tpl.minWeeks || weeks > tpl.maxWeeks;
@@ -1751,7 +1951,10 @@ export default function Planner() {
                   </div>
                 );
               })}
-            </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
