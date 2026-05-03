@@ -157,6 +157,8 @@ function weeksFromEndDateISO(
   const days = Math.round((endMs - startMs) / 86400000);
   // weeks satisfies endISO == startISO + (weeks*7 - 1) days, so
   // weeks = round((days + 1) / 7). Snap to nearest whole week.
+  // End dates at or before start floor to 1 week (caller's clamp then
+  // raises that to minWeeks if minWeeks > 1).
   const rawWeeks = Math.max(1, Math.round((days + 1) / 7));
   const clamped = rawWeeks < minWeeks || rawWeeks > maxWeeks;
   const weeks = Math.min(maxWeeks, Math.max(minWeeks, rawWeeks));
@@ -1109,6 +1111,7 @@ export default function Planner() {
       proposedStartDate: cursor,
     });
     setPendingApplyStartDate(cursor);
+    setApplyClampHint(null);
   }
 
   // Confirms the dialog opened by applyTemplate. For the FIRST entry,
@@ -1344,6 +1347,16 @@ export default function Planner() {
   function removeEntry(i: number) {
     if (!entries) return;
     reprojectEntries(entries.filter((_, idx) => idx !== i));
+    // Drop hint for the removed row and shift down hints for rows after it.
+    setEntryClampHints((prev) => {
+      const next: typeof prev = {};
+      for (const [k, v] of Object.entries(prev)) {
+        const idx = Number(k);
+        if (idx === i) continue;
+        next[idx < i ? idx : idx - 1] = v;
+      }
+      return next;
+    });
   }
   function moveEntry(i: number, dir: -1 | 1) {
     if (!entries) return;
@@ -1353,6 +1366,15 @@ export default function Planner() {
     const [item] = next.splice(i, 1);
     next.splice(j, 0, item!);
     reprojectEntries(next);
+    // Swap the two affected hint slots so they follow their entries.
+    setEntryClampHints((prev) => {
+      const out = { ...prev };
+      const a = prev[i];
+      const b = prev[j];
+      if (a) out[j] = a; else delete out[j];
+      if (b) out[i] = b; else delete out[i];
+      return out;
+    });
   }
   function addEntry(templateId: string) {
     const tpl = getTemplateById(templateId);
@@ -3590,6 +3612,7 @@ export default function Planner() {
           if (!open) {
             setPendingApplyTemplate(null);
             setPendingApplyStartDate("");
+            setApplyClampHint(null);
           }
         }}
       >
