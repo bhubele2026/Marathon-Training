@@ -22,3 +22,18 @@ export function adherenceTextClass(status: AdherenceStatus): string {
       return "";
   }
 }
+
+// Background tint for the adherence progress bar's filled indicator. Mirrors
+// adherenceTextClass so the bar reads in the same color family as the
+// planned-vs-actual headline above it. Returns empty for "neutral" so the
+// default Progress styling applies (and a 0% bar simply has nothing to color).
+export function adherenceBarClass(status: AdherenceStatus): string {
+  switch (status) {
+    case "met":
+      return "bg-emerald-500 dark:bg-emerald-400";
+    case "in-progress":
+      return "bg-amber-500 dark:bg-amber-400";
+    default:
+      return "";
+  }
+}

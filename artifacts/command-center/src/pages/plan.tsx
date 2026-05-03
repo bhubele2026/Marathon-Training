@@ -39,7 +39,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { phaseColor } from "@/lib/phase-colors";
-import { adherenceStatus, adherenceTextClass } from "@/lib/adherence";
+import { adherenceBarClass, adherenceStatus, adherenceTextClass } from "@/lib/adherence";
 
 const RESET_PLAN_CONFIRM_PHRASE = "RESET PLAN";
 
@@ -393,7 +393,15 @@ export default function Plan() {
                             <span>{week.completedSessions || 0}/{week.totalSessions || 0}</span>
                           </div>
                         </div>
-                        <Progress value={completedPct} className="h-1.5 bg-muted" />
+                        <Progress
+                          value={completedPct}
+                          className="h-1.5 bg-muted"
+                          indicatorClassName={adherenceBarClass(
+                            adherenceStatus(week.completedSessions, week.totalSessions),
+                          )}
+                          data-adherence={adherenceStatus(week.completedSessions, week.totalSessions)}
+                          data-testid={`progress-adherence-week-${week.week}`}
+                        />
                       </div>
                     </CardContent>
                   </Card>

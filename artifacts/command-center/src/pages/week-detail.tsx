@@ -356,7 +356,18 @@ export default function WeekDetail() {
         </div>
         <div>
           <p className="text-[10px] uppercase font-bold text-muted-foreground">Sessions</p>
-          <p className="font-black text-lg">{week.completedSessions || 0} / {week.totalSessions || 0}</p>
+          <p
+            className={cn(
+              "font-black text-lg",
+              adherenceTextClass(
+                adherenceStatus(week.completedSessions, week.totalSessions),
+              ),
+            )}
+            data-adherence={adherenceStatus(week.completedSessions, week.totalSessions)}
+            data-testid="text-sessions-adherence"
+          >
+            {week.completedSessions || 0} / {week.totalSessions || 0}
+          </p>
         </div>
       </div>
 
