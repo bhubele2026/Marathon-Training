@@ -46,6 +46,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -73,6 +86,8 @@ import {
   ExternalLink,
   Search,
   X,
+  ChevronsUpDown,
+  Check,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
@@ -412,6 +427,11 @@ export default function Planner() {
   // timeline strip (or list row), used to highlight the corresponding
   // bar/row pair. Null = nothing highlighted.
   const [hoveredEntry, setHoveredEntry] = useState<number | null>(null);
+  // Open state for the searchable Quick-add template combobox in the
+  // Composition card. We control it so we can close the popover after
+  // the runner picks a template.
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickAddSearch, setQuickAddSearch] = useState("");
   // Marathon mode toggle. When true (legacy default), the planner
   // auto-pins a trailing 16-week Marathon-Specific block, the validator
   // requires (totalWeeks - 16) user-block weeks, and the preview / pinned
@@ -2454,42 +2474,107 @@ export default function Planner() {
             )}
             <div className="mt-3 flex items-center gap-2">
               <Label className="text-xs">Quick-add template:</Label>
-              <Select onValueChange={(v) => addEntry(v)} value="">
-                <SelectTrigger
-                  className="h-8 w-64"
-                  data-testid="planner-entry-add-select"
+              <Popover
+                open={quickAddOpen}
+                onOpenChange={(open) => {
+                  setQuickAddOpen(open);
+                  if (!open) setQuickAddSearch("");
+                }}
+              >
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={quickAddOpen}
+                    className="h-8 w-64 justify-between font-normal"
+                    data-testid="planner-entry-add-select"
+                  >
+                    <span className="text-muted-foreground">
+                      Pick a template…
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className="w-80 p-0"
+                  align="start"
+                  data-testid="planner-entry-add-popover"
                 >
-                  <SelectValue placeholder="Pick a template…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(() => {
-                    type T = (typeof templates)[number];
-                    const buckets = new Map<TemplateCategory, T[]>();
-                    for (const cat of TEMPLATE_CATEGORIES) buckets.set(cat, []);
-                    for (const tpl of templates) {
-                      buckets.get(categorizeTemplate(tpl))!.push(tpl);
-                    }
-                    // TEMPLATE_CATEGORIES already lists Custom last so the
-                    // less-common Custom-slot templates stay pinned to the
-                    // bottom, below the more frequently picked
-                    // Run/Bike/Row/Strength/Hybrid/Conditioning sections.
-                    return TEMPLATE_CATEGORIES.flatMap((cat) => {
-                      const list = buckets.get(cat) ?? [];
-                      if (list.length === 0) return [];
-                      return [
-                        <SelectGroup key={cat}>
-                          <SelectLabel>{cat}</SelectLabel>
-                          {list.map((t) => (
-                            <SelectItem key={t.id} value={t.id}>
-                              {t.name} ({t.defaultWeeks}w default)
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>,
-                      ];
-                    });
-                  })()}
-                </SelectContent>
-              </Select>
+                  {/*
+                    Combobox replacement for the legacy shadcn Select
+                    so the runner can type to filter the 50+ templates
+                    by name, source, equipment hint, or goal distance
+                    (mirrors the Plan Template Library search). We do
+                    the filtering manually rather than relying on
+                    cmdk's built-in scoring so we can match the same
+                    fields as the picker (cmdk's default only looks at
+                    each item's `value` / textContent).
+                  */}
+                  <Command shouldFilter={false}>
+                    <CommandInput
+                      placeholder="Search templates…"
+                      value={quickAddSearch}
+                      onValueChange={setQuickAddSearch}
+                      data-testid="planner-entry-add-search"
+                    />
+                    <CommandList>
+                      <CommandEmpty>No templates match.</CommandEmpty>
+                      {(() => {
+                        type T = (typeof templates)[number];
+                        const q = quickAddSearch.trim().toLowerCase();
+                        const matches = (tpl: T): boolean => {
+                          if (!q) return true;
+                          return (
+                            tpl.name.toLowerCase().includes(q) ||
+                            tpl.source.toLowerCase().includes(q) ||
+                            tpl.metadata.equipmentMixHint
+                              .toLowerCase()
+                              .includes(q) ||
+                            tpl.goalDistance.toLowerCase().includes(q)
+                          );
+                        };
+                        const buckets = new Map<TemplateCategory, T[]>();
+                        for (const cat of TEMPLATE_CATEGORIES) {
+                          buckets.set(cat, []);
+                        }
+                        for (const tpl of templates) {
+                          if (!matches(tpl)) continue;
+                          buckets.get(categorizeTemplate(tpl))!.push(tpl);
+                        }
+                        // TEMPLATE_CATEGORIES already lists Custom
+                        // last so the Custom-slot templates stay
+                        // pinned to the bottom of the popover.
+                        return TEMPLATE_CATEGORIES.map((cat) => {
+                          const list = buckets.get(cat) ?? [];
+                          if (list.length === 0) return null;
+                          return (
+                            <CommandGroup key={cat} heading={cat}>
+                              {list.map((t) => (
+                                <CommandItem
+                                  key={t.id}
+                                  value={t.id}
+                                  onSelect={() => {
+                                    addEntry(t.id);
+                                    setQuickAddOpen(false);
+                                    setQuickAddSearch("");
+                                  }}
+                                  data-testid={`planner-entry-add-option-${t.id}`}
+                                >
+                                  <Check className="mr-2 h-4 w-4 opacity-0" />
+                                  <span className="truncate">
+                                    {t.name} ({t.defaultWeeks}w default)
+                                  </span>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          );
+                        });
+                      })()}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           </CardContent>
         </Card>
