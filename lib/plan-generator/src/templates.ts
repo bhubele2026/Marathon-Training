@@ -185,9 +185,9 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       "VO2max-biased speed block on top of a short aerobic base, ending with a 1-week sharpening taper.",
     longDescription:
       "Daniels' 5K plan: short aerobic base, then a heavy interval block (R-pace and I-pace work), capped by a 1-week sharpening taper. Pyramidal intensity distribution with one long run and two quality sessions per week.",
-    minWeeks: 8,
-    maxWeeks: 14,
-    defaultWeeks: 10,
+    minWeeks: 6,
+    maxWeeks: 12,
+    defaultWeeks: 8,
     metadata: {
       intensityDistribution: "Pyramidal — emphasis on R-pace + I-pace",
       peakLongRun: "8-10 mi",
@@ -199,8 +199,8 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
     },
     expand: (n) =>
       distribute(n, [
-        { focus: "Base", weight: 2, min: 3 },
-        { focus: "Speed", weight: 5, min: 4 },
+        { focus: "Base", weight: 2, min: 2 },
+        { focus: "Speed", weight: 5, min: 3 },
         { focus: "Taper", weight: 1, min: 1 },
       ]),
   },
@@ -216,7 +216,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
     longDescription:
       "Higdon's 10K formula: ~60% aerobic base, ~30% threshold/speed work, 1-week taper. Best slotted as a tune-up race block 8-12 weeks before a longer goal race.",
     minWeeks: 8,
-    maxWeeks: 16,
+    maxWeeks: 14,
     defaultWeeks: 10,
     metadata: {
       intensityDistribution: "80/20 polarized with weekly tempo",
@@ -306,9 +306,9 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       "Extended Time-on-Feet phase with back-to-back long runs; 2-week taper.",
     longDescription:
       "Koop's ultra prescription for first-timer 50K: aerobic base, then a long sustained Time-on-Feet phase emphasizing back-to-back long runs and time-on-feet over peak speed, capped by a 2-week taper.",
-    minWeeks: 20,
-    maxWeeks: 32,
-    defaultWeeks: 24,
+    minWeeks: 16,
+    maxWeeks: 24,
+    defaultWeeks: 20,
     metadata: {
       intensityDistribution: "85/15 polarized — dominant easy volume",
       peakLongRun: "Back-to-back long runs (e.g. 22 mi + 12 mi)",
@@ -320,8 +320,8 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
     },
     expand: (n) =>
       distribute(n, [
-        { focus: "Base", weight: 3, min: 4 },
-        { focus: "Time on Feet", weight: 7, min: 12 },
+        { focus: "Base", weight: 3, min: 3 },
+        { focus: "Time on Feet", weight: 7, min: 11 },
         { focus: "Taper", weight: 1, min: 2 },
       ]),
   },
@@ -362,7 +362,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
     longDescription:
       "Daniels' quality phases: 4-12 weeks of focused interval and tempo work plus a 1-week sharpening taper. Assumes the runner already has aerobic base in the bank — pair this AFTER an Aerobic Base entry inside the same campaign.",
     minWeeks: 4,
-    maxWeeks: 12,
+    maxWeeks: 8,
     defaultWeeks: 6,
     metadata: {
       intensityDistribution: "Pyramidal — emphasis on I-pace + T-pace",
@@ -391,7 +391,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
     longDescription:
       "Tactical Barbell's Operator template: 3 heavy strength sessions per week as the primary stressor; running stays at conversational base pace to keep recovery cost low. Custom block tags every day with a strength-priority note. No taper — this is an ongoing maintenance template.",
     minWeeks: 6,
-    maxWeeks: 16,
+    maxWeeks: 12,
     defaultWeeks: 8,
     metadata: {
       intensityDistribution: "Strength-priority; running 100% conversational",
@@ -425,9 +425,9 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       "Low-HR aerobic emphasis with extra cross-train cardio; ends in a 1-2 week deload.",
     longDescription:
       "Maffetone's MAF method, adapted: keep all running below the aerobic ceiling (180-age HR), add extra cross-train cardio onto strength days for caloric throughput. Pair a short Recovery deload at the end so the body can adapt without pushing into overreaching.",
-    minWeeks: 4,
-    maxWeeks: 20,
-    defaultWeeks: 8,
+    minWeeks: 6,
+    maxWeeks: 16,
+    defaultWeeks: 10,
     metadata: {
       intensityDistribution: "100% sub-MAF aerobic",
       peakLongRun: "60-90 min easy",
@@ -456,7 +456,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       "Mujika's transition-phase prescription for in-season recovery: 2-6 weeks of low-volume, low-intensity work to restore freshness. Friday quality is dropped for an extra rest day; long runs cap at 4 mi.",
     minWeeks: 2,
     maxWeeks: 6,
-    defaultWeeks: 3,
+    defaultWeeks: 4,
     metadata: {
       intensityDistribution: "100% conversational",
       peakLongRun: "4 mi",

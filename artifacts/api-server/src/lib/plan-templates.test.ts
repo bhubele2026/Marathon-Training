@@ -51,6 +51,29 @@ describe("PLAN_TEMPLATES", () => {
     }
   });
 
+  it("ships exact launch-catalog week ranges per template", () => {
+    const expected: Record<string, [number, number, number]> = {
+      // [min, default, max]
+      couch_to_5k: [6, 9, 12],
+      "5k_improver": [6, 8, 12],
+      "10k_builder": [8, 10, 14],
+      half_marathon: [10, 12, 16],
+      marathon: [16, 18, 24],
+      ultramarathon_50k: [16, 20, 24],
+      aerobic_base: [4, 8, 16],
+      speed_block: [4, 6, 8],
+      hybrid_strength: [6, 8, 12],
+      cardio_weight_loss: [6, 10, 16],
+      recovery: [2, 4, 6],
+      maintenance: [4, 6, 12],
+    };
+    for (const t of PLAN_TEMPLATES) {
+      const want = expected[t.id];
+      expect(want, `missing expectation for ${t.id}`).toBeTruthy();
+      expect([t.minWeeks, t.defaultWeeks, t.maxWeeks], t.id).toEqual(want);
+    }
+  });
+
   it("expand(n) produces blocks summing to exactly n across the full range", () => {
     for (const t of PLAN_TEMPLATES) {
       for (let n = t.minWeeks; n <= t.maxWeeks; n++) {

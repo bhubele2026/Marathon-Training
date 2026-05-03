@@ -1043,6 +1043,30 @@ export default function Planner() {
                     <div className="text-xs text-muted-foreground flex-1">
                       {tpl.shortDescription}
                     </div>
+                    <dl className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
+                      <dt className="uppercase tracking-wider">Peak LR</dt>
+                      <dd
+                        className="text-right font-mono"
+                        data-testid={`planner-template-${tpl.id}-peak-lr`}
+                      >
+                        {tpl.metadata.peakLongRun}
+                      </dd>
+                      <dt className="uppercase tracking-wider">Peak vol</dt>
+                      <dd
+                        className="text-right font-mono"
+                        data-testid={`planner-template-${tpl.id}-peak-vol`}
+                      >
+                        {tpl.metadata.peakWeeklyVolume}
+                      </dd>
+                      <dt className="uppercase tracking-wider">Taper</dt>
+                      <dd className="text-right font-mono">
+                        {tpl.metadata.taperLength}
+                      </dd>
+                      <dt className="uppercase tracking-wider">Range</dt>
+                      <dd className="text-right font-mono">
+                        {tpl.minWeeks}–{tpl.maxWeeks}w (default {tpl.defaultWeeks})
+                      </dd>
+                    </dl>
                     <div className="text-[10px] text-muted-foreground italic">
                       {tpl.citation}
                     </div>
@@ -1304,9 +1328,25 @@ export default function Planner() {
                         </div>
                       </div>
                       {tpl && (
-                        <p className="text-[10px] text-muted-foreground italic mt-2">
-                          {tpl.citation}
-                        </p>
+                        <div className="mt-2 space-y-1">
+                          <p
+                            className="text-[10px] text-muted-foreground"
+                            data-testid={`planner-entry-${i}-range`}
+                          >
+                            Range {tpl.minWeeks}–{tpl.maxWeeks}w · default {tpl.defaultWeeks}w · peak {tpl.metadata.peakWeeklyVolume} · LR {tpl.metadata.peakLongRun} · taper {tpl.metadata.taperLength}
+                          </p>
+                          {(e.weeks < tpl.minWeeks || e.weeks > tpl.maxWeeks) && (
+                            <p
+                              className="text-[10px] text-amber-600 dark:text-amber-400"
+                              data-testid={`planner-entry-${i}-out-of-range`}
+                            >
+                              Outside the published {tpl.minWeeks}–{tpl.maxWeeks}w range — server will reject save.
+                            </p>
+                          )}
+                          <p className="text-[10px] text-muted-foreground italic">
+                            {tpl.citation}
+                          </p>
+                        </div>
                       )}
                     </li>
                   );
@@ -1335,37 +1375,36 @@ export default function Planner() {
         </Card>
       )}
 
-      {/* ---------- BLOCKS EDITOR (legacy / advanced) ---------- */}
+      {/* ---------- BLOCKS EDITOR (legacy / advanced) ----------
+          Hidden entirely in entries-mode: in entries-mode the
+          Composition card above is the source of truth, and the
+          Timeline Preview card below already shows the projected
+          blocks (read-only). Showing a mutable copy here would let
+          the runner make edits that are silently discarded on save. */}
+      {!isEntriesMode && (
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="uppercase tracking-wider text-sm">
             Phase Blocks
-            {isEntriesMode && (
-              <span className="ml-2 text-[10px] uppercase tracking-wider text-muted-foreground">
-                (read-only projection from composition)
-              </span>
-            )}
           </CardTitle>
-          {!isEntriesMode ? (
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={enterEntriesMode}
-                data-testid="planner-enter-entries-mode"
-              >
-                Switch to template composition
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={addBlock}
-                data-testid="planner-add-block"
-              >
-                <Plus className="h-4 w-4 mr-1" /> Add Block
-              </Button>
-            </div>
-          ) : null}
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={enterEntriesMode}
+              data-testid="planner-enter-entries-mode"
+            >
+              Switch to template composition
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={addBlock}
+              data-testid="planner-add-block"
+            >
+              <Plus className="h-4 w-4 mr-1" /> Add Block
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <ol className="space-y-3" data-testid="planner-blocks-list">
@@ -1501,6 +1540,7 @@ export default function Planner() {
           </ol>
         </CardContent>
       </Card>
+      )}
 
       {/* ---------- TIMELINE PREVIEW ---------- */}
       <Card>
