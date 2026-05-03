@@ -1497,3 +1497,16 @@ export function generatePlanFromConfig(
 
   return { daily, weekly, body };
 }
+
+// ===========================================================================
+// Pre-built plan template library (Task #84). See ./templates.ts for the
+// PLAN_TEMPLATES registry, the StarterShortcut definitions, and the
+// deterministic expand(weeks) -> PhaseBlock[] helpers.
+// ===========================================================================
+export {
+  PLAN_TEMPLATES,
+  STARTER_SHORTCUTS,
+  getTemplateById,
+  type PlanTemplate,
+  type StarterShortcut,
+} from "./templates.js";

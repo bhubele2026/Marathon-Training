@@ -16,8 +16,13 @@ import {
 import {
   FOCUS_TYPES,
   MARATHON_TAIL_WEEKS,
+  PLAN_TEMPLATES,
+  STARTER_SHORTCUTS,
+  getTemplateById,
   previewWeeklyMileage,
   type FocusType,
+  type PlanTemplate,
+  type StarterShortcut,
   type WeekMileagePreview,
 } from "@workspace/plan-generator";
 import { useQueryClient } from "@tanstack/react-query";
@@ -54,6 +59,9 @@ import {
   Lock,
   Copy,
   FilePlus,
+  Library,
+  Sparkles,
+  BookOpen,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
@@ -70,6 +78,37 @@ function dayOfWeekUTC(iso: string): number | null {
   const t = Date.parse(`${iso}T00:00:00Z`);
   if (!Number.isFinite(t)) return null;
   return new Date(t).getUTCDay();
+}
+
+function addDaysISO(iso: string, days: number): string {
+  const t = Date.parse(`${iso}T00:00:00Z`);
+  if (!Number.isFinite(t)) return iso;
+  const d = new Date(t + days * 86400000);
+  return d.toISOString().slice(0, 10);
+}
+
+// Given a Monday `startISO` and a desired total span in weeks, returns the
+// race-day ISO date — i.e. the Sunday at the end of the final week.
+function computeRaceDateForTotalWeeks(
+  startISO: string,
+  totalWeeks: number,
+): string {
+  return addDaysISO(startISO, totalWeeks * 7 - 1);
+}
+
+// Returns the next Monday on or after today (ISO yyyy-mm-dd, UTC).
+function nextMondayISO(): string {
+  const now = new Date();
+  const utcMidnight = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+  );
+  const todayDow = new Date(utcMidnight).getUTCDay(); // 0=Sun..6=Sat
+  const daysUntilMonday = todayDow === 1 ? 0 : (8 - todayDow) % 7 || 7;
+  return new Date(utcMidnight + daysUntilMonday * 86400000)
+    .toISOString()
+    .slice(0, 10);
 }
 
 function totalWeeksBetween(startISO: string, raceISO: string): number {
@@ -155,6 +194,18 @@ export default function Planner() {
   // the runner is editing so an incidental list refetch doesn't blow
   // away in-progress edits.
   const [hydratedForId, setHydratedForId] = useState<number | null>(null);
+  // Plan Template Library state (Task #84). The runner picks a template +
+  // user-block week count and clicks Apply Template; we expand the
+  // template into the focus-type editor below and adjust the marathon
+  // date so the auto-pinned 16-week tail still lands on a Sunday.
+  const [tplWeeks, setTplWeeks] = useState<Record<string, number>>(() => {
+    const out: Record<string, number> = {};
+    for (const t of PLAN_TEMPLATES) out[t.id] = t.defaultUserWeeks;
+    return out;
+  });
+  const [lastAppliedTemplate, setLastAppliedTemplate] = useState<string | null>(
+    null,
+  );
 
   const detailQuery = useGetPlannerConfig(selectedId ?? 0, {
     query: {
@@ -266,6 +317,48 @@ export default function Planner() {
         weeks: Math.max(1, base + (idx < remainder ? 1 : 0)),
       })),
     );
+  }
+
+  // ---- Plan Template Library handlers ---------------------------------
+  // Apply a template by expanding it into the focus-type editor. Always
+  // adjusts the marathon date so totalWeeks = userWeeks + MARATHON_TAIL_WEEKS,
+  // keeping the existing startDate (or seeding next-Monday if missing).
+  // The auto-pinned 16-week Marathon-Specific tail handles the final
+  // race-specific phase, so the template only fills the lead-in.
+  function applyTemplate(tpl: PlanTemplate, userWeeks: number) {
+    const start =
+      startDate && dayOfWeekUTC(startDate) === 1 ? startDate : nextMondayISO();
+    const totalSpan = userWeeks + MARATHON_TAIL_WEEKS;
+    const race = computeRaceDateForTotalWeeks(start, totalSpan);
+    const blocks = tpl.expand(userWeeks);
+    setStartDate(start);
+    setMarathonDate(race);
+    setDraft(blocksToDraft(blocks));
+    setLastAppliedTemplate(tpl.id);
+    toast({
+      title: `${tpl.name} applied`,
+      description: `${userWeeks} user-block weeks + ${MARATHON_TAIL_WEEKS}-week pinned tail. Source: ${tpl.source}.`,
+    });
+  }
+
+  // Apply a one-click starter shortcut: sets dates AND blocks AND a
+  // suggested config name. Uses next-Monday as the start so the runner
+  // can save immediately without picking dates manually.
+  function applyStarter(s: StarterShortcut) {
+    const tpl = getTemplateById(s.templateId);
+    if (!tpl) return;
+    const start = nextMondayISO();
+    const race = computeRaceDateForTotalWeeks(start, s.totalWeeks);
+    const userWeeks = s.totalWeeks - MARATHON_TAIL_WEEKS;
+    setStartDate(start);
+    setMarathonDate(race);
+    setDraft(blocksToDraft(tpl.expand(userWeeks)));
+    setLastAppliedTemplate(tpl.id);
+    if (!name.trim()) setName(s.name);
+    toast({
+      title: `${s.name} loaded`,
+      description: `Start ${start}, race ${race}. Save then Apply to generate workouts.`,
+    });
   }
 
   function invalidatePlannerLists() {
@@ -748,6 +841,136 @@ export default function Planner() {
             >
               <Trash2 className="h-4 w-4 mr-1" /> Delete
             </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ---------- PLAN TEMPLATE LIBRARY (Task #84) ---------- */}
+      <Card data-testid="planner-template-library">
+        <CardHeader>
+          <CardTitle className="uppercase tracking-wider text-sm flex items-center gap-2">
+            <Library className="h-4 w-4" /> Plan Template Library
+          </CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            Pick a research-backed template — we&apos;ll fill the focus-type
+            blocks below and adjust the marathon date so the auto-pinned
+            16-week race-specific tail still lands on a Sunday. Save then
+            Apply to deterministically generate every workout.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Starter shortcuts: one-click full configs */}
+          <div className="space-y-2">
+            <h3 className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <Sparkles className="h-3 w-3" /> Starter shortcuts
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {STARTER_SHORTCUTS.map((s) => (
+                <div
+                  key={s.id}
+                  className="border rounded-md p-3 flex flex-col gap-2"
+                  data-testid={`planner-starter-${s.id}`}
+                >
+                  <div className="font-medium text-sm">{s.name}</div>
+                  <div className="text-xs text-muted-foreground flex-1">
+                    {s.description}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => applyStarter(s)}
+                    data-testid={`planner-starter-apply-${s.id}`}
+                  >
+                    <Sparkles className="h-3 w-3 mr-1" /> Use this starter
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Template grid */}
+          <div className="space-y-2">
+            <h3 className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <BookOpen className="h-3 w-3" /> Templates
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {PLAN_TEMPLATES.map((tpl) => {
+                const weeks = tplWeeks[tpl.id] ?? tpl.defaultUserWeeks;
+                const outOfRange =
+                  weeks < tpl.minUserWeeks || weeks > tpl.maxUserWeeks;
+                const isLastApplied = lastAppliedTemplate === tpl.id;
+                return (
+                  <div
+                    key={tpl.id}
+                    className={`border rounded-md p-3 flex flex-col gap-2 ${isLastApplied ? "border-primary" : ""}`}
+                    data-testid={`planner-template-${tpl.id}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-medium text-sm">{tpl.name}</div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                          {tpl.goalDistance} · {tpl.source}
+                        </div>
+                      </div>
+                      {isLastApplied && (
+                        <Badge variant="secondary" className="text-[10px]">
+                          Applied
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground flex-1">
+                      {tpl.shortDescription}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground italic">
+                      {tpl.citation}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label
+                        htmlFor={`tpl-weeks-${tpl.id}`}
+                        className="text-xs whitespace-nowrap"
+                      >
+                        Weeks ({tpl.minUserWeeks}–{tpl.maxUserWeeks})
+                      </Label>
+                      <Input
+                        id={`tpl-weeks-${tpl.id}`}
+                        type="number"
+                        min={1}
+                        max={60}
+                        value={weeks}
+                        onChange={(e) =>
+                          setTplWeeks((m) => ({
+                            ...m,
+                            [tpl.id]: Math.max(
+                              1,
+                              parseInt(e.target.value, 10) || 0,
+                            ),
+                          }))
+                        }
+                        className="h-8 w-20"
+                        data-testid={`planner-template-weeks-${tpl.id}`}
+                      />
+                    </div>
+                    {outOfRange && (
+                      <p
+                        className="text-[10px] text-amber-600 dark:text-amber-400"
+                        data-testid={`planner-template-warn-${tpl.id}`}
+                      >
+                        Outside the published range — program may not match
+                        the source.
+                      </p>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => applyTemplate(tpl, weeks)}
+                      data-testid={`planner-template-apply-${tpl.id}`}
+                    >
+                      Apply template
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </CardContent>
       </Card>
