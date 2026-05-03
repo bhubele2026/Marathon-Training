@@ -980,6 +980,9 @@ describe("Plan Template Library — search filter and category grouping", () => 
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    // The template search filter persists to localStorage, so wipe it
+    // between tests to keep each case isolated.
+    window.localStorage.clear();
   });
 
   it("renders one section per non-empty category and places known templates in the right buckets", () => {

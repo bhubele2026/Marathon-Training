@@ -216,6 +216,11 @@ const COLLAPSED_CATEGORIES_STORAGE_KEY =
 // the shape later without colliding with stale entries.
 const EXPANDED_TEMPLATES_STORAGE_KEY = "planner.expandedTemplates.v1";
 
+// localStorage key for the planner's free-text template search filter.
+// Versioned so we can change the shape later without colliding with
+// stale entries.
+const TEMPLATE_SEARCH_STORAGE_KEY = "planner.templateSearch.v1";
+
 interface DraftBlock {
   focusType: FocusType;
   weeks: number;
@@ -321,7 +326,32 @@ export default function Planner() {
   // (case-insensitive). When non-empty, every category section that
   // contains a match auto-expands so results are visible without an
   // extra click.
-  const [templateSearch, setTemplateSearch] = useState("");
+  const [templateSearch, setTemplateSearch] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = window.localStorage.getItem(TEMPLATE_SEARCH_STORAGE_KEY);
+        if (typeof raw === "string") return raw;
+      } catch {
+        // Ignore corrupt storage and fall through to default.
+      }
+    }
+    return "";
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (templateSearch === "") {
+        window.localStorage.removeItem(TEMPLATE_SEARCH_STORAGE_KEY);
+      } else {
+        window.localStorage.setItem(
+          TEMPLATE_SEARCH_STORAGE_KEY,
+          templateSearch,
+        );
+      }
+    } catch {
+      // Storage may be full or disabled; ignore.
+    }
+  }, [templateSearch]);
   // Per-category collapse state for the grouped template grid. Default
   // is "Run" expanded (the most common path) and the rest collapsed so
   // 50+ cards don't unfurl on first open. Toggled by the section
