@@ -638,6 +638,1468 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       }),
     ],
   },
+  // ========================================================================
+  // Task #97 launch picks (research-backed). Lift-only programs carry the
+  // [lift-primary:<kind>] sentinel so the daily-recipes pipeline emits a
+  // Tonal-only week. Bike-only / Row-only programs carry a
+  // [primary-machine:<bike|row>] sentinel as a routing hint for the
+  // engine; surface focus type stays Base/Speed/Taper so the existing
+  // pipeline keeps producing valid blocks until equipment routing lands.
+  // ========================================================================
+  {
+    id: "couch_to_5k_alt",
+    name: "Couch to 5K (Active Beginner)",
+    goalDistance: "3.1 mi",
+    source: "Active.com Beginner 5K",
+    citation:
+      "Active.com Beginner 5K Training Plan — 8-week walk/run progression.",
+    shortDescription:
+      "Conservative walk-to-run alternative to NHS C25K — adds an extra recovery cushion.",
+    longDescription:
+      "Active.com's Beginner 5K plan: 8 weeks of walk/run intervals with a slower ramp than the NHS C25K, an extra recovery week, and a graduated final week into a 5K event. Best for runners returning from a long layoff or carrying extra weight.",
+    minWeeks: 8,
+    maxWeeks: 12,
+    defaultWeeks: 8,
+    metadata: {
+      intensityDistribution: "100% conversational (walk/run intervals)",
+      peakLongRun: "30-min continuous run",
+      peakWeeklyVolume: "3 short sessions / week",
+      taperLength: "1 week graduated cooldown",
+      cutbackCadence: "Built-in — every 4th week is lighter",
+      mandatoryRestDays: 4,
+      equipmentMixHint: "Run-only; optional walking on rest days",
+    },
+    expand: (n) =>
+      distribute(n, [
+        { focus: "Recovery", weight: 1, min: 1 },
+        { focus: "Base", weight: 5, min: 6 },
+        { focus: "Taper", weight: 1, min: 1 },
+      ]),
+  },
+  {
+    id: "higdon_5k_novice",
+    name: "5K — Higdon Novice",
+    goalDistance: "3.1 mi",
+    source: "Hal Higdon",
+    citation:
+      "Hal Higdon, Novice 5K Training Program. halhigdon.com/training/5k",
+    shortDescription:
+      "Beginner-friendly 5K build: 3 runs/week, no quality work, gentle ramp.",
+    longDescription:
+      "Higdon's Novice 5K: 8 weeks of conversational running, three days per week, with a long run that grows from 1.5 to 3+ miles. No tempo or interval work. Designed for first-time 5K runners who can already jog continuously.",
+    minWeeks: 6,
+    maxWeeks: 10,
+    defaultWeeks: 8,
+    metadata: {
+      intensityDistribution: "100% conversational",
+      peakLongRun: "3 mi",
+      peakWeeklyVolume: "10-15 mpw",
+      taperLength: "1 week",
+      cutbackCadence: "Every 4th week ~25% reduction",
+      mandatoryRestDays: 2,
+      equipmentMixHint: "Run-only",
+    },
+    expand: (n) =>
+      distribute(n, [
+        { focus: "Base", weight: 5, min: 5 },
+        { focus: "Taper", weight: 1, min: 1 },
+      ]),
+  },
+  {
+    id: "higdon_5k_intermediate",
+    name: "5K — Higdon Intermediate",
+    goalDistance: "3.1 mi",
+    source: "Hal Higdon",
+    citation:
+      "Hal Higdon, Intermediate 5K Training Program. halhigdon.com/training/5k",
+    shortDescription:
+      "Adds tempo runs and strides on top of the Novice 5K base.",
+    longDescription:
+      "Higdon's Intermediate 5K: 8 weeks of base running plus weekly tempo work and strides. Four runs per week, one day of strength/cross-train, one rest day. Best for runners who've completed a 5K and want a faster time.",
+    minWeeks: 6,
+    maxWeeks: 10,
+    defaultWeeks: 8,
+    metadata: {
+      intensityDistribution: "Pyramidal — weekly tempo + strides",
+      peakLongRun: "5 mi",
+      peakWeeklyVolume: "15-25 mpw",
+      taperLength: "1 week",
+      cutbackCadence: "Every 4th week ~20% reduction",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Run + 1 strength / cross-train day",
+    },
+    expand: (n) =>
+      distribute(n, [
+        { focus: "Base", weight: 2, min: 2 },
+        { focus: "Speed", weight: 4, min: 3 },
+        { focus: "Taper", weight: 1, min: 1 },
+      ]),
+  },
+  {
+    id: "higdon_5k_advanced",
+    name: "5K — Higdon Advanced",
+    goalDistance: "3.1 mi",
+    source: "Hal Higdon",
+    citation:
+      "Hal Higdon, Advanced 5K Training Program. halhigdon.com/training/5k",
+    shortDescription:
+      "Five quality-biased runs/week with intervals, tempo, and a 1-week taper.",
+    longDescription:
+      "Higdon's Advanced 5K: 8 weeks of high-touch quality work — VO2max intervals, threshold tempos, and race-pace strides — across five runs per week. For experienced 5K racers chasing a PR.",
+    minWeeks: 6,
+    maxWeeks: 10,
+    defaultWeeks: 8,
+    metadata: {
+      intensityDistribution: "Pyramidal — heavy I-pace + T-pace",
+      peakLongRun: "6 mi",
+      peakWeeklyVolume: "25-35 mpw",
+      taperLength: "1 week",
+      cutbackCadence: "Every 4th week ~20% reduction",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Run-only; minimize cross-train late",
+    },
+    expand: (n) =>
+      distribute(n, [
+        { focus: "Base", weight: 2, min: 2 },
+        { focus: "Speed", weight: 5, min: 3 },
+        { focus: "Taper", weight: 1, min: 1 },
+      ]),
+  },
+  {
+    id: "higdon_10k_advanced",
+    name: "10K — Higdon Advanced",
+    goalDistance: "6.2 mi",
+    source: "Hal Higdon",
+    citation:
+      "Hal Higdon, Advanced 10K Training Program. halhigdon.com/training/10k",
+    shortDescription:
+      "Higher-mileage 10K build with weekly intervals and tempo runs.",
+    longDescription:
+      "Higdon's Advanced 10K: 8 weeks of structured intervals, tempo runs, and pace work for experienced 10K racers. Long runs reach 10 mi; weekly mileage tops out around 40-50.",
+    minWeeks: 8,
+    maxWeeks: 14,
+    defaultWeeks: 10,
+    metadata: {
+      intensityDistribution: "Pyramidal — heavy T-pace + I-pace",
+      peakLongRun: "10 mi",
+      peakWeeklyVolume: "40-50 mpw",
+      taperLength: "1 week",
+      cutbackCadence: "Every 4th week ~20% reduction",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Run-only",
+    },
+    expand: (n) =>
+      distribute(n, [
+        { focus: "Base", weight: 3, min: 4 },
+        { focus: "Speed", weight: 4, min: 3 },
+        { focus: "Taper", weight: 1, min: 1 },
+      ]),
+  },
+  {
+    id: "hm_higdon_novice2",
+    name: "Half Marathon — Higdon Novice 2",
+    goalDistance: "13.1 mi",
+    source: "Hal Higdon",
+    citation:
+      "Hal Higdon, Novice 2 Half Marathon Training Program. halhigdon.com/training/half-marathon",
+    shortDescription:
+      "Beginner-plus HM plan with one weekly pace run and a 1-week taper.",
+    longDescription:
+      "Higdon's Novice 2 half-marathon: 12 weeks of mostly conversational running with one weekly pace run. Long runs build from 4 to 12 miles. Best for runners who have finished a HM and want to run faster but aren't ready for Intermediate.",
+    minWeeks: 12,
+    maxWeeks: 16,
+    defaultWeeks: 12,
+    metadata: {
+      intensityDistribution: "85/15 polarized — one weekly pace run",
+      peakLongRun: "12 mi",
+      peakWeeklyVolume: "25-35 mpw",
+      taperLength: "1 week",
+      cutbackCadence: "Every 4th week ~25% reduction",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Run + cross-train day",
+    },
+    expand: (n) =>
+      distribute(n, [
+        { focus: "Base", weight: 5, min: 6 },
+        { focus: "Speed", weight: 4, min: 5 },
+        { focus: "Taper", weight: 1, min: 1 },
+      ]),
+  },
+  {
+    id: "hm_pfitz",
+    name: "Half Marathon — Pfitzinger",
+    goalDistance: "13.1 mi",
+    source: "Pete Pfitzinger",
+    citation:
+      "Pfitzinger & Latter, Faster Road Racing — half-marathon plan up to 47 mpw.",
+    shortDescription:
+      "Threshold-heavy HM build with race-specific long runs and a 2-week taper.",
+    longDescription:
+      "Pfitzinger's half-marathon mesocycles: endurance base, lactate-threshold development, race-specific long runs at HM pace, then a 2-week taper. For experienced runners targeting a PR.",
+    minWeeks: 12,
+    maxWeeks: 16,
+    defaultWeeks: 12,
+    metadata: {
+      intensityDistribution: "Pyramidal — heavy LT + HM-pace work",
+      peakLongRun: "13 mi (with miles at HM pace)",
+      peakWeeklyVolume: "40-47 mpw",
+      taperLength: "2 weeks",
+      cutbackCadence: "Every 4th week ~20% reduction",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Run-only",
+    },
+    expand: (n) =>
+      distribute(n, [
+        { focus: "Base", weight: 3, min: 4 },
+        { focus: "Speed", weight: 5, min: 6 },
+        { focus: "Taper", weight: 1, min: 2 },
+      ]),
+  },
+  {
+    id: "hm_hansons",
+    name: "Half Marathon — Hansons",
+    goalDistance: "13.1 mi",
+    source: "Hansons-Brooks",
+    citation:
+      "Luke Humphrey, Hansons Half-Marathon Method — cumulative-fatigue HM plan.",
+    shortDescription:
+      "Cumulative-fatigue model with capped 10 mi long runs and weekly SOS days.",
+    longDescription:
+      "Hansons half-marathon: emphasizes weekly Something-of-Substance sessions (speed, strength tempo, long run capped at ~10 mi) to train on tired legs. 14-16 weeks of structured stress with a short taper.",
+    minWeeks: 14,
+    maxWeeks: 16,
+    defaultWeeks: 14,
+    metadata: {
+      intensityDistribution: "Threshold-heavy — 3 SOS sessions/week",
+      peakLongRun: "10 mi (capped — cumulative fatigue model)",
+      peakWeeklyVolume: "40-50 mpw",
+      taperLength: "10 days",
+      cutbackCadence: "No formal cutbacks — continuous overload",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Run-only",
+    },
+    expand: (n) =>
+      distribute(n, [
+        { focus: "Base", weight: 3, min: 4 },
+        { focus: "Speed", weight: 6, min: 8 },
+        { focus: "Taper", weight: 1, min: 2 },
+      ]),
+  },
+  {
+    id: "marathon_pfitz_12_55",
+    name: "Marathon — Pfitzinger 12/55",
+    goalDistance: "26.2 mi",
+    source: "Pete Pfitzinger",
+    citation:
+      "Pfitzinger & Douglas, Advanced Marathoning 3ed — 12-week, up to 55 mpw plan.",
+    shortDescription:
+      "Compressed Pfitz mesocycle for runners with aerobic base already in the bank.",
+    longDescription:
+      "Pfitzinger's 12-week marathon plan capped at 55 mpw: shortened endurance phase, condensed LT block, race-specific endurance, and a 3-week taper. Assumes the runner already has aerobic base — pair after an Aerobic Base entry if not.",
+    minWeeks: 12,
+    maxWeeks: 14,
+    defaultWeeks: 12,
+    metadata: {
+      intensityDistribution: "Pyramidal — heavy LT + MP work",
+      peakLongRun: "20 mi",
+      peakWeeklyVolume: "45-55 mpw",
+      taperLength: "3 weeks",
+      cutbackCadence: "Every 4th week ~20% reduction",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Run-only",
+    },
+    expand: (n) =>
+      distribute(n, [
+        { focus: "Base", weight: 1, min: 2 },
+        { focus: "Time on Feet", weight: 2, min: 3 },
+        { focus: "Marathon-Specific", weight: 3, min: 4 },
+        { focus: "Taper", weight: 1, min: 3 },
+      ]),
+  },
+  {
+    id: "marathon_pfitz_18_70",
+    name: "Marathon — Pfitzinger 18/70",
+    goalDistance: "26.2 mi",
+    source: "Pete Pfitzinger",
+    citation:
+      "Pfitzinger & Douglas, Advanced Marathoning 3ed — 18-week, up to 70 mpw plan.",
+    shortDescription:
+      "High-mileage Pfitz mesocycle for experienced runners chasing a marathon PR.",
+    longDescription:
+      "Pfitzinger's 18-week marathon plan up to 70 mpw: full endurance phase, deep LT block, extensive race-specific endurance with marathon-pace long runs, and a 3-week taper. For runners coming off solid base.",
+    minWeeks: 18,
+    maxWeeks: 24,
+    defaultWeeks: 18,
+    metadata: {
+      intensityDistribution: "Pyramidal — heavy LT + MP work",
+      peakLongRun: "22 mi (with miles at marathon pace)",
+      peakWeeklyVolume: "60-70 mpw",
+      taperLength: "3 weeks",
+      cutbackCadence: "Every 4th week ~20% reduction",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Run-only; cross-train discouraged late",
+    },
+    expand: (n) =>
+      distribute(n, [
+        { focus: "Base", weight: 3, min: 4 },
+        { focus: "Time on Feet", weight: 4, min: 5 },
+        { focus: "Marathon-Specific", weight: 4, min: 6 },
+        { focus: "Taper", weight: 2, min: 3 },
+      ]),
+  },
+  {
+    id: "marathon_hansons",
+    name: "Marathon — Hansons Method",
+    goalDistance: "26.2 mi",
+    source: "Hansons-Brooks",
+    citation:
+      "Luke Humphrey, Hansons Marathon Method — cumulative-fatigue marathon plan.",
+    shortDescription:
+      "Cumulative-fatigue marathon plan with 16 mi capped long runs and 6 days/week running.",
+    longDescription:
+      "Hansons marathon method: 6 days/week of running with capped 16 mi long runs, weekly speed/strength/tempo SOS days, and marathon-pace tempo runs that grow to 10 miles. The compressed long run + tempo work trains running on tired legs.",
+    minWeeks: 16,
+    maxWeeks: 20,
+    defaultWeeks: 18,
+    metadata: {
+      intensityDistribution: "Threshold-heavy — 3 SOS sessions/week",
+      peakLongRun: "16 mi (capped — cumulative fatigue model)",
+      peakWeeklyVolume: "55-63 mpw",
+      taperLength: "10 days",
+      cutbackCadence: "No formal cutbacks — continuous overload",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Run-only",
+    },
+    expand: (n) =>
+      distribute(n, [
+        { focus: "Base", weight: 3, min: 4 },
+        { focus: "Time on Feet", weight: 3, min: 4 },
+        { focus: "Marathon-Specific", weight: 4, min: 6 },
+        { focus: "Taper", weight: 1, min: 2 },
+      ]),
+  },
+  {
+    id: "marathon_8020",
+    name: "Marathon — 80/20",
+    goalDistance: "26.2 mi",
+    source: "Matt Fitzgerald",
+    citation:
+      "Matt Fitzgerald, 80/20 Running — Level 2/3 marathon plan.",
+    shortDescription:
+      "Polarized 80% easy / 20% hard marathon build with structured race-pace work.",
+    longDescription:
+      "Fitzgerald's 80/20 marathon plan: roughly 80% of running at low intensity, 20% at moderate-to-high intensity. Includes weekly tempo, fast-finish long runs, and a 2-week taper. Lower injury risk than threshold-heavy plans.",
+    minWeeks: 16,
+    maxWeeks: 24,
+    defaultWeeks: 18,
+    metadata: {
+      intensityDistribution: "80/20 polarized",
+      peakLongRun: "20 mi (fast-finish)",
+      peakWeeklyVolume: "40-55 mpw",
+      taperLength: "2-3 weeks",
+      cutbackCadence: "Every 4th week ~25% reduction",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Run + optional easy cross-train",
+    },
+    expand: (n) =>
+      distribute(n, [
+        { focus: "Base", weight: 4, min: 5 },
+        { focus: "Time on Feet", weight: 3, min: 3 },
+        { focus: "Marathon-Specific", weight: 3, min: 5 },
+        { focus: "Taper", weight: 1, min: 2 },
+      ]),
+  },
+  {
+    id: "marathon_higdon_novice",
+    name: "Marathon — Higdon Novice 1",
+    goalDistance: "26.2 mi",
+    source: "Hal Higdon",
+    citation:
+      "Hal Higdon, Novice 1 Marathon Training Program. halhigdon.com/training/marathon",
+    shortDescription:
+      "Beginner marathon plan: 4 runs/week, conversational pace, single peak 20-miler.",
+    longDescription:
+      "Higdon's Novice 1: 18 weeks, 4 runs per week, all conversational. Long runs grow to a single 20 mi peak before a 2-week taper. The most accessible first-marathon plan.",
+    minWeeks: 16,
+    maxWeeks: 22,
+    defaultWeeks: 18,
+    metadata: {
+      intensityDistribution: "100% conversational",
+      peakLongRun: "20 mi (single peak)",
+      peakWeeklyVolume: "30-40 mpw",
+      taperLength: "2 weeks",
+      cutbackCadence: "Every 4th week ~25% reduction",
+      mandatoryRestDays: 2,
+      equipmentMixHint: "Run + cross-train day",
+    },
+    expand: (n) =>
+      distribute(n, [
+        { focus: "Base", weight: 3, min: 4 },
+        { focus: "Time on Feet", weight: 6, min: 10 },
+        { focus: "Taper", weight: 1, min: 2 },
+      ]),
+  },
+  {
+    id: "marathon_higdon_advanced",
+    name: "Marathon — Higdon Advanced 1",
+    goalDistance: "26.2 mi",
+    source: "Hal Higdon",
+    citation:
+      "Hal Higdon, Advanced 1 Marathon Training Program. halhigdon.com/training/marathon",
+    shortDescription:
+      "Advanced marathon plan with weekly tempo, intervals, race-pace runs, and 3 long runs at 20 mi.",
+    longDescription:
+      "Higdon's Advanced 1: 18 weeks, 6 runs per week including weekly tempo, intervals, hill work, and pace runs. Three peak 20-mile long runs, then a 3-week taper. For experienced marathoners chasing a PR.",
+    minWeeks: 18,
+    maxWeeks: 24,
+    defaultWeeks: 18,
+    metadata: {
+      intensityDistribution: "Pyramidal — weekly tempo + intervals",
+      peakLongRun: "20 mi (3x peak)",
+      peakWeeklyVolume: "50-60 mpw",
+      taperLength: "3 weeks",
+      cutbackCadence: "Every 4th week ~20% reduction",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Run-only",
+    },
+    expand: (n) =>
+      distribute(n, [
+        { focus: "Base", weight: 2, min: 3 },
+        { focus: "Time on Feet", weight: 3, min: 4 },
+        { focus: "Marathon-Specific", weight: 4, min: 8 },
+        { focus: "Taper", weight: 1, min: 3 },
+      ]),
+  },
+  {
+    id: "ultra_50_mile",
+    name: "Ultramarathon 50 Mile",
+    goalDistance: "50 mi",
+    source: "Jason Koop",
+    citation:
+      "Jason Koop, Training Essentials for Ultrarunning 2ed — 50-mile build.",
+    shortDescription:
+      "Sustained Time-on-Feet block with back-to-back long runs; 2-3 week taper.",
+    longDescription:
+      "Koop's 50-mile prescription: deep aerobic base, then a sustained Time-on-Feet block emphasizing back-to-back long runs (e.g. 30 mi + 15 mi), trail-specific climbing volume, and fueling practice. 2-3 week taper.",
+    minWeeks: 20,
+    maxWeeks: 30,
+    defaultWeeks: 24,
+    metadata: {
+      intensityDistribution: "85/15 polarized — dominant easy volume",
+      peakLongRun: "Back-to-back (30 mi + 15 mi)",
+      peakWeeklyVolume: "55-75 mpw",
+      taperLength: "2-3 weeks",
+      cutbackCadence: "Every 4th week ~30% reduction",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Run + hike + strength accessory",
+    },
+    expand: (n) =>
+      distribute(n, [
+        { focus: "Base", weight: 3, min: 4 },
+        { focus: "Time on Feet", weight: 7, min: 14 },
+        { focus: "Taper", weight: 1, min: 2 },
+      ]),
+  },
+  {
+    id: "ultra_100k",
+    name: "Ultramarathon 100K",
+    goalDistance: "62 mi",
+    source: "Jason Koop",
+    citation:
+      "Jason Koop, Training Essentials for Ultrarunning 2ed — 100K build.",
+    shortDescription:
+      "Long Time-on-Feet block with peak 35-40 mi long runs and 3-week taper.",
+    longDescription:
+      "Koop's 100K plan: aerobic base, extended Time-on-Feet phase with peak 35-40 mi long runs (often back-to-back across a weekend), and a 3-week taper. Emphasizes night-running practice and crew/aid-station rehearsals.",
+    minWeeks: 20,
+    maxWeeks: 32,
+    defaultWeeks: 24,
+    metadata: {
+      intensityDistribution: "85/15 polarized — dominant easy volume",
+      peakLongRun: "Back-to-back (40 mi + 20 mi)",
+      peakWeeklyVolume: "65-90 mpw",
+      taperLength: "3 weeks",
+      cutbackCadence: "Every 4th week ~30% reduction",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Run + hike + strength + bike on rest days",
+    },
+    expand: (n) =>
+      distribute(n, [
+        { focus: "Base", weight: 3, min: 4 },
+        { focus: "Time on Feet", weight: 7, min: 13 },
+        { focus: "Taper", weight: 1, min: 3 },
+      ]),
+  },
+  {
+    id: "norwegian_singles",
+    name: "Norwegian Singles Method",
+    goalDistance: "5K-marathon",
+    source: "Marius Bakken / Sirpoma",
+    citation:
+      "Norwegian Singles training method — sub-threshold doubles framework adapted for single sessions.",
+    shortDescription:
+      "Triple-weekly sub-threshold sessions (lactate-controlled) bracketed by easy mileage.",
+    longDescription:
+      "Single-session adaptation of the Norwegian double-threshold model: three weekly sub-threshold sessions (typically Tuesday/Thursday/Saturday) at ~2.5 mmol/L lactate, with easy aerobic running on the remaining days. Builds enormous threshold capacity over 12-24 weeks.",
+    minWeeks: 12,
+    maxWeeks: 24,
+    defaultWeeks: 16,
+    metadata: {
+      intensityDistribution: "Threshold-dominant — 3 sub-T sessions/week",
+      peakLongRun: "14-16 mi",
+      peakWeeklyVolume: "45-65 mpw",
+      taperLength: "1-2 weeks",
+      cutbackCadence: "Every 4th week ~20% reduction",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Run-only with light strength",
+    },
+    expand: (n) =>
+      distribute(n, [
+        { focus: "Base", weight: 2, min: 3 },
+        { focus: "Speed", weight: 6, min: 8 },
+        { focus: "Taper", weight: 1, min: 1 },
+      ]),
+  },
+  // ---------- Peloton Bike ----------
+  {
+    id: "pelo_bike_you_can_ride",
+    name: "Peloton · You Can Ride",
+    goalDistance: "Bike 30-min continuous",
+    source: "Peloton",
+    citation:
+      "Peloton — You Can Ride beginner cycling program (4-week onboarding).",
+    shortDescription:
+      "Beginner Peloton Bike onramp: short rides building to a continuous 30 min.",
+    longDescription:
+      "Peloton's You Can Ride: 4 weeks of structured beginner rides building from 10 to 30 minutes continuous. Three short rides per week, no high-intensity work. Best as the very first Peloton Bike block.",
+    minWeeks: 4,
+    maxWeeks: 6,
+    defaultWeeks: 4,
+    metadata: {
+      intensityDistribution: "100% conversational (beginner zones)",
+      peakLongRun: "N/A — bike-only template",
+      peakWeeklyVolume: "3 short rides / week (~60-90 min total)",
+      taperLength: "None",
+      cutbackCadence: "No cutbacks (volume already minimal)",
+      mandatoryRestDays: 4,
+      equipmentMixHint: "Peloton Bike only",
+    },
+    expand: (n) => [
+      makeBlock("Base", n, {
+        customNotes: "[primary-machine:bike] Peloton Bike onramp",
+      }),
+    ],
+  },
+  {
+    id: "pelo_bike_pz_beginner",
+    name: "Peloton · Power Zone Beginner",
+    goalDistance: "Functional Threshold Power",
+    source: "Peloton Power Zone",
+    citation:
+      "Peloton Power Zone Pack — Beginner PZ program (8 weeks).",
+    shortDescription:
+      "Establish FTP and grow base PZ training time across 4 zone-controlled rides/week.",
+    longDescription:
+      "Peloton's Beginner Power Zone block: take an FTP test, then 8 weeks of zone-controlled rides — Endurance Z2, Sweet Spot Z3, and short Z4 efforts. 4 rides/week, mostly 30-45 min.",
+    minWeeks: 6,
+    maxWeeks: 12,
+    defaultWeeks: 8,
+    metadata: {
+      intensityDistribution: "Pyramidal — Z2 base + weekly Z3-Z4 work",
+      peakLongRun: "N/A — bike-only template",
+      peakWeeklyVolume: "4 PZ rides / week (~3 hr total)",
+      taperLength: "1 week",
+      cutbackCadence: "Every 4th week deload + retest FTP",
+      mandatoryRestDays: 2,
+      equipmentMixHint: "Peloton Bike only",
+    },
+    expand: (n) =>
+      distribute(n, [
+        {
+          focus: "Base",
+          weight: 3,
+          min: 3,
+          customNotes: "[primary-machine:bike] Power Zone Beginner — Z2 base",
+        },
+        {
+          focus: "Speed",
+          weight: 3,
+          min: 2,
+          customNotes:
+            "[primary-machine:bike] Power Zone Beginner — Z3-Z4 work",
+        },
+        {
+          focus: "Taper",
+          weight: 1,
+          min: 1,
+          customNotes: "[primary-machine:bike] PZ taper / FTP retest",
+        },
+      ]),
+  },
+  {
+    id: "pelo_bike_pz_intermediate",
+    name: "Peloton · Power Zone Intermediate",
+    goalDistance: "Functional Threshold Power",
+    source: "Peloton Power Zone",
+    citation:
+      "Peloton Power Zone Pack — Intermediate PZ program (8 weeks).",
+    shortDescription:
+      "Adds Z4 intervals and longer Z3 blocks on top of the beginner base.",
+    longDescription:
+      "Peloton's Intermediate PZ block: 8 weeks of layered FTP-based work — extended Z2 endurance, structured Z3 sweet-spot, and progressively longer Z4 intervals. 4-5 rides/week.",
+    minWeeks: 6,
+    maxWeeks: 12,
+    defaultWeeks: 8,
+    metadata: {
+      intensityDistribution: "Pyramidal — heavy Z3 + Z4 work",
+      peakLongRun: "N/A — bike-only template",
+      peakWeeklyVolume: "4-5 PZ rides / week (~4 hr total)",
+      taperLength: "1 week",
+      cutbackCadence: "Every 4th week deload + retest FTP",
+      mandatoryRestDays: 2,
+      equipmentMixHint: "Peloton Bike only",
+    },
+    expand: (n) =>
+      distribute(n, [
+        {
+          focus: "Base",
+          weight: 2,
+          min: 2,
+          customNotes:
+            "[primary-machine:bike] Intermediate PZ — Z2 endurance",
+        },
+        {
+          focus: "Speed",
+          weight: 4,
+          min: 3,
+          customNotes:
+            "[primary-machine:bike] Intermediate PZ — Z3/Z4 intervals",
+        },
+        {
+          focus: "Taper",
+          weight: 1,
+          min: 1,
+          customNotes: "[primary-machine:bike] PZ taper / FTP retest",
+        },
+      ]),
+  },
+  {
+    id: "pelo_bike_pz_advanced",
+    name: "Peloton · Power Zone Advanced",
+    goalDistance: "Functional Threshold Power",
+    source: "Peloton Power Zone",
+    citation:
+      "Peloton Power Zone Pack — Advanced PZ program (10 weeks).",
+    shortDescription:
+      "High-touch FTP block with Z4-Z5 intervals and 60-90 min Z2 endurance rides.",
+    longDescription:
+      "Peloton's Advanced PZ block: 10 weeks of high-volume FTP-targeted training. Long Z2 rides (60-90 min), structured Z4 over-unders, and Z5 VO2 work. 5 rides/week with one long endurance ride.",
+    minWeeks: 8,
+    maxWeeks: 12,
+    defaultWeeks: 10,
+    metadata: {
+      intensityDistribution: "Pyramidal — heavy Z4-Z5 with long Z2 endurance",
+      peakLongRun: "N/A — bike-only template",
+      peakWeeklyVolume: "5 PZ rides / week (~6 hr total)",
+      taperLength: "1 week",
+      cutbackCadence: "Every 4th week deload + retest FTP",
+      mandatoryRestDays: 2,
+      equipmentMixHint: "Peloton Bike only",
+    },
+    expand: (n) =>
+      distribute(n, [
+        {
+          focus: "Base",
+          weight: 2,
+          min: 2,
+          customNotes:
+            "[primary-machine:bike] Advanced PZ — long Z2 endurance",
+        },
+        {
+          focus: "Speed",
+          weight: 5,
+          min: 5,
+          customNotes:
+            "[primary-machine:bike] Advanced PZ — Z4 over-unders + Z5 VO2",
+        },
+        {
+          focus: "Taper",
+          weight: 1,
+          min: 1,
+          customNotes: "[primary-machine:bike] PZ taper / FTP retest",
+        },
+      ]),
+  },
+  {
+    id: "pelo_bike_strength_for_cyclists",
+    name: "Peloton · Strength for Cyclists",
+    goalDistance: "Bike-supportive strength",
+    source: "Peloton",
+    citation:
+      "Peloton — Strength for Cyclists program (off-bike strength).",
+    shortDescription:
+      "Off-bike strength block targeting glutes, posterior chain, and core for cyclists.",
+    longDescription:
+      "Peloton's Strength for Cyclists: 4-8 weeks of cycling-supportive lifting (glute bridges, RDLs, single-leg squats, core) paired with reduced bike volume. Best slotted between bike PZ blocks to address muscular weaknesses.",
+    minWeeks: 4,
+    maxWeeks: 8,
+    defaultWeeks: 6,
+    metadata: {
+      intensityDistribution: "Strength-priority + reduced Z2 bike volume",
+      peakLongRun: "N/A",
+      peakWeeklyVolume: "3 strength + 2 short bike sessions / week",
+      taperLength: "None — pair with a follow-on bike block",
+      cutbackCadence: "Every 4th week deload all lifts ~25%",
+      mandatoryRestDays: 2,
+      equipmentMixHint: "Tonal + Peloton Bike",
+    },
+    expand: (n) => [
+      makeBlock("Custom", n, {
+        customName: "Strength for Cyclists",
+        customNotes:
+          "[lift-primary:lower] Cycling-supportive strength — glutes/posterior chain",
+      }),
+    ],
+  },
+  // ---------- Peloton / Concept2 Row ----------
+  {
+    id: "pelo_row_dpz",
+    name: "Peloton · Discover Power Zone Row",
+    goalDistance: "Row FTP / 2K",
+    source: "Peloton Row",
+    citation:
+      "Peloton Row — Discover Power Zone Row beginner-to-intermediate program.",
+    shortDescription:
+      "Establish row FTP and progress through PZ workouts on Peloton Row.",
+    longDescription:
+      "Peloton Row's DPZ-Row: take an FTP row test, then 6-12 weeks of zone-controlled rowing — endurance Z2, sweet-spot Z3, and short Z4 efforts. 4 sessions/week, 30-45 min each.",
+    minWeeks: 6,
+    maxWeeks: 12,
+    defaultWeeks: 8,
+    metadata: {
+      intensityDistribution: "Pyramidal — Z2 base + Z3-Z4 intervals",
+      peakLongRun: "N/A — row-only template",
+      peakWeeklyVolume: "4 row sessions / week (~3 hr total)",
+      taperLength: "1 week",
+      cutbackCadence: "Every 4th week deload + FTP retest",
+      mandatoryRestDays: 2,
+      equipmentMixHint: "Peloton Row only",
+    },
+    expand: (n) =>
+      distribute(n, [
+        {
+          focus: "Base",
+          weight: 3,
+          min: 3,
+          customNotes:
+            "[primary-machine:row] DPZ-Row — Z2 endurance base",
+        },
+        {
+          focus: "Speed",
+          weight: 3,
+          min: 2,
+          customNotes: "[primary-machine:row] DPZ-Row — Z3/Z4 intervals",
+        },
+        {
+          focus: "Taper",
+          weight: 1,
+          min: 1,
+          customNotes: "[primary-machine:row] DPZ-Row taper / FTP retest",
+        },
+      ]),
+  },
+  {
+    id: "c2_row_30day",
+    name: "Concept2 · Beginner 30 Day",
+    goalDistance: "Row 30-min continuous",
+    source: "Concept2",
+    citation:
+      "Concept2 Logbook — Beginner 30-Day Plan. concept2.com/training/training-plans",
+    shortDescription:
+      "Concept2's beginner 30-day rowing onramp: 5 short sessions/week.",
+    longDescription:
+      "Concept2's Beginner 30-Day plan: 4 weeks of short rowing sessions (15-30 min) building to a continuous 30-min row. Five sessions/week with technique focus. Best as the first row block ever.",
+    minWeeks: 4,
+    maxWeeks: 6,
+    defaultWeeks: 4,
+    metadata: {
+      intensityDistribution: "100% conversational (technique focus)",
+      peakLongRun: "N/A — row-only template",
+      peakWeeklyVolume: "5 short rows / week (~2 hr total)",
+      taperLength: "None",
+      cutbackCadence: "No cutbacks (volume minimal)",
+      mandatoryRestDays: 2,
+      equipmentMixHint: "Concept2 / Peloton Row",
+    },
+    expand: (n) => [
+      makeBlock("Base", n, {
+        customNotes:
+          "[primary-machine:row] Concept2 30-Day onramp — technique focus",
+      }),
+    ],
+  },
+  {
+    id: "c2_row_5k",
+    name: "Concept2 · 5K Row PR",
+    goalDistance: "5000m row",
+    source: "Concept2",
+    citation:
+      "Concept2 Logbook — 5K PR plan (8 weeks).",
+    shortDescription:
+      "8-week build to a 5000m row PR with weekly steady, threshold, and interval sessions.",
+    longDescription:
+      "Concept2's 5K PR plan: 8 weeks of structured rowing — long steady Z2 rows, threshold work at 2K + 12s pace, and short VO2 intervals. 4-5 sessions/week with a 1-week taper.",
+    minWeeks: 6,
+    maxWeeks: 10,
+    defaultWeeks: 8,
+    metadata: {
+      intensityDistribution: "Pyramidal — heavy threshold + intervals",
+      peakLongRun: "N/A — row-only template",
+      peakWeeklyVolume: "4-5 rows / week (~4 hr total)",
+      taperLength: "1 week",
+      cutbackCadence: "Every 4th week ~25% reduction",
+      mandatoryRestDays: 2,
+      equipmentMixHint: "Concept2 / Peloton Row",
+    },
+    expand: (n) =>
+      distribute(n, [
+        {
+          focus: "Base",
+          weight: 2,
+          min: 2,
+          customNotes: "[primary-machine:row] 5K Row — Z2 base",
+        },
+        {
+          focus: "Speed",
+          weight: 4,
+          min: 3,
+          customNotes:
+            "[primary-machine:row] 5K Row — threshold + intervals",
+        },
+        {
+          focus: "Taper",
+          weight: 1,
+          min: 1,
+          customNotes: "[primary-machine:row] 5K Row taper",
+        },
+      ]),
+  },
+  {
+    id: "c2_row_2k",
+    name: "Concept2 · 2K Row PR",
+    goalDistance: "2000m row",
+    source: "Concept2",
+    citation:
+      "Concept2 Logbook — 2K PR plan (8-12 weeks).",
+    shortDescription:
+      "Quality-heavy 2K row PR build with sprint intervals and a sharpening taper.",
+    longDescription:
+      "Concept2's 2K PR plan: 8-12 weeks of high-touch quality work — short sprint intervals, race-pace pieces, and threshold rows. Lower volume than the 5K plan; emphasis on power and stroke rate. 1-week sharpening taper.",
+    minWeeks: 6,
+    maxWeeks: 12,
+    defaultWeeks: 8,
+    metadata: {
+      intensityDistribution: "Pyramidal — heavy I-pace + race-pace work",
+      peakLongRun: "N/A — row-only template",
+      peakWeeklyVolume: "4-5 rows / week (~3 hr total)",
+      taperLength: "1 week",
+      cutbackCadence: "Every 4th week ~20% reduction",
+      mandatoryRestDays: 2,
+      equipmentMixHint: "Concept2 / Peloton Row",
+    },
+    expand: (n) =>
+      distribute(n, [
+        {
+          focus: "Base",
+          weight: 1,
+          min: 1,
+          customNotes: "[primary-machine:row] 2K Row — Z2 prep",
+        },
+        {
+          focus: "Speed",
+          weight: 5,
+          min: 4,
+          customNotes:
+            "[primary-machine:row] 2K Row — sprint + race-pace intervals",
+        },
+        {
+          focus: "Taper",
+          weight: 1,
+          min: 1,
+          customNotes: "[primary-machine:row] 2K Row sharpening taper",
+        },
+      ]),
+  },
+  // ---------- Strength (named programs) ----------
+  {
+    id: "tonal_full_body_5x",
+    name: "Tonal Strength · Full Body 5x/Week",
+    goalDistance: "General strength",
+    source: "Tonal coaching library",
+    citation:
+      "Tonal Strength Score — full-body 5-day frequency program.",
+    shortDescription:
+      "Five short full-body Tonal sessions per week with two rest days.",
+    longDescription:
+      "High-frequency Tonal block: five compact full-body sessions per week (Mon/Tue/Thu/Fri/Sat) rotating push, pull, squat, hinge, and accessory emphases. Two rest days (Wed/Sun). Best for runners adding strength without driving up systemic fatigue.",
+    minWeeks: 4,
+    maxWeeks: 16,
+    defaultWeeks: 8,
+    metadata: {
+      intensityDistribution: "Strength-priority — 5 short lifts / week",
+      peakLongRun: "N/A — lift-only template",
+      peakWeeklyVolume: "5 Tonal sessions / week",
+      taperLength: "None — ongoing strength block",
+      cutbackCadence: "Every 4th week deload load ~25%",
+      mandatoryRestDays: 2,
+      equipmentMixHint: "Tonal only",
+    },
+    expand: (n) => [
+      makeBlock("Custom", n, {
+        customName: "Tonal Full Body 5x",
+        customNotes:
+          "[lift-primary:conditioning] Full-body 5x/week rotating emphasis",
+      }),
+    ],
+  },
+  {
+    id: "starting_strength",
+    name: "Starting Strength",
+    goalDistance: "Linear strength",
+    source: "Mark Rippetoe",
+    citation:
+      "Mark Rippetoe, Starting Strength 3ed — novice linear progression.",
+    shortDescription:
+      "3 days/week novice linear progression: squat, bench, press, deadlift, power clean.",
+    longDescription:
+      "Rippetoe's Starting Strength: 3 sessions per week (e.g. Mon/Wed/Fri) of compound barbell lifts with 5-rep linear progression. Two alternating workouts (A: squat/bench/deadlift; B: squat/press/clean). Best for true novices.",
+    minWeeks: 8,
+    maxWeeks: 24,
+    defaultWeeks: 12,
+    metadata: {
+      intensityDistribution: "Strength-priority — 3 heavy lift days/week",
+      peakLongRun: "N/A — lift-only template",
+      peakWeeklyVolume: "3 Tonal sessions / week",
+      taperLength: "None — linear progression program",
+      cutbackCadence: "No cutbacks until stalls require a reset",
+      mandatoryRestDays: 4,
+      equipmentMixHint: "Tonal (barbell-equivalent loads)",
+    },
+    expand: (n) => [
+      makeBlock("Custom", n, {
+        customName: "Starting Strength",
+        customNotes:
+          "[lift-primary:lower] 5x5 linear progression — squat/bench/press/DL/clean",
+      }),
+    ],
+  },
+  {
+    id: "stronglifts_5x5",
+    name: "StrongLifts 5x5",
+    goalDistance: "Linear strength",
+    source: "Mehdi (StrongLifts)",
+    citation:
+      "Mehdi, StrongLifts 5x5 — beginner barbell program.",
+    shortDescription:
+      "3 days/week 5x5 alternating workouts: squat/bench/row vs squat/press/deadlift.",
+    longDescription:
+      "StrongLifts 5x5: alternating Workout A (squat/bench/row) and Workout B (squat/press/deadlift) three times per week. 5 sets of 5 with linear weekly load progression. Simpler progression rules than Starting Strength.",
+    minWeeks: 8,
+    maxWeeks: 24,
+    defaultWeeks: 12,
+    metadata: {
+      intensityDistribution: "Strength-priority — 3 heavy lift days/week",
+      peakLongRun: "N/A — lift-only template",
+      peakWeeklyVolume: "3 Tonal sessions / week",
+      taperLength: "None — linear progression program",
+      cutbackCadence: "Auto-deload after 3 stalls (program rule)",
+      mandatoryRestDays: 4,
+      equipmentMixHint: "Tonal (barbell-equivalent loads)",
+    },
+    expand: (n) => [
+      makeBlock("Custom", n, {
+        customName: "StrongLifts 5x5",
+        customNotes:
+          "[lift-primary:lower] 5x5 alternating A/B — squat-bias linear progression",
+      }),
+    ],
+  },
+  {
+    id: "wendler_531_bbb",
+    name: "5/3/1 — Boring But Big",
+    goalDistance: "Strength + hypertrophy",
+    source: "Jim Wendler",
+    citation:
+      "Jim Wendler, 5/3/1 2ed — Boring But Big template.",
+    shortDescription:
+      "4-week 5/3/1 cycles with 5x10 hypertrophy assistance (Boring But Big).",
+    longDescription:
+      "Wendler's 5/3/1 BBB template: 4 lifts (squat/bench/deadlift/press), each on its own day, run on a 4-week wave (5s/3s/1s/deload). After the main 5/3/1 work, 5x10 BBB sets at 50-60% drive hypertrophy. Run for 3+ cycles.",
+    minWeeks: 12,
+    maxWeeks: 16,
+    defaultWeeks: 12,
+    metadata: {
+      intensityDistribution: "Strength + hypertrophy — 4 lifts / week",
+      peakLongRun: "N/A — lift-only template",
+      peakWeeklyVolume: "4 Tonal sessions / week",
+      taperLength: "None — built-in deload every 4th week",
+      cutbackCadence: "Every 4th week is a programmed deload",
+      mandatoryRestDays: 3,
+      equipmentMixHint: "Tonal (barbell-equivalent loads)",
+    },
+    expand: (n) => [
+      makeBlock("Custom", n, {
+        customName: "5/3/1 Boring But Big",
+        customNotes:
+          "[lift-primary:conditioning] 5/3/1 main lift + 5x10 BBB hypertrophy",
+      }),
+    ],
+  },
+  {
+    id: "phul",
+    name: "PHUL (Power Hypertrophy Upper Lower)",
+    goalDistance: "Strength + hypertrophy",
+    source: "Brandon Campbell",
+    citation:
+      "Brandon Campbell, PHUL — 4-day Power Hypertrophy Upper Lower template.",
+    shortDescription:
+      "4 days/week alternating Power Upper, Power Lower, Hypertrophy Upper, Hypertrophy Lower.",
+    longDescription:
+      "PHUL: four sessions per week — two heavy power days (3-5 reps) and two higher-rep hypertrophy days (8-12 reps), alternating Upper/Lower. Pairs strength and size training in a single block.",
+    minWeeks: 8,
+    maxWeeks: 16,
+    defaultWeeks: 12,
+    metadata: {
+      intensityDistribution: "Strength + hypertrophy — 4 sessions / week",
+      peakLongRun: "N/A — lift-only template",
+      peakWeeklyVolume: "4 Tonal sessions / week",
+      taperLength: "None — ongoing block",
+      cutbackCadence: "Every 4th week deload all lifts ~25%",
+      mandatoryRestDays: 3,
+      equipmentMixHint: "Tonal only",
+    },
+    expand: (n) => [
+      makeBlock("Custom", n, {
+        customName: "PHUL",
+        customNotes:
+          "[lift-primary:upper] Power + Hypertrophy Upper/Lower 4-day split",
+      }),
+    ],
+  },
+  {
+    id: "ppl_6day",
+    name: "Push / Pull / Legs · 6-Day",
+    goalDistance: "Hypertrophy",
+    source: "Classic bodybuilding split",
+    citation:
+      "PPL 6-day high-frequency hypertrophy split (Schoenfeld frequency research).",
+    shortDescription:
+      "Six lift days/week rotating Push/Pull/Legs twice — one full rest day.",
+    longDescription:
+      "High-frequency PPL: six sessions/week (Push/Pull/Legs/Push/Pull/Legs) with one rest day. Each muscle group hit twice/week. Highest training frequency in the strength catalog — best for advanced lifters with no concurrent run/cardio load.",
+    minWeeks: 6,
+    maxWeeks: 12,
+    defaultWeeks: 8,
+    metadata: {
+      intensityDistribution: "Hypertrophy-priority — 6 lift days / week",
+      peakLongRun: "N/A — lift-only template",
+      peakWeeklyVolume: "6 Tonal sessions / week",
+      taperLength: "None — ongoing block",
+      cutbackCadence: "Every 4th week deload all lifts ~25%",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Tonal only",
+    },
+    expand: (n) => [
+      makeBlock("Custom", n, {
+        customName: "PPL 6-Day",
+        customNotes:
+          "[lift-primary:ppl] High-frequency PPL — twice through each pattern weekly",
+      }),
+    ],
+  },
+  {
+    id: "simple_and_sinister",
+    name: "Simple & Sinister (Kettlebell)",
+    goalDistance: "Strength + conditioning",
+    source: "Pavel Tsatsouline",
+    citation:
+      "Pavel Tsatsouline, Simple & Sinister — daily kettlebell swing + getup program.",
+    shortDescription:
+      "Daily 100 swings + 10 Turkish getups; 6 days/week minimalist strength program.",
+    longDescription:
+      "Pavel's Simple & Sinister: 100 single-arm kettlebell swings + 10 Turkish getups, 6 days/week. Builds posterior chain strength, grip, and conditioning in 30 min/session. Run for 8-24 weeks chasing the Simple (32 kg) or Sinister (48 kg) standards.",
+    minWeeks: 8,
+    maxWeeks: 24,
+    defaultWeeks: 12,
+    metadata: {
+      intensityDistribution: "Strength + conditioning — 6 short lifts / week",
+      peakLongRun: "N/A — lift-only template",
+      peakWeeklyVolume: "6 sessions / week (~3 hr total)",
+      taperLength: "None — ongoing block",
+      cutbackCadence: "No formal cutbacks; daily auto-regulation",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Kettlebell (Tonal-substitutable)",
+    },
+    expand: (n) => [
+      makeBlock("Custom", n, {
+        customName: "Simple & Sinister",
+        customNotes:
+          "[lift-primary:conditioning] Daily KB swings + Turkish getups",
+      }),
+    ],
+  },
+  // ---------- Hybrid ----------
+  {
+    id: "nick_bare_1_0",
+    name: "Hybrid · Nick Bare 1.0",
+    goalDistance: "Half marathon + lift",
+    source: "Nick Bare",
+    citation:
+      "Nick Bare, BPN Hybrid Athlete 1.0 — concurrent run + lift program.",
+    shortDescription:
+      "Concurrent half-marathon build + upper/lower lift split, 6 days/week.",
+    longDescription:
+      "Nick Bare's Hybrid Athlete 1.0: concurrent half-marathon training (4 runs/week including a long run, tempo, and intervals) plus 3 heavy upper/lower lift days. Designed for runners who refuse to give up the gym.",
+    minWeeks: 8,
+    maxWeeks: 16,
+    defaultWeeks: 12,
+    metadata: {
+      intensityDistribution: "Hybrid — 4 runs + 3 lifts / week",
+      peakLongRun: "10-12 mi",
+      peakWeeklyVolume: "Run 25-35 mpw + 3 heavy lift sessions",
+      taperLength: "1 week",
+      cutbackCadence: "Every 4th week deload run + lift ~20%",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Tonal + run (Tread + outdoor)",
+    },
+    expand: (n) =>
+      distribute(n, [
+        {
+          focus: "Custom",
+          weight: 3,
+          min: 3,
+          customName: "Hybrid Build",
+          customNotes:
+            "Concurrent run + heavy lift — 4 runs / 3 lifts weekly",
+        },
+        { focus: "Speed", weight: 3, min: 3 },
+        { focus: "Taper", weight: 1, min: 1 },
+      ]),
+  },
+  // ---------- Cross-modal ----------
+  {
+    id: "pelo_x_hyrox",
+    name: "Peloton x HYROX Prep",
+    goalDistance: "HYROX race",
+    source: "Peloton x HYROX",
+    citation:
+      "Peloton x HYROX Official Training Program — fitness race prep.",
+    shortDescription:
+      "Run + functional strength prep for a HYROX fitness race: 8 stations + 8 x 1km runs.",
+    longDescription:
+      "Peloton x HYROX: 8-16 weeks of mixed-modal training — running intervals, sled work, burpee broad jumps, wall balls, rowing, and functional carries. Mirrors the 8-station + 8 x 1km HYROX format. Includes a 1-week sharpening taper.",
+    minWeeks: 8,
+    maxWeeks: 16,
+    defaultWeeks: 12,
+    metadata: {
+      intensityDistribution: "Mixed-modal — concurrent run + functional",
+      peakLongRun: "8-10 mi",
+      peakWeeklyVolume: "4 runs + 3 functional sessions / week",
+      taperLength: "1 week",
+      cutbackCadence: "Every 4th week deload all modes ~25%",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Run + Tonal + Peloton Row + sled/wall ball",
+    },
+    expand: (n) =>
+      distribute(n, [
+        {
+          focus: "Custom",
+          weight: 2,
+          min: 2,
+          customName: "HYROX Base",
+          customNotes:
+            "Aerobic base + technique on each HYROX station",
+        },
+        {
+          focus: "Speed",
+          weight: 5,
+          min: 5,
+          customNotes:
+            "Race-pace simulations: 8 stations + 8 x 1km run intervals",
+        },
+        { focus: "Taper", weight: 1, min: 1 },
+      ]),
+  },
+  // ---------- Conditioning / lifestyle ----------
+  {
+    id: "maf_180",
+    name: "MAF 180 Aerobic Base",
+    goalDistance: "Aerobic capacity",
+    source: "Phil Maffetone",
+    citation:
+      "Phil Maffetone, The Big Book of Endurance Training — MAF 180-formula aerobic base.",
+    shortDescription:
+      "Strict sub-MAF heart-rate training (180-age) to rebuild the aerobic engine.",
+    longDescription:
+      "Maffetone's MAF 180: every run capped at 180-age bpm (with adjustments for health/training history). Ignores pace; rewards aerobic efficiency. 8-16 weeks of strict-HR running rebuilds fat-burning capacity and durability. No quality work.",
+    minWeeks: 8,
+    maxWeeks: 16,
+    defaultWeeks: 12,
+    metadata: {
+      intensityDistribution: "100% sub-MAF aerobic",
+      peakLongRun: "60-90 min easy",
+      peakWeeklyVolume: "5-7 runs / week (HR-capped)",
+      taperLength: "None — feeds into a follow-on race-specific entry",
+      cutbackCadence: "Every 4th week ~25% reduction",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Run + optional easy bike",
+    },
+    expand: (n) => [makeBlock("Base", n, { customNotes: "MAF 180 HR-capped block" })],
+  },
+  {
+    id: "bike_bootcamp_builder",
+    name: "Peloton Bike Bootcamp Builder",
+    goalDistance: "Bike + bodyweight",
+    source: "Peloton",
+    citation:
+      "Peloton — Bike Bootcamp Builder program (bike + floor strength).",
+    shortDescription:
+      "Mixed Bike Bootcamp sessions: alternating bike intervals and floor strength.",
+    longDescription:
+      "Peloton's Bike Bootcamp Builder: 4-8 weeks of Bike Bootcamp class progression — alternating bike intervals and bodyweight floor work in the same session. 4 sessions/week.",
+    minWeeks: 4,
+    maxWeeks: 8,
+    defaultWeeks: 6,
+    metadata: {
+      intensityDistribution: "Mixed — bike intervals + bodyweight strength",
+      peakLongRun: "N/A — bike + bodyweight template",
+      peakWeeklyVolume: "4 bootcamp sessions / week",
+      taperLength: "None — ongoing maintenance template",
+      cutbackCadence: "Every 4th week deload ~25%",
+      mandatoryRestDays: 2,
+      equipmentMixHint: "Peloton Bike + bodyweight floor",
+    },
+    expand: (n) => [
+      makeBlock("Cardio + Weight Loss", n, {
+        customNotes:
+          "[primary-machine:bike] Bike Bootcamp — alternating intervals + floor strength",
+      }),
+    ],
+  },
+  {
+    id: "ywa_30day",
+    name: "Yoga With Adriene · 30-Day Journey",
+    goalDistance: "Mobility + recovery",
+    source: "Yoga With Adriene",
+    citation:
+      "Yoga With Adriene — 30-day yoga journey series (e.g. Center, Move, Breath).",
+    shortDescription:
+      "Daily 20-30 min yoga flow for 30 days — mobility, breath, and recovery.",
+    longDescription:
+      "YWA 30-Day Journey: a daily 20-30 min yoga flow for 30 days. Best slotted as a recovery-focused entry alongside other training, or as a true off-month for mobility and breath work.",
+    minWeeks: 4,
+    maxWeeks: 6,
+    defaultWeeks: 4,
+    metadata: {
+      intensityDistribution: "100% recovery / mobility",
+      peakLongRun: "N/A — yoga template",
+      peakWeeklyVolume: "7 short yoga sessions / week",
+      taperLength: "N/A — entire entry IS recovery",
+      cutbackCadence: "No cutbacks (load already minimal)",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Mat-only / no equipment",
+    },
+    expand: (n) => [
+      makeBlock("Recovery", n, {
+        customNotes: "YWA 30-day yoga journey — daily 20-30 min flow",
+      }),
+    ],
+  },
+  // ---------- Customizable scaffolds ----------
+  {
+    id: "run_custom",
+    name: "Custom · Run",
+    goalDistance: "Custom",
+    source: "User-defined",
+    citation:
+      "Customizable run scaffold — runner sets weeks and notes; engine emits the canonical run/lift/cardio week pattern.",
+    shortDescription:
+      "Open-ended running block: pick weeks and add your own notes for shape and intent.",
+    longDescription:
+      "A blank-canvas run block. Use it to fill a stretch of your plan with the engine's canonical run pattern (Wed easy, Fri quality, Sun long) when no published program fits. Add per-entry customNotes to describe your intent so the daily plan picks it up.",
+    minWeeks: 1,
+    maxWeeks: 52,
+    defaultWeeks: 8,
+    metadata: {
+      intensityDistribution: "Runner-defined",
+      peakLongRun: "Runner-defined",
+      peakWeeklyVolume: "Runner-defined",
+      taperLength: "Runner-defined (none by default)",
+      cutbackCadence: "Every 4th week ~20% reduction",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Run + optional cross-train",
+    },
+    expand: (n) => [
+      makeBlock("Custom", n, {
+        customName: "Custom Run",
+        customNotes: "Custom run block — fill with your own shape and notes",
+      }),
+    ],
+  },
+  {
+    id: "bike_custom",
+    name: "Custom · Bike",
+    goalDistance: "Custom",
+    source: "User-defined",
+    citation:
+      "Customizable bike scaffold — runner sets weeks and notes; engine routes to Peloton Bike.",
+    shortDescription:
+      "Open-ended Peloton Bike block — pick weeks and add your own intent.",
+    longDescription:
+      "A blank-canvas bike block. Use when no published bike program fits. The [primary-machine:bike] sentinel hints to the engine that the runner's primary machine for this block is the bike.",
+    minWeeks: 1,
+    maxWeeks: 52,
+    defaultWeeks: 8,
+    metadata: {
+      intensityDistribution: "Runner-defined",
+      peakLongRun: "N/A — bike-only template",
+      peakWeeklyVolume: "Runner-defined",
+      taperLength: "None — runner-defined",
+      cutbackCadence: "Every 4th week ~20% reduction",
+      mandatoryRestDays: 2,
+      equipmentMixHint: "Peloton Bike",
+    },
+    expand: (n) => [
+      makeBlock("Custom", n, {
+        customName: "Custom Bike",
+        customNotes:
+          "[primary-machine:bike] Custom bike block — fill with your own shape",
+      }),
+    ],
+  },
+  {
+    id: "row_custom",
+    name: "Custom · Row",
+    goalDistance: "Custom",
+    source: "User-defined",
+    citation:
+      "Customizable row scaffold — runner sets weeks and notes; engine routes to Peloton/Concept2 Row.",
+    shortDescription:
+      "Open-ended Row block — pick weeks and add your own intent.",
+    longDescription:
+      "A blank-canvas row block. Use when no published row program fits. The [primary-machine:row] sentinel hints to the engine that the runner's primary machine for this block is the rower.",
+    minWeeks: 1,
+    maxWeeks: 52,
+    defaultWeeks: 8,
+    metadata: {
+      intensityDistribution: "Runner-defined",
+      peakLongRun: "N/A — row-only template",
+      peakWeeklyVolume: "Runner-defined",
+      taperLength: "None — runner-defined",
+      cutbackCadence: "Every 4th week ~20% reduction",
+      mandatoryRestDays: 2,
+      equipmentMixHint: "Peloton Row / Concept2",
+    },
+    expand: (n) => [
+      makeBlock("Custom", n, {
+        customName: "Custom Row",
+        customNotes:
+          "[primary-machine:row] Custom row block — fill with your own shape",
+      }),
+    ],
+  },
+  {
+    id: "strength_custom",
+    name: "Custom · Strength",
+    goalDistance: "Custom",
+    source: "User-defined",
+    citation:
+      "Customizable strength scaffold — runner sets weeks and notes; engine emits a Tonal-only week.",
+    shortDescription:
+      "Open-ended lift-only block — pick weeks; engine emits a Tonal-only week pattern.",
+    longDescription:
+      "A blank-canvas lift-only block. Carries the [lift-primary:conditioning] sentinel so the daily-recipes pipeline emits Mon/Wed/Fri/Sat Tonal sessions with Tue/Thu/Sun rest days. Add notes describing your intended split.",
+    minWeeks: 1,
+    maxWeeks: 52,
+    defaultWeeks: 8,
+    metadata: {
+      intensityDistribution: "Runner-defined",
+      peakLongRun: "N/A — lift-only template",
+      peakWeeklyVolume: "4 Tonal sessions / week",
+      taperLength: "None — runner-defined",
+      cutbackCadence: "Every 4th week deload ~25%",
+      mandatoryRestDays: 3,
+      equipmentMixHint: "Tonal only",
+    },
+    expand: (n) => [
+      makeBlock("Custom", n, {
+        customName: "Custom Strength",
+        customNotes:
+          "[lift-primary:conditioning] Custom lift block — fill with your own split",
+      }),
+    ],
+  },
+  {
+    id: "hybrid_custom",
+    name: "Custom · Hybrid",
+    goalDistance: "Custom",
+    source: "User-defined",
+    citation:
+      "Customizable hybrid scaffold — runner sets weeks and notes for a concurrent run + lift block.",
+    shortDescription:
+      "Open-ended concurrent run + lift block — pick weeks and add your own intent.",
+    longDescription:
+      "A blank-canvas hybrid block. Uses the engine's canonical week pattern (run + heavy lift days) so a runner can compose a concurrent block when no published hybrid program fits.",
+    minWeeks: 1,
+    maxWeeks: 52,
+    defaultWeeks: 8,
+    metadata: {
+      intensityDistribution: "Runner-defined hybrid",
+      peakLongRun: "Runner-defined",
+      peakWeeklyVolume: "Runner-defined",
+      taperLength: "None — runner-defined",
+      cutbackCadence: "Every 4th week deload ~20%",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Tonal + run + cardio",
+    },
+    expand: (n) => [
+      makeBlock("Custom", n, {
+        customName: "Custom Hybrid",
+        customNotes:
+          "Custom hybrid block — concurrent run + lift, fill with your own shape",
+      }),
+    ],
+  },
+  {
+    id: "race_countdown",
+    name: "Race Countdown (Generic)",
+    goalDistance: "Custom race",
+    source: "User-defined",
+    citation:
+      "Generic race countdown scaffold — base + sharpening + taper for any race distance.",
+    shortDescription:
+      "Generic Base → Speed → Taper countdown scaffold for any race distance.",
+    longDescription:
+      "A configurable race countdown: distributes weeks into Base, Speed, and a 1-week Taper so a runner facing an unusual race (obstacle, trail, mixed-modal) can still get a structured countdown without picking a published program.",
+    minWeeks: 4,
+    maxWeeks: 52,
+    defaultWeeks: 8,
+    metadata: {
+      intensityDistribution: "Pyramidal — base + sharpening + taper",
+      peakLongRun: "Runner-defined",
+      peakWeeklyVolume: "Runner-defined",
+      taperLength: "1 week",
+      cutbackCadence: "Every 4th week ~20% reduction",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Runner-defined",
+    },
+    expand: (n) =>
+      distribute(n, [
+        { focus: "Base", weight: 2, min: 2 },
+        { focus: "Speed", weight: 3, min: 1 },
+        { focus: "Taper", weight: 1, min: 1 },
+      ]),
+  },
 ];
 
 // Returns the lift-primary "kind" parsed out of a Custom block's
@@ -699,6 +2161,96 @@ export const STARTER_SHORTCUTS: StarterShortcut[] = [
       { templateId: "aerobic_base", weeks: 6 },
       { templateId: "5k_improver", weeks: 8 },
     ],
+  },
+  // Task #97 picked starter shortcuts.
+  {
+    id: "marathon_pfitz_70_24w",
+    name: "Marathon PR (Pfitz 70) — 24 weeks",
+    description:
+      "6-week Aerobic Base + 18-week Pfitzinger 18/70 high-mileage marathon plan. Ends on Pfitz's 3-week taper.",
+    entries: [
+      { templateId: "aerobic_base", weeks: 6 },
+      { templateId: "marathon_pfitz_18_70", weeks: 18 },
+    ],
+  },
+  {
+    id: "marathon_hansons_22w",
+    name: "Marathon — Hansons 22 weeks",
+    description:
+      "4-week Aerobic Base + 18-week Hansons Marathon Method. Cumulative-fatigue model with capped 16 mi long runs.",
+    entries: [
+      { templateId: "aerobic_base", weeks: 4 },
+      { templateId: "marathon_hansons", weeks: 18 },
+    ],
+  },
+  {
+    id: "ultra_50m_30w",
+    name: "Ultra 50 Mile — 30 weeks",
+    description:
+      "6-week Aerobic Base + 24-week Koop 50-mile build. Sustained Time-on-Feet block ending on a 2-3 week taper.",
+    entries: [
+      { templateId: "aerobic_base", weeks: 6 },
+      { templateId: "ultra_50_mile", weeks: 24 },
+    ],
+  },
+  {
+    id: "bike_pz_ladder_24w",
+    name: "Bike PZ Ladder — 24 weeks",
+    description:
+      "8w Beginner PZ → 8w Intermediate PZ → 8w Advanced PZ. Three-stage Power Zone progression with FTP retests.",
+    entries: [
+      { templateId: "pelo_bike_pz_beginner", weeks: 8 },
+      { templateId: "pelo_bike_pz_intermediate", weeks: 8 },
+      { templateId: "pelo_bike_pz_advanced", weeks: 8 },
+    ],
+  },
+  {
+    id: "tonal_recomp_16w",
+    name: "Tonal Recomp — 16 weeks",
+    description:
+      "8-week Cardio + Weight Loss block + 8-week Tonal full-body 5x. Caloric throughput first, hypertrophy on top.",
+    entries: [
+      { templateId: "cardio_weight_loss", weeks: 8 },
+      { templateId: "tonal_full_body_5x", weeks: 8 },
+    ],
+  },
+  {
+    id: "strength_then_hm_20w",
+    name: "Strength → Half Marathon — 20 weeks",
+    description:
+      "8-week Starting Strength linear progression, then a 12-week Higdon HM build ending on a 2-week taper.",
+    entries: [
+      { templateId: "starting_strength", weeks: 8 },
+      { templateId: "half_marathon", weeks: 12 },
+    ],
+  },
+  {
+    id: "hyrox_prep_20w",
+    name: "HYROX Prep — 20 weeks",
+    description:
+      "4-week Aerobic Base + 16-week Peloton x HYROX prep. Mixed-modal race-pace simulations into a 1-week taper.",
+    entries: [
+      { templateId: "aerobic_base", weeks: 4 },
+      { templateId: "pelo_x_hyrox", weeks: 16 },
+    ],
+  },
+  {
+    id: "couch_to_hm_24w",
+    name: "Couch → Half Marathon — 24 weeks",
+    description:
+      "9-week NHS Couch to 5K + 4-week Aerobic Base bridge + 11-week Higdon HM. From zero to a half-marathon finish.",
+    entries: [
+      { templateId: "couch_to_5k", weeks: 9 },
+      { templateId: "aerobic_base", weeks: 4 },
+      { templateId: "half_marathon", weeks: 11 },
+    ],
+  },
+  {
+    id: "nick_bare_hybrid_16w",
+    name: "Nick Bare Hybrid — 16 weeks",
+    description:
+      "Pure 16-week Nick Bare 1.0 hybrid block: concurrent half-marathon training + 3 heavy lift days/week.",
+    entries: [{ templateId: "nick_bare_1_0", weeks: 16 }],
   },
 ];
 
