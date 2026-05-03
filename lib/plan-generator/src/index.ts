@@ -683,6 +683,14 @@ export function validatePlannerConfig(
           message: "must be a positive integer",
         });
       } else {
+        // Enforce per-template min/max so the runner can't pick a
+        // duration outside the published range for that template.
+        if (tpl && (e.weeks < tpl.minWeeks || e.weeks > tpl.maxWeeks)) {
+          issues.push({
+            field: `entries[${i}].weeks`,
+            message: `weeks for ${tpl.name} must be between ${tpl.minWeeks} and ${tpl.maxWeeks} (got ${e.weeks})`,
+          });
+        }
         entriesSum += e.weeks;
       }
     }

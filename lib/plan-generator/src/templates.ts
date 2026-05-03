@@ -499,17 +499,17 @@ export function getTemplateById(id: string): PlanTemplate | null {
   return PLAN_TEMPLATES.find((t) => t.id === id) ?? null;
 }
 
-// Three opinionated starter shortcuts for the planner UI's "Use this
-// starter" buttons. Each starter is a single TemplateEntry — picking
-// one populates entries=[{ templateId, weeks }] which expands to a
-// totalWeeks-week plan that owns its own taper. Total weeks here equals
-// the entry weeks because there is no auto-pinned tail in entries-mode.
+// Opinionated starter shortcuts surfaced as one-click "Use this starter"
+// buttons. Each starter is a COMPOSITION of TemplateEntry objects — an
+// Aerobic Base lead-in followed by a race-specific template — so that
+// the runner gets the canonical "build your engine first, then sharpen"
+// structure recommended by every coach in the citation list.
 export interface StarterShortcut {
   id: string;
   name: string;
   description: string;
-  templateId: string;
-  weeks: number;
+  // Sum of entries.weeks is the total span. No auto-pinned tail.
+  entries: ReadonlyArray<{ templateId: string; weeks: number }>;
 }
 
 export const STARTER_SHORTCUTS: StarterShortcut[] = [
@@ -517,32 +517,40 @@ export const STARTER_SHORTCUTS: StarterShortcut[] = [
     id: "hm_beginner_16w",
     name: "HM Beginner — 16 weeks",
     description:
-      "Half-marathon prep using Higdon's Intermediate-1 plan stretched to 16 weeks. 16-week total span; ends on a 2-week taper into race week.",
-    templateId: "half_marathon",
-    weeks: 16,
+      "4-week Aerobic Base lead-in (Lydiard) feeding into 12 weeks of Higdon's Intermediate-1 half-marathon plan. Ends on the HM template's 2-week taper.",
+    entries: [
+      { templateId: "aerobic_base", weeks: 4 },
+      { templateId: "half_marathon", weeks: 12 },
+    ],
   },
   {
     id: "marathon_first_timer_24w",
     name: "Marathon First-Timer — 24 weeks",
     description:
-      "Pfitzinger 24-week build for a first marathon. Conservative ramp through Base → Time on Feet → Marathon-Specific → 3-week taper.",
-    templateId: "marathon",
-    weeks: 24,
+      "6-week Aerobic Base + 18-week Pfitzinger marathon build. Conservative ramp through Base → Time on Feet → Marathon-Specific → 3-week taper.",
+    entries: [
+      { templateId: "aerobic_base", weeks: 6 },
+      { templateId: "marathon", weeks: 18 },
+    ],
   },
   {
     id: "get_faster_5k_14w",
     name: "Get Faster 5K — 14 weeks",
     description:
-      "Daniels 14-week 5K speed block: short aerobic base, heavy interval phase, 1-week sharpening taper into race day.",
-    templateId: "5k_improver",
-    weeks: 14,
+      "6-week Aerobic Base lead-in + 8-week Daniels 5K Improver speed block. Ends on a 1-week sharpening taper into race day.",
+    entries: [
+      { templateId: "aerobic_base", weeks: 6 },
+      { templateId: "5k_improver", weeks: 8 },
+    ],
   },
 ];
 
 // Expand an ordered list of TemplateEntry into a flat PhaseBlock[] for
-// the generator. Unknown template ids are skipped (logged by callers if
-// needed); per-entry customNotes are merged into each expanded block's
-// notes so the runner-supplied context surfaces in the daily plan.
+// the generator. Unknown template ids are skipped here; callers that
+// need strict behavior (the validator on the apply path) reject unknown
+// ids before reaching this function. Per-entry customNotes are merged
+// into each expanded block's notes so the runner-supplied context
+// surfaces in the daily plan.
 export function expandEntriesToBlocks(
   entries: ReadonlyArray<TemplateEntry>,
 ): PhaseBlock[] {

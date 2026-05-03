@@ -387,27 +387,30 @@ export default function Planner() {
   }
 
   // Apply a one-click starter shortcut: sets dates AND ENTRIES AND a
-  // suggested config name. Uses next-Monday as the start so the runner
-  // can save immediately. Replaces (rather than appends to) any existing
-  // entries — starters are a "fresh slate" workflow. Total span equals
-  // s.weeks; the template owns its own taper (no auto-pinned tail).
+  // suggested config name. Each starter is a COMPOSITION of template
+  // entries (e.g. Aerobic Base lead-in + race-specific template), so we
+  // copy the full entries array. Replaces any existing entries — starters
+  // are a "fresh slate" workflow. Total span = sum(entries.weeks); each
+  // template owns its own taper (no auto-pinned tail).
   function applyStarter(s: StarterShortcut) {
-    const tpl = getTemplateById(s.templateId);
-    if (!tpl) return;
     const start = nextMondayISO();
-    const race = computeRaceDateForTotalWeeks(start, s.weeks);
-    const nextEntries: TemplateEntry[] = [
-      { templateId: s.templateId, weeks: s.weeks, customNotes: null },
-    ];
+    const total = s.entries.reduce((acc, e) => acc + e.weeks, 0);
+    const race = computeRaceDateForTotalWeeks(start, total);
+    const nextEntries: TemplateEntry[] = s.entries.map((e) => ({
+      templateId: e.templateId,
+      weeks: e.weeks,
+      customNotes: null,
+    }));
     setEntries(nextEntries);
     setStartDate(start);
     setMarathonDate(race);
     setDraft(blocksToDraft(expandEntriesToBlocks(nextEntries)));
-    setLastAppliedTemplate(tpl.id);
+    const last = nextEntries[nextEntries.length - 1];
+    if (last) setLastAppliedTemplate(last.templateId);
     if (!name.trim()) setName(s.name);
     toast({
       title: `${s.name} loaded`,
-      description: `Start ${start}, race ${race}. Save then Apply to generate workouts.`,
+      description: `Start ${start}, race ${race} (${total}w total). Save then Apply to generate workouts.`,
     });
   }
 
@@ -445,9 +448,28 @@ export default function Planner() {
     reprojectEntries(next);
   }
   function exitEntriesMode() {
+    // Switching out of entries-mode discards the composition list. Warn
+    // the runner first so they don't lose their template ordering.
+    if (
+      entries &&
+      entries.length > 0 &&
+      !window.confirm(
+        "Switching to the advanced (legacy) editor will discard your template composition. The projected blocks will remain editable. Continue?",
+      )
+    ) {
+      return;
+    }
     setEntries(null);
   }
   function enterEntriesMode() {
+    if (
+      draft.length > 0 &&
+      !window.confirm(
+        "Switching to template composition will clear the current focus-type blocks. You can re-add templates from the library above. Continue?",
+      )
+    ) {
+      return;
+    }
     setEntries([]);
     setDraft([]);
   }
@@ -952,10 +974,10 @@ export default function Planner() {
             <Library className="h-4 w-4" /> Plan Template Library
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Pick a research-backed template — we&apos;ll fill the focus-type
-            blocks below and adjust the marathon date so the auto-pinned
-            16-week race-specific tail still lands on a Sunday. Save then
-            Apply to deterministically generate every workout.
+            Pick a research-backed template — each one owns its own taper.
+            Compose multiple templates with &quot;Apply Template&quot; (e.g.
+            Aerobic Base + Half Marathon) or one-click a starter shortcut.
+            Save then Apply to deterministically generate every workout.
           </p>
         </CardHeader>
         <CardContent className="space-y-6">

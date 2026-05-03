@@ -51,25 +51,7 @@ describe("PLAN_TEMPLATES", () => {
     }
   });
 
-  it("expand(n) produces blocks summing to exactly n at min/default/max", () => {
-    for (const t of PLAN_TEMPLATES) {
-      for (const n of [t.minWeeks, t.defaultWeeks, t.maxWeeks]) {
-        const blocks = t.expand(n);
-        const sum = blocks.reduce((s, b) => s + b.weeks, 0);
-        expect(sum, `${t.id} @ ${n}w`).toBe(n);
-        for (const b of blocks) {
-          expect(b.weeks, `${t.id} block ${b.focusType} weeks`).toBeGreaterThan(0);
-          if (b.focusType === "Custom") {
-            expect(b.customName, `${t.id} custom name`).toBeTruthy();
-          } else {
-            expect(b.customName, `${t.id} non-custom name should be null`).toBeNull();
-          }
-        }
-      }
-    }
-  });
-
-  it("expand(n) produces blocks summing to exactly n across full range", () => {
+  it("expand(n) produces blocks summing to exactly n across the full range", () => {
     for (const t of PLAN_TEMPLATES) {
       for (let n = t.minWeeks; n <= t.maxWeeks; n++) {
         const sum = t.expand(n).reduce((s, b) => s + b.weeks, 0);
@@ -102,7 +84,7 @@ describe("getTemplateById", () => {
 });
 
 describe("STARTER_SHORTCUTS", () => {
-  it("registers exactly the three Task #84 starter shortcuts", () => {
+  it("registers exactly the three starter shortcuts", () => {
     expect(STARTER_SHORTCUTS.map((s) => s.id).sort()).toEqual([
       "get_faster_5k_14w",
       "hm_beginner_16w",
@@ -110,40 +92,64 @@ describe("STARTER_SHORTCUTS", () => {
     ]);
   });
 
-  it("each starter references a real template", () => {
+  it("every starter is a multi-entry composition referencing real templates", () => {
     for (const s of STARTER_SHORTCUTS) {
-      expect(getTemplateById(s.templateId), s.id).not.toBeNull();
-      expect(s.weeks, s.id).toBeGreaterThan(0);
+      expect(s.entries.length, s.id).toBeGreaterThanOrEqual(1);
+      for (const e of s.entries) {
+        expect(getTemplateById(e.templateId), `${s.id}/${e.templateId}`).not.toBeNull();
+        expect(e.weeks, `${s.id}/${e.templateId} weeks`).toBeGreaterThan(0);
+      }
     }
   });
 
-  it("HM Beginner is 16 weeks of half_marathon (no auto-tail)", () => {
+  it("HM Beginner = 4w Aerobic Base + 12w Half Marathon (16w total)", () => {
     const s = STARTER_SHORTCUTS.find((x) => x.id === "hm_beginner_16w")!;
-    expect(s.templateId).toBe("half_marathon");
-    expect(s.weeks).toBe(16);
+    expect(s.entries.map((e) => [e.templateId, e.weeks])).toEqual([
+      ["aerobic_base", 4],
+      ["half_marathon", 12],
+    ]);
   });
 
-  it("Marathon First-Timer is 24 weeks of marathon (no auto-tail)", () => {
+  it("Marathon First-Timer = 6w Aerobic Base + 18w Marathon (24w total)", () => {
     const s = STARTER_SHORTCUTS.find(
       (x) => x.id === "marathon_first_timer_24w",
     )!;
-    expect(s.templateId).toBe("marathon");
-    expect(s.weeks).toBe(24);
+    expect(s.entries.map((e) => [e.templateId, e.weeks])).toEqual([
+      ["aerobic_base", 6],
+      ["marathon", 18],
+    ]);
   });
 
-  it("Get Faster 5K is 14 weeks of 5k_improver (no auto-tail)", () => {
+  it("Get Faster 5K = 6w Aerobic Base + 8w 5K Improver (14w total)", () => {
     const s = STARTER_SHORTCUTS.find((x) => x.id === "get_faster_5k_14w")!;
-    expect(s.templateId).toBe("5k_improver");
-    expect(s.weeks).toBe(14);
+    expect(s.entries.map((e) => [e.templateId, e.weeks])).toEqual([
+      ["aerobic_base", 6],
+      ["5k_improver", 8],
+    ]);
   });
 
-  it("expanding starter as a single TemplateEntry sums to s.weeks", () => {
+  it("expanding a starter sums to its declared total weeks", () => {
     for (const s of STARTER_SHORTCUTS) {
-      const blocks = expandEntriesToBlocks([
-        { templateId: s.templateId, weeks: s.weeks },
-      ]);
+      const total = s.entries.reduce((acc, e) => acc + e.weeks, 0);
+      const blocks = expandEntriesToBlocks(
+        s.entries.map((e) => ({ templateId: e.templateId, weeks: e.weeks })),
+      );
       const sum = blocks.reduce((acc, b) => acc + b.weeks, 0);
-      expect(sum, s.id).toBe(s.weeks);
+      expect(sum, s.id).toBe(total);
+    }
+  });
+
+  it("every starter entry's weeks fall within the template's published min/max range", () => {
+    for (const s of STARTER_SHORTCUTS) {
+      for (const e of s.entries) {
+        const tpl = getTemplateById(e.templateId)!;
+        expect(e.weeks, `${s.id}/${e.templateId}`).toBeGreaterThanOrEqual(
+          tpl.minWeeks,
+        );
+        expect(e.weeks, `${s.id}/${e.templateId}`).toBeLessThanOrEqual(
+          tpl.maxWeeks,
+        );
+      }
     }
   });
 });
@@ -156,8 +162,6 @@ describe("expandEntriesToBlocks", () => {
     ]);
     const sum = blocks.reduce((s, b) => s + b.weeks, 0);
     expect(sum).toBe(20);
-    // Aerobic base entry expands to a single Base block (8w), then HM
-    // expands to its own Base/Speed/Taper segments.
     expect(blocks[0]!.focusType).toBe("Base");
     expect(blocks[0]!.weeks).toBe(8);
     expect(blocks[blocks.length - 1]!.focusType).toBe("Taper");

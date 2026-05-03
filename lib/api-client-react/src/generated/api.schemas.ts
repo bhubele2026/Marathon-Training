@@ -605,15 +605,20 @@ export interface PlanTemplate {
   metadata: PlanTemplateMetadata;
 }
 
+export type StarterShortcutEntriesItem = {
+  templateId: string;
+  weeks: number;
+};
+
 /**
- * One-click shortcut that seeds entries=[{templateId, weeks}] for a common goal/duration pairing.
+ * One-click shortcut that seeds an ordered composition of TemplateEntry objects (e.g. an Aerobic Base lead-in followed by a race-specific template) for a common goal/duration pairing.
  */
 export interface StarterShortcut {
   id: string;
   name: string;
   description: string;
-  templateId: string;
-  weeks: number;
+  /** @minItems 1 */
+  entries: StarterShortcutEntriesItem[];
 }
 
 export interface PlannerTemplatesResponse {

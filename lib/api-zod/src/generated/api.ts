@@ -1177,6 +1177,7 @@ export const GetRecentActivityResponse = zod.array(
 /**
  * Static catalog of research-backed plan templates (Couch-to-5K, 5K Improver, 10K Builder, Half Marathon, Marathon, Ultramarathon 50K, Aerobic Base, Speed Block, Hybrid Strength + Run, Cardio + Weight Loss, Recovery, Maintenance) plus three opinionated starter shortcuts. Returned data is read-only and shipped from `@workspace/plan-generator`. The UI Template Library renders this catalog and the runner composes ordered TemplateEntry[] arrays inside their PlannerConfig.
  */
+
 export const ListPlannerTemplatesResponse = zod.object({
   templates: zod.array(
     zod.object({
@@ -1213,11 +1214,17 @@ export const ListPlannerTemplatesResponse = zod.object({
         id: zod.string(),
         name: zod.string(),
         description: zod.string(),
-        templateId: zod.string(),
-        weeks: zod.number(),
+        entries: zod
+          .array(
+            zod.object({
+              templateId: zod.string(),
+              weeks: zod.number(),
+            }),
+          )
+          .min(1),
       })
       .describe(
-        "One-click shortcut that seeds entries=[{templateId, weeks}] for a common goal\/duration pairing.",
+        "One-click shortcut that seeds an ordered composition of TemplateEntry objects (e.g. an Aerobic Base lead-in followed by a race-specific template) for a common goal\/duration pairing.",
       ),
   ),
 });
