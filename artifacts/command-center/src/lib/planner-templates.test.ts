@@ -4,6 +4,7 @@ import {
   countTemplatesByTag,
   filterTemplatesByTags,
   getAllTemplateTags,
+  sortTags,
   sortTagsByCount,
 } from "./planner-templates";
 
@@ -172,6 +173,43 @@ describe("sortTagsByCount", () => {
     const original = [...tags];
     sortTagsByCount(tags, new Map(), new Set());
     expect(tags).toEqual(original);
+  });
+});
+
+describe("sortTags (alpha mode)", () => {
+  it("sorts purely alphabetically when mode='alpha', ignoring counts", () => {
+    const tags = ["delta", "alpha", "charlie", "bravo"];
+    const counts = new Map([
+      ["alpha", 1],
+      ["bravo", 99],
+      ["charlie", 50],
+      ["delta", 2],
+    ]);
+    expect(sortTags(tags, counts, new Set(), "alpha")).toEqual([
+      "alpha",
+      "bravo",
+      "charlie",
+      "delta",
+    ]);
+  });
+
+  it("still pins selected tags to the front in alpha mode", () => {
+    const tags = ["alpha", "bravo", "charlie", "delta"];
+    const counts = new Map();
+    const sorted = sortTags(tags, counts, new Set(["charlie"]), "alpha");
+    expect(sorted).toEqual(["charlie", "alpha", "bravo", "delta"]);
+  });
+
+  it("matches sortTagsByCount when called with mode='count'", () => {
+    const tags = ["a", "b", "c"];
+    const counts = new Map([
+      ["a", 1],
+      ["b", 5],
+      ["c", 3],
+    ]);
+    expect(sortTags(tags, counts, new Set(), "count")).toEqual(
+      sortTagsByCount(tags, counts, new Set()),
+    );
   });
 });
 

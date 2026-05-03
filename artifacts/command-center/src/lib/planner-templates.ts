@@ -142,29 +142,52 @@ export function countTemplatesByTag(
   return counts;
 }
 
+// Sort modes for the tag chip cloud. "count" surfaces the broadest
+// filters first (most templates would still match); "alpha" sorts the
+// chips alphabetically. Both modes pin currently-selected chips to the
+// front so the active filter is always visible regardless of mode.
+export type TagSortMode = "count" | "alpha";
+
 // Order tags for the chip cloud so the most useful chips come first.
 // Sort key (highest priority first):
 //   1. Currently selected tags stay pinned at the front so the active
-//      filter is always visible regardless of count.
-//   2. Higher template count (broadest tags) before lower counts so
-//      runners see the most-used tags first and rarely-used ones fall
-//      to the end of the cloud.
-//   3. Alphabetical as a stable tiebreaker.
+//      filter is always visible regardless of mode.
+//   2. When mode = "count": higher template count (broadest tags)
+//      before lower counts so runners see the most-used tags first and
+//      rarely-used ones fall to the end of the cloud. Alphabetical is
+//      a stable tiebreaker.
+//      When mode = "alpha": purely alphabetical (after the selected
+//      pin) so the cloud is easy to scan when looking for a specific
+//      tag by name.
 // Tags missing from the counts map are treated as count=0.
-export function sortTagsByCount(
+export function sortTags(
   tags: readonly string[],
   counts: ReadonlyMap<string, number>,
   selectedTags: ReadonlySet<string>,
+  mode: TagSortMode,
 ): string[] {
   return [...tags].sort((a, b) => {
     const aSel = selectedTags.has(a) ? 1 : 0;
     const bSel = selectedTags.has(b) ? 1 : 0;
     if (aSel !== bSel) return bSel - aSel;
-    const aCount = counts.get(a) ?? 0;
-    const bCount = counts.get(b) ?? 0;
-    if (aCount !== bCount) return bCount - aCount;
+    if (mode === "count") {
+      const aCount = counts.get(a) ?? 0;
+      const bCount = counts.get(b) ?? 0;
+      if (aCount !== bCount) return bCount - aCount;
+    }
     return a.localeCompare(b);
   });
+}
+
+// Back-compat alias retained for existing callers/tests. New code
+// should prefer sortTags(tags, counts, selectedTags, mode) so the
+// caller can pick alphabetical or by-count ordering at the surface.
+export function sortTagsByCount(
+  tags: readonly string[],
+  counts: ReadonlyMap<string, number>,
+  selectedTags: ReadonlySet<string>,
+): string[] {
+  return sortTags(tags, counts, selectedTags, "count");
 }
 
 // Narrow templates to those that carry EVERY selected tag (AND

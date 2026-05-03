@@ -204,7 +204,8 @@ import {
   filterTemplatesByTags,
   getAllTemplateTags,
   countTemplatesByTag,
-  sortTagsByCount,
+  sortTags,
+  type TagSortMode,
   groupTemplatesByCategory,
 } from "../lib/planner-templates";
 export { categorizeTemplate };
@@ -229,6 +230,23 @@ const TEMPLATE_SEARCH_STORAGE_KEY = "planner.templateSearch.v1";
 // Plan Template Library card. Versioned so we can change the shape
 // later without colliding with stale entries.
 const SELECTED_TEMPLATE_TAGS_STORAGE_KEY = "planner.selectedTemplateTags.v1";
+
+// localStorage keys for the per-surface tag-cloud sort mode toggle
+// (alphabetical vs. by template count). Each surface persists its
+// own choice so the runner's preference sticks per cloud.
+const TEMPLATE_TAG_SORT_STORAGE_KEY = "planner.templateTagSort.v1";
+const QUICKADD_TAG_SORT_STORAGE_KEY = "planner.quickAddTagSort.v1";
+
+function readTagSortMode(key: string, fallback: TagSortMode): TagSortMode {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (raw === "alpha" || raw === "count") return raw;
+  } catch {
+    // Ignore corrupt storage and fall through to default.
+  }
+  return fallback;
+}
 
 interface DraftBlock {
   focusType: FocusType;
@@ -424,6 +442,39 @@ export default function Planner() {
   const [quickAddSelectedTags, setQuickAddSelectedTags] = useState<
     Set<string>
   >(() => new Set());
+  // Per-surface sort mode for the tag chip cloud. "count" surfaces the
+  // broadest filters first (default — most useful out of the box);
+  // "alpha" sorts the chips alphabetically for runners who want to
+  // scan by name. Persisted per surface so each cloud remembers the
+  // runner's preference independently.
+  const [templateTagSortMode, setTemplateTagSortMode] = useState<TagSortMode>(
+    () => readTagSortMode(TEMPLATE_TAG_SORT_STORAGE_KEY, "count"),
+  );
+  const [quickAddTagSortMode, setQuickAddTagSortMode] = useState<TagSortMode>(
+    () => readTagSortMode(QUICKADD_TAG_SORT_STORAGE_KEY, "count"),
+  );
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        TEMPLATE_TAG_SORT_STORAGE_KEY,
+        templateTagSortMode,
+      );
+    } catch {
+      // Storage may be full or disabled; ignore.
+    }
+  }, [templateTagSortMode]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        QUICKADD_TAG_SORT_STORAGE_KEY,
+        quickAddTagSortMode,
+      );
+    } catch {
+      // Storage may be full or disabled; ignore.
+    }
+  }, [quickAddTagSortMode]);
   function toggleQuickAddTag(tag: string) {
     setQuickAddSelectedTags((prev) => {
       const next = new Set(prev);
@@ -592,8 +643,9 @@ export default function Planner() {
   const hasActiveTags = selectedTemplateTags.size > 0;
   // Distinct tags across the catalog. Memoized so the chip cloud
   // doesn't re-build on every keystroke in the search input. The final
-  // chip order is derived per-surface below via sortTagsByCount so the
-  // most-used tags come first under the active filter context.
+  // chip order is derived per-surface below via sortTags so the
+  // most-used (or alphabetical) tags come first under the active
+  // filter context, controlled by the per-surface sort toggle.
   const allDistinctTags = useMemo(
     () => getAllTemplateTags(templates),
     [templates],
@@ -624,12 +676,34 @@ export default function Planner() {
   // order updates whenever counts change (e.g. when the runner narrows
   // the free-text search or selects another tag).
   const allTemplateTags = useMemo(
-    () => sortTagsByCount(allDistinctTags, templateTagCounts, selectedTemplateTags),
-    [allDistinctTags, templateTagCounts, selectedTemplateTags],
+    () =>
+      sortTags(
+        allDistinctTags,
+        templateTagCounts,
+        selectedTemplateTags,
+        templateTagSortMode,
+      ),
+    [
+      allDistinctTags,
+      templateTagCounts,
+      selectedTemplateTags,
+      templateTagSortMode,
+    ],
   );
   const allQuickAddTags = useMemo(
-    () => sortTagsByCount(allDistinctTags, quickAddTagCounts, quickAddSelectedTags),
-    [allDistinctTags, quickAddTagCounts, quickAddSelectedTags],
+    () =>
+      sortTags(
+        allDistinctTags,
+        quickAddTagCounts,
+        quickAddSelectedTags,
+        quickAddTagSortMode,
+      ),
+    [
+      allDistinctTags,
+      quickAddTagCounts,
+      quickAddSelectedTags,
+      quickAddTagSortMode,
+    ],
   );
   // Once the live server catalog resolves, drop any persisted tags
   // that no longer exist (catalog churn between visits) so we never
@@ -1888,16 +1962,55 @@ export default function Planner() {
                 <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
                   Filter by tag
                 </Label>
-                {hasActiveTags && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedTemplateTags(new Set())}
-                    className="text-[10px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
-                    data-testid="planner-template-tag-cloud-clear"
+                <div className="flex items-center gap-2">
+                  {/* Sort mode toggle: A-Z vs by template count.
+                      Defaults to "count" so the broadest filters
+                      land at the top-left and dead-ends sink to the
+                      bottom; the choice is persisted per surface. */}
+                  <div
+                    className="inline-flex rounded border border-border overflow-hidden"
+                    role="group"
+                    aria-label="Sort tag cloud"
+                    data-testid="planner-template-tag-cloud-sort"
                   >
-                    Clear ({selectedTemplateTags.size})
-                  </button>
-                )}
+                    <button
+                      type="button"
+                      onClick={() => setTemplateTagSortMode("count")}
+                      aria-pressed={templateTagSortMode === "count"}
+                      data-testid="planner-template-tag-cloud-sort-count"
+                      className={
+                        templateTagSortMode === "count"
+                          ? "text-[10px] px-1.5 py-0.5 bg-primary text-primary-foreground"
+                          : "text-[10px] px-1.5 py-0.5 bg-background text-muted-foreground hover:text-foreground"
+                      }
+                    >
+                      By count
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTemplateTagSortMode("alpha")}
+                      aria-pressed={templateTagSortMode === "alpha"}
+                      data-testid="planner-template-tag-cloud-sort-alpha"
+                      className={
+                        templateTagSortMode === "alpha"
+                          ? "text-[10px] px-1.5 py-0.5 bg-primary text-primary-foreground border-l border-border"
+                          : "text-[10px] px-1.5 py-0.5 bg-background text-muted-foreground hover:text-foreground border-l border-border"
+                      }
+                    >
+                      A–Z
+                    </button>
+                  </div>
+                  {hasActiveTags && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTemplateTags(new Set())}
+                      className="text-[10px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+                      data-testid="planner-template-tag-cloud-clear"
+                    >
+                      Clear ({selectedTemplateTags.size})
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="flex flex-wrap gap-1">
                 {allTemplateTags.map((tag) => {
@@ -2775,18 +2888,53 @@ export default function Planner() {
                           <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
                             Filter by tag
                           </span>
-                          {quickAddSelectedTags.size > 0 && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setQuickAddSelectedTags(new Set())
-                              }
-                              className="text-[10px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
-                              data-testid="planner-entry-add-tag-cloud-clear"
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="inline-flex rounded border border-border overflow-hidden"
+                              role="group"
+                              aria-label="Sort tag cloud"
+                              data-testid="planner-entry-add-tag-cloud-sort"
                             >
-                              Clear ({quickAddSelectedTags.size})
-                            </button>
-                          )}
+                              <button
+                                type="button"
+                                onClick={() => setQuickAddTagSortMode("count")}
+                                aria-pressed={quickAddTagSortMode === "count"}
+                                data-testid="planner-entry-add-tag-cloud-sort-count"
+                                className={
+                                  quickAddTagSortMode === "count"
+                                    ? "text-[10px] px-1.5 py-0.5 bg-primary text-primary-foreground"
+                                    : "text-[10px] px-1.5 py-0.5 bg-background text-muted-foreground hover:text-foreground"
+                                }
+                              >
+                                By count
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setQuickAddTagSortMode("alpha")}
+                                aria-pressed={quickAddTagSortMode === "alpha"}
+                                data-testid="planner-entry-add-tag-cloud-sort-alpha"
+                                className={
+                                  quickAddTagSortMode === "alpha"
+                                    ? "text-[10px] px-1.5 py-0.5 bg-primary text-primary-foreground border-l border-border"
+                                    : "text-[10px] px-1.5 py-0.5 bg-background text-muted-foreground hover:text-foreground border-l border-border"
+                                }
+                              >
+                                A–Z
+                              </button>
+                            </div>
+                            {quickAddSelectedTags.size > 0 && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setQuickAddSelectedTags(new Set())
+                                }
+                                className="text-[10px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+                                data-testid="planner-entry-add-tag-cloud-clear"
+                              >
+                                Clear ({quickAddSelectedTags.size})
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
                           {allQuickAddTags.map((tag) => {
