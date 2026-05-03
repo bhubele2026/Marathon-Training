@@ -9,6 +9,8 @@ import {
   expandEntriesToBlocksWithGaps,
   getTemplateById,
   liftPrimaryKind,
+  primaryMachineKind,
+  type PrimaryMachineKind,
   type TemplateEntry,
 } from "./templates.js";
 
@@ -1510,6 +1512,17 @@ function buildWeekDays(opts: {
     total_load: isRaceWeek ? 30 : heavyStrengthLoad + satCardioMin,
   };
 
+  // ---------- PRIMARY MACHINE ROUTING (bike-only / row-only) ----------
+  // Templates that pin a `[primary-machine:bike|row]` sentinel in their
+  // customNotes (Peloton Bike PZ, Concept2 Row, etc.) keep the same
+  // weekly skeleton but swap the three run sessions (Wed easy / Fri
+  // quality / Sun long) for equivalent zone-controlled bike or row
+  // sessions. The Tue/Thu/Sat heavy-lift days already pair Tonal with a
+  // short bike or row, so they're left alone. Race week (when a
+  // bike/row block happens to be the trailing block) keeps its
+  // canonical race-day handling.
+  const machine: PrimaryMachineKind | null = primaryMachineKind(block.customNotes);
+
   // ---------- SUN: LONG RUN or RACE ----------
   let sunDay: DailyRow;
   if (isRaceWeek) {
@@ -1559,16 +1572,91 @@ function buildWeekDays(opts: {
     };
   }
 
+  // Apply primary-machine routing: swap Wed/Fri/Sun runs for bike/row
+  // sessions of equivalent duration. Mileage zeros out (distance_mi /
+  // pace null, run_min 0) and the equivalent run minutes flow into
+  // cardio_min instead so the weekly Cardio bucket reflects the time
+  // spent on the machine. Race week is left alone (the canonical race
+  // day handling already owns it).
+  let resolvedWedDay = wedDay;
+  let resolvedFriDay = friDay;
+  let resolvedSunDay = sunDay;
+  if (machine && !isRaceWeek) {
+    const machineLabel = machine === "bike" ? "Peloton Bike" : "Peloton Row";
+    const easyVerb =
+      machine === "bike" ? "Z2 endurance ride" : "Z2 endurance row";
+    const qualityVerb =
+      machine === "bike"
+        ? "Z3-Z4 interval ride"
+        : "threshold / Z3-Z4 interval row";
+    const longVerb =
+      machine === "bike"
+        ? "long Z2 endurance ride"
+        : "long steady-state row";
+
+    // Wed: easy run + Tonal accessory → easy bike/row + Tonal accessory.
+    resolvedWedDay = {
+      ...wedDay,
+      equipment: "Tonal",
+      equipment_list: ["Tonal", machineLabel],
+      description:
+        `Easy aerobic ${machineLabel} (${wedRunMin} min ${easyVerb}, conversational power), then ${accessoryTonalMin} min Tonal core + accessory work` +
+        customSuffix,
+      run_min: 0,
+      cardio_min: wedRunMin,
+      distance_mi: null,
+      pace: null,
+      session_type: "Cardio + Accessory",
+      total_load: wedRunMin + wedAccessoryLoad,
+    };
+
+    // Fri: quality run (no lift after W6) → quality bike/row.
+    resolvedFriDay = {
+      ...friDay,
+      equipment: fri.liftMin > 0 ? "Tonal" : machineLabel,
+      equipment_list:
+        fri.liftMin > 0 ? ["Tonal", machineLabel] : [machineLabel],
+      description:
+        `Quality ${machineLabel} (${friRunMin} min ${qualityVerb}, zone-controlled)` +
+        fri.liftDescSuffix +
+        customSuffix,
+      run_min: 0,
+      cardio_min: friRunMin,
+      distance_mi: null,
+      pace: null,
+      session_type:
+        fri.liftLoad > 0 ? "Quality Cardio + Accessory" : "Quality Cardio",
+      total_load: friRunMin + fri.liftLoad,
+    };
+
+    // Sun: long run → long bike/row endurance session. Match the long
+    // run's planned minutes so weekly cardio volume tracks the recipe.
+    const longRunMi = recipe.longRunMi(weekInBlock, blockWeeks, isCutback);
+    const longMin = Math.max(20, Math.round(longRunMi * recipe.longRunMinPerMi));
+    resolvedSunDay = {
+      ...sunDay,
+      equipment: machineLabel,
+      equipment_list: [machineLabel],
+      description: `${longVerb} (${longMin} min, conversational effort): build aerobic durability and dial in fueling. NO lift today.${customSuffix}`,
+      run_min: 0,
+      cardio_min: longMin,
+      distance_mi: null,
+      pace: null,
+      session_type: "Long Cardio",
+      total_load: longMin + 10,
+    };
+  }
+
   // Recovery focus drops the Friday quality (replace with rest) so the runner
   // gets two rest days during the recovery block.
   if (recipe.isRecovery) {
     return [
       monDay,
       tueDay,
-      wedDay,
+      resolvedWedDay,
       thuDay,
       {
-        ...friDay,
+        ...resolvedFriDay,
         strength_load: 0,
         equipment: "Off / Rest",
         equipment_list: ["Off / Rest"],
@@ -1584,11 +1672,19 @@ function buildWeekDays(opts: {
         total_load: 0,
       },
       satDay,
-      sunDay,
+      resolvedSunDay,
     ];
   }
 
-  return [monDay, tueDay, wedDay, thuDay, friDay, satDay, sunDay];
+  return [
+    monDay,
+    tueDay,
+    resolvedWedDay,
+    thuDay,
+    resolvedFriDay,
+    satDay,
+    resolvedSunDay,
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -1666,22 +1762,28 @@ export function previewWeeklyMileage(
     // must zero-out every bucket to match `planned_miles`.
     const isLiftPrimary =
       b.focusType === "Custom" && liftPrimaryKind(b.customNotes) !== null;
+    // Bike-only / Row-only blocks emit zero run miles — the Wed/Fri/Sun
+    // run sessions are swapped for equivalent zone-controlled bike or
+    // row sessions in `buildWeekDays`, so the mileage preview must zero
+    // out every run bucket to match `planned_miles`.
+    const isPrimaryMachine = primaryMachineKind(b.customNotes) !== null;
+    const zeroRuns = isLiftPrimary || isPrimaryMachine;
     for (let weekInBlock = 1; weekInBlock <= w; weekInBlock++) {
       week += 1;
       const isRaceWeek = week === totalWeeks && appendTail;
       const isCutback = recipe.useCutbacks
         ? w >= 4 && weekInBlock % 4 === 0 && weekInBlock !== w
         : false;
-      const easyMi = isLiftPrimary ? 0 : recipe.easyRunMi(weekInBlock, w, isCutback);
+      const easyMi = zeroRuns ? 0 : recipe.easyRunMi(weekInBlock, w, isCutback);
       // Recovery blocks turn Friday into a rest day in `buildWeekDays`, so
       // the actual generated weekly mileage is easy + long only. Mirror
       // that here so the preview matches `planned_miles` exactly.
-      const qualityMi = isLiftPrimary
+      const qualityMi = zeroRuns
         ? 0
         : recipe.isRecovery
           ? 0
           : recipe.qualityRunMi(weekInBlock, w, isCutback);
-      const longMi = isLiftPrimary
+      const longMi = zeroRuns
         ? 0
         : isRaceWeek
           ? MARATHON_DISTANCE_MI
@@ -1814,9 +1916,12 @@ export {
   expandEntriesToBlocks,
   expandEntriesToBlocksWithGaps,
   projectEntries,
+  liftPrimaryKind,
+  primaryMachineKind,
   type PlanTemplate,
   type PlanTemplateMetadata,
   type StarterShortcut,
   type TemplateEntry,
   type EntryProjection,
+  type PrimaryMachineKind,
 } from "./templates.js";

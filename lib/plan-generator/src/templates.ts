@@ -2114,6 +2114,29 @@ export function liftPrimaryKind(notes: string | null | undefined): string | null
   return m ? (m[1] ?? "").trim() || null : null;
 }
 
+// Returns the primary-machine "kind" parsed out of a block's customNotes
+// sentinel (e.g. `[primary-machine:bike] ...` → `"bike"`,
+// `[primary-machine:row] ...` → `"row"`), or null when the block does
+// not carry the sentinel. Used by the daily-recipes pipeline
+// (`buildWeekDays`) and the mileage preview to swap the canonical
+// run-biased Wed/Fri/Sun sessions for Bike-only or Row-only sessions
+// without changing the surrounding lift/cardio days. Unlike
+// `liftPrimaryKind`, this sentinel can ride on ANY focus type (Base,
+// Speed, Taper, Custom, ...) — bike/row templates split themselves
+// across Base + Speed + Taper blocks while pinning the same machine
+// hint on each one.
+export type PrimaryMachineKind = "bike" | "row";
+export function primaryMachineKind(
+  notes: string | null | undefined,
+): PrimaryMachineKind | null {
+  if (!notes) return null;
+  const m = /\[primary-machine:([^\]]+)\]/.exec(notes);
+  if (!m) return null;
+  const kind = (m[1] ?? "").trim().toLowerCase();
+  if (kind === "bike" || kind === "row") return kind;
+  return null;
+}
+
 export function getTemplateById(id: string): PlanTemplate | null {
   return PLAN_TEMPLATES.find((t) => t.id === id) ?? null;
 }

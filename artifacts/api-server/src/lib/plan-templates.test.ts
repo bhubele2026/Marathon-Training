@@ -2,10 +2,14 @@ import { describe, it, expect } from "vitest";
 import {
   PLAN_TEMPLATES,
   STARTER_SHORTCUTS,
+  generatePlanFromConfig,
   getTemplateById,
   expandEntriesToBlocks,
   expandEntriesToBlocksWithGaps,
+  previewWeeklyMileage,
+  primaryMachineKind,
   projectEntries,
+  type PlannerConfig,
 } from "@workspace/plan-generator";
 
 describe("PLAN_TEMPLATES", () => {
@@ -293,6 +297,207 @@ describe("STARTER_SHORTCUTS", () => {
           tpl.maxWeeks,
         );
       }
+    }
+  });
+});
+
+describe("primaryMachineKind sentinel parser", () => {
+  it("returns 'bike' for [primary-machine:bike] notes", () => {
+    expect(primaryMachineKind("[primary-machine:bike] PZ Beginner")).toBe(
+      "bike",
+    );
+  });
+  it("returns 'row' for [primary-machine:row] notes", () => {
+    expect(primaryMachineKind("[primary-machine:row] DPZ-Row Z2")).toBe("row");
+  });
+  it("returns null for other / missing sentinels", () => {
+    expect(primaryMachineKind(null)).toBeNull();
+    expect(primaryMachineKind("")).toBeNull();
+    expect(primaryMachineKind("[lift-primary:upper] foo")).toBeNull();
+    expect(primaryMachineKind("[primary-machine:tread] foo")).toBeNull();
+  });
+  it("every Peloton Bike / Concept2 Row / Peloton Row template tags every block with the sentinel", () => {
+    const machineTemplateIds = [
+      ["pelo_bike_you_can_ride", "bike"],
+      ["pelo_bike_pz_beginner", "bike"],
+      ["pelo_bike_pz_intermediate", "bike"],
+      ["pelo_bike_pz_advanced", "bike"],
+      ["pelo_row_dpz", "row"],
+      ["c2_row_30day", "row"],
+      ["c2_row_5k", "row"],
+      ["c2_row_2k", "row"],
+    ] as const;
+    for (const [id, expected] of machineTemplateIds) {
+      const tpl = getTemplateById(id)!;
+      const blocks = tpl.expand(tpl.defaultWeeks);
+      for (const b of blocks) {
+        expect(primaryMachineKind(b.customNotes), `${id} block`).toBe(expected);
+      }
+    }
+  });
+});
+
+describe("primary-machine routing in generatePlanFromConfig", () => {
+  // 2026-01-05 is a Monday. Use blocks-mode (legacy) so the auto-pinned
+  // 16-week Marathon-Specific tail owns the race week — that lets us
+  // assert that the leading bike/row block emits zero run miles
+  // without bumping into the canonical race-day marathon override.
+  function bikeRowBlockConfig(
+    machine: "bike" | "row",
+    blockWeeks: number,
+  ): PlannerConfig {
+    // Total weeks = blockWeeks + 16 (auto-pinned tail).
+    const total = blockWeeks + 16;
+    const startMs = Date.parse("2026-01-05T00:00:00Z");
+    const endMs = startMs + (total * 7 - 1) * 86400000;
+    const marathonDate = new Date(endMs).toISOString().slice(0, 10);
+    const machineLabel = machine === "bike" ? "Peloton Bike" : "Peloton Row";
+    return {
+      startDate: "2026-01-05",
+      marathonDate,
+      blocks: [
+        {
+          focusType: "Custom",
+          weeks: blockWeeks,
+          customName: `${machineLabel} Block`,
+          customNotes: `[primary-machine:${machine}] ${machineLabel} block`,
+        },
+      ],
+    };
+  }
+
+  it("Bike-primary Custom block emits zero run miles and bike sessions on Wed/Fri/Sun", () => {
+    const cfg = bikeRowBlockConfig("bike", 8);
+    const { daily, weekly } = generatePlanFromConfig(cfg);
+    const bikeWeekly = weekly.filter((w) => w.week <= 8);
+    const bikeDaily = daily.filter((d) => d.week <= 8);
+
+    // Every weekly summary in the bike block reports zero planned_miles.
+    for (const wk of bikeWeekly) {
+      expect(wk.planned_miles, `week ${wk.week}`).toBe(0);
+    }
+    // Total run miles across the entire bike block is zero.
+    const totalRunMi = bikeDaily.reduce(
+      (s, d) => s + (d.distance_mi || 0),
+      0,
+    );
+    expect(totalRunMi).toBe(0);
+    // Wed/Fri/Sun never carry run_min or distance and always lead with
+    // a bike chip (not Tread / Outdoor) for the cardio session.
+    for (const d of bikeDaily) {
+      if (d.day === "Wed" || d.day === "Fri" || d.day === "Sun") {
+        expect(d.run_min, `${d.day} w${d.week} run_min`).toBe(0);
+        expect(d.distance_mi, `${d.day} w${d.week} distance`).toBeNull();
+        expect(d.pace, `${d.day} w${d.week} pace`).toBeNull();
+        expect(
+          d.equipment_list.includes("Peloton Bike"),
+          `${d.day} w${d.week} equipment_list ${JSON.stringify(d.equipment_list)}`,
+        ).toBe(true);
+        // Cardio bucket should hold the equivalent minutes the run
+        // would have consumed.
+        expect(d.cardio_min, `${d.day} w${d.week} cardio_min`).toBeGreaterThan(
+          0,
+        );
+      }
+    }
+  });
+
+  it("Row-primary Custom block emits zero run miles and row sessions on Wed/Fri/Sun", () => {
+    const cfg = bikeRowBlockConfig("row", 8);
+    const { daily, weekly } = generatePlanFromConfig(cfg);
+    const rowWeekly = weekly.filter((w) => w.week <= 8);
+    const rowDaily = daily.filter((d) => d.week <= 8);
+
+    for (const wk of rowWeekly) {
+      expect(wk.planned_miles, `week ${wk.week}`).toBe(0);
+    }
+    const totalRunMi = rowDaily.reduce(
+      (s, d) => s + (d.distance_mi || 0),
+      0,
+    );
+    expect(totalRunMi).toBe(0);
+    for (const d of rowDaily) {
+      if (d.day === "Wed" || d.day === "Fri" || d.day === "Sun") {
+        expect(d.run_min).toBe(0);
+        expect(d.distance_mi).toBeNull();
+        expect(
+          d.equipment_list.includes("Peloton Row"),
+          `${d.day} w${d.week} equipment_list ${JSON.stringify(d.equipment_list)}`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("a run-based block in the same plan is unaffected (still emits Wed/Fri/Sun runs)", () => {
+    // Plain Custom block with NO sentinel — should produce the canonical
+    // run-biased week.
+    const cfg: PlannerConfig = {
+      startDate: "2026-01-05",
+      marathonDate: new Date(
+        Date.parse("2026-01-05T00:00:00Z") + (24 * 7 - 1) * 86400000,
+      )
+        .toISOString()
+        .slice(0, 10),
+      blocks: [
+        {
+          focusType: "Custom",
+          weeks: 8,
+          customName: "Plain Custom Block",
+          customNotes: "no sentinel here",
+        },
+      ],
+    };
+    const { daily, weekly } = generatePlanFromConfig(cfg);
+    const customWeekly = weekly.filter((w) => w.week <= 8);
+    const customDaily = daily.filter((d) => d.week <= 8);
+    expect(customWeekly.some((w) => w.planned_miles > 0)).toBe(true);
+    const sundays = customDaily.filter((d) => d.day === "Sun");
+    expect(sundays.some((d) => (d.distance_mi || 0) > 0)).toBe(true);
+  });
+
+  it("previewWeeklyMileage zeros every bucket for bike/row blocks", () => {
+    // Sanity: a vanilla Custom block produces SOME miles.
+    const vanilla = previewWeeklyMileage(
+      [{ focusType: "Custom", weeks: 8, customName: null, customNotes: null }],
+      { appendMarathonTail: false },
+    );
+    expect(vanilla.some((w) => w.totalMi > 0)).toBe(true);
+
+    // Now flip the same block to bike-primary via the sentinel and
+    // confirm every bucket flows zero.
+    const machinePreview = previewWeeklyMileage(
+      [
+        {
+          focusType: "Custom",
+          weeks: 8,
+          customName: "Bike Block",
+          customNotes: "[primary-machine:bike] PZ Beginner",
+        },
+      ],
+      { appendMarathonTail: false },
+    );
+    expect(machinePreview.length).toBe(8);
+    for (const wk of machinePreview) {
+      expect(wk.easyMi).toBe(0);
+      expect(wk.qualityMi).toBe(0);
+      expect(wk.longRunMi).toBe(0);
+      expect(wk.totalMi).toBe(0);
+    }
+
+    // And the same for row.
+    const rowPreview = previewWeeklyMileage(
+      [
+        {
+          focusType: "Custom",
+          weeks: 6,
+          customName: "Row Block",
+          customNotes: "[primary-machine:row] DPZ-Row Z2",
+        },
+      ],
+      { appendMarathonTail: false },
+    );
+    for (const wk of rowPreview) {
+      expect(wk.totalMi).toBe(0);
     }
   });
 });
