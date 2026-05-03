@@ -211,6 +211,11 @@ export { categorizeTemplate };
 const COLLAPSED_CATEGORIES_STORAGE_KEY =
   "planner.collapsedTemplateCategories.v1";
 
+// localStorage key for the planner's per-template "Details" expansion
+// state in the Plan Template Library card. Versioned so we can change
+// the shape later without colliding with stale entries.
+const EXPANDED_TEMPLATES_STORAGE_KEY = "planner.expandedTemplates.v1";
+
 interface DraftBlock {
   focusType: FocusType;
   weeks: number;
@@ -276,8 +281,41 @@ export default function Planner() {
   // button, and also force-expanded when the runner clicks "View source"
   // from a composition entry (which also scrolls the card into view).
   const [expandedTemplates, setExpandedTemplates] = useState<Set<string>>(
-    () => new Set(),
+    () => {
+      if (typeof window !== "undefined") {
+        try {
+          const raw = window.localStorage.getItem(
+            EXPANDED_TEMPLATES_STORAGE_KEY,
+          );
+          if (raw) {
+            const parsed: unknown = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              const knownIds = new Set(PLAN_TEMPLATES.map((t) => t.id));
+              const valid = parsed.filter(
+                (id): id is string =>
+                  typeof id === "string" && knownIds.has(id),
+              );
+              return new Set<string>(valid);
+            }
+          }
+        } catch {
+          // Ignore corrupt storage and fall through to default.
+        }
+      }
+      return new Set();
+    },
   );
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        EXPANDED_TEMPLATES_STORAGE_KEY,
+        JSON.stringify(Array.from(expandedTemplates)),
+      );
+    } catch {
+      // Storage may be full or disabled; ignore.
+    }
+  }, [expandedTemplates]);
   // Free-text filter applied to the Plan Template Library — matches
   // template name, source (author / book), and equipment hint
   // (case-insensitive). When non-empty, every category section that
