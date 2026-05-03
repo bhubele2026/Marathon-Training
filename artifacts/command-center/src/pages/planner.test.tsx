@@ -1425,6 +1425,9 @@ describe("Planner template tag-cloud chip counts", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    // Selecting chips here writes to localStorage; clear so the
+    // persistence describe block below isn't seeded with stale tags.
+    window.localStorage.clear();
   });
 
   it("renders each chip with its template count and updates the other chips' counts when one is selected; zero-count chips become disabled", () => {
@@ -1486,6 +1489,124 @@ describe("Planner template tag-cloud chip counts", () => {
         ) as HTMLButtonElement
       ).disabled,
     ).toBe(false);
+  });
+});
+
+describe("Plan Template Library — tag-cloud filter persistence", () => {
+  const STORAGE_KEY = "planner.selectedTemplateTags.v1";
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    window.localStorage.clear();
+  });
+
+  it("persists selected tag chips across reloads via localStorage", () => {
+    const first = renderPlanner();
+
+    // Select two chips. AND-semantics narrows to templates carrying both.
+    fireEvent.click(screen.getByTestId("planner-template-tag-chip-pfitzinger"));
+    fireEvent.click(
+      screen.getByTestId("planner-template-tag-chip-half-marathon"),
+    );
+
+    // Sanity: the chip-driven filter is in effect (only hm_pfitz matches both).
+    expect(screen.getByTestId("planner-template-hm_pfitz")).toBeTruthy();
+    expect(screen.queryByTestId("planner-template-marathon_hansons")).toBeNull();
+
+    // The persist effect must have written the selection to storage.
+    const persisted = window.localStorage.getItem(STORAGE_KEY);
+    expect(persisted).not.toBeNull();
+    const parsed = JSON.parse(persisted!) as string[];
+    expect(new Set(parsed)).toEqual(new Set(["pfitzinger", "half-marathon"]));
+
+    // Simulate a reload: tear down the planner and mount it fresh. The
+    // hydration path should rebuild the same filter from localStorage.
+    first.unmount();
+    renderPlanner();
+
+    // Both chips come back active (aria-pressed) without the runner
+    // having to click anything.
+    expect(
+      screen
+        .getByTestId("planner-template-tag-chip-pfitzinger")
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(
+      screen
+        .getByTestId("planner-template-tag-chip-half-marathon")
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    // And the filter is genuinely re-applied: hm_pfitz is the lone match.
+    expect(screen.getByTestId("planner-template-hm_pfitz")).toBeTruthy();
+    expect(screen.queryByTestId("planner-template-marathon_hansons")).toBeNull();
+    // The Clear control is rendered with the restored count.
+    expect(
+      screen.getByTestId("planner-template-tag-cloud-clear").textContent,
+    ).toContain("(2)");
+  });
+
+  it("Clear wipes both the in-memory selection and the persisted storage entry", () => {
+    renderPlanner();
+
+    fireEvent.click(screen.getByTestId("planner-template-tag-chip-pfitzinger"));
+    // Sanity: storage is populated after selecting.
+    expect(window.localStorage.getItem(STORAGE_KEY)).not.toBeNull();
+
+    fireEvent.click(screen.getByTestId("planner-template-tag-cloud-clear"));
+
+    // The Clear button disappears (no active selection) and the
+    // persisted entry is removed entirely (rather than left as an
+    // empty array) so a future reload starts from a clean slate.
+    expect(screen.queryByTestId("planner-template-tag-cloud-clear")).toBeNull();
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
+  });
+
+  it("drops persisted tags that are no longer in the catalog on hydration without console errors", () => {
+    // Seed storage with one tag that exists in the bundled catalog and
+    // one that does not (e.g. a tag retired between visits).
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(["pfitzinger", "definitely-not-a-real-tag-xyz"]),
+    );
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      renderPlanner();
+
+      // The valid tag stays active; the stale tag is silently dropped.
+      expect(
+        screen
+          .getByTestId("planner-template-tag-chip-pfitzinger")
+          .getAttribute("aria-pressed"),
+      ).toBe("true");
+      // Stale tag never renders a chip (it isn't in the catalog).
+      expect(
+        screen.queryByTestId(
+          "planner-template-tag-chip-definitely-not-a-real-tag-xyz",
+        ),
+      ).toBeNull();
+      // Filter is in the surviving single-tag state, not the empty
+      // state — non-pfitzinger templates are filtered out.
+      expect(screen.queryByTestId("planner-template-marathon_hansons")).toBeNull();
+      // The Clear control shows the pruned count of 1.
+      expect(
+        screen.getByTestId("planner-template-tag-cloud-clear").textContent,
+      ).toContain("(1)");
+      // The persist effect rewrites storage without the stale tag so
+      // the prune is durable across the next reload.
+      const persisted = window.localStorage.getItem(STORAGE_KEY);
+      expect(persisted).not.toBeNull();
+      expect(JSON.parse(persisted!)).toEqual(["pfitzinger"]);
+
+      // Hydration must be silent — no errors or warnings logged.
+      expect(errSpy).not.toHaveBeenCalled();
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      errSpy.mockRestore();
+      warnSpy.mockRestore();
+    }
   });
 });
 
