@@ -200,7 +200,9 @@ type CategorizableTemplate = Pick<
   PlanTemplate,
   "id" | "goalDistance" | "metadata"
 >;
-function categorizeTemplate(tpl: CategorizableTemplate): TemplateCategory {
+export function categorizeTemplate(
+  tpl: CategorizableTemplate,
+): TemplateCategory {
   if (tpl.id.endsWith("_custom")) return "Custom";
   const eq = tpl.metadata.equipmentMixHint.toLowerCase();
   const goal = tpl.goalDistance.toLowerCase();

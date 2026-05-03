@@ -48,8 +48,8 @@ vi.mock("@/lib/invalidate-mission-queries", () => ({
   invalidateMissionRelatedQueries: vi.fn(),
 }));
 
-import Planner, { defaultBlankConfig } from "./planner";
-import { validatePlannerConfig } from "@workspace/plan-generator";
+import Planner, { categorizeTemplate, defaultBlankConfig } from "./planner";
+import { PLAN_TEMPLATES, validatePlannerConfig } from "@workspace/plan-generator";
 
 const SAMPLE_CONFIG = {
   id: 1,
@@ -865,6 +865,235 @@ describe("Planner Apply Template race-date overrun warning", () => {
     expect(screen.queryByTestId("planner-pending-apply-overrun-warning")).toBeNull();
     // The race-date preview is still shown for transparency.
     expect(screen.getByTestId("planner-pending-apply-race-preview")).toBeTruthy();
+  });
+});
+
+// Expected category bucket for every entry in PLAN_TEMPLATES. Kept as
+// an explicit table so a regression in `categorizeTemplate` (e.g. the
+// run/bike/row priority order, hyrox detection, mat-only conditioning)
+// fails this test instead of silently shuffling cards into the wrong
+// section of the picker.
+const EXPECTED_CATEGORIES: Record<string, string> = {
+  couch_to_5k: "Run",
+  "5k_improver": "Run",
+  "10k_builder": "Run",
+  half_marathon: "Run",
+  marathon: "Run",
+  ultramarathon_50k: "Run",
+  aerobic_base: "Run",
+  speed_block: "Run",
+  hybrid_strength: "Hybrid",
+  cardio_weight_loss: "Run",
+  recovery: "Conditioning",
+  maintenance: "Conditioning",
+  tonal_strength_upper: "Strength",
+  tonal_strength_lower: "Strength",
+  push_pull_legs: "Strength",
+  tonal_conditioning: "Strength",
+  couch_to_5k_alt: "Run",
+  higdon_5k_novice: "Run",
+  higdon_5k_intermediate: "Run",
+  higdon_5k_advanced: "Run",
+  higdon_10k_advanced: "Run",
+  hm_higdon_novice2: "Run",
+  hm_pfitz: "Run",
+  hm_hansons: "Run",
+  marathon_pfitz_12_55: "Run",
+  marathon_pfitz_18_70: "Run",
+  marathon_hansons: "Run",
+  marathon_8020: "Run",
+  marathon_higdon_novice: "Run",
+  marathon_higdon_advanced: "Run",
+  ultra_50_mile: "Run",
+  ultra_100k: "Run",
+  norwegian_singles: "Run",
+  pelo_bike_you_can_ride: "Bike",
+  pelo_bike_pz_beginner: "Bike",
+  pelo_bike_pz_intermediate: "Bike",
+  pelo_bike_pz_advanced: "Bike",
+  pelo_bike_strength_for_cyclists: "Hybrid",
+  pelo_row_dpz: "Row",
+  c2_row_30day: "Row",
+  c2_row_5k: "Row",
+  c2_row_2k: "Row",
+  tonal_full_body_5x: "Strength",
+  starting_strength: "Strength",
+  stronglifts_5x5: "Strength",
+  wendler_531_bbb: "Strength",
+  phul: "Strength",
+  ppl_6day: "Strength",
+  simple_and_sinister: "Strength",
+  nick_bare_1_0: "Hybrid",
+  pelo_x_hyrox: "Hybrid",
+  maf_180: "Run",
+  bike_bootcamp_builder: "Bike",
+  ywa_30day: "Conditioning",
+  run_custom: "Custom",
+  bike_custom: "Custom",
+  row_custom: "Custom",
+  strength_custom: "Custom",
+  hybrid_custom: "Custom",
+  // race_countdown's equipment hint is "Runner-defined", which the
+  // categorizer treats as a Run (the substring "run" matches). Pinned
+  // here so that classification is locked down even though the id has
+  // no "_custom" suffix.
+  race_countdown: "Run",
+};
+
+describe("categorizeTemplate (table-driven)", () => {
+  it("has an expected entry for every PLAN_TEMPLATES id (no orphans)", () => {
+    const ids = PLAN_TEMPLATES.map((t) => t.id).sort();
+    const expected = Object.keys(EXPECTED_CATEGORIES).sort();
+    expect(ids).toEqual(expected);
+  });
+
+  it.each(PLAN_TEMPLATES.map((t) => [t.id, t] as const))(
+    "%s lands in the expected category",
+    (id, tpl) => {
+      expect(categorizeTemplate(tpl)).toBe(EXPECTED_CATEGORIES[id]);
+    },
+  );
+
+  it("any *_custom id is bucketed as Custom regardless of metadata", () => {
+    expect(
+      categorizeTemplate({
+        id: "anything_custom",
+        goalDistance: "26.2 mi",
+        metadata: {
+          intensityDistribution: "",
+          peakLongRun: "",
+          peakWeeklyVolume: "",
+          taperLength: "",
+          cutbackCadence: "",
+          mandatoryRestDays: 1,
+          equipmentMixHint: "Run-only",
+        },
+      }),
+    ).toBe("Custom");
+  });
+});
+
+describe("Plan Template Library — search filter and category grouping", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("renders one section per non-empty category and places known templates in the right buckets", () => {
+    renderPlanner();
+    // The Run section must contain marathon and the Bike section must
+    // contain a peloton bike template.
+    const runSection = screen.getByTestId("planner-template-category-run");
+    expect(within(runSection).getByTestId("planner-template-marathon")).toBeTruthy();
+    expect(
+      within(runSection).queryByTestId("planner-template-pelo_bike_pz_beginner"),
+    ).toBeNull();
+
+    const bikeSection = screen.getByTestId("planner-template-category-bike");
+    expect(
+      within(bikeSection).getByTestId("planner-template-pelo_bike_pz_beginner"),
+    ).toBeTruthy();
+
+    const strengthSection = screen.getByTestId(
+      "planner-template-category-strength",
+    );
+    expect(
+      within(strengthSection).getByTestId("planner-template-tonal_full_body_5x"),
+    ).toBeTruthy();
+
+    const hybridSection = screen.getByTestId("planner-template-category-hybrid");
+    expect(
+      within(hybridSection).getByTestId("planner-template-pelo_x_hyrox"),
+    ).toBeTruthy();
+  });
+
+  it("typing into the search input narrows the visible cards to only matches", () => {
+    renderPlanner();
+    // Pre-filter sanity: the marathon card is in the DOM.
+    expect(screen.getByTestId("planner-template-marathon")).toBeTruthy();
+
+    fireEvent.change(screen.getByTestId("planner-template-search"), {
+      target: { value: "hansons" },
+    });
+
+    // Matching templates remain visible.
+    expect(screen.getByTestId("planner-template-hm_hansons")).toBeTruthy();
+    expect(screen.getByTestId("planner-template-marathon_hansons")).toBeTruthy();
+    // Non-matching templates are removed from the DOM.
+    expect(screen.queryByTestId("planner-template-marathon")).toBeNull();
+    expect(screen.queryByTestId("planner-template-pelo_bike_pz_beginner")).toBeNull();
+    expect(screen.queryByTestId("planner-template-tonal_full_body_5x")).toBeNull();
+
+    // Summary line reports the match count for the active query.
+    const summary = screen.getByTestId("planner-template-search-summary");
+    expect(summary.textContent).toContain("2 templates match");
+    expect(summary.textContent).toContain("hansons");
+  });
+
+  it("filters by author/source and equipment hint, not just template name", () => {
+    renderPlanner();
+    // 'pfitz' only appears in the source/author field of Pfitz templates.
+    fireEvent.change(screen.getByTestId("planner-template-search"), {
+      target: { value: "pfitz" },
+    });
+    expect(screen.getByTestId("planner-template-hm_pfitz")).toBeTruthy();
+    expect(screen.getByTestId("planner-template-marathon_pfitz_12_55")).toBeTruthy();
+    expect(screen.queryByTestId("planner-template-marathon_hansons")).toBeNull();
+  });
+
+  it("auto-expands a category section that has matches even if it was collapsed by default", () => {
+    renderPlanner();
+    // Bike is collapsed by default (only Run starts expanded). With no
+    // search, the bike card is hidden from the layout via `hidden`.
+    const bikeBefore = screen.getByTestId("planner-template-category-bike");
+    expect(bikeBefore.querySelector("[hidden]")).not.toBeNull();
+
+    fireEvent.change(screen.getByTestId("planner-template-search"), {
+      target: { value: "peloton bike" },
+    });
+
+    // After search, the matching bike cards should be visible (the
+    // wrapping grid is not hidden).
+    const bikeAfter = screen.getByTestId("planner-template-category-bike");
+    const hiddenChildren = bikeAfter.querySelectorAll("[hidden]");
+    expect(hiddenChildren.length).toBe(0);
+    expect(
+      within(bikeAfter).getByTestId("planner-template-pelo_bike_pz_beginner"),
+    ).toBeTruthy();
+  });
+
+  it("shows the empty-state message when no templates match the query", () => {
+    renderPlanner();
+    expect(screen.queryByTestId("planner-template-empty")).toBeNull();
+
+    fireEvent.change(screen.getByTestId("planner-template-search"), {
+      target: { value: "zzznopezzz" },
+    });
+
+    const empty = screen.getByTestId("planner-template-empty");
+    expect(empty.textContent).toMatch(/No templates match/i);
+    // No category sections render when there are zero matches.
+    expect(screen.queryByTestId("planner-template-category-run")).toBeNull();
+    expect(screen.queryByTestId("planner-template-category-bike")).toBeNull();
+    // And the summary reports zero matches with the offending query.
+    expect(
+      screen.getByTestId("planner-template-search-summary").textContent,
+    ).toContain("0 templates match");
+  });
+
+  it("clearing the search restores the unfiltered grouped layout", () => {
+    renderPlanner();
+    fireEvent.change(screen.getByTestId("planner-template-search"), {
+      target: { value: "hansons" },
+    });
+    expect(screen.queryByTestId("planner-template-marathon")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("planner-template-search-clear"));
+
+    // Marathon (Run) is back, and the summary returns to the default copy.
+    expect(screen.getByTestId("planner-template-marathon")).toBeTruthy();
+    const summary = screen.getByTestId("planner-template-search-summary");
+    expect(summary.textContent).toMatch(/templates across .* categories/);
   });
 });
 
