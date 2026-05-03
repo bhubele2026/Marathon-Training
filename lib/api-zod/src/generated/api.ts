@@ -1175,69 +1175,34 @@ export const GetRecentActivityResponse = zod.array(
 );
 
 /**
- * Return the most recently saved Planner config, or null if none has been saved yet (in which case the canonical hard-coded plan is in effect).
+ * List every saved Planner config and identify which one is currently active. The active config is what POST /planner/apply will regenerate the plan from.
  */
-
-export const GetPlannerConfigResponse = zod.object({
-  config: zod
-    .object({
-      startDate: zod
-        .string()
-        .describe(
-          "ISO yyyy-mm-dd; week 1 begins on this date. Must be a Monday.",
-        ),
-      marathonDate: zod
-        .string()
-        .describe(
-          "ISO yyyy-mm-dd; race day, the Sunday the auto-pinned 16-week Marathon-Specific block ends on. Must be a Sunday and at least 16 weeks after startDate.",
-        ),
-      blocks: zod.array(
-        zod
-          .object({
-            focusType: zod.enum([
-              "Base",
-              "Time on Feet",
-              "Cardio + Weight Loss",
-              "Speed",
-              "Marathon-Specific",
-              "Taper",
-              "Recovery",
-              "Custom",
-            ]),
-            weeks: zod.number().min(1),
-            customName: zod
-              .string()
-              .nullish()
-              .describe(
-                'Required when focusType is \"Custom\"; ignored otherwise. Used as the phase label on plan_weeks\/plan_days for that block.',
-              ),
-            customNotes: zod
-              .string()
-              .nullish()
-              .describe(
-                'Optional free-text appended in `[brackets]` to every plan_day description in this block (handy for marking experiments, \"extra recovery\", etc.).',
-              ),
-          })
-          .describe(
-            "One block in the runner's Phase Planner config. The trailing 16-week\nMarathon-Specific block is auto-pinned at generation time and is NOT\npresent in the user-defined `blocks` array; users only pick the\nblocks that come BEFORE the auto-pinned tail.\n",
-          ),
-      ),
-      notes: zod.string().nullish(),
-      updatedAt: zod.coerce
-        .date()
-        .optional()
-        .describe(
-          "Server-set timestamp for the most recent PUT. Read-only — ignored on writes.",
-        ),
-    })
-    .nullable(),
+export const ListPlannerConfigsResponse = zod.object({
+  configs: zod.array(
+    zod
+      .object({
+        id: zod.number(),
+        name: zod.string(),
+        isActive: zod.boolean(),
+        startDate: zod.string(),
+        marathonDate: zod.string(),
+        updatedAt: zod.coerce.date(),
+        lastAppliedAt: zod.coerce.date().nullish(),
+      })
+      .describe("Lightweight row used by the configs dropdown."),
+  ),
+  activeId: zod
+    .number()
+    .nullable()
+    .describe("id of the active config (or null when no configs exist yet)."),
 });
 
 /**
- * Upsert the Planner config. Validates the dates (Monday start, Sunday marathon, at least 16 weeks apart) and that block weeks sum to (totalWeeks - 16). Saving the config does NOT regenerate plan rows — call POST /planner/apply for that.
+ * Create a brand-new named Planner config. Optional `setActive` flag (default true on the first config, otherwise false) marks it as the active one immediately. Validates dates and block weeks the same way the update endpoint does.
  */
 
-export const PutPlannerConfigBody = zod.object({
+export const CreatePlannerConfigBody = zod.object({
+  name: zod.string(),
   startDate: zod.string(),
   marathonDate: zod.string(),
   blocks: zod.array(
@@ -1272,9 +1237,30 @@ export const PutPlannerConfigBody = zod.object({
       ),
   ),
   notes: zod.string().nullish(),
+  setActive: zod
+    .boolean()
+    .nullish()
+    .describe(
+      "When true, mark the new config active immediately. Defaults to true if no configs exist yet, false otherwise.",
+    ),
 });
 
-export const PutPlannerConfigResponse = zod.object({
+export const GetPlannerConfigParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetPlannerConfigResponse = zod.object({
+  id: zod
+    .number()
+    .describe("Server-assigned identifier. Stable across renames."),
+  name: zod
+    .string()
+    .describe("Human-friendly label shown in the config dropdown."),
+  isActive: zod
+    .boolean()
+    .describe(
+      "True if this is the config that POST \/planner\/apply will operate on.",
+    ),
   startDate: zod
     .string()
     .describe("ISO yyyy-mm-dd; week 1 begins on this date. Must be a Monday."),
@@ -1319,12 +1305,247 @@ export const PutPlannerConfigResponse = zod.object({
     .date()
     .optional()
     .describe(
-      "Server-set timestamp for the most recent PUT. Read-only — ignored on writes.",
+      "Server-set timestamp for the most recent write. Read-only — ignored on writes.",
+    ),
+  lastAppliedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe(
+      "Timestamp of the most recent \/planner\/apply that pivoted on this config. NULL if it has never been applied.",
     ),
 });
 
 /**
- * Regenerate plan_weeks and plan_days from the most recently saved
+ * Update an existing Planner config in place (rename, retime, reblock). Validates dates (Monday start, Sunday marathon, at least 16 weeks apart) and that block weeks sum to (totalWeeks - 16). Saving does NOT regenerate plan rows — call POST /planner/apply for that.
+ */
+export const UpdatePlannerConfigParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdatePlannerConfigBody = zod.object({
+  name: zod.string(),
+  startDate: zod.string(),
+  marathonDate: zod.string(),
+  blocks: zod.array(
+    zod
+      .object({
+        focusType: zod.enum([
+          "Base",
+          "Time on Feet",
+          "Cardio + Weight Loss",
+          "Speed",
+          "Marathon-Specific",
+          "Taper",
+          "Recovery",
+          "Custom",
+        ]),
+        weeks: zod.number().min(1),
+        customName: zod
+          .string()
+          .nullish()
+          .describe(
+            'Required when focusType is \"Custom\"; ignored otherwise. Used as the phase label on plan_weeks\/plan_days for that block.',
+          ),
+        customNotes: zod
+          .string()
+          .nullish()
+          .describe(
+            'Optional free-text appended in `[brackets]` to every plan_day description in this block (handy for marking experiments, \"extra recovery\", etc.).',
+          ),
+      })
+      .describe(
+        "One block in the runner's Phase Planner config. The trailing 16-week\nMarathon-Specific block is auto-pinned at generation time and is NOT\npresent in the user-defined `blocks` array; users only pick the\nblocks that come BEFORE the auto-pinned tail.\n",
+      ),
+  ),
+  notes: zod.string().nullish(),
+});
+
+export const UpdatePlannerConfigResponse = zod.object({
+  id: zod
+    .number()
+    .describe("Server-assigned identifier. Stable across renames."),
+  name: zod
+    .string()
+    .describe("Human-friendly label shown in the config dropdown."),
+  isActive: zod
+    .boolean()
+    .describe(
+      "True if this is the config that POST \/planner\/apply will operate on.",
+    ),
+  startDate: zod
+    .string()
+    .describe("ISO yyyy-mm-dd; week 1 begins on this date. Must be a Monday."),
+  marathonDate: zod
+    .string()
+    .describe(
+      "ISO yyyy-mm-dd; race day, the Sunday the auto-pinned 16-week Marathon-Specific block ends on. Must be a Sunday and at least 16 weeks after startDate.",
+    ),
+  blocks: zod.array(
+    zod
+      .object({
+        focusType: zod.enum([
+          "Base",
+          "Time on Feet",
+          "Cardio + Weight Loss",
+          "Speed",
+          "Marathon-Specific",
+          "Taper",
+          "Recovery",
+          "Custom",
+        ]),
+        weeks: zod.number().min(1),
+        customName: zod
+          .string()
+          .nullish()
+          .describe(
+            'Required when focusType is \"Custom\"; ignored otherwise. Used as the phase label on plan_weeks\/plan_days for that block.',
+          ),
+        customNotes: zod
+          .string()
+          .nullish()
+          .describe(
+            'Optional free-text appended in `[brackets]` to every plan_day description in this block (handy for marking experiments, \"extra recovery\", etc.).',
+          ),
+      })
+      .describe(
+        "One block in the runner's Phase Planner config. The trailing 16-week\nMarathon-Specific block is auto-pinned at generation time and is NOT\npresent in the user-defined `blocks` array; users only pick the\nblocks that come BEFORE the auto-pinned tail.\n",
+      ),
+  ),
+  notes: zod.string().nullish(),
+  updatedAt: zod.coerce
+    .date()
+    .optional()
+    .describe(
+      "Server-set timestamp for the most recent write. Read-only — ignored on writes.",
+    ),
+  lastAppliedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe(
+      "Timestamp of the most recent \/planner\/apply that pivoted on this config. NULL if it has never been applied.",
+    ),
+});
+
+/**
+ * Delete a saved Planner config. If the deleted config was active,
+the next-most-recently-updated remaining config (if any) is
+promoted to active. Refuses (400) when called on the only
+remaining config.
+
+Note: deleting a config also drops its applied_* snapshot.
+If the deleted config was the most recently applied one, the
+race anchor (Full Reset / dashboard countdown / race-week
+lookup) falls back to whatever OTHER config has the next-most-
+recent last_applied_at, or to the canonical hard-coded race
+date if no remaining config has ever been applied. Re-Apply
+another config to re-anchor immediately.
+
+ */
+export const DeletePlannerConfigParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeletePlannerConfigResponse = zod.object({
+  deletedId: zod.number(),
+  newActiveId: zod
+    .number()
+    .nullable()
+    .describe(
+      "id of the config promoted to active because the deleted one was active. Null when the deleted config was not active (so no promotion happened).",
+    ),
+});
+
+/**
+ * Create a copy of the given config with a new name (defaults to "<original name> (copy)"). The duplicate is NOT auto-activated and never inherits last_applied_at / applied_* — those only ever come from a real Apply.
+ */
+export const DuplicatePlannerConfigParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DuplicatePlannerConfigBody = zod.object({
+  name: zod
+    .string()
+    .nullish()
+    .describe(
+      'Name for the duplicate. Defaults to \"<original name> (copy)\".',
+    ),
+});
+
+/**
+ * Mark this config as the active one. Apply uses the active config; the activate flip is a transactional set-this-row-active-and-clear-the-rest. Activating does NOT regenerate plan rows — call POST /planner/apply for that.
+ */
+export const ActivatePlannerConfigParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ActivatePlannerConfigResponse = zod.object({
+  id: zod
+    .number()
+    .describe("Server-assigned identifier. Stable across renames."),
+  name: zod
+    .string()
+    .describe("Human-friendly label shown in the config dropdown."),
+  isActive: zod
+    .boolean()
+    .describe(
+      "True if this is the config that POST \/planner\/apply will operate on.",
+    ),
+  startDate: zod
+    .string()
+    .describe("ISO yyyy-mm-dd; week 1 begins on this date. Must be a Monday."),
+  marathonDate: zod
+    .string()
+    .describe(
+      "ISO yyyy-mm-dd; race day, the Sunday the auto-pinned 16-week Marathon-Specific block ends on. Must be a Sunday and at least 16 weeks after startDate.",
+    ),
+  blocks: zod.array(
+    zod
+      .object({
+        focusType: zod.enum([
+          "Base",
+          "Time on Feet",
+          "Cardio + Weight Loss",
+          "Speed",
+          "Marathon-Specific",
+          "Taper",
+          "Recovery",
+          "Custom",
+        ]),
+        weeks: zod.number().min(1),
+        customName: zod
+          .string()
+          .nullish()
+          .describe(
+            'Required when focusType is \"Custom\"; ignored otherwise. Used as the phase label on plan_weeks\/plan_days for that block.',
+          ),
+        customNotes: zod
+          .string()
+          .nullish()
+          .describe(
+            'Optional free-text appended in `[brackets]` to every plan_day description in this block (handy for marking experiments, \"extra recovery\", etc.).',
+          ),
+      })
+      .describe(
+        "One block in the runner's Phase Planner config. The trailing 16-week\nMarathon-Specific block is auto-pinned at generation time and is NOT\npresent in the user-defined `blocks` array; users only pick the\nblocks that come BEFORE the auto-pinned tail.\n",
+      ),
+  ),
+  notes: zod.string().nullish(),
+  updatedAt: zod.coerce
+    .date()
+    .optional()
+    .describe(
+      "Server-set timestamp for the most recent write. Read-only — ignored on writes.",
+    ),
+  lastAppliedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe(
+      "Timestamp of the most recent \/planner\/apply that pivoted on this config. NULL if it has never been applied.",
+    ),
+});
+
+/**
+ * Regenerate plan_weeks and plan_days from the currently ACTIVE
 Planner config. Logged workouts and body measurements are PRESERVED.
 Reset-undo snapshots are dropped because their plan_day ids no longer
 match. Workout plan_day_id FKs are best-effort rebound to the new

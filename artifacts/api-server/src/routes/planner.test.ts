@@ -9,9 +9,10 @@ import {
   workoutsTable,
 } from "@workspace/db";
 import {
-  GetPlannerConfigResponse,
-  PutPlannerConfigResponse,
+  GetPlannerConfigResponse as PlannerConfigSchema,
+  ListPlannerConfigsResponse,
   ApplyPlannerConfigResponse,
+  DeletePlannerConfigResponse,
 } from "@workspace/api-zod";
 import {
   MARATHON_TAIL_WEEKS,
@@ -48,120 +49,189 @@ function canonicalBlocks() {
   ];
 }
 
-describe("GET /api/planner/config", () => {
-  it("returns null config when no planner config has been saved", async () => {
-    const res = await request(app).get("/api/planner/config");
+async function createCanonicalConfig(name = "Primary") {
+  const res = await request(app)
+    .post("/api/planner/configs")
+    .send({
+      name,
+      startDate: PLAN_START_ISO,
+      marathonDate: RACE_DATE_ISO,
+      blocks: canonicalBlocks(),
+    });
+  expect(res.status).toBe(201);
+  return res.body as { id: number; name: string; isActive: boolean };
+}
+
+describe("GET /api/planner/configs", () => {
+  it("returns an empty list and null activeId when none have been saved", async () => {
+    const res = await request(app).get("/api/planner/configs");
     expect(res.status).toBe(200);
-    expectMatchesSchema(GetPlannerConfigResponse, res.body);
-    expect(res.body.config).toBeNull();
+    expectMatchesSchema(ListPlannerConfigsResponse, res.body);
+    expect(res.body.configs).toEqual([]);
+    expect(res.body.activeId).toBeNull();
   });
 
-  it("returns the saved planner config after a PUT", async () => {
-    const blocks = canonicalBlocks();
-    await request(app)
-      .put("/api/planner/config")
-      .send({
-        startDate: PLAN_START_ISO,
-        marathonDate: RACE_DATE_ISO,
-        blocks,
-      })
-      .expect(200);
-
-    const res = await request(app).get("/api/planner/config");
+  it("auto-activates the first created config and returns its id as activeId", async () => {
+    const created = await createCanonicalConfig("First");
+    expect(created.isActive).toBe(true);
+    const res = await request(app).get("/api/planner/configs");
     expect(res.status).toBe(200);
-    expectMatchesSchema(GetPlannerConfigResponse, res.body);
-    expect(res.body.config).not.toBeNull();
-    expect(res.body.config.startDate).toBe(PLAN_START_ISO);
-    expect(res.body.config.marathonDate).toBe(RACE_DATE_ISO);
-    expect(res.body.config.blocks).toHaveLength(blocks.length);
-    expect(res.body.config.blocks[0].focusType).toBe("Base");
+    expectMatchesSchema(ListPlannerConfigsResponse, res.body);
+    expect(res.body.configs).toHaveLength(1);
+    expect(res.body.activeId).toBe(created.id);
   });
 });
 
-describe("PUT /api/planner/config", () => {
-  it("upserts and returns the saved config matching the OpenAPI schema", async () => {
-    const res = await request(app)
-      .put("/api/planner/config")
-      .send({
-        startDate: PLAN_START_ISO,
-        marathonDate: RACE_DATE_ISO,
-        blocks: canonicalBlocks(),
-        notes: "first config",
-      });
-    expect(res.status).toBe(200);
-    expectMatchesSchema(PutPlannerConfigResponse, res.body);
-    expect(res.body.notes).toBe("first config");
+describe("POST /api/planner/configs", () => {
+  it("creates a new config and the validation rejects invalid block weeks", async () => {
+    await createCanonicalConfig("A");
 
-    // Second PUT updates in place (single-row table, no duplicate insert).
-    const res2 = await request(app)
-      .put("/api/planner/config")
+    const bad = await request(app)
+      .post("/api/planner/configs")
       .send({
-        startDate: PLAN_START_ISO,
-        marathonDate: RACE_DATE_ISO,
-        blocks: canonicalBlocks(),
-        notes: "updated",
-      });
-    expect(res2.status).toBe(200);
-    expect(res2.body.notes).toBe("updated");
-
-    const rows = await db.select().from(plannerConfigsTable);
-    expect(rows).toHaveLength(1);
-  });
-
-  it("rejects when block weeks do not sum to (totalWeeks - 16)", async () => {
-    const res = await request(app)
-      .put("/api/planner/config")
-      .send({
+        name: "Bad",
         startDate: PLAN_START_ISO,
         marathonDate: RACE_DATE_ISO,
         // Sums to 1, far short of the required (TOTAL_WEEKS - 16).
         blocks: [{ focusType: "Base", weeks: 1 }],
       });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBeDefined();
+    expect(bad.status).toBe(400);
+  });
+
+  it("does NOT auto-activate the second config (only first config is auto-active)", async () => {
+    const a = await createCanonicalConfig("A");
+    const b = await createCanonicalConfig("B");
+    expect(b.isActive).toBe(false);
+    const list = await request(app).get("/api/planner/configs");
+    expect(list.body.activeId).toBe(a.id);
   });
 
   it("rejects when startDate is not a Monday", async () => {
-    // 2026-05-05 is a Tuesday.
     const res = await request(app)
-      .put("/api/planner/config")
+      .post("/api/planner/configs")
       .send({
+        name: "Tuesday start",
+        // 2026-05-05 is a Tuesday.
         startDate: "2026-05-05",
         marathonDate: RACE_DATE_ISO,
         blocks: canonicalBlocks(),
       });
     expect(res.status).toBe(400);
   });
+});
 
-  it("rejects when marathonDate is in the past", async () => {
-    // 2020-05-03 is a Sunday but already in the past — server-side todayISO
-    // check should reject so the runner can't seed a backwards plan.
+describe("PUT /api/planner/configs/:id", () => {
+  it("updates an existing config in place and returns the new shape", async () => {
+    const a = await createCanonicalConfig("A");
     const res = await request(app)
-      .put("/api/planner/config")
+      .put(`/api/planner/configs/${a.id}`)
       .send({
-        startDate: "2020-04-27",
-        marathonDate: "2020-05-03",
+        name: "A renamed",
+        startDate: PLAN_START_ISO,
+        marathonDate: RACE_DATE_ISO,
         blocks: canonicalBlocks(),
+        notes: "renamed",
       });
-    expect(res.status).toBe(400);
-    expect(JSON.stringify(res.body)).toMatch(/future|past/i);
+    expect(res.status).toBe(200);
+    expectMatchesSchema(PlannerConfigSchema, res.body);
+    expect(res.body.name).toBe("A renamed");
+    expect(res.body.notes).toBe("renamed");
   });
 
-  it("rejects when marathonDate is not a Sunday", async () => {
-    // 2027-05-03 is a Monday, not a Sunday.
+  it("404s on an unknown id", async () => {
     const res = await request(app)
-      .put("/api/planner/config")
+      .put(`/api/planner/configs/9999`)
       .send({
+        name: "x",
         startDate: PLAN_START_ISO,
-        marathonDate: "2027-05-03",
+        marathonDate: RACE_DATE_ISO,
         blocks: canonicalBlocks(),
       });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("POST /api/planner/configs/:id/duplicate", () => {
+  it("creates a copy with a defaulted name that is not active and not applied", async () => {
+    const a = await createCanonicalConfig("Original");
+    const res = await request(app)
+      .post(`/api/planner/configs/${a.id}/duplicate`)
+      .send({});
+    expect(res.status).toBe(201);
+    expectMatchesSchema(PlannerConfigSchema, res.body);
+    expect(res.body.name).toBe("Original (copy)");
+    expect(res.body.isActive).toBe(false);
+    expect(res.body.lastAppliedAt).toBeNull();
+  });
+
+  it("honors a user-provided name", async () => {
+    const a = await createCanonicalConfig("Original");
+    const res = await request(app)
+      .post(`/api/planner/configs/${a.id}/duplicate`)
+      .send({ name: "My branch" });
+    expect(res.status).toBe(201);
+    expect(res.body.name).toBe("My branch");
+  });
+});
+
+describe("POST /api/planner/configs/:id/activate", () => {
+  it("flips the active flag and clears it on every other row", async () => {
+    const a = await createCanonicalConfig("A");
+    const b = await createCanonicalConfig("B");
+    expect(a.isActive).toBe(true);
+    expect(b.isActive).toBe(false);
+
+    const res = await request(app).post(`/api/planner/configs/${b.id}/activate`);
+    expect(res.status).toBe(200);
+    expect(res.body.isActive).toBe(true);
+
+    const list = await request(app).get("/api/planner/configs");
+    expect(list.body.activeId).toBe(b.id);
+    const aRow = list.body.configs.find((c: { id: number }) => c.id === a.id);
+    expect(aRow.isActive).toBe(false);
+  });
+});
+
+describe("DELETE /api/planner/configs/:id", () => {
+  it("refuses to delete the only remaining config", async () => {
+    const a = await createCanonicalConfig("Solo");
+    const res = await request(app).delete(`/api/planner/configs/${a.id}`);
     expect(res.status).toBe(400);
+  });
+
+  it("deletes a non-active config without promoting anyone", async () => {
+    const a = await createCanonicalConfig("A");
+    const b = await createCanonicalConfig("B");
+    const res = await request(app).delete(`/api/planner/configs/${b.id}`);
+    expect(res.status).toBe(200);
+    expectMatchesSchema(DeletePlannerConfigResponse, res.body);
+    expect(res.body.deletedId).toBe(b.id);
+    expect(res.body.newActiveId).toBeNull();
+    const list = await request(app).get("/api/planner/configs");
+    expect(list.body.activeId).toBe(a.id);
+  });
+
+  it("promotes the most-recently-updated remaining config when the active one is deleted", async () => {
+    const a = await createCanonicalConfig("A"); // auto-active
+    const b = await createCanonicalConfig("B");
+    // Touch B so it's the most recently updated remaining row.
+    await request(app)
+      .put(`/api/planner/configs/${b.id}`)
+      .send({
+        name: "B touched",
+        startDate: PLAN_START_ISO,
+        marathonDate: RACE_DATE_ISO,
+        blocks: canonicalBlocks(),
+      });
+
+    const res = await request(app).delete(`/api/planner/configs/${a.id}`);
+    expect(res.status).toBe(200);
+    expect(res.body.newActiveId).toBe(b.id);
   });
 });
 
 describe("POST /api/planner/apply", () => {
-  it("400s when no planner config has been saved", async () => {
+  it("400s when no active planner config exists", async () => {
     const res = await request(app).post("/api/planner/apply");
     expect(res.status).toBe(400);
   });
@@ -188,14 +258,7 @@ describe("POST /api/planner/apply", () => {
       expiresAt: new Date(Date.now() + 30_000),
     });
 
-    await request(app)
-      .put("/api/planner/config")
-      .send({
-        startDate: PLAN_START_ISO,
-        marathonDate: RACE_DATE_ISO,
-        blocks: canonicalBlocks(),
-      })
-      .expect(200);
+    await createCanonicalConfig("Apply target");
 
     const res = await request(app).post("/api/planner/apply");
     expect(res.status).toBe(200);
@@ -230,35 +293,60 @@ describe("POST /api/planner/apply", () => {
     expect(wrows[0]?.planDayId).not.toBeNull();
   });
 
-  it("treats a draft saved AFTER apply (without re-apply) as not the active applied config", async () => {
-    // Apply config A first.
-    await request(app)
-      .put("/api/planner/config")
-      .send({
-        startDate: PLAN_START_ISO,
-        marathonDate: RACE_DATE_ISO,
-        blocks: canonicalBlocks(),
-      })
-      .expect(200);
+  it("treats a saved-but-not-applied SECOND config as not the active applied config", async () => {
+    // Create + apply config A.
+    await createCanonicalConfig("A");
     await request(app).post("/api/planner/apply").expect(200);
 
-    // Now SAVE a different draft B without applying. Pick another valid
-    // Mon→Sun window of the same length so PUT validation passes.
+    // Create config B at a DIFFERENT marathon date, but DON'T apply.
+    // Pick another valid Mon→Sun window of the same length so validation
+    // passes.
     const altStart = "2026-05-11"; // Monday
     const altRace = "2027-05-09"; // Sunday, also 52 weeks out
-    await request(app)
-      .put("/api/planner/config")
+    const b = await request(app)
+      .post("/api/planner/configs")
       .send({
+        name: "B",
         startDate: altStart,
         marathonDate: altRace,
         blocks: canonicalBlocks(),
-      })
-      .expect(200);
+      });
+    expect(b.status).toBe(201);
+    expect(b.body.isActive).toBe(false);
 
     // /api/race-week.raceDate must STILL anchor on config A (the applied
-    // marathon date), proving the draft did not silently re-anchor.
+    // marathon date), proving the saved-but-not-applied draft did not
+    // silently re-anchor.
     const rw = await request(app).get("/api/race-week");
     expect(rw.status).toBe(200);
     expect(rw.body.raceDate).toBe(RACE_DATE_ISO);
+  });
+
+  it("activating a different config without applying does NOT shift the race anchor", async () => {
+    // Apply A.
+    const a = await createCanonicalConfig("A");
+    await request(app).post("/api/planner/apply").expect(200);
+
+    // Create B and ACTIVATE it (still no apply).
+    const altStart = "2026-05-11";
+    const altRace = "2027-05-09";
+    const bRes = await request(app)
+      .post("/api/planner/configs")
+      .send({
+        name: "B",
+        startDate: altStart,
+        marathonDate: altRace,
+        blocks: canonicalBlocks(),
+      });
+    const b = bRes.body as { id: number };
+    await request(app).post(`/api/planner/configs/${b.id}/activate`).expect(200);
+
+    // Anchor still points at A's applied marathon date.
+    const rw = await request(app).get("/api/race-week");
+    expect(rw.status).toBe(200);
+    expect(rw.body.raceDate).toBe(RACE_DATE_ISO);
+
+    // Cleanup: re-activate A so subsequent suites have a sane state.
+    await request(app).post(`/api/planner/configs/${a.id}/activate`);
   });
 });

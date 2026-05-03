@@ -145,6 +145,8 @@ describe("GET /api/dashboard/summary daysToRace anchored on applied Planner conf
     // anchor without exercising the full apply pipeline.
     await db.insert(plannerConfigsTable).values({
       id: 1,
+      name: "Dashboard test config",
+      isActive: true,
       startDate: "2099-04-27",
       marathonDate: "2099-05-10",
       blocks: [{ focusType: "Base", weeks: 2 }],

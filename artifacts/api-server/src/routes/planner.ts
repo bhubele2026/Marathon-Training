@@ -7,8 +7,12 @@ import {
   plannerConfigsTable,
   type PlannerConfigRow,
 } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
-import { PutPlannerConfigBody } from "@workspace/api-zod";
+import { eq, sql, desc, and, ne } from "drizzle-orm";
+import {
+  CreatePlannerConfigBody,
+  UpdatePlannerConfigBody,
+  DuplicatePlannerConfigBody,
+} from "@workspace/api-zod";
 import {
   generatePlanFromConfig,
   validatePlannerConfig,
@@ -20,24 +24,44 @@ import {
 
 const router: IRouter = Router();
 
-// Single-row table; we always read/write id = 1.
-const PLANNER_CONFIG_ID = 1;
+// API-shaped PlannerConfig (the React Query hook consumes this directly).
+// Drizzle gives us camelCase already; we surface timestamps as ISO strings
+// and coerce the jsonb `blocks` payload back into the typed PhaseBlock[].
+type ApiPlannerConfig = {
+  id: number;
+  name: string;
+  isActive: boolean;
+  startDate: string;
+  marathonDate: string;
+  blocks: PhaseBlock[];
+  notes: string | null;
+  updatedAt: string;
+  lastAppliedAt: string | null;
+};
 
-// Convert a DB row into the API-shaped PlannerConfig that the React Query
-// hook (`getPlannerConfig`) consumes. Drizzle gives us camelCase already; we
-// just need to surface `updatedAt` as an ISO string and coerce the jsonb
-// `blocks` payload back into the typed PhaseBlock[] (the column is typed
-// loosely as `Array<{focusType: string; ...}>` so that drizzle migrations
-// don't pin us to the FocusType enum at the schema layer).
-function toPlannerConfig(
-  row: PlannerConfigRow,
-): PlannerConfig & { notes: string | null; updatedAt: string } {
+function toPlannerConfig(row: PlannerConfigRow): ApiPlannerConfig {
   return {
+    id: row.id,
+    name: row.name,
+    isActive: row.isActive,
     startDate: row.startDate,
     marathonDate: row.marathonDate,
     blocks: row.blocks as PhaseBlock[],
     notes: row.notes,
     updatedAt: row.updatedAt.toISOString(),
+    lastAppliedAt: row.lastAppliedAt ? row.lastAppliedAt.toISOString() : null,
+  };
+}
+
+function toSummary(row: PlannerConfigRow) {
+  return {
+    id: row.id,
+    name: row.name,
+    isActive: row.isActive,
+    startDate: row.startDate,
+    marathonDate: row.marathonDate,
+    updatedAt: row.updatedAt.toISOString(),
+    lastAppliedAt: row.lastAppliedAt ? row.lastAppliedAt.toISOString() : null,
   };
 }
 
@@ -50,20 +74,21 @@ export async function readActiveRaceDate(): Promise<string> {
   return cfg?.marathonDate ?? RACE_DATE_ISO;
 }
 
-// Most-recently-APPLIED planner config — read from the immutable
-// applied_* snapshot columns so a draft saved AFTER an apply (without a
-// follow-up apply) does not silently re-anchor Full Reset / dashboard /
-// race-week. Returns null if no config has ever been applied.
+// Most-recently-APPLIED planner config across ALL saved configs — read from
+// the immutable applied_* snapshot columns. We pick the row with the
+// largest last_applied_at so activating-but-not-applying a different
+// config does NOT silently re-anchor Full Reset / dashboard / race-week.
+// Returns null if no config has ever been applied.
 export async function readLastAppliedPlannerConfig(): Promise<PlannerConfig | null> {
   const rows = await db
     .select()
     .from(plannerConfigsTable)
-    .where(eq(plannerConfigsTable.id, PLANNER_CONFIG_ID))
+    .where(sql`${plannerConfigsTable.lastAppliedAt} IS NOT NULL`)
+    .orderBy(desc(plannerConfigsTable.lastAppliedAt))
     .limit(1);
   const row = rows[0];
   if (
     !row ||
-    row.lastAppliedAt === null ||
     row.appliedStartDate === null ||
     row.appliedMarathonDate === null ||
     row.appliedBlocks === null
@@ -77,121 +102,392 @@ export async function readLastAppliedPlannerConfig(): Promise<PlannerConfig | nu
   };
 }
 
-router.get("/planner/config", async (_req, res): Promise<void> => {
-  const rows = await db
-    .select()
-    .from(plannerConfigsTable)
-    .where(eq(plannerConfigsTable.id, PLANNER_CONFIG_ID))
-    .limit(1);
-  const row = rows[0];
-  res.json({ config: row ? toPlannerConfig(row) : null });
-});
+// Compute the next available primary key. Manual id assignment lets us
+// keep the schema as a plain integer PK (no identity / serial migration
+// needed for the existing single-row table) and lets tests insert with
+// explicit ids if they want.
+async function nextConfigId(
+  tx: typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0],
+): Promise<number> {
+  const rows = await tx.execute<{ max: number | null }>(
+    sql`SELECT COALESCE(MAX(id), 0) AS max FROM planner_configs`,
+  );
+  return (rows.rows[0]?.max ?? 0) + 1;
+}
 
-router.put("/planner/config", async (req, res): Promise<void> => {
-  // Step 1: surface-level zod validation (shape + required fields). The
-  // generated schema is permissive on focusType (it's a string enum on the
-  // wire), so we still need to call validatePlannerConfig below for the
-  // semantic checks (Monday start, Sunday marathon, block weeks sum, etc.).
-  const parsed = PutPlannerConfigBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.flatten() });
-    return;
-  }
-  // Normalize the blocks into PhaseBlock shape. The wire type allows
-  // optional customName/customNotes; we coerce undefined → null so the
-  // jsonb column round-trips cleanly.
-  const blocks: PhaseBlock[] = parsed.data.blocks.map((b) => ({
+// Lazy upgrade helper: the pre-Task-#82 single row had isActive=false
+// (the column was added with a default of false on push). On the first
+// list / read after migration, promote the most-recently-updated row to
+// active so existing consumers (Apply, Full Reset) keep working without
+// manual intervention.
+async function ensureSomeActive(): Promise<void> {
+  const activeRows = await db
+    .select({ id: plannerConfigsTable.id })
+    .from(plannerConfigsTable)
+    .where(eq(plannerConfigsTable.isActive, true))
+    .limit(1);
+  if (activeRows.length > 0) return;
+  const candidate = await db
+    .select({ id: plannerConfigsTable.id })
+    .from(plannerConfigsTable)
+    .orderBy(desc(plannerConfigsTable.updatedAt))
+    .limit(1);
+  if (candidate.length === 0) return;
+  await db
+    .update(plannerConfigsTable)
+    .set({ isActive: true })
+    .where(eq(plannerConfigsTable.id, candidate[0]!.id));
+}
+
+// Validate a Planner config payload. Returns a 400-shaped error envelope
+// or null when valid. Coerces the blocks into PhaseBlock shape.
+function validateBody(body: {
+  startDate: string;
+  marathonDate: string;
+  blocks: Array<{
+    focusType: string;
+    weeks: number;
+    customName?: string | null;
+    customNotes?: string | null;
+  }>;
+}):
+  | { ok: true; blocks: PhaseBlock[] }
+  | { ok: false; status: 400; error: unknown } {
+  const blocks: PhaseBlock[] = body.blocks.map((b) => ({
     focusType: b.focusType as FocusType,
     weeks: b.weeks,
     customName: b.customName ?? null,
     customNotes: b.customNotes ?? null,
   }));
   const config: PlannerConfig = {
-    startDate: parsed.data.startDate,
-    marathonDate: parsed.data.marathonDate,
+    startDate: body.startDate,
+    marathonDate: body.marathonDate,
     blocks,
   };
-
-  // Step 2: semantic validation, including marathonDate-must-be-future.
-  // todayISO is computed server-side so the runner can't bypass the check
-  // by spoofing their clock.
+  // todayISO is computed server-side so the runner can't bypass the
+  // marathonDate-must-be-future check by spoofing their clock.
   const todayISO = new Date().toISOString().slice(0, 10);
   const issues = validatePlannerConfig(config, { todayISO });
-  if (issues.length > 0) {
-    const fieldErrors: Record<string, string[]> = {};
-    const formErrors: string[] = [];
-    for (const issue of issues) {
-      if (issue.field === "blocks" || !issue.field) {
-        formErrors.push(issue.message);
-      } else {
-        (fieldErrors[issue.field] ??= []).push(issue.message);
-      }
+  if (issues.length === 0) return { ok: true, blocks };
+  const fieldErrors: Record<string, string[]> = {};
+  const formErrors: string[] = [];
+  for (const issue of issues) {
+    if (issue.field === "blocks" || !issue.field) {
+      formErrors.push(issue.message);
+    } else {
+      (fieldErrors[issue.field] ??= []).push(issue.message);
     }
-    res.status(400).json({ error: { formErrors, fieldErrors } });
+  }
+  return { ok: false, status: 400, error: { formErrors, fieldErrors } };
+}
+
+// ---- Routes -----------------------------------------------------------
+
+router.get("/planner/configs", async (_req, res): Promise<void> => {
+  await ensureSomeActive();
+  const rows = await db
+    .select()
+    .from(plannerConfigsTable)
+    .orderBy(desc(plannerConfigsTable.isActive), desc(plannerConfigsTable.updatedAt));
+  const active = rows.find((r) => r.isActive) ?? null;
+  res.json({
+    configs: rows.map(toSummary),
+    activeId: active ? active.id : null,
+  });
+});
+
+router.post("/planner/configs", async (req, res): Promise<void> => {
+  const parsed = CreatePlannerConfigBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
-
-  // Step 3: upsert. The single-row keying lets us use ON CONFLICT on the
-  // primary key without a separate select+update branch.
+  const validated = validateBody(parsed.data);
+  if (!validated.ok) {
+    res.status(validated.status).json({ error: validated.error });
+    return;
+  }
   const now = new Date();
-  await db
-    .insert(plannerConfigsTable)
-    .values({
-      id: PLANNER_CONFIG_ID,
-      startDate: config.startDate,
-      marathonDate: config.marathonDate,
-      blocks,
+  const inserted = await db.transaction(async (tx) => {
+    const id = await nextConfigId(tx);
+    const existing = await tx
+      .select({ id: plannerConfigsTable.id })
+      .from(plannerConfigsTable)
+      .limit(1);
+    // Default activation rule: first ever config is auto-active; otherwise
+    // honor an explicit setActive flag (defaulting to false).
+    const setActive =
+      parsed.data.setActive ?? existing.length === 0;
+    if (setActive) {
+      await tx
+        .update(plannerConfigsTable)
+        .set({ isActive: false })
+        .where(eq(plannerConfigsTable.isActive, true));
+    }
+    await tx.insert(plannerConfigsTable).values({
+      id,
+      name: parsed.data.name,
+      isActive: setActive,
+      startDate: parsed.data.startDate,
+      marathonDate: parsed.data.marathonDate,
+      blocks: validated.blocks,
       notes: parsed.data.notes ?? null,
       createdAt: now,
       updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: plannerConfigsTable.id,
-      set: {
-        startDate: config.startDate,
-        marathonDate: config.marathonDate,
-        blocks,
-        notes: parsed.data.notes ?? null,
-        updatedAt: now,
-      },
     });
+    const rows = await tx
+      .select()
+      .from(plannerConfigsTable)
+      .where(eq(plannerConfigsTable.id, id))
+      .limit(1);
+    return rows[0]!;
+  });
+  req.log.info(
+    { id: inserted.id, name: inserted.name, isActive: inserted.isActive },
+    "planner config created",
+  );
+  res.status(201).json(toPlannerConfig(inserted));
+});
 
+router.get("/planner/configs/:id", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const rows = await db
+    .select()
+    .from(plannerConfigsTable)
+    .where(eq(plannerConfigsTable.id, id))
+    .limit(1);
+  const row = rows[0];
+  if (!row) {
+    res.status(404).json({ error: "Config not found" });
+    return;
+  }
+  res.json(toPlannerConfig(row));
+});
+
+router.put("/planner/configs/:id", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const parsed = UpdatePlannerConfigBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const validated = validateBody(parsed.data);
+  if (!validated.ok) {
+    res.status(validated.status).json({ error: validated.error });
+    return;
+  }
+  const existing = await db
+    .select({ id: plannerConfigsTable.id })
+    .from(plannerConfigsTable)
+    .where(eq(plannerConfigsTable.id, id))
+    .limit(1);
+  if (existing.length === 0) {
+    res.status(404).json({ error: "Config not found" });
+    return;
+  }
+  await db
+    .update(plannerConfigsTable)
+    .set({
+      name: parsed.data.name,
+      startDate: parsed.data.startDate,
+      marathonDate: parsed.data.marathonDate,
+      blocks: validated.blocks,
+      notes: parsed.data.notes ?? null,
+      updatedAt: new Date(),
+    })
+    .where(eq(plannerConfigsTable.id, id));
   const row = (
     await db
       .select()
       .from(plannerConfigsTable)
-      .where(eq(plannerConfigsTable.id, PLANNER_CONFIG_ID))
+      .where(eq(plannerConfigsTable.id, id))
       .limit(1)
   )[0]!;
-
-  req.log.info(
-    {
-      startDate: row.startDate,
-      marathonDate: row.marathonDate,
-      blockCount: blocks.length,
-    },
-    "planner config saved",
-  );
+  req.log.info({ id, name: row.name }, "planner config updated");
   res.json(toPlannerConfig(row));
 });
 
-// Apply the saved Planner config: regenerate plan_weeks/plan_days,
+router.delete("/planner/configs/:id", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const result = await db.transaction(async (tx) => {
+    const target = (
+      await tx
+        .select()
+        .from(plannerConfigsTable)
+        .where(eq(plannerConfigsTable.id, id))
+        .limit(1)
+    )[0];
+    if (!target) return { kind: "not_found" as const };
+    const totalRows = await tx
+      .select({ id: plannerConfigsTable.id })
+      .from(plannerConfigsTable);
+    if (totalRows.length <= 1) {
+      return { kind: "only_remaining" as const };
+    }
+    await tx
+      .delete(plannerConfigsTable)
+      .where(eq(plannerConfigsTable.id, id));
+    let newActiveId: number | null = null;
+    if (target.isActive) {
+      const promote = await tx
+        .select({ id: plannerConfigsTable.id })
+        .from(plannerConfigsTable)
+        .orderBy(desc(plannerConfigsTable.updatedAt))
+        .limit(1);
+      if (promote[0]) {
+        newActiveId = promote[0].id;
+        await tx
+          .update(plannerConfigsTable)
+          .set({ isActive: true })
+          .where(eq(plannerConfigsTable.id, newActiveId));
+      }
+    }
+    return { kind: "ok" as const, newActiveId };
+  });
+  if (result.kind === "not_found") {
+    res.status(404).json({ error: "Config not found" });
+    return;
+  }
+  if (result.kind === "only_remaining") {
+    res.status(400).json({ error: "Cannot delete the only remaining config" });
+    return;
+  }
+  req.log.info(
+    { deletedId: id, newActiveId: result.newActiveId },
+    "planner config deleted",
+  );
+  res.json({ deletedId: id, newActiveId: result.newActiveId });
+});
+
+router.post("/planner/configs/:id/duplicate", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  // Body is optional: an empty body is allowed (defaults the name).
+  const bodyToParse = req.body ?? {};
+  const parsed = DuplicatePlannerConfigBody.safeParse(bodyToParse);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const inserted = await db.transaction(async (tx) => {
+    const src = (
+      await tx
+        .select()
+        .from(plannerConfigsTable)
+        .where(eq(plannerConfigsTable.id, id))
+        .limit(1)
+    )[0];
+    if (!src) return null;
+    const newId = await nextConfigId(tx);
+    const now = new Date();
+    const name = parsed.data.name?.trim() || `${src.name} (copy)`;
+    await tx.insert(plannerConfigsTable).values({
+      id: newId,
+      name,
+      // Duplicates never inherit active status — runner must explicitly
+      // activate before applying.
+      isActive: false,
+      startDate: src.startDate,
+      marathonDate: src.marathonDate,
+      blocks: src.blocks,
+      notes: src.notes,
+      createdAt: now,
+      updatedAt: now,
+      // Apply lineage is intentionally NOT copied — applied_* and
+      // last_applied_at only get populated by an actual Apply call.
+    });
+    const row = (
+      await tx
+        .select()
+        .from(plannerConfigsTable)
+        .where(eq(plannerConfigsTable.id, newId))
+        .limit(1)
+    )[0]!;
+    return row;
+  });
+  if (!inserted) {
+    res.status(404).json({ error: "Config not found" });
+    return;
+  }
+  req.log.info(
+    { sourceId: id, newId: inserted.id, name: inserted.name },
+    "planner config duplicated",
+  );
+  res.status(201).json(toPlannerConfig(inserted));
+});
+
+router.post("/planner/configs/:id/activate", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const updated = await db.transaction(async (tx) => {
+    const target = (
+      await tx
+        .select({ id: plannerConfigsTable.id })
+        .from(plannerConfigsTable)
+        .where(eq(plannerConfigsTable.id, id))
+        .limit(1)
+    )[0];
+    if (!target) return null;
+    // Single-active invariant maintained transactionally: clear every
+    // OTHER row's flag, then set this one. Done in two statements so
+    // there's no instant where >1 row has isActive=true.
+    await tx
+      .update(plannerConfigsTable)
+      .set({ isActive: false })
+      .where(and(eq(plannerConfigsTable.isActive, true), ne(plannerConfigsTable.id, id)));
+    await tx
+      .update(plannerConfigsTable)
+      .set({ isActive: true })
+      .where(eq(plannerConfigsTable.id, id));
+    return (
+      await tx
+        .select()
+        .from(plannerConfigsTable)
+        .where(eq(plannerConfigsTable.id, id))
+        .limit(1)
+    )[0]!;
+  });
+  if (!updated) {
+    res.status(404).json({ error: "Config not found" });
+    return;
+  }
+  req.log.info({ id, name: updated.name }, "planner config activated");
+  res.json(toPlannerConfig(updated));
+});
+
+// Apply the active Planner config: regenerate plan_weeks/plan_days,
 // preserving logged workouts and measurements. Reset-undo snapshots are
 // dropped because their plan_day ids no longer match. Workout
 // plan_day_id FKs are best-effort rebound by date.
 router.post("/planner/apply", async (req, res): Promise<void> => {
-  // Apply uses the most recently SAVED config (whether or not it has been
-  // applied before). The frontend always PUTs the current draft just
-  // before calling Apply so this stays in sync with what the runner sees.
+  await ensureSomeActive();
   const rows = await db
     .select()
     .from(plannerConfigsTable)
-    .where(eq(plannerConfigsTable.id, PLANNER_CONFIG_ID))
+    .where(eq(plannerConfigsTable.isActive, true))
     .limit(1);
   const row = rows[0];
   if (!row) {
     res.status(400).json({
-      error: "No saved Planner config to apply. PUT /planner/config first.",
+      error: "No active Planner config to apply. Create one and activate it first.",
     });
     return;
   }
@@ -206,15 +502,10 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
   const plan = generatePlanFromConfig(config);
 
   const result = await db.transaction(async (tx) => {
-    // Lock the tables we're about to mutate so a concurrent write can't
-    // commit between the count and the truncate. We are intentionally NOT
-    // locking workouts / measurements — those are preserved across the
-    // apply and stay readable to other transactions.
     await tx.execute(
       sql`LOCK TABLE plan_days, plan_weeks, reset_undo_snapshots IN ACCESS EXCLUSIVE MODE`,
     );
 
-    // Capture pre-apply counts for the response.
     const [{ count: workoutsBefore } = { count: 0 }] = (
       await tx.execute<{ count: number }>(
         sql`SELECT COUNT(*)::int AS count FROM workouts`,
@@ -239,13 +530,10 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
       .set({ planDayId: null })
       .where(sql`${workoutsTable.planDayId} IS NOT NULL`);
 
-    // Now wipe plan tables + drop any pending undo snapshots (their
-    // plan_day ids no longer exist in the regenerated plan).
     await tx.execute(
       sql`TRUNCATE TABLE plan_days, plan_weeks, reset_undo_snapshots RESTART IDENTITY CASCADE`,
     );
 
-    // Reseed plan_weeks first so the plan_days FK targets exist.
     await tx.insert(planWeeksTable).values(
       plan.weekly.map((w) => ({
         week: w.week,
@@ -260,8 +548,6 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
       })),
     );
 
-    // Chunk the plan_days inserts to stay well under postgres's bind
-    // parameter limit; mirror the seed CLI's chunk size.
     const chunk = 100;
     for (let i = 0; i < plan.daily.length; i += chunk) {
       const slice = plan.daily.slice(i, i + chunk);
@@ -290,9 +576,6 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
             sessionType,
             isRest,
             totalLoad,
-            // Mirror the prescribed values into seed_* so a subsequent
-            // /reset has a clean snapshot to restore from after the runner
-            // edits this freshly-seeded row.
             seedSessionType: sessionType,
             seedEquipment: equipment,
             seedEquipmentList: equipmentList,
@@ -310,11 +593,6 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
       );
     }
 
-    // Best-effort rebind: for each workout date that matches a freshly
-    // inserted plan_day date, set the FK so the /today and /log views can
-    // still pair the logged session with its prescribed plan day. Workouts
-    // whose date no longer falls within the regenerated plan keep
-    // plan_day_id = NULL — they're preserved as historical entries.
     await tx.execute(sql`
       UPDATE workouts w
       SET plan_day_id = pd.id
@@ -322,11 +600,9 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
       WHERE pd.date = w.date AND w.plan_day_id IS NULL
     `);
 
-    // Snapshot the just-applied config into applied_* columns so future
-    // /plan/full-reset, dashboard, and race-week reads use this exact
-    // config — not whatever draft the runner subsequently saves without
-    // applying. The mutable startDate/marathonDate/blocks above keep
-    // tracking the latest editable draft.
+    // Snapshot the just-applied config into applied_* columns on the
+    // active row so future /plan/full-reset, dashboard, and race-week
+    // reads pivot off this exact config.
     await tx
       .update(plannerConfigsTable)
       .set({
@@ -335,7 +611,7 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
         appliedMarathonDate: config.marathonDate,
         appliedBlocks: config.blocks,
       })
-      .where(eq(plannerConfigsTable.id, PLANNER_CONFIG_ID));
+      .where(eq(plannerConfigsTable.id, row.id));
 
     return {
       weeksSeeded: plan.weekly.length,
@@ -349,6 +625,8 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
 
   req.log.warn(
     {
+      configId: row.id,
+      configName: row.name,
       weeksSeeded: result.weeksSeeded,
       daysSeeded: result.daysSeeded,
       workoutsPreserved: result.workoutsPreserved,

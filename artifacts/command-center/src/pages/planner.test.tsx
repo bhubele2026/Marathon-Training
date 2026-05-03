@@ -13,17 +13,30 @@ vi.mock("wouter", () => ({
   useLocation: () => ["/planner", mockSetLocation] as const,
 }));
 
-const mockPutMutate = vi.fn();
-const mockApplyMutate = vi.fn();
-const mockUseGet = vi.fn();
-const mockUsePut = vi.fn();
-const mockUseApply = vi.fn();
+const mockListPlannerConfigs = vi.fn();
+const mockGetPlannerConfig = vi.fn();
+const mockCreate = vi.fn();
+const mockUpdate = vi.fn();
+const mockDelete = vi.fn();
+const mockDuplicate = vi.fn();
+const mockActivate = vi.fn();
+const mockApply = vi.fn();
+
+const updateMutate = vi.fn();
+const applyMutate = vi.fn();
+const activateMutate = vi.fn();
 
 vi.mock("@workspace/api-client-react", () => ({
-  useGetPlannerConfig: () => mockUseGet(),
-  usePutPlannerConfig: () => mockUsePut(),
-  useApplyPlannerConfig: () => mockUseApply(),
-  getGetPlannerConfigQueryKey: () => ["planner-config"],
+  useListPlannerConfigs: () => mockListPlannerConfigs(),
+  useGetPlannerConfig: () => mockGetPlannerConfig(),
+  useCreatePlannerConfig: () => mockCreate(),
+  useUpdatePlannerConfig: () => mockUpdate(),
+  useDeletePlannerConfig: () => mockDelete(),
+  useDuplicatePlannerConfig: () => mockDuplicate(),
+  useActivatePlannerConfig: () => mockActivate(),
+  useApplyPlannerConfig: () => mockApply(),
+  getListPlannerConfigsQueryKey: () => ["planner-configs"],
+  getGetPlannerConfigQueryKey: (id: number) => ["planner-config", id],
 }));
 
 vi.mock("@/hooks/use-toast", () => ({
@@ -36,25 +49,63 @@ vi.mock("@/lib/invalidate-mission-queries", () => ({
 
 import Planner from "./planner";
 
-function renderPlanner(overrides?: {
-  config?: {
-    startDate: string;
-    marathonDate: string;
-    blocks: Array<{
-      focusType: string;
-      weeks: number;
-      customName: string | null;
-      customNotes: string | null;
-    }>;
-  } | null;
-}) {
-  const config = overrides?.config === undefined ? null : overrides.config;
-  mockUseGet.mockReturnValue({ data: { config }, isLoading: false });
-  mockUsePut.mockReturnValue({ mutate: mockPutMutate, isPending: false });
-  mockUseApply.mockReturnValue({ mutate: mockApplyMutate, isPending: false });
-  const qc = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+const SAMPLE_CONFIG = {
+  id: 1,
+  name: "Spring 2027",
+  isActive: true,
+  startDate: "2026-05-04",
+  marathonDate: "2027-05-02",
+  blocks: [
+    { focusType: "Base", weeks: 18, customName: null, customNotes: null },
+    { focusType: "Time on Feet", weeks: 18, customName: null, customNotes: null },
+  ],
+  notes: null,
+  updatedAt: "2026-05-04T00:00:00.000Z",
+  lastAppliedAt: null,
+};
+
+function renderPlanner(
+  opts: {
+    config?: Partial<typeof SAMPLE_CONFIG>;
+    updatePending?: boolean;
+    applyPending?: boolean;
+  } = {},
+) {
+  const cfg = { ...SAMPLE_CONFIG, ...(opts.config ?? {}) };
+  mockListPlannerConfigs.mockReturnValue({
+    data: {
+      configs: [
+        {
+          id: cfg.id,
+          name: cfg.name,
+          isActive: cfg.isActive,
+          startDate: cfg.startDate,
+          marathonDate: cfg.marathonDate,
+          updatedAt: cfg.updatedAt,
+          lastAppliedAt: cfg.lastAppliedAt,
+        },
+      ],
+      activeId: cfg.id,
+    },
+    isLoading: false,
   });
+  mockGetPlannerConfig.mockReturnValue({
+    data: cfg,
+    isLoading: false,
+  });
+  mockCreate.mockReturnValue({ mutate: vi.fn(), isPending: false });
+  mockUpdate.mockReturnValue({
+    mutate: updateMutate,
+    isPending: opts.updatePending ?? false,
+  });
+  mockDelete.mockReturnValue({ mutate: vi.fn(), isPending: false });
+  mockDuplicate.mockReturnValue({ mutate: vi.fn(), isPending: false });
+  mockActivate.mockReturnValue({ mutate: activateMutate, isPending: false });
+  mockApply.mockReturnValue({
+    mutate: applyMutate,
+    isPending: opts.applyPending ?? false,
+  });
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
       <Planner />
@@ -62,16 +113,22 @@ function renderPlanner(overrides?: {
   );
 }
 
-describe("Planner timeline math", () => {
+describe("Planner page", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
   });
 
+  it("renders the configs dropdown with the active config preselected", () => {
+    renderPlanner();
+    expect(screen.getByTestId("planner-config-select")).toBeTruthy();
+    expect(screen.getByTestId("planner-active-badge")).toBeTruthy();
+  });
+
   it("renders calendar end dates per block (Mon..Sun) anchored on the start date", () => {
     renderPlanner();
 
-    // Default config: start 2026-05-04, blocks Base 18 + Time on Feet 18 +
+    // Sample config: start 2026-05-04, blocks Base 18 + Time on Feet 18 +
     // auto-pinned Marathon-Specific 16 = 52 weeks ending 2027-05-02.
     const preview = screen.getByTestId("planner-preview");
     const dateSpans = within(preview).getAllByTestId("planner-preview-dates");
@@ -86,25 +143,31 @@ describe("Planner timeline math", () => {
     expect(dateSpans[2]?.textContent).toContain("2027-05-02");
   });
 
-  it("Apply confirm flow saves the draft, then triggers apply, then routes to /plan", () => {
+  it("Apply confirm flow saves the draft, activates this config, then triggers apply, then routes to /plan", () => {
     renderPlanner();
 
-    // Open the confirm dialog and click "Regenerate".
     fireEvent.click(screen.getByTestId("planner-apply"));
     fireEvent.click(screen.getByTestId("planner-confirm-apply"));
 
-    // PUT was called with the current draft (default config).
-    expect(mockPutMutate).toHaveBeenCalledTimes(1);
-    const [putArgs, putHandlers] = mockPutMutate.mock.calls[0]!;
-    expect(putArgs.data.startDate).toBe("2026-05-04");
-    expect(putArgs.data.marathonDate).toBe("2027-05-02");
-    expect(putArgs.data.blocks).toHaveLength(2);
+    // Update was called with the current draft.
+    expect(updateMutate).toHaveBeenCalledTimes(1);
+    const [updateArgs, updateHandlers] = updateMutate.mock.calls[0]!;
+    expect(updateArgs.id).toBe(1);
+    expect(updateArgs.data.name).toBe("Spring 2027");
+    expect(updateArgs.data.startDate).toBe("2026-05-04");
+    expect(updateArgs.data.marathonDate).toBe("2027-05-02");
+    expect(updateArgs.data.blocks).toHaveLength(2);
 
-    // Simulate PUT success — that should kick off apply, then onSuccess
-    // routes to /plan.
-    putHandlers.onSuccess({});
-    expect(mockApplyMutate).toHaveBeenCalledTimes(1);
-    const [, applyHandlers] = mockApplyMutate.mock.calls[0]!;
+    // Update success → activate is called next.
+    updateHandlers.onSuccess({});
+    expect(activateMutate).toHaveBeenCalledTimes(1);
+    const [activateArgs, activateHandlers] = activateMutate.mock.calls[0]!;
+    expect(activateArgs.id).toBe(1);
+
+    // Activate success → apply is called next.
+    activateHandlers.onSuccess({});
+    expect(applyMutate).toHaveBeenCalledTimes(1);
+    const [, applyHandlers] = applyMutate.mock.calls[0]!;
     applyHandlers.onSuccess({
       weeksSeeded: 52,
       daysSeeded: 364,
@@ -369,34 +432,18 @@ describe("Planner Apply gating and confirm dialog", () => {
 
     fireEvent.click(screen.getByTestId("planner-save"));
 
-    expect(mockPutMutate).toHaveBeenCalledTimes(1);
-    const [putArgs] = mockPutMutate.mock.calls[0]!;
+    expect(updateMutate).toHaveBeenCalledTimes(1);
+    const [putArgs] = updateMutate.mock.calls[0]!;
     expect(putArgs.data.startDate).toBe("2026-05-04");
     expect(putArgs.data.marathonDate).toBe("2027-05-02");
     // Save is the standalone path — it must not trigger plan regeneration.
-    expect(mockApplyMutate).not.toHaveBeenCalled();
+    expect(applyMutate).not.toHaveBeenCalled();
   });
 
   it("disables Apply while a save (PUT) is in flight", () => {
     // Apply lives behind `!isValid || isApplying`, where isApplying = PUT
     // pending OR apply pending. Simulate the in-flight save state.
-    mockUseGet.mockReturnValue({
-      data: { config: null },
-      isLoading: false,
-    });
-    mockUsePut.mockReturnValue({ mutate: mockPutMutate, isPending: true });
-    mockUseApply.mockReturnValue({
-      mutate: mockApplyMutate,
-      isPending: false,
-    });
-    const qc = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    render(
-      <QueryClientProvider client={qc}>
-        <Planner />
-      </QueryClientProvider>,
-    );
+    renderPlanner({ updatePending: true });
 
     expect(
       (screen.getByTestId("planner-apply") as HTMLButtonElement).disabled,
@@ -428,7 +475,7 @@ describe("Planner Apply gating and confirm dialog", () => {
     ).toBeTruthy();
 
     // No mutations fire merely from opening the dialog.
-    expect(mockPutMutate).not.toHaveBeenCalled();
-    expect(mockApplyMutate).not.toHaveBeenCalled();
+    expect(updateMutate).not.toHaveBeenCalled();
+    expect(applyMutate).not.toHaveBeenCalled();
   });
 });

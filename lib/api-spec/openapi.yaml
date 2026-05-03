@@ -530,33 +530,75 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/Workout" }
 
-  /planner/config:
+  /planner/configs:
     get:
-      operationId: getPlannerConfig
+      operationId: listPlannerConfigs
       tags: [planner]
-      description: Return the most recently saved Planner config, or null if none has been saved yet (in which case the canonical hard-coded plan is in effect).
+      description: List every saved Planner config and identify which one is currently active. The active config is what POST /planner/apply will regenerate the plan from.
       responses:
         "200":
           description: OK
           content:
             application/json:
-              schema:
-                type: object
-                required: [config]
-                properties:
-                  config:
-                    allOf:
-                      - $ref: "#/components/schemas/PlannerConfig"
-                    nullable: true
-    put:
-      operationId: putPlannerConfig
+              schema: { $ref: "#/components/schemas/ListPlannerConfigsResponse" }
+    post:
+      operationId: createPlannerConfig
       tags: [planner]
-      description: Upsert the Planner config. Validates the dates (Monday start, Sunday marathon, at least 16 weeks apart) and that block weeks sum to (totalWeeks - 16). Saving the config does NOT regenerate plan rows — call POST /planner/apply for that.
+      description: Create a brand-new named Planner config. Optional `setActive` flag (default true on the first config, otherwise false) marks it as the active one immediately. Validates dates and block weeks the same way the update endpoint does.
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/PutPlannerConfigBody" }
+            schema: { $ref: "#/components/schemas/CreatePlannerConfigBody" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlannerConfig" }
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ValidationError"
+
+  /planner/configs/{id}:
+    get:
+      operationId: getPlannerConfig
+      tags: [planner]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlannerConfig" }
+        "404":
+          description: Config not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    put:
+      operationId: updatePlannerConfig
+      tags: [planner]
+      description: Update an existing Planner config in place (rename, retime, reblock). Validates dates (Monday start, Sunday marathon, at least 16 weeks apart) and that block weeks sum to (totalWeeks - 16). Saving does NOT regenerate plan rows — call POST /planner/apply for that.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdatePlannerConfigBody" }
       responses:
         "200":
           description: OK
@@ -571,13 +613,104 @@ paths:
                 oneOf:
                   - $ref: "#/components/schemas/Error"
                   - $ref: "#/components/schemas/ValidationError"
+        "404":
+          description: Config not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      operationId: deletePlannerConfig
+      tags: [planner]
+      description: |
+        Delete a saved Planner config. If the deleted config was active,
+        the next-most-recently-updated remaining config (if any) is
+        promoted to active. Refuses (400) when called on the only
+        remaining config.
+
+        Note: deleting a config also drops its applied_* snapshot.
+        If the deleted config was the most recently applied one, the
+        race anchor (Full Reset / dashboard countdown / race-week
+        lookup) falls back to whatever OTHER config has the next-most-
+        recent last_applied_at, or to the canonical hard-coded race
+        date if no remaining config has ever been applied. Re-Apply
+        another config to re-anchor immediately.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeletePlannerConfigResponse" }
+        "400":
+          description: Cannot delete the only remaining config
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Config not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /planner/configs/{id}/duplicate:
+    post:
+      operationId: duplicatePlannerConfig
+      tags: [planner]
+      description: Create a copy of the given config with a new name (defaults to "<original name> (copy)"). The duplicate is NOT auto-activated and never inherits last_applied_at / applied_* — those only ever come from a real Apply.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DuplicatePlannerConfigBody" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlannerConfig" }
+        "404":
+          description: Config not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /planner/configs/{id}/activate:
+    post:
+      operationId: activatePlannerConfig
+      tags: [planner]
+      description: Mark this config as the active one. Apply uses the active config; the activate flip is a transactional set-this-row-active-and-clear-the-rest. Activating does NOT regenerate plan rows — call POST /planner/apply for that.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlannerConfig" }
+        "404":
+          description: Config not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 
   /planner/apply:
     post:
       operationId: applyPlannerConfig
       tags: [planner]
       description: |
-        Regenerate plan_weeks and plan_days from the most recently saved
+        Regenerate plan_weeks and plan_days from the currently ACTIVE
         Planner config. Logged workouts and body measurements are PRESERVED.
         Reset-undo snapshots are dropped because their plan_day ids no longer
         match. Workout plan_day_id FKs are best-effort rebound to the new
@@ -590,7 +723,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ApplyPlannerConfigResponse" }
         "400":
-          description: No saved Planner config to apply
+          description: No active Planner config to apply
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -1367,8 +1500,17 @@ components:
 
     PlannerConfig:
       type: object
-      required: [startDate, marathonDate, blocks]
+      required: [id, name, isActive, startDate, marathonDate, blocks]
       properties:
+        id:
+          type: integer
+          description: Server-assigned identifier. Stable across renames.
+        name:
+          type: string
+          description: Human-friendly label shown in the config dropdown.
+        isActive:
+          type: boolean
+          description: True if this is the config that POST /planner/apply will operate on.
         startDate:
           type: string
           description: ISO yyyy-mm-dd; week 1 begins on this date. Must be a Monday.
@@ -1384,18 +1526,83 @@ components:
         updatedAt:
           type: string
           format: date-time
-          description: Server-set timestamp for the most recent PUT. Read-only — ignored on writes.
+          description: Server-set timestamp for the most recent write. Read-only — ignored on writes.
+        lastAppliedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp of the most recent /planner/apply that pivoted on this config. NULL if it has never been applied.
 
-    PutPlannerConfigBody:
+    PlannerConfigSummary:
       type: object
-      required: [startDate, marathonDate, blocks]
+      description: Lightweight row used by the configs dropdown.
+      required: [id, name, isActive, startDate, marathonDate, updatedAt]
       properties:
+        id: { type: integer }
+        name: { type: string }
+        isActive: { type: boolean }
+        startDate: { type: string }
+        marathonDate: { type: string }
+        updatedAt: { type: string, format: date-time }
+        lastAppliedAt: { type: string, format: date-time, nullable: true }
+
+    ListPlannerConfigsResponse:
+      type: object
+      required: [configs, activeId]
+      properties:
+        configs:
+          type: array
+          items: { $ref: "#/components/schemas/PlannerConfigSummary" }
+        activeId:
+          type: integer
+          nullable: true
+          description: id of the active config (or null when no configs exist yet).
+
+    CreatePlannerConfigBody:
+      type: object
+      required: [name, startDate, marathonDate, blocks]
+      properties:
+        name: { type: string }
         startDate: { type: string }
         marathonDate: { type: string }
         blocks:
           type: array
           items: { $ref: "#/components/schemas/PhaseBlock" }
         notes: { type: string, nullable: true }
+        setActive:
+          type: boolean
+          nullable: true
+          description: When true, mark the new config active immediately. Defaults to true if no configs exist yet, false otherwise.
+
+    UpdatePlannerConfigBody:
+      type: object
+      required: [name, startDate, marathonDate, blocks]
+      properties:
+        name: { type: string }
+        startDate: { type: string }
+        marathonDate: { type: string }
+        blocks:
+          type: array
+          items: { $ref: "#/components/schemas/PhaseBlock" }
+        notes: { type: string, nullable: true }
+
+    DuplicatePlannerConfigBody:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+          description: Name for the duplicate. Defaults to "<original name> (copy)".
+
+    DeletePlannerConfigResponse:
+      type: object
+      required: [deletedId, newActiveId]
+      properties:
+        deletedId: { type: integer }
+        newActiveId:
+          type: integer
+          nullable: true
+          description: id of the config promoted to active because the deleted one was active. Null when the deleted config was not active (so no promotion happened).
 
     ApplyPlannerConfigResponse:
       type: object

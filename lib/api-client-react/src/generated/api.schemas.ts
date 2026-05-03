@@ -543,21 +543,70 @@ export interface PhaseBlock {
 }
 
 export interface PlannerConfig {
+  /** Server-assigned identifier. Stable across renames. */
+  id: number;
+  /** Human-friendly label shown in the config dropdown. */
+  name: string;
+  /** True if this is the config that POST /planner/apply will operate on. */
+  isActive: boolean;
   /** ISO yyyy-mm-dd; week 1 begins on this date. Must be a Monday. */
   startDate: string;
   /** ISO yyyy-mm-dd; race day, the Sunday the auto-pinned 16-week Marathon-Specific block ends on. Must be a Sunday and at least 16 weeks after startDate. */
   marathonDate: string;
   blocks: PhaseBlock[];
   notes?: string | null;
-  /** Server-set timestamp for the most recent PUT. Read-only — ignored on writes. */
+  /** Server-set timestamp for the most recent write. Read-only — ignored on writes. */
   updatedAt?: string;
+  /** Timestamp of the most recent /planner/apply that pivoted on this config. NULL if it has never been applied. */
+  lastAppliedAt?: string | null;
 }
 
-export interface PutPlannerConfigBody {
+/**
+ * Lightweight row used by the configs dropdown.
+ */
+export interface PlannerConfigSummary {
+  id: number;
+  name: string;
+  isActive: boolean;
+  startDate: string;
+  marathonDate: string;
+  updatedAt: string;
+  lastAppliedAt?: string | null;
+}
+
+export interface ListPlannerConfigsResponse {
+  configs: PlannerConfigSummary[];
+  /** id of the active config (or null when no configs exist yet). */
+  activeId: number | null;
+}
+
+export interface CreatePlannerConfigBody {
+  name: string;
   startDate: string;
   marathonDate: string;
   blocks: PhaseBlock[];
   notes?: string | null;
+  /** When true, mark the new config active immediately. Defaults to true if no configs exist yet, false otherwise. */
+  setActive?: boolean | null;
+}
+
+export interface UpdatePlannerConfigBody {
+  name: string;
+  startDate: string;
+  marathonDate: string;
+  blocks: PhaseBlock[];
+  notes?: string | null;
+}
+
+export interface DuplicatePlannerConfigBody {
+  /** Name for the duplicate. Defaults to "<original name> (copy)". */
+  name?: string | null;
+}
+
+export interface DeletePlannerConfigResponse {
+  deletedId: number;
+  /** id of the config promoted to active because the deleted one was active. Null when the deleted config was not active (so no promotion happened). */
+  newActiveId: number | null;
 }
 
 /**
@@ -578,8 +627,4 @@ export type ListWorkoutsParams = {
   from?: string;
   to?: string;
   equipment?: string;
-};
-
-export type GetPlannerConfig200 = {
-  config: PlannerConfig | null;
 };

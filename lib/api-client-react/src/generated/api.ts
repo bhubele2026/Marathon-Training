@@ -19,14 +19,17 @@ import type {
 import type {
   ApplyPlannerConfigResponse,
   CreateMeasurementBody,
+  CreatePlannerConfigBody,
   CreateWorkoutBody,
   DashboardSummary,
+  DeletePlannerConfigResponse,
+  DuplicatePlannerConfigBody,
   EquipmentPhaseSummary,
   EquipmentUsage,
   Error,
   FullResetPlanResponse,
-  GetPlannerConfig200,
   HealthStatus,
+  ListPlannerConfigsResponse,
   ListWorkoutsParams,
   LongRunPoint,
   Measurement,
@@ -35,7 +38,6 @@ import type {
   PlanWeek,
   PlanWeekDetail,
   PlannerConfig,
-  PutPlannerConfigBody,
   RaceWeekChecklistItem,
   RaceWeekStatus,
   ResetPlanResponse,
@@ -48,6 +50,7 @@ import type {
   UndoPlanResetResponse,
   UpdateMeasurementBody,
   UpdatePlanDayBody,
+  UpdatePlannerConfigBody,
   UpdateWorkoutBody,
   ValidationError,
   WeeklyMileagePoint,
@@ -2093,31 +2096,31 @@ export function useGetRecentActivity<
 }
 
 /**
- * Return the most recently saved Planner config, or null if none has been saved yet (in which case the canonical hard-coded plan is in effect).
+ * List every saved Planner config and identify which one is currently active. The active config is what POST /planner/apply will regenerate the plan from.
  */
-export const getGetPlannerConfigUrl = () => {
-  return `/api/planner/config`;
+export const getListPlannerConfigsUrl = () => {
+  return `/api/planner/configs`;
 };
 
-export const getPlannerConfig = async (
+export const listPlannerConfigs = async (
   options?: RequestInit,
-): Promise<GetPlannerConfig200> => {
-  return customFetch<GetPlannerConfig200>(getGetPlannerConfigUrl(), {
+): Promise<ListPlannerConfigsResponse> => {
+  return customFetch<ListPlannerConfigsResponse>(getListPlannerConfigsUrl(), {
     ...options,
     method: "GET",
   });
 };
 
-export const getGetPlannerConfigQueryKey = () => {
-  return [`/api/planner/config`] as const;
+export const getListPlannerConfigsQueryKey = () => {
+  return [`/api/planner/configs`] as const;
 };
 
-export const getGetPlannerConfigQueryOptions = <
-  TData = Awaited<ReturnType<typeof getPlannerConfig>>,
+export const getListPlannerConfigsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPlannerConfigs>>,
   TError = ErrorType<unknown>,
 >(options?: {
   query?: UseQueryOptions<
-    Awaited<ReturnType<typeof getPlannerConfig>>,
+    Awaited<ReturnType<typeof listPlannerConfigs>>,
     TError,
     TData
   >;
@@ -2125,36 +2128,36 @@ export const getGetPlannerConfigQueryOptions = <
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetPlannerConfigQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getListPlannerConfigsQueryKey();
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getPlannerConfig>>
-  > = ({ signal }) => getPlannerConfig({ signal, ...requestOptions });
+    Awaited<ReturnType<typeof listPlannerConfigs>>
+  > = ({ signal }) => listPlannerConfigs({ signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getPlannerConfig>>,
+    Awaited<ReturnType<typeof listPlannerConfigs>>,
     TError,
     TData
   > & { queryKey: QueryKey };
 };
 
-export type GetPlannerConfigQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getPlannerConfig>>
+export type ListPlannerConfigsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPlannerConfigs>>
 >;
-export type GetPlannerConfigQueryError = ErrorType<unknown>;
+export type ListPlannerConfigsQueryError = ErrorType<unknown>;
 
-export function useGetPlannerConfig<
-  TData = Awaited<ReturnType<typeof getPlannerConfig>>,
+export function useListPlannerConfigs<
+  TData = Awaited<ReturnType<typeof listPlannerConfigs>>,
   TError = ErrorType<unknown>,
 >(options?: {
   query?: UseQueryOptions<
-    Awaited<ReturnType<typeof getPlannerConfig>>,
+    Awaited<ReturnType<typeof listPlannerConfigs>>,
     TError,
     TData
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getGetPlannerConfigQueryOptions(options);
+  const queryOptions = getListPlannerConfigsQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -2164,42 +2167,42 @@ export function useGetPlannerConfig<
 }
 
 /**
- * Upsert the Planner config. Validates the dates (Monday start, Sunday marathon, at least 16 weeks apart) and that block weeks sum to (totalWeeks - 16). Saving the config does NOT regenerate plan rows — call POST /planner/apply for that.
+ * Create a brand-new named Planner config. Optional `setActive` flag (default true on the first config, otherwise false) marks it as the active one immediately. Validates dates and block weeks the same way the update endpoint does.
  */
-export const getPutPlannerConfigUrl = () => {
-  return `/api/planner/config`;
+export const getCreatePlannerConfigUrl = () => {
+  return `/api/planner/configs`;
 };
 
-export const putPlannerConfig = async (
-  putPlannerConfigBody: PutPlannerConfigBody,
+export const createPlannerConfig = async (
+  createPlannerConfigBody: CreatePlannerConfigBody,
   options?: RequestInit,
 ): Promise<PlannerConfig> => {
-  return customFetch<PlannerConfig>(getPutPlannerConfigUrl(), {
+  return customFetch<PlannerConfig>(getCreatePlannerConfigUrl(), {
     ...options,
-    method: "PUT",
+    method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(putPlannerConfigBody),
+    body: JSON.stringify(createPlannerConfigBody),
   });
 };
 
-export const getPutPlannerConfigMutationOptions = <
+export const getCreatePlannerConfigMutationOptions = <
   TError = ErrorType<Error | ValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof putPlannerConfig>>,
+    Awaited<ReturnType<typeof createPlannerConfig>>,
     TError,
-    { data: BodyType<PutPlannerConfigBody> },
+    { data: BodyType<CreatePlannerConfigBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof putPlannerConfig>>,
+  Awaited<ReturnType<typeof createPlannerConfig>>,
   TError,
-  { data: BodyType<PutPlannerConfigBody> },
+  { data: BodyType<CreatePlannerConfigBody> },
   TContext
 > => {
-  const mutationKey = ["putPlannerConfig"];
+  const mutationKey = ["createPlannerConfig"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation &&
       "mutationKey" in options.mutation &&
@@ -2209,45 +2212,475 @@ export const getPutPlannerConfigMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof putPlannerConfig>>,
-    { data: BodyType<PutPlannerConfigBody> }
+    Awaited<ReturnType<typeof createPlannerConfig>>,
+    { data: BodyType<CreatePlannerConfigBody> }
   > = (props) => {
     const { data } = props ?? {};
 
-    return putPlannerConfig(data, requestOptions);
+    return createPlannerConfig(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type PutPlannerConfigMutationResult = NonNullable<
-  Awaited<ReturnType<typeof putPlannerConfig>>
+export type CreatePlannerConfigMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createPlannerConfig>>
 >;
-export type PutPlannerConfigMutationBody = BodyType<PutPlannerConfigBody>;
-export type PutPlannerConfigMutationError = ErrorType<Error | ValidationError>;
+export type CreatePlannerConfigMutationBody = BodyType<CreatePlannerConfigBody>;
+export type CreatePlannerConfigMutationError = ErrorType<
+  Error | ValidationError
+>;
 
-export const usePutPlannerConfig = <
+export const useCreatePlannerConfig = <
   TError = ErrorType<Error | ValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof putPlannerConfig>>,
+    Awaited<ReturnType<typeof createPlannerConfig>>,
     TError,
-    { data: BodyType<PutPlannerConfigBody> },
+    { data: BodyType<CreatePlannerConfigBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
-  Awaited<ReturnType<typeof putPlannerConfig>>,
+  Awaited<ReturnType<typeof createPlannerConfig>>,
   TError,
-  { data: BodyType<PutPlannerConfigBody> },
+  { data: BodyType<CreatePlannerConfigBody> },
   TContext
 > => {
-  return useMutation(getPutPlannerConfigMutationOptions(options));
+  return useMutation(getCreatePlannerConfigMutationOptions(options));
+};
+
+export const getGetPlannerConfigUrl = (id: number) => {
+  return `/api/planner/configs/${id}`;
+};
+
+export const getPlannerConfig = async (
+  id: number,
+  options?: RequestInit,
+): Promise<PlannerConfig> => {
+  return customFetch<PlannerConfig>(getGetPlannerConfigUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPlannerConfigQueryKey = (id: number) => {
+  return [`/api/planner/configs/${id}`] as const;
+};
+
+export const getGetPlannerConfigQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPlannerConfig>>,
+  TError = ErrorType<Error>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPlannerConfig>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPlannerConfigQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPlannerConfig>>
+  > = ({ signal }) => getPlannerConfig(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPlannerConfig>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPlannerConfigQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPlannerConfig>>
+>;
+export type GetPlannerConfigQueryError = ErrorType<Error>;
+
+export function useGetPlannerConfig<
+  TData = Awaited<ReturnType<typeof getPlannerConfig>>,
+  TError = ErrorType<Error>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPlannerConfig>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPlannerConfigQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Update an existing Planner config in place (rename, retime, reblock). Validates dates (Monday start, Sunday marathon, at least 16 weeks apart) and that block weeks sum to (totalWeeks - 16). Saving does NOT regenerate plan rows — call POST /planner/apply for that.
+ */
+export const getUpdatePlannerConfigUrl = (id: number) => {
+  return `/api/planner/configs/${id}`;
+};
+
+export const updatePlannerConfig = async (
+  id: number,
+  updatePlannerConfigBody: UpdatePlannerConfigBody,
+  options?: RequestInit,
+): Promise<PlannerConfig> => {
+  return customFetch<PlannerConfig>(getUpdatePlannerConfigUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updatePlannerConfigBody),
+  });
+};
+
+export const getUpdatePlannerConfigMutationOptions = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePlannerConfig>>,
+    TError,
+    { id: number; data: BodyType<UpdatePlannerConfigBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updatePlannerConfig>>,
+  TError,
+  { id: number; data: BodyType<UpdatePlannerConfigBody> },
+  TContext
+> => {
+  const mutationKey = ["updatePlannerConfig"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updatePlannerConfig>>,
+    { id: number; data: BodyType<UpdatePlannerConfigBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updatePlannerConfig(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdatePlannerConfigMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePlannerConfig>>
+>;
+export type UpdatePlannerConfigMutationBody = BodyType<UpdatePlannerConfigBody>;
+export type UpdatePlannerConfigMutationError = ErrorType<
+  Error | ValidationError
+>;
+
+export const useUpdatePlannerConfig = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePlannerConfig>>,
+    TError,
+    { id: number; data: BodyType<UpdatePlannerConfigBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updatePlannerConfig>>,
+  TError,
+  { id: number; data: BodyType<UpdatePlannerConfigBody> },
+  TContext
+> => {
+  return useMutation(getUpdatePlannerConfigMutationOptions(options));
 };
 
 /**
- * Regenerate plan_weeks and plan_days from the most recently saved
+ * Delete a saved Planner config. If the deleted config was active,
+the next-most-recently-updated remaining config (if any) is
+promoted to active. Refuses (400) when called on the only
+remaining config.
+
+Note: deleting a config also drops its applied_* snapshot.
+If the deleted config was the most recently applied one, the
+race anchor (Full Reset / dashboard countdown / race-week
+lookup) falls back to whatever OTHER config has the next-most-
+recent last_applied_at, or to the canonical hard-coded race
+date if no remaining config has ever been applied. Re-Apply
+another config to re-anchor immediately.
+
+ */
+export const getDeletePlannerConfigUrl = (id: number) => {
+  return `/api/planner/configs/${id}`;
+};
+
+export const deletePlannerConfig = async (
+  id: number,
+  options?: RequestInit,
+): Promise<DeletePlannerConfigResponse> => {
+  return customFetch<DeletePlannerConfigResponse>(
+    getDeletePlannerConfigUrl(id),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+};
+
+export const getDeletePlannerConfigMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deletePlannerConfig>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deletePlannerConfig>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deletePlannerConfig"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deletePlannerConfig>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deletePlannerConfig(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeletePlannerConfigMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deletePlannerConfig>>
+>;
+
+export type DeletePlannerConfigMutationError = ErrorType<Error>;
+
+export const useDeletePlannerConfig = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deletePlannerConfig>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deletePlannerConfig>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeletePlannerConfigMutationOptions(options));
+};
+
+/**
+ * Create a copy of the given config with a new name (defaults to "<original name> (copy)"). The duplicate is NOT auto-activated and never inherits last_applied_at / applied_* — those only ever come from a real Apply.
+ */
+export const getDuplicatePlannerConfigUrl = (id: number) => {
+  return `/api/planner/configs/${id}/duplicate`;
+};
+
+export const duplicatePlannerConfig = async (
+  id: number,
+  duplicatePlannerConfigBody?: DuplicatePlannerConfigBody,
+  options?: RequestInit,
+): Promise<PlannerConfig> => {
+  return customFetch<PlannerConfig>(getDuplicatePlannerConfigUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(duplicatePlannerConfigBody),
+  });
+};
+
+export const getDuplicatePlannerConfigMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof duplicatePlannerConfig>>,
+    TError,
+    { id: number; data: BodyType<DuplicatePlannerConfigBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof duplicatePlannerConfig>>,
+  TError,
+  { id: number; data: BodyType<DuplicatePlannerConfigBody> },
+  TContext
+> => {
+  const mutationKey = ["duplicatePlannerConfig"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof duplicatePlannerConfig>>,
+    { id: number; data: BodyType<DuplicatePlannerConfigBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return duplicatePlannerConfig(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DuplicatePlannerConfigMutationResult = NonNullable<
+  Awaited<ReturnType<typeof duplicatePlannerConfig>>
+>;
+export type DuplicatePlannerConfigMutationBody =
+  BodyType<DuplicatePlannerConfigBody>;
+export type DuplicatePlannerConfigMutationError = ErrorType<Error>;
+
+export const useDuplicatePlannerConfig = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof duplicatePlannerConfig>>,
+    TError,
+    { id: number; data: BodyType<DuplicatePlannerConfigBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof duplicatePlannerConfig>>,
+  TError,
+  { id: number; data: BodyType<DuplicatePlannerConfigBody> },
+  TContext
+> => {
+  return useMutation(getDuplicatePlannerConfigMutationOptions(options));
+};
+
+/**
+ * Mark this config as the active one. Apply uses the active config; the activate flip is a transactional set-this-row-active-and-clear-the-rest. Activating does NOT regenerate plan rows — call POST /planner/apply for that.
+ */
+export const getActivatePlannerConfigUrl = (id: number) => {
+  return `/api/planner/configs/${id}/activate`;
+};
+
+export const activatePlannerConfig = async (
+  id: number,
+  options?: RequestInit,
+): Promise<PlannerConfig> => {
+  return customFetch<PlannerConfig>(getActivatePlannerConfigUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getActivatePlannerConfigMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof activatePlannerConfig>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof activatePlannerConfig>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["activatePlannerConfig"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof activatePlannerConfig>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return activatePlannerConfig(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ActivatePlannerConfigMutationResult = NonNullable<
+  Awaited<ReturnType<typeof activatePlannerConfig>>
+>;
+
+export type ActivatePlannerConfigMutationError = ErrorType<Error>;
+
+export const useActivatePlannerConfig = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof activatePlannerConfig>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof activatePlannerConfig>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getActivatePlannerConfigMutationOptions(options));
+};
+
+/**
+ * Regenerate plan_weeks and plan_days from the currently ACTIVE
 Planner config. Logged workouts and body measurements are PRESERVED.
 Reset-undo snapshots are dropped because their plan_day ids no longer
 match. Workout plan_day_id FKs are best-effort rebound to the new

@@ -1,19 +1,40 @@
-import { pgTable, integer, text, date, jsonb, timestamp } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  integer,
+  text,
+  date,
+  jsonb,
+  timestamp,
+  boolean,
+} from "drizzle-orm/pg-core";
 
-// Single-row table that stores the runner's most recently saved Planner
-// configuration (Task #80). The frontend uses this to repopulate the Phase
-// Planner tab on load; the API uses it as the source of truth for both
-// /api/planner/apply (regenerate plan_weeks/plan_days from this config) and
-// /api/plan/full-reset (so a "Wipe Everything" call reseeds from the runner's
-// own config instead of the hard-coded canonical 52-week half-marathon).
+// Saved Planner configurations (Task #82). Originally a single-row table
+// (Task #80) keyed at id=1; widened so a runner can keep multiple named
+// configs (e.g. an A/B race calendar, two different phase orderings) and
+// flip between them with a dropdown without overwriting the previous one.
 //
-// We use a fixed `id = 1` row keyed by primary key so there's only ever one
-// active config; PUT /api/planner/config is an UPSERT on that id. Older
-// configs aren't versioned because the planner is meant to be edited
-// in-place — running Apply replaces the existing plan rows in a single
-// transaction, so historical configs would have nothing to point at.
+// Activation model:
+//  - Exactly one row should have `is_active = true`. The /planner/apply
+//    endpoint always operates on whichever row is currently active. We
+//    enforce single-active in app code (transactional flip in the
+//    activate endpoint) rather than via a partial unique index, since
+//    drizzle-kit push handling of partial indexes is fiddly.
+//  - "Last applied" is tracked per-row in last_applied_at + applied_*
+//    snapshot columns. Full Reset / dashboard countdown / race-week
+//    lookup pivot off the row with the most recent last_applied_at, so
+//    activating-but-not-applying a different draft can NOT silently
+//    re-anchor those consumers.
 export const plannerConfigsTable = pgTable("planner_configs", {
+  // Manually assigned by the API (POST endpoint computes MAX(id)+1) so
+  // we don't have to migrate the existing single-row id=1 to a serial /
+  // identity column on push.
   id: integer("id").primaryKey(),
+  // Human-friendly label shown in the config dropdown. Defaulted on
+  // schema push so the pre-Task-#82 single row gets a sensible label.
+  name: text("name").notNull().default("Default"),
+  // Marks the config currently selected by the runner. /planner/apply
+  // operates on this row; /planner/configs/:id/activate flips it.
+  isActive: boolean("is_active").notNull().default(false),
   // ISO yyyy-mm-dd; week 1 begins on this date (must be a Monday).
   startDate: date("start_date").notNull(),
   // ISO yyyy-mm-dd; race day, the final Sunday of the auto-pinned 16-week
@@ -23,8 +44,7 @@ export const plannerConfigsTable = pgTable("planner_configs", {
   // optional customName, optional customNotes). The 16-week
   // Marathon-Specific tail is auto-appended at generation time so it does
   // NOT appear in this array. Stored as jsonb because the structure is
-  // small, immutable in shape, and only ever read/written as a whole; a
-  // dedicated planner_blocks table would add joins for no benefit.
+  // small, immutable in shape, and only ever read/written as a whole.
   blocks: jsonb("blocks").notNull().$type<
     Array<{
       focusType: string;
@@ -33,13 +53,14 @@ export const plannerConfigsTable = pgTable("planner_configs", {
       customNotes?: string | null;
     }>
   >(),
-  // Optional notes the runner wants to attach to the whole plan
+  // Optional notes the runner wants to attach to this whole config
   // (e.g. "First marathon — be conservative").
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   // Set by POST /api/planner/apply when the runner regenerates plan_weeks /
-  // plan_days from this config. NULL while the config is just a saved draft.
+  // plan_days from this config. NULL while the config is just a saved draft
+  // (or has never been applied).
   lastAppliedAt: timestamp("last_applied_at", { withTimezone: true }),
   // Immutable snapshot of the config that was most recently APPLIED. These
   // columns intentionally diverge from startDate/marathonDate/blocks so a

@@ -87,6 +87,8 @@ describe("GET /api/race-week", () => {
 
     await db.insert(plannerConfigsTable).values({
       id: 1,
+      name: "Race-week test config",
+      isActive: true,
       startDate: "2099-04-27",
       marathonDate: customRace,
       blocks: [{ focusType: "Base", weeks: 2 }],
