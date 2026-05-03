@@ -1,4 +1,4 @@
-// Pre-built plan template library (Task #84).
+// Pre-built plan template library.
 //
 // Each template is a deterministic function `expand(weeks)` that returns
 // an ordered PhaseBlock[] summing to exactly `weeks`. The template OWNS
@@ -63,6 +63,10 @@ export interface PlanTemplate {
 export interface TemplateEntry {
   templateId: string;
   weeks: number;
+  // Optional human-friendly label for this entry, e.g. "Spring base
+  // build". Surfaced in the composition editor and merged into the
+  // first expanded block's customName when present.
+  customName?: string | null;
   // Optional per-entry note (appended to expanded block customNotes).
   customNotes?: string | null;
 }
@@ -560,16 +564,20 @@ export function expandEntriesToBlocks(
     if (!tpl) continue;
     const blocks = tpl.expand(Math.max(0, Math.floor(entry.weeks)));
     const note = entry.customNotes?.trim() || null;
-    for (const b of blocks) {
+    const label = entry.customName?.trim() || null;
+    for (let i = 0; i < blocks.length; i++) {
+      const b = blocks[i]!;
+      const merged: PhaseBlock = { ...b };
       if (note) {
         const existing = b.customNotes?.trim();
-        out.push({
-          ...b,
-          customNotes: existing ? `${existing}; ${note}` : note,
-        });
-      } else {
-        out.push(b);
+        merged.customNotes = existing ? `${existing}; ${note}` : note;
       }
+      // Apply the entry-level label only to the first block of the
+      // entry — that's the runner's named "section" of their plan.
+      if (label && i === 0) {
+        merged.customName = label;
+      }
+      out.push(merged);
     }
   }
   return out;

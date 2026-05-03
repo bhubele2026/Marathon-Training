@@ -9,6 +9,7 @@ import {
   useDuplicatePlannerConfig,
   useActivatePlannerConfig,
   useApplyPlannerConfig,
+  useListPlannerTemplates,
   getListPlannerConfigsQueryKey,
   getGetPlannerConfigQueryKey,
   type PhaseBlock,
@@ -196,7 +197,7 @@ export default function Planner() {
   // the runner is editing so an incidental list refetch doesn't blow
   // away in-progress edits.
   const [hydratedForId, setHydratedForId] = useState<number | null>(null);
-  // Plan Template Library state (Task #84). The runner picks a template +
+  // Plan Template Library state. The runner picks a template +
   // user-block week count and clicks Apply Template; we expand the
   // template into the focus-type editor below and adjust the marathon
   // date so the auto-pinned 16-week tail still lands on a Sunday.
@@ -208,7 +209,7 @@ export default function Planner() {
   const [lastAppliedTemplate, setLastAppliedTemplate] = useState<string | null>(
     null,
   );
-  // Entries-mode state (Task #84). When non-null, the runner is composing
+  // Entries-mode state. When non-null, the runner is composing
   // their plan from PLAN_TEMPLATES instead of editing focus-type blocks
   // directly. The server projects entries → blocks at write time, so the
   // legacy `draft` (PhaseBlock[]) below stays in sync as the read-only
@@ -228,6 +229,13 @@ export default function Planner() {
   const duplicateMutation = useDuplicatePlannerConfig();
   const activateMutation = useActivatePlannerConfig();
   const applyMutation = useApplyPlannerConfig();
+  // Fetch the catalog from the server so the runner-facing UI is
+  // sourced from the API (the server's catalog is canonical; the
+  // imported registry is the same data and used as a fallback for
+  // type-safety when the request is loading).
+  const templatesQuery = useListPlannerTemplates();
+  const templates = templatesQuery.data?.templates ?? PLAN_TEMPLATES;
+  const starters = templatesQuery.data?.starters ?? STARTER_SHORTCUTS;
   const isApplying = updateMutation.isPending || applyMutation.isPending;
 
   const configs = listQuery.data?.configs ?? [];
@@ -362,16 +370,19 @@ export default function Planner() {
 
   // ---- Plan Template Library handlers ---------------------------------
   // Apply a template ADDS it as a TemplateEntry to the entries composition
-  // (Task #84). Each template owns its own taper, so the new entry's weeks
+  //. Each template owns its own taper, so the new entry's weeks
   // are the FULL span — no auto-pinned 16-week tail. Switches the editor
   // into entries-mode if it isn't already, and bumps the marathon date so
   // totalWeeks == sum(entries.weeks).
-  function applyTemplate(tpl: PlanTemplate, weeks: number) {
+  function applyTemplate(
+    tpl: { id: string; name: string; source: string },
+    weeks: number,
+  ) {
     const start =
       startDate && dayOfWeekUTC(startDate) === 1 ? startDate : nextMondayISO();
     const nextEntries: TemplateEntry[] = [
       ...(entries ?? []),
-      { templateId: tpl.id, weeks, customNotes: null },
+      { templateId: tpl.id, weeks, customName: null, customNotes: null },
     ];
     const total = nextEntries.reduce((s, e) => s + (e.weeks || 0), 0);
     const race = computeRaceDateForTotalWeeks(start, total);
@@ -399,6 +410,7 @@ export default function Planner() {
     const nextEntries: TemplateEntry[] = s.entries.map((e) => ({
       templateId: e.templateId,
       weeks: e.weeks,
+      customName: null,
       customNotes: null,
     }));
     setEntries(nextEntries);
@@ -415,10 +427,20 @@ export default function Planner() {
   }
 
   // Entries-mode mutators. Every mutation re-projects entries → draft
-  // blocks so the mileage preview and timeline stay in sync.
+  // blocks so the mileage preview and timeline stay in sync. Also
+  // re-anchors the marathonDate so sum(entries.weeks) === totalWeeks
+  // — the server's entries-mode invariant — without making the runner
+  // hand-fix dates after every add/remove/reorder.
   function reprojectEntries(next: TemplateEntry[]) {
     setEntries(next);
     setDraft(blocksToDraft(expandEntriesToBlocks(next)));
+    const total = next.reduce((s, e) => s + (e.weeks || 0), 0);
+    if (total > 0 && startDate) {
+      const start =
+        dayOfWeekUTC(startDate) === 1 ? startDate : nextMondayISO();
+      if (start !== startDate) setStartDate(start);
+      setMarathonDate(computeRaceDateForTotalWeeks(start, total));
+    }
   }
   function updateEntry(i: number, patch: Partial<TemplateEntry>) {
     if (!entries) return;
@@ -443,7 +465,7 @@ export default function Planner() {
     const base: TemplateEntry[] = entries ?? [];
     const next: TemplateEntry[] = [
       ...base,
-      { templateId, weeks: tpl.defaultWeeks, customNotes: null },
+      { templateId, weeks: tpl.defaultWeeks, customName: null, customNotes: null },
     ];
     reprojectEntries(next);
   }
@@ -967,7 +989,7 @@ export default function Planner() {
         </CardContent>
       </Card>
 
-      {/* ---------- PLAN TEMPLATE LIBRARY (Task #84) ---------- */}
+      {/* ---------- PLAN TEMPLATE LIBRARY ---------- */}
       <Card data-testid="planner-template-library">
         <CardHeader>
           <CardTitle className="uppercase tracking-wider text-sm flex items-center gap-2">
@@ -987,7 +1009,7 @@ export default function Planner() {
               <Sparkles className="h-3 w-3" /> Starter shortcuts
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {STARTER_SHORTCUTS.map((s) => (
+              {starters.map((s) => (
                 <div
                   key={s.id}
                   className="border rounded-md p-3 flex flex-col gap-2"
@@ -1016,7 +1038,7 @@ export default function Planner() {
               <BookOpen className="h-3 w-3" /> Templates
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {PLAN_TEMPLATES.map((tpl) => {
+              {templates.map((tpl) => {
                 const weeks = tplWeeks[tpl.id] ?? tpl.defaultWeeks;
                 const outOfRange =
                   weeks < tpl.minWeeks || weeks > tpl.maxWeeks;
@@ -1101,8 +1123,7 @@ export default function Planner() {
                         className="text-[10px] text-amber-600 dark:text-amber-400"
                         data-testid={`planner-template-warn-${tpl.id}`}
                       >
-                        Outside the published range — program may not match
-                        the source.
+                        Outside the published {tpl.minWeeks}–{tpl.maxWeeks}w range — server will reject save. Adjust weeks before applying.
                       </p>
                     )}
                     <Button
@@ -1110,6 +1131,7 @@ export default function Planner() {
                       variant="outline"
                       onClick={() => applyTemplate(tpl, weeks)}
                       data-testid={`planner-template-apply-${tpl.id}`}
+                      disabled={outOfRange}
                     >
                       Apply template
                     </Button>
@@ -1224,7 +1246,7 @@ export default function Planner() {
         </CardContent>
       </Card>
 
-      {/* ---------- COMPOSITION EDITOR (entries mode, Task #84) ---------- */}
+      {/* ---------- COMPOSITION EDITOR (entries mode) ---------- */}
       {isEntriesMode && (
         <Card data-testid="planner-composition-editor">
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
@@ -1328,7 +1350,18 @@ export default function Planner() {
                         </div>
                       </div>
                       {tpl && (
-                        <div className="mt-2 space-y-1">
+                        <div className="mt-2 space-y-2">
+                          <Input
+                            value={e.customName ?? ""}
+                            placeholder="Optional label (e.g. Spring base build)"
+                            className="h-7 text-xs"
+                            onChange={(ev) =>
+                              updateEntry(i, {
+                                customName: ev.target.value || null,
+                              })
+                            }
+                            data-testid={`planner-entry-${i}-name`}
+                          />
                           <p
                             className="text-[10px] text-muted-foreground"
                             data-testid={`planner-entry-${i}-range`}
@@ -1363,7 +1396,7 @@ export default function Planner() {
                   <SelectValue placeholder="Pick a template…" />
                 </SelectTrigger>
                 <SelectContent>
-                  {PLAN_TEMPLATES.map((t) => (
+                  {templates.map((t) => (
                     <SelectItem key={t.id} value={t.id}>
                       {t.name} ({t.defaultWeeks}w default)
                     </SelectItem>

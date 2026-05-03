@@ -549,10 +549,12 @@ export interface TemplateEntry {
   /** Identifier of an entry in PLAN_TEMPLATES (e.g. "half_marathon", "marathon", "aerobic_base"). Unknown ids are rejected at validation. */
   templateId: string;
   /**
-   * Number of weeks this entry's template should expand to. Must be a positive integer; values outside the template's published min/max range surface a UI warning but are accepted.
+   * Number of weeks this entry's template should expand to. Must be a positive integer within the referenced template's published min/max range — out-of-range values are rejected at validation.
    * @minimum 1
    */
   weeks: number;
+  /** Optional runner-friendly label for this composition entry; merged into the first expanded block's customName. */
+  customName?: string | null;
   /** Optional per-entry note merged into every expanded block's customNotes so the runner-supplied context surfaces in the daily plan. */
   customNotes?: string | null;
 }
@@ -570,7 +572,7 @@ export interface PlannerConfig {
   marathonDate: string;
   /** In legacy mode, the user-edited PhaseBlock list (auto-pinned 16-week tail appended at generation time). In entries-mode, the server-computed projection of `entries` for downstream consumers. */
   blocks: PhaseBlock[];
-  /** ENTRIES mode (Task */
+  /** Ordered list of TemplateEntry objects. When non-null, entries are the source of truth for the editor; the server projects entries → blocks on every write. Sum of entry weeks must equal totalWeeks (no auto-pinned tail). NULL for legacy blocks-only configs. */
   entries?: TemplateEntry[] | null;
   notes?: string | null;
   /** Server-set timestamp for the most recent write. Read-only — ignored on writes. */
@@ -651,7 +653,7 @@ export interface CreatePlannerConfigBody {
   marathonDate: string;
   /** Required for legacy mode. Ignored when `entries` is non-null — the server recomputes blocks from entries. */
   blocks: PhaseBlock[];
-  /** Optional. When non-null, switches the config into entries-mode (Task */
+  /** Optional. When non-null, switches the config into entries-mode. The server projects entries → blocks and stores both. Sum of entry weeks must equal the totalWeeks span between startDate and marathonDate. */
   entries?: TemplateEntry[] | null;
   notes?: string | null;
   /** When true, mark the new config active immediately. Defaults to true if no configs exist yet, false otherwise. */
@@ -664,7 +666,7 @@ export interface UpdatePlannerConfigBody {
   marathonDate: string;
   /** Required for legacy mode. Ignored when `entries` is non-null — the server recomputes blocks from entries. */
   blocks: PhaseBlock[];
-  /** Optional. When non-null, switches the config into entries-mode (Task */
+  /** Optional. When non-null, switches the config into entries-mode. The server projects entries → blocks and stores both. Sum of entry weeks must equal the totalWeeks span between startDate and marathonDate. */
   entries?: TemplateEntry[] | null;
   notes?: string | null;
 }

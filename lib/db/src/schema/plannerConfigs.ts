@@ -44,7 +44,7 @@ export const plannerConfigsTable = pgTable("planner_configs", {
   // optional customName, optional customNotes). In LEGACY mode (entries
   // is null) the 16-week Marathon-Specific tail is auto-appended at
   // generation time so it does NOT appear in this array. In ENTRIES
-  // mode (Task #84), `blocks` is the projection of `entries` computed
+  // mode, `blocks` is the projection of `entries` computed
   // by the server at write time and stored alongside entries — read
   // consumers (Apply, Full Reset, dashboard) keep using `blocks` as
   // before, while edits flow through `entries`.
@@ -56,7 +56,7 @@ export const plannerConfigsTable = pgTable("planner_configs", {
       customNotes?: string | null;
     }>
   >(),
-  // ENTRIES mode (Task #84). Ordered list of TemplateEntry objects. NULL
+  // ENTRIES mode. Ordered list of TemplateEntry objects. NULL
   // for legacy blocks-only configs (where the auto-pinned 16-week
   // Marathon-Specific tail is appended at generation time). When
   // non-null, entries are the source of truth for the editor; the

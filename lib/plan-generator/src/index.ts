@@ -548,7 +548,7 @@ export interface PlannerConfig {
   // the server at write time — the validator does NOT re-check
   // sum(blocks.weeks) in entries-mode (entries ARE the source of truth).
   blocks: PhaseBlock[];
-  // ENTRIES mode (Task #84). Ordered list of TemplateEntry objects; each
+  // ENTRIES mode. Ordered list of TemplateEntry objects; each
   // entry references a template by id and specifies the runner-chosen
   // week count. When non-null, sum(entries.weeks) must equal totalWeeks
   // and there is NO auto-pinned 16-week Marathon-Specific tail —
@@ -1569,7 +1569,7 @@ export function generatePlanFromConfig(
 }
 
 // ===========================================================================
-// Pre-built plan template library (Task #84). See ./templates.ts for the
+// Pre-built plan template library. See ./templates.ts for the
 // PLAN_TEMPLATES registry, the StarterShortcut definitions, and the
 // deterministic expand(weeks) -> PhaseBlock[] helpers.
 // ===========================================================================

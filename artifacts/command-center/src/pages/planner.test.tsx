@@ -35,6 +35,7 @@ vi.mock("@workspace/api-client-react", () => ({
   useDuplicatePlannerConfig: () => mockDuplicate(),
   useActivatePlannerConfig: () => mockActivate(),
   useApplyPlannerConfig: () => mockApply(),
+  useListPlannerTemplates: () => ({ data: undefined, isLoading: false }),
   getListPlannerConfigsQueryKey: () => ["planner-configs"],
   getGetPlannerConfigQueryKey: (id: number) => ["planner-config", id],
 }));
@@ -477,5 +478,87 @@ describe("Planner Apply gating and confirm dialog", () => {
     // No mutations fire merely from opening the dialog.
     expect(updateMutate).not.toHaveBeenCalled();
     expect(applyMutate).not.toHaveBeenCalled();
+  });
+});
+
+describe("Planner template library (entries-mode)", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  // SAMPLE_CONFIG hydrates as legacy blocks-mode (entries: undefined). The
+  // template library is always visible; clicking Apply Template should
+  // switch the page into entries-mode (composition editor appears) and
+  // re-anchor the marathon date so sum(entries.weeks) === totalWeeks.
+  it("applying a template appends an entry, opens the composition editor, and re-anchors the race date", () => {
+    renderPlanner();
+    expect(screen.queryByTestId("planner-composition-editor")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
+
+    const editor = screen.getByTestId("planner-composition-editor");
+    expect(editor).toBeTruthy();
+    const list = screen.getByTestId("planner-composition-list");
+    const entry0 = within(list).getByTestId("planner-entry-0");
+    // Entry shows the optional-label input + a range hint + weeks input.
+    expect(within(entry0).getByTestId("planner-entry-0-name")).toBeTruthy();
+    expect(within(entry0).getByTestId("planner-entry-0-range")).toBeTruthy();
+    expect(
+      (within(entry0).getByTestId(
+        "planner-entry-0-weeks",
+      ) as HTMLInputElement).value,
+    ).toBe("12");
+    // Composition header reflects the new entry count + week sum.
+    expect(within(editor).getByText(/Composition · 1 entry · 12\/12w/)).toBeTruthy();
+  });
+
+  it("applying a one-click starter loads its full multi-entry composition", () => {
+    renderPlanner();
+    fireEvent.click(screen.getByTestId("planner-starter-apply-hm_beginner_16w"));
+    const list = screen.getByTestId("planner-composition-list");
+    expect(within(list).getByTestId("planner-entry-0")).toBeTruthy();
+    expect(within(list).getByTestId("planner-entry-1")).toBeTruthy();
+    expect(within(list).queryByTestId("planner-entry-2")).toBeNull();
+    expect(
+      (
+        within(list).getByTestId("planner-entry-0-weeks") as HTMLInputElement
+      ).value,
+    ).toBe("4");
+    expect(
+      (
+        within(list).getByTestId("planner-entry-1-weeks") as HTMLInputElement
+      ).value,
+    ).toBe("12");
+    expect(screen.getByText(/Composition · 2 entries · 16\/16w/)).toBeTruthy();
+  });
+
+  it("disables Apply Template and surfaces a server-rejection warning when weeks fall outside the published range", () => {
+    renderPlanner();
+    const weeksInput = screen.getByTestId(
+      "planner-template-weeks-half_marathon",
+    ) as HTMLInputElement;
+    fireEvent.change(weeksInput, { target: { value: "4" } });
+    expect(screen.getByTestId("planner-template-warn-half_marathon").textContent)
+      .toMatch(/server will reject save/);
+    expect(
+      (screen.getByTestId(
+        "planner-template-apply-half_marathon",
+      ) as HTMLButtonElement).disabled,
+    ).toBe(true);
+  });
+
+  it("removing an entry re-projects blocks and re-anchors the race date so the sum invariant holds", () => {
+    renderPlanner();
+    fireEvent.click(screen.getByTestId("planner-starter-apply-hm_beginner_16w"));
+    expect(screen.getByText(/Composition · 2 entries · 16\/16w/)).toBeTruthy();
+
+    const list = screen.getByTestId("planner-composition-list");
+    fireEvent.click(within(list).getByTestId("planner-entry-0-remove"));
+
+    expect(screen.getByText(/Composition · 1 entry · 12\/12w/)).toBeTruthy();
+    expect(screen.queryByTestId("planner-issues")?.textContent ?? "").not.toMatch(
+      /must sum to/,
+    );
   });
 });

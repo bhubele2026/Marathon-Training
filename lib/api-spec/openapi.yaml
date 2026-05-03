@@ -1536,7 +1536,7 @@ components:
         entries:
           type: array
           nullable: true
-          description: ENTRIES mode (Task #84). Ordered list of TemplateEntry objects. When non-null, entries are the source of truth for the editor; the server projects entries → blocks on every write. Sum of entry weeks must equal totalWeeks (no auto-pinned tail). NULL for legacy blocks-only configs.
+          description: Ordered list of TemplateEntry objects. When non-null, entries are the source of truth for the editor; the server projects entries → blocks on every write. Sum of entry weeks must equal totalWeeks (no auto-pinned tail). NULL for legacy blocks-only configs.
           items: { $ref: "#/components/schemas/TemplateEntry" }
         notes:
           type: string
@@ -1562,7 +1562,11 @@ components:
         weeks:
           type: integer
           minimum: 1
-          description: Number of weeks this entry's template should expand to. Must be a positive integer; values outside the template's published min/max range surface a UI warning but are accepted.
+          description: Number of weeks this entry's template should expand to. Must be a positive integer within the referenced template's published min/max range — out-of-range values are rejected at validation.
+        customName:
+          type: string
+          nullable: true
+          description: Optional runner-friendly label for this composition entry; merged into the first expanded block's customName.
         customNotes:
           type: string
           nullable: true
@@ -1690,7 +1694,7 @@ components:
         entries:
           type: array
           nullable: true
-          description: Optional. When non-null, switches the config into entries-mode (Task #84). The server projects entries → blocks and stores both. Sum of entry weeks must equal the totalWeeks span between startDate and marathonDate.
+          description: Optional. When non-null, switches the config into entries-mode. The server projects entries → blocks and stores both. Sum of entry weeks must equal the totalWeeks span between startDate and marathonDate.
           items: { $ref: "#/components/schemas/TemplateEntry" }
         notes: { type: string, nullable: true }
         setActive:
@@ -1712,7 +1716,7 @@ components:
         entries:
           type: array
           nullable: true
-          description: Optional. When non-null, switches the config into entries-mode (Task #84). The server projects entries → blocks and stores both. Sum of entry weeks must equal the totalWeeks span between startDate and marathonDate.
+          description: Optional. When non-null, switches the config into entries-mode. The server projects entries → blocks and stores both. Sum of entry weeks must equal the totalWeeks span between startDate and marathonDate.
           items: { $ref: "#/components/schemas/TemplateEntry" }
         notes: { type: string, nullable: true }
 

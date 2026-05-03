@@ -1308,7 +1308,13 @@ export const CreatePlannerConfigBody = zod.object({
             .number()
             .min(1)
             .describe(
-              "Number of weeks this entry's template should expand to. Must be a positive integer; values outside the template's published min\/max range surface a UI warning but are accepted.",
+              "Number of weeks this entry's template should expand to. Must be a positive integer within the referenced template's published min\/max range — out-of-range values are rejected at validation.",
+            ),
+          customName: zod
+            .string()
+            .nullish()
+            .describe(
+              "Optional runner-friendly label for this composition entry; merged into the first expanded block's customName.",
             ),
           customNotes: zod
             .string()
@@ -1323,7 +1329,7 @@ export const CreatePlannerConfigBody = zod.object({
     )
     .nullish()
     .describe(
-      "Optional. When non-null, switches the config into entries-mode (Task",
+      "Optional. When non-null, switches the config into entries-mode. The server projects entries → blocks and stores both. Sum of entry weeks must equal the totalWeeks span between startDate and marathonDate.",
     ),
   notes: zod.string().nullish(),
   setActive: zod
@@ -1406,7 +1412,13 @@ export const GetPlannerConfigResponse = zod.object({
             .number()
             .min(1)
             .describe(
-              "Number of weeks this entry's template should expand to. Must be a positive integer; values outside the template's published min\/max range surface a UI warning but are accepted.",
+              "Number of weeks this entry's template should expand to. Must be a positive integer within the referenced template's published min\/max range — out-of-range values are rejected at validation.",
+            ),
+          customName: zod
+            .string()
+            .nullish()
+            .describe(
+              "Optional runner-friendly label for this composition entry; merged into the first expanded block's customName.",
             ),
           customNotes: zod
             .string()
@@ -1420,7 +1432,9 @@ export const GetPlannerConfigResponse = zod.object({
         ),
     )
     .nullish()
-    .describe("ENTRIES mode (Task"),
+    .describe(
+      "Ordered list of TemplateEntry objects. When non-null, entries are the source of truth for the editor; the server projects entries → blocks on every write. Sum of entry weeks must equal totalWeeks (no auto-pinned tail). NULL for legacy blocks-only configs.",
+    ),
   notes: zod.string().nullish(),
   updatedAt: zod.coerce
     .date()
@@ -1495,7 +1509,13 @@ export const UpdatePlannerConfigBody = zod.object({
             .number()
             .min(1)
             .describe(
-              "Number of weeks this entry's template should expand to. Must be a positive integer; values outside the template's published min\/max range surface a UI warning but are accepted.",
+              "Number of weeks this entry's template should expand to. Must be a positive integer within the referenced template's published min\/max range — out-of-range values are rejected at validation.",
+            ),
+          customName: zod
+            .string()
+            .nullish()
+            .describe(
+              "Optional runner-friendly label for this composition entry; merged into the first expanded block's customName.",
             ),
           customNotes: zod
             .string()
@@ -1510,7 +1530,7 @@ export const UpdatePlannerConfigBody = zod.object({
     )
     .nullish()
     .describe(
-      "Optional. When non-null, switches the config into entries-mode (Task",
+      "Optional. When non-null, switches the config into entries-mode. The server projects entries → blocks and stores both. Sum of entry weeks must equal the totalWeeks span between startDate and marathonDate.",
     ),
   notes: zod.string().nullish(),
 });
@@ -1583,7 +1603,13 @@ export const UpdatePlannerConfigResponse = zod.object({
             .number()
             .min(1)
             .describe(
-              "Number of weeks this entry's template should expand to. Must be a positive integer; values outside the template's published min\/max range surface a UI warning but are accepted.",
+              "Number of weeks this entry's template should expand to. Must be a positive integer within the referenced template's published min\/max range — out-of-range values are rejected at validation.",
+            ),
+          customName: zod
+            .string()
+            .nullish()
+            .describe(
+              "Optional runner-friendly label for this composition entry; merged into the first expanded block's customName.",
             ),
           customNotes: zod
             .string()
@@ -1597,7 +1623,9 @@ export const UpdatePlannerConfigResponse = zod.object({
         ),
     )
     .nullish()
-    .describe("ENTRIES mode (Task"),
+    .describe(
+      "Ordered list of TemplateEntry objects. When non-null, entries are the source of truth for the editor; the server projects entries → blocks on every write. Sum of entry weeks must equal totalWeeks (no auto-pinned tail). NULL for legacy blocks-only configs.",
+    ),
   notes: zod.string().nullish(),
   updatedAt: zod.coerce
     .date()
@@ -1733,7 +1761,13 @@ export const ActivatePlannerConfigResponse = zod.object({
             .number()
             .min(1)
             .describe(
-              "Number of weeks this entry's template should expand to. Must be a positive integer; values outside the template's published min\/max range surface a UI warning but are accepted.",
+              "Number of weeks this entry's template should expand to. Must be a positive integer within the referenced template's published min\/max range — out-of-range values are rejected at validation.",
+            ),
+          customName: zod
+            .string()
+            .nullish()
+            .describe(
+              "Optional runner-friendly label for this composition entry; merged into the first expanded block's customName.",
             ),
           customNotes: zod
             .string()
@@ -1747,7 +1781,9 @@ export const ActivatePlannerConfigResponse = zod.object({
         ),
     )
     .nullish()
-    .describe("ENTRIES mode (Task"),
+    .describe(
+      "Ordered list of TemplateEntry objects. When non-null, entries are the source of truth for the editor; the server projects entries → blocks on every write. Sum of entry weeks must equal totalWeeks (no auto-pinned tail). NULL for legacy blocks-only configs.",
+    ),
   notes: zod.string().nullish(),
   updatedAt: zod.coerce
     .date()

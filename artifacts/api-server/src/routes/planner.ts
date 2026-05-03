@@ -146,7 +146,7 @@ async function ensureSomeActive(): Promise<void> {
 }
 
 // Validate a Planner config payload. Returns a 400-shaped error envelope
-// or `{ ok: true, blocks, entries }` when valid. In ENTRIES mode (Task #84)
+// or `{ ok: true, blocks, entries }` when valid. In ENTRIES mode
 // the server projects entries → blocks via expandEntriesToBlocks before
 // storing, so downstream generator paths can stay blocks-based while the
 // editor's source of truth is the entries array. In LEGACY mode (entries
