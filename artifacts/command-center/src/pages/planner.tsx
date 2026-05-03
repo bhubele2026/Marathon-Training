@@ -187,6 +187,12 @@ const TEMPLATE_CATEGORIES = [
 ] as const;
 type TemplateCategory = (typeof TEMPLATE_CATEGORIES)[number];
 
+// localStorage key for the planner's per-category collapse state.
+// Versioned so we can change the shape later without colliding with
+// stale entries.
+const COLLAPSED_CATEGORIES_STORAGE_KEY =
+  "planner.collapsedTemplateCategories.v1";
+
 // Accepts both the in-process PlanTemplate (which carries an expand fn)
 // and the API-shaped PlanTemplate (no expand) so the picker can
 // categorize whichever the templatesQuery returns.
@@ -304,15 +310,47 @@ export default function Planner() {
   // Per-category collapse state for the grouped template grid. Default
   // is "Run" expanded (the most common path) and the rest collapsed so
   // 50+ cards don't unfurl on first open. Toggled by the section
-  // header chevron.
+  // header chevron. Persisted to localStorage so a returning cyclist or
+  // rower sees their preferred section already expanded (storage key
+  // `COLLAPSED_CATEGORIES_STORAGE_KEY`, hoisted to module scope).
   const [collapsedCategories, setCollapsedCategories] = useState<
     Set<TemplateCategory>
-  >(
-    () =>
-      new Set<TemplateCategory>(
-        TEMPLATE_CATEGORIES.filter((c) => c !== "Run"),
-      ),
-  );
+  >(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = window.localStorage.getItem(
+          COLLAPSED_CATEGORIES_STORAGE_KEY,
+        );
+        if (raw) {
+          const parsed: unknown = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            const valid = parsed.filter((c): c is TemplateCategory =>
+              (TEMPLATE_CATEGORIES as readonly string[]).includes(
+                c as string,
+              ),
+            );
+            return new Set<TemplateCategory>(valid);
+          }
+        }
+      } catch {
+        // Ignore corrupt storage and fall through to default.
+      }
+    }
+    return new Set<TemplateCategory>(
+      TEMPLATE_CATEGORIES.filter((c) => c !== "Run"),
+    );
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        COLLAPSED_CATEGORIES_STORAGE_KEY,
+        JSON.stringify(Array.from(collapsedCategories)),
+      );
+    } catch {
+      // Storage may be full or disabled; ignore.
+    }
+  }, [collapsedCategories]);
   function toggleCategory(cat: TemplateCategory) {
     setCollapsedCategories((prev) => {
       const next = new Set(prev);
