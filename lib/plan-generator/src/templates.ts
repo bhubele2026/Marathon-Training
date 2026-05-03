@@ -467,7 +467,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run + bike + rower mix; light strength",
     },
-    tags: ["weight-loss", "recomposition", "MAF", "low-intensity", "cross-train"],
+    tags: ["weight-loss", "recomposition", "maf", "low-intensity", "cross-train"],
     expand: (n) =>
       distribute(n, [
         { focus: "Cardio + Weight Loss", weight: 6, min: 3 },
@@ -973,7 +973,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run-only; cross-train discouraged late",
     },
-    tags: ["marathon", "pfitzinger", "advanced", "high-mileage", "race-pace", "threshold", "PR"],
+    tags: ["marathon", "pfitzinger", "advanced", "high-mileage", "race-pace", "threshold", "pr"],
     expand: (n) =>
       distribute(n, [
         { focus: "Base", weight: 3, min: 4 },
@@ -1100,7 +1100,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run-only",
     },
-    tags: ["marathon", "advanced", "pyramidal", "tempo", "high-mileage", "hill focus", "higdon", "PR"],
+    tags: ["marathon", "advanced", "pyramidal", "tempo", "high-mileage", "hill focus", "higdon", "pr"],
     expand: (n) =>
       distribute(n, [
         { focus: "Base", weight: 2, min: 3 },
@@ -1532,7 +1532,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
           customNotes: "[primary-machine:row] 5K Row taper",
         },
       ]),
-    tags: ["row", "concept2", "5k-row", "intermediate", "threshold", "PR"],
+    tags: ["row", "concept2", "5k-row", "intermediate", "threshold", "pr"],
   },
   {
     id: "c2_row_2k",
@@ -1579,7 +1579,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
           customNotes: "[primary-machine:row] 2K Row sharpening taper",
         },
       ]),
-    tags: ["row", "concept2", "2k-row", "advanced", "speed", "sprint", "PR"],
+    tags: ["row", "concept2", "2k-row", "advanced", "speed", "sprint", "pr"],
   },
   // ---------- Strength (named programs) ----------
   {
@@ -1914,7 +1914,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run + optional easy bike",
     },
-    tags: ["MAF", "base", "low-intensity", "aerobic", "heart-rate", "maffetone"],
+    tags: ["maf", "base", "low-intensity", "aerobic", "heart-rate", "maffetone"],
     expand: (n) => [makeBlock("Base", n, { customNotes: "MAF 180 HR-capped block" })],
   },
   {

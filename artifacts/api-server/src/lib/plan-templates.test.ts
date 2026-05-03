@@ -208,6 +208,49 @@ describe("PLAN_TEMPLATES", () => {
   });
 });
 
+describe("PLAN_TEMPLATES tags", () => {
+  it("every template has at least one tag", () => {
+    for (const t of PLAN_TEMPLATES) {
+      expect(Array.isArray(t.tags), `${t.id} tags must be an array`).toBe(true);
+      expect(t.tags.length, `${t.id} must declare at least one tag`).toBeGreaterThan(0);
+    }
+  });
+
+  it("every tag is a short, lowercase, non-empty string", () => {
+    for (const t of PLAN_TEMPLATES) {
+      for (const tag of t.tags) {
+        expect(typeof tag, `${t.id} tag type`).toBe("string");
+        expect(tag.length, `${t.id} tag "${tag}" non-empty`).toBeGreaterThan(0);
+        expect(tag.trim(), `${t.id} tag "${tag}" trimmed`).toBe(tag);
+        expect(tag, `${t.id} tag "${tag}" lowercase`).toBe(tag.toLowerCase());
+        // "Short" — keep tags chip-sized so they fit on a card.
+        expect(tag.length, `${t.id} tag "${tag}" short`).toBeLessThanOrEqual(32);
+      }
+    }
+  });
+
+  it("a tag substring match returns the expected template (search-helper contract)", () => {
+    // Mirrors the SEARCHABLE_FIELDS join in
+    // artifacts/command-center/src/lib/planner-templates.ts (tags joined
+    // by spaces, substring-matched case-insensitively). Locks in the
+    // contract that adding a recognizable tag makes the template
+    // findable via the planner's free-text filter.
+    const findByTag = (q: string) =>
+      PLAN_TEMPLATES.filter((t) =>
+        t.tags.join(" ").toLowerCase().includes(q.toLowerCase()),
+      ).map((t) => t.id);
+
+    // "pfitzinger" only appears as a tag on the Pfitz-authored marathon.
+    expect(findByTag("pfitzinger")).toContain("marathon");
+    // "first-timer" tag should surface the C25K and 50K first-timer plans.
+    const firstTimer = findByTag("first-timer");
+    expect(firstTimer).toContain("couch_to_5k");
+    expect(firstTimer).toContain("ultramarathon_50k");
+    // Case-insensitive substring match works on multi-word tags too.
+    expect(findByTag("LOW-MILEAGE")).toContain("recovery");
+  });
+});
+
 describe("getTemplateById", () => {
   it("returns the matching template", () => {
     expect(getTemplateById("half_marathon")?.name).toBe("Half Marathon");
