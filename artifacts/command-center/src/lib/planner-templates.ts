@@ -94,6 +94,33 @@ export function filterTemplatesByQuery<T extends CategorizableTemplate>(
   );
 }
 
+// Distinct topic tags across the catalog, sorted alphabetically so the
+// rendered tag cloud is stable regardless of template insertion order.
+// Used by the Plan Template Library card and the entries-mode quick-add
+// popover to render a clickable filter cloud above the search input.
+export function getAllTemplateTags(
+  templates: readonly CategorizableTemplate[],
+): string[] {
+  const set = new Set<string>();
+  for (const t of templates) for (const tag of t.tags) set.add(tag);
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+}
+
+// Narrow templates to those that carry EVERY selected tag (AND
+// semantics). An empty selection is a no-op so callers can compose
+// this with the free-text filter unconditionally.
+export function filterTemplatesByTags<T extends CategorizableTemplate>(
+  templates: readonly T[],
+  selectedTags: ReadonlySet<string>,
+): T[] {
+  if (selectedTags.size === 0) return [...templates];
+  return templates.filter((tpl) => {
+    const tagSet = new Set(tpl.tags);
+    for (const sel of selectedTags) if (!tagSet.has(sel)) return false;
+    return true;
+  });
+}
+
 export interface TemplateGroup<T> {
   cat: TemplateCategory;
   list: T[];

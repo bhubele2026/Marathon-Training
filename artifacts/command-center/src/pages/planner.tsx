@@ -201,6 +201,8 @@ import {
   type TemplateCategory,
   categorizeTemplate,
   filterTemplatesByQuery,
+  filterTemplatesByTags,
+  getAllTemplateTags,
   groupTemplatesByCategory,
 } from "../lib/planner-templates";
 export { categorizeTemplate };
@@ -352,6 +354,36 @@ export default function Planner() {
       // Storage may be full or disabled; ignore.
     }
   }, [templateSearch]);
+  // Tag-cloud filter applied to the Plan Template Library (AND
+  // semantics — selecting multiple chips narrows to templates that
+  // carry every selected tag). Clickable chips above the search input
+  // make tag-based discovery work without typing, especially on mobile.
+  const [selectedTemplateTags, setSelectedTemplateTags] = useState<
+    Set<string>
+  >(() => new Set());
+  function toggleTemplateTag(tag: string) {
+    setSelectedTemplateTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(tag)) next.delete(tag);
+      else next.add(tag);
+      return next;
+    });
+  }
+  // Parallel tag-cloud filter applied to the entries-mode quick-add
+  // popover so the runner can narrow the same catalog without typing
+  // there too. Reset whenever the popover closes (alongside the
+  // free-text query) so re-opening the popover is a clean slate.
+  const [quickAddSelectedTags, setQuickAddSelectedTags] = useState<
+    Set<string>
+  >(() => new Set());
+  function toggleQuickAddTag(tag: string) {
+    setQuickAddSelectedTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(tag)) next.delete(tag);
+      else next.add(tag);
+      return next;
+    });
+  }
   // Per-category collapse state for the grouped template grid. Default
   // is "Run" expanded (the most common path) and the rest collapsed so
   // 50+ cards don't unfurl on first open. Toggled by the section
@@ -498,14 +530,26 @@ export default function Planner() {
   // current filter.
   const groupedTemplates = useMemo(() => {
     return groupTemplatesByCategory(
-      filterTemplatesByQuery(templates, templateSearch),
+      filterTemplatesByTags(
+        filterTemplatesByQuery(templates, templateSearch),
+        selectedTemplateTags,
+      ),
     );
-  }, [templates, templateSearch]);
+  }, [templates, templateSearch, selectedTemplateTags]);
   const totalMatchedTemplates = groupedTemplates.reduce(
     (s, g) => s + g.list.length,
     0,
   );
   const hasActiveSearch = templateSearch.trim().length > 0;
+  const hasActiveTags = selectedTemplateTags.size > 0;
+  // Distinct tags across the catalog, sorted alphabetically. Memoized
+  // so the chip cloud doesn't re-build on every keystroke in the
+  // search input.
+  const allTemplateTags = useMemo(
+    () => getAllTemplateTags(templates),
+    [templates],
+  );
+  const allQuickAddTags = allTemplateTags;
 
   const configs = listQuery.data?.configs ?? [];
   const activeId = listQuery.data?.activeId ?? null;
@@ -1736,6 +1780,53 @@ export default function Planner() {
             </div>
           </div>
 
+          {/* Tag-cloud filter (chips) — clickable AND-semantics filter
+              above the search input so runners can narrow the catalog
+              without typing (especially handy on mobile). */}
+          {allTemplateTags.length > 0 && (
+            <div
+              className="space-y-2"
+              data-testid="planner-template-tag-cloud"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                  Filter by tag
+                </Label>
+                {hasActiveTags && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTemplateTags(new Set())}
+                    className="text-[10px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+                    data-testid="planner-template-tag-cloud-clear"
+                  >
+                    Clear ({selectedTemplateTags.size})
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {allTemplateTags.map((tag) => {
+                  const active = selectedTemplateTags.has(tag);
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => toggleTemplateTag(tag)}
+                      aria-pressed={active}
+                      data-testid={`planner-template-tag-chip-${tag}`}
+                      className={
+                        active
+                          ? "text-[10px] px-1.5 py-0.5 rounded border border-primary bg-primary text-primary-foreground"
+                          : "text-[10px] px-1.5 py-0.5 rounded border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                      }
+                    >
+                      {tag}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Search + filter */}
           <div className="space-y-2">
             <Label
@@ -1770,8 +1861,18 @@ export default function Planner() {
               className="text-[10px] text-muted-foreground"
               data-testid="planner-template-search-summary"
             >
-              {hasActiveSearch
-                ? `${totalMatchedTemplates} template${totalMatchedTemplates === 1 ? "" : "s"} match "${templateSearch.trim()}"`
+              {hasActiveSearch || hasActiveTags
+                ? `${totalMatchedTemplates} template${totalMatchedTemplates === 1 ? "" : "s"} match${
+                    hasActiveSearch ? ` "${templateSearch.trim()}"` : ""
+                  }${
+                    hasActiveTags
+                      ? `${hasActiveSearch ? " +" : ""} tag${selectedTemplateTags.size === 1 ? "" : "s"} ${Array.from(
+                          selectedTemplateTags,
+                        )
+                          .map((t) => `#${t}`)
+                          .join(" ")}`
+                      : ""
+                  }`
                 : `${templates.length} templates across ${TEMPLATE_CATEGORIES.length} categories`}
             </p>
           </div>
@@ -1787,14 +1888,17 @@ export default function Planner() {
                 data-testid="planner-template-empty"
               >
                 No templates match that filter. Try a different name, author,
-                or piece of equipment.
+                tag, or piece of equipment.
               </p>
             )}
             {groupedTemplates.map(({ cat, list }) => {
               // Auto-expand any section with active matches when the runner
-              // is searching, even if they previously collapsed it.
+              // is filtering (free-text search OR tag chips), even if they
+              // previously collapsed it.
               const isCollapsed =
-                !hasActiveSearch && collapsedCategories.has(cat);
+                !hasActiveSearch &&
+                !hasActiveTags &&
+                collapsedCategories.has(cat);
               return (
                 <div
                   key={cat}
@@ -2504,7 +2608,10 @@ export default function Planner() {
                 open={quickAddOpen}
                 onOpenChange={(open) => {
                   setQuickAddOpen(open);
-                  if (!open) setQuickAddSearch("");
+                  if (!open) {
+                    setQuickAddSearch("");
+                    setQuickAddSelectedTags(new Set());
+                  }
                 }}
               >
                 <PopoverTrigger asChild>
@@ -2545,6 +2652,54 @@ export default function Planner() {
                       onValueChange={setQuickAddSearch}
                       data-testid="planner-entry-add-search"
                     />
+                    {/* Tag-cloud filter mirrors the Plan Template
+                        Library card so the runner can narrow the
+                        catalog by topic tag without typing here too. */}
+                    {allQuickAddTags.length > 0 && (
+                      <div
+                        className="border-b px-2 py-2 space-y-1.5"
+                        data-testid="planner-entry-add-tag-cloud"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                            Filter by tag
+                          </span>
+                          {quickAddSelectedTags.size > 0 && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setQuickAddSelectedTags(new Set())
+                              }
+                              className="text-[10px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+                              data-testid="planner-entry-add-tag-cloud-clear"
+                            >
+                              Clear ({quickAddSelectedTags.size})
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                          {allQuickAddTags.map((tag) => {
+                            const active = quickAddSelectedTags.has(tag);
+                            return (
+                              <button
+                                key={tag}
+                                type="button"
+                                onClick={() => toggleQuickAddTag(tag)}
+                                aria-pressed={active}
+                                data-testid={`planner-entry-add-tag-chip-${tag}`}
+                                className={
+                                  active
+                                    ? "text-[10px] px-1.5 py-0.5 rounded border border-primary bg-primary text-primary-foreground"
+                                    : "text-[10px] px-1.5 py-0.5 rounded border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                                }
+                              >
+                                {tag}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                     <CommandList>
                       <CommandEmpty>No templates match.</CommandEmpty>
                       {(() => {
@@ -2553,7 +2708,10 @@ export default function Planner() {
                         // (used inside groupTemplatesByCategory) lists
                         // Custom last.
                         const groups = groupTemplatesByCategory(
-                          filterTemplatesByQuery(templates, quickAddSearch),
+                          filterTemplatesByTags(
+                            filterTemplatesByQuery(templates, quickAddSearch),
+                            quickAddSelectedTags,
+                          ),
                         );
                         return groups.map(({ cat, list }) => {
                           return (
