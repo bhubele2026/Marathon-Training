@@ -1275,6 +1275,74 @@ describe("Quick-add popover (entries-mode) — tag-cloud filter", () => {
   });
 });
 
+describe("Planner template tag-cloud chip counts", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("renders each chip with its template count and updates the other chips' counts when one is selected; zero-count chips become disabled", () => {
+    renderPlanner();
+
+    // The catalog has multiple "marathon" templates and multiple
+    // "lift-only" templates with no overlap (no marathon template
+    // is lift-only). So before any selection both chips show a
+    // positive count and neither is disabled; after selecting
+    // "marathon" the lift-only chip drops to count 0.
+    const marathonChip = screen.getByTestId(
+      "planner-template-tag-chip-marathon",
+    ) as HTMLButtonElement;
+    const liftOnlyChip = screen.getByTestId(
+      "planner-template-tag-chip-lift-only",
+    ) as HTMLButtonElement;
+
+    function readCount(tag: string): number {
+      const el = screen.getByTestId(`planner-template-tag-chip-count-${tag}`);
+      const m = (el.textContent ?? "").match(/(\d+)/);
+      expect(m).not.toBeNull();
+      return Number(m![1]);
+    }
+
+    const marathonBefore = readCount("marathon");
+    const liftOnlyBefore = readCount("lift-only");
+    // Both chips reflect a positive count rendered as "· N".
+    expect(marathonBefore).toBeGreaterThan(0);
+    expect(liftOnlyBefore).toBeGreaterThan(0);
+    expect(
+      screen.getByTestId("planner-template-tag-chip-count-marathon")
+        .textContent,
+    ).toBe(`· ${marathonBefore}`);
+    expect(marathonChip.disabled).toBe(false);
+    expect(liftOnlyChip.disabled).toBe(false);
+
+    // Selecting "marathon" should leave its own chip's count
+    // unchanged (selecting an already-active tag is a no-op under
+    // AND-semantics) and zero out chips like "lift-only" that no
+    // marathon template carries.
+    fireEvent.click(marathonChip);
+
+    expect(readCount("marathon")).toBe(marathonBefore);
+    expect(readCount("lift-only")).toBe(0);
+    // Zero-count chip is rendered disabled so runners can't add it
+    // to the selection and over-narrow into a dead end.
+    expect(
+      (
+        screen.getByTestId(
+          "planner-template-tag-chip-lift-only",
+        ) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    // The active chip itself stays interactive (clicking deselects).
+    expect(
+      (
+        screen.getByTestId(
+          "planner-template-tag-chip-marathon",
+        ) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+  });
+});
+
 describe("defaultBlankConfig", () => {
   it("produces a payload that passes validatePlannerConfig (legacy blocks-mode)", () => {
     const blank = defaultBlankConfig();
