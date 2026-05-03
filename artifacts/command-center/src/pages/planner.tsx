@@ -65,6 +65,9 @@ import {
   Library,
   Sparkles,
   BookOpen,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
@@ -209,6 +212,40 @@ export default function Planner() {
   const [lastAppliedTemplate, setLastAppliedTemplate] = useState<string | null>(
     null,
   );
+  // Set of template ids whose "Details" panel is currently expanded in
+  // the Plan Template Library card. Toggled by the per-card Details
+  // button, and also force-expanded when the runner clicks "View source"
+  // from a composition entry (which also scrolls the card into view).
+  const [expandedTemplates, setExpandedTemplates] = useState<Set<string>>(
+    () => new Set(),
+  );
+  function toggleTemplateDetails(id: string) {
+    setExpandedTemplates((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function viewTemplateSource(id: string) {
+    setExpandedTemplates((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+    if (typeof window !== "undefined") {
+      // Defer until after the details panel re-renders so the scroll
+      // target lands on the fully-expanded card height.
+      window.requestAnimationFrame(() => {
+        const el = document.querySelector(
+          `[data-testid="planner-template-${id}"]`,
+        );
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      });
+    }
+  }
   // Entries-mode state. When non-null, the runner is composing
   // their plan from PLAN_TEMPLATES instead of editing focus-type blocks
   // directly. The server projects entries → blocks at write time, so the
@@ -1043,10 +1080,11 @@ export default function Planner() {
                 const outOfRange =
                   weeks < tpl.minWeeks || weeks > tpl.maxWeeks;
                 const isLastApplied = lastAppliedTemplate === tpl.id;
+                const isExpanded = expandedTemplates.has(tpl.id);
                 return (
                   <div
                     key={tpl.id}
-                    className={`border rounded-md p-3 flex flex-col gap-2 ${isLastApplied ? "border-primary" : ""}`}
+                    className={`border rounded-md p-3 flex flex-col gap-2 scroll-mt-4 ${isLastApplied ? "border-primary" : ""}`}
                     data-testid={`planner-template-${tpl.id}`}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -1092,6 +1130,103 @@ export default function Planner() {
                     <div className="text-[10px] text-muted-foreground italic">
                       {tpl.citation}
                     </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => toggleTemplateDetails(tpl.id)}
+                      className="h-7 justify-start px-2 text-xs"
+                      data-testid={`planner-template-details-toggle-${tpl.id}`}
+                      aria-expanded={isExpanded}
+                    >
+                      {isExpanded ? (
+                        <ChevronUp className="h-3 w-3 mr-1" />
+                      ) : (
+                        <ChevronDown className="h-3 w-3 mr-1" />
+                      )}
+                      {isExpanded ? "Hide details" : "Show details"}
+                    </Button>
+                    {isExpanded && (
+                      <div
+                        className="border-t pt-2 space-y-2 text-xs"
+                        data-testid={`planner-template-details-${tpl.id}`}
+                      >
+                        <p
+                          className="text-xs text-foreground leading-relaxed"
+                          data-testid={`planner-template-long-${tpl.id}`}
+                        >
+                          {tpl.longDescription}
+                        </p>
+                        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px]">
+                          <dt className="uppercase tracking-wider text-muted-foreground">
+                            Intensity
+                          </dt>
+                          <dd
+                            className="font-mono"
+                            data-testid={`planner-template-${tpl.id}-intensity`}
+                          >
+                            {tpl.metadata.intensityDistribution}
+                          </dd>
+                          <dt className="uppercase tracking-wider text-muted-foreground">
+                            Peak long run
+                          </dt>
+                          <dd className="font-mono">
+                            {tpl.metadata.peakLongRun}
+                          </dd>
+                          <dt className="uppercase tracking-wider text-muted-foreground">
+                            Peak volume
+                          </dt>
+                          <dd className="font-mono">
+                            {tpl.metadata.peakWeeklyVolume}
+                          </dd>
+                          <dt className="uppercase tracking-wider text-muted-foreground">
+                            Taper
+                          </dt>
+                          <dd className="font-mono">
+                            {tpl.metadata.taperLength}
+                          </dd>
+                          <dt className="uppercase tracking-wider text-muted-foreground">
+                            Cutback
+                          </dt>
+                          <dd
+                            className="font-mono"
+                            data-testid={`planner-template-${tpl.id}-cutback`}
+                          >
+                            {tpl.metadata.cutbackCadence}
+                          </dd>
+                          <dt className="uppercase tracking-wider text-muted-foreground">
+                            Rest days
+                          </dt>
+                          <dd
+                            className="font-mono"
+                            data-testid={`planner-template-${tpl.id}-rest-days`}
+                          >
+                            {tpl.metadata.mandatoryRestDays} / week
+                          </dd>
+                          <dt className="uppercase tracking-wider text-muted-foreground">
+                            Equipment
+                          </dt>
+                          <dd
+                            className="font-mono"
+                            data-testid={`planner-template-${tpl.id}-equipment`}
+                          >
+                            {tpl.metadata.equipmentMixHint}
+                          </dd>
+                          <dt className="uppercase tracking-wider text-muted-foreground">
+                            Source
+                          </dt>
+                          <dd className="font-mono">{tpl.source}</dd>
+                          <dt className="uppercase tracking-wider text-muted-foreground">
+                            Citation
+                          </dt>
+                          <dd
+                            className="italic"
+                            data-testid={`planner-template-${tpl.id}-citation`}
+                          >
+                            {tpl.citation}
+                          </dd>
+                        </dl>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2">
                       <Label
                         htmlFor={`tpl-weeks-${tpl.id}`}
@@ -1376,9 +1511,21 @@ export default function Planner() {
                               Outside the published {tpl.minWeeks}–{tpl.maxWeeks}w range — server will reject save.
                             </p>
                           )}
-                          <p className="text-[10px] text-muted-foreground italic">
-                            {tpl.citation}
-                          </p>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-[10px] text-muted-foreground italic flex-1 min-w-0 truncate">
+                              {tpl.citation}
+                            </p>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => viewTemplateSource(tpl.id)}
+                              className="h-6 px-2 text-[10px] uppercase tracking-wider shrink-0"
+                              data-testid={`planner-entry-${i}-view-source`}
+                            >
+                              <ExternalLink className="h-3 w-3 mr-1" />
+                              View source
+                            </Button>
+                          </div>
                         </div>
                       )}
                     </li>
