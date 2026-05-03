@@ -478,57 +478,54 @@ export default function Planner() {
     const start =
       startDate && dayOfWeekUTC(startDate) === 1 ? startDate : nextMondayISO();
     const existing = entries ?? [];
-    // First entry: append immediately. Subsequent entries: open the
-    // start-date confirmation dialog so the runner can insert a gap.
+    // Every Apply (including the first entry) opens the start-date
+    // confirmation dialog so the runner explicitly picks when this
+    // template begins. Default = config start for entry #1, end of
+    // previous entry for entries #2+.
+    let cursor = start;
     if (existing.length > 0) {
       // Proposed start = end of last entry's last day + 1 (the next Monday).
       const projections = projectEntries(existing, start);
       const last = projections[projections.length - 1];
-      const cursor =
-        last && last.endDateISO
-          ? addDaysISO(last.endDateISO, 1)
-          : start;
-      setPendingApplyTemplate({
-        templateId: tpl.id,
-        templateName: tpl.name,
-        templateSource: tpl.source,
-        weeks,
-        proposedStartDate: cursor,
-      });
-      setPendingApplyStartDate(cursor);
-      return;
+      cursor =
+        last && last.endDateISO ? addDaysISO(last.endDateISO, 1) : start;
     }
-    const nextEntries: TemplateEntry[] = [
-      { templateId: tpl.id, weeks, customName: null, customNotes: null, startDate: null },
-    ];
-    const projections = projectEntries(nextEntries, start);
-    const projected =
-      nextEntries.reduce((s, e) => s + (e.weeks || 0), 0) +
-      projections.reduce((s, p) => s + p.gapWeeksBefore, 0);
-    const race = computeRaceDateForTotalWeeks(start, projected);
-    setEntries(nextEntries);
-    setStartDate(start);
-    setMarathonDate(race);
-    setDraft(blocksToDraft(expandEntriesToBlocksWithGaps(nextEntries, start)));
-    setLastAppliedTemplate(tpl.id);
-    toast({
-      title: `${tpl.name} added`,
-      description: `${weeks}-week entry added (total span ${projected}w). Source: ${tpl.source}.`,
+    setPendingApplyTemplate({
+      templateId: tpl.id,
+      templateName: tpl.name,
+      templateSource: tpl.source,
+      weeks,
+      proposedStartDate: cursor,
     });
+    setPendingApplyStartDate(cursor);
   }
 
-  // Confirms the dialog opened by applyTemplate for a non-first entry:
-  // appends with chosen startDate (null when it equals the cursor) and
-  // re-anchors the race date to weeks + gap weeks.
+  // Confirms the dialog opened by applyTemplate. For the FIRST entry,
+  // the chosen date becomes the new config start (entry #0 must equal
+  // config start). For LATER entries, the chosen date is recorded on
+  // the entry only when it differs from the cursor default — in which
+  // case a Recovery gap is inserted. Either way, re-anchors the race
+  // date to weeks + gap weeks.
   function confirmPendingApplyTemplate() {
     if (!pendingApplyTemplate) return;
-    const start =
-      startDate && dayOfWeekUTC(startDate) === 1 ? startDate : nextMondayISO();
     const existing = entries ?? [];
+    const isFirst = existing.length === 0;
     const chosen = pendingApplyStartDate;
+    // For the first entry, the chosen date IS the new config start
+    // (entry #0's startDate must equal the config start, so we anchor
+    // the config to the runner's pick instead of storing it on the
+    // entry). For later entries, keep the existing config start and
+    // record the chosen date on the entry only when it differs from
+    // the cursor default (= insert a Recovery gap).
+    const baseStart = isFirst
+      ? (chosen && dayOfWeekUTC(chosen) === 1 ? chosen : nextMondayISO())
+      : (startDate && dayOfWeekUTC(startDate) === 1 ? startDate : nextMondayISO());
     const cursorDefault = pendingApplyTemplate.proposedStartDate;
-    const startDateField =
-      chosen && chosen !== cursorDefault ? chosen : null;
+    const startDateField = isFirst
+      ? null
+      : chosen && chosen !== cursorDefault
+        ? chosen
+        : null;
     const nextEntries: TemplateEntry[] = [
       ...existing,
       {
@@ -539,15 +536,15 @@ export default function Planner() {
         startDate: startDateField,
       },
     ];
-    const projections = projectEntries(nextEntries, start);
+    const projections = projectEntries(nextEntries, baseStart);
     const projected =
       nextEntries.reduce((s, e) => s + (e.weeks || 0), 0) +
       projections.reduce((s, p) => s + p.gapWeeksBefore, 0);
-    const race = computeRaceDateForTotalWeeks(start, projected);
+    const race = computeRaceDateForTotalWeeks(baseStart, projected);
     setEntries(nextEntries);
-    setStartDate(start);
+    setStartDate(baseStart);
     setMarathonDate(race);
-    setDraft(blocksToDraft(expandEntriesToBlocksWithGaps(nextEntries, start)));
+    setDraft(blocksToDraft(expandEntriesToBlocksWithGaps(nextEntries, baseStart)));
     setLastAppliedTemplate(pendingApplyTemplate.templateId);
     const tplName = pendingApplyTemplate.templateName;
     const w = pendingApplyTemplate.weeks;
@@ -1254,6 +1251,70 @@ export default function Planner() {
         </CardContent>
       </Card>
 
+      {/* ---------- NAME + DATES ---------- */}
+      <Card data-testid="planner-config-card">
+        <CardHeader>
+          <CardTitle className="uppercase tracking-wider text-sm">
+            Config
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="planner-name">Name</Label>
+            <Input
+              id="planner-name"
+              data-testid="planner-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Spring 2027 marathon"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="planner-start-date">
+              Training start (must be a Monday)
+            </Label>
+            <Input
+              id="planner-start-date"
+              data-testid="planner-start-date"
+              type="date"
+              value={startDate}
+              onChange={(e) => handleConfigStartDateChange(e.target.value)}
+            />
+            {startDate && startDow !== 1 && (
+              <p className="text-xs text-destructive">
+                Must be a Monday — currently a{" "}
+                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][startDow ?? 0]}.
+              </p>
+            )}
+            <p
+              className="text-[11px] text-muted-foreground leading-snug"
+              data-testid="planner-start-date-helper"
+            >
+              1. Pick when training starts. 2. Add one or more templates from
+              the library below — each one will ask when it begins.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="planner-marathon-date">
+              Marathon date (must be a Sunday)
+            </Label>
+            <Input
+              id="planner-marathon-date"
+              data-testid="planner-marathon-date"
+              type="date"
+              value={marathonDate}
+              onChange={(e) => setMarathonDate(e.target.value)}
+            />
+            {marathonDate && raceDow !== 0 && (
+              <p className="text-xs text-destructive">
+                Must be a Sunday — currently a{" "}
+                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][raceDow ?? 0]}.
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* ---------- PLAN TEMPLATE LIBRARY ---------- */}
       <Card data-testid="planner-template-library">
         <CardHeader>
@@ -1506,63 +1567,6 @@ export default function Planner() {
         </CardContent>
       </Card>
 
-      {/* ---------- NAME + DATES ---------- */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="uppercase tracking-wider text-sm">
-            Config
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="planner-name">Name</Label>
-            <Input
-              id="planner-name"
-              data-testid="planner-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Spring 2027 marathon"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="planner-start-date">
-              Training start (must be a Monday)
-            </Label>
-            <Input
-              id="planner-start-date"
-              data-testid="planner-start-date"
-              type="date"
-              value={startDate}
-              onChange={(e) => handleConfigStartDateChange(e.target.value)}
-            />
-            {startDate && startDow !== 1 && (
-              <p className="text-xs text-destructive">
-                Must be a Monday — currently a{" "}
-                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][startDow ?? 0]}.
-              </p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="planner-marathon-date">
-              Marathon date (must be a Sunday)
-            </Label>
-            <Input
-              id="planner-marathon-date"
-              data-testid="planner-marathon-date"
-              type="date"
-              value={marathonDate}
-              onChange={(e) => setMarathonDate(e.target.value)}
-            />
-            {marathonDate && raceDow !== 0 && (
-              <p className="text-xs text-destructive">
-                Must be a Sunday — currently a{" "}
-                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][raceDow ?? 0]}.
-              </p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
       {/* ---------- TIMELINE MATH ---------- */}
       <Card>
         <CardHeader>
@@ -1773,9 +1777,16 @@ export default function Planner() {
                                 Starts
                               </span>
                               {i === 0 ? (
-                                <span className="font-mono tabular-nums">
-                                  {proj.startDateISO}
-                                </span>
+                                <Input
+                                  type="date"
+                                  value={proj.startDateISO}
+                                  className="h-6 w-36 text-xs"
+                                  onChange={(ev) => {
+                                    const v = ev.target.value;
+                                    if (v) handleConfigStartDateChange(v);
+                                  }}
+                                  data-testid={`planner-entry-${i}-start-date`}
+                                />
                               ) : (
                                 <Input
                                   type="date"
@@ -2176,11 +2187,11 @@ export default function Planner() {
               Default is{" "}
               <span className="font-mono">
                 {pendingApplyTemplate?.proposedStartDate}
-              </span>{" "}
-              — the Monday right after the previous entry ends. Push it
-              later (must still be a Monday) to insert a Recovery rest
-              gap between templates. The race date will re-anchor so
-              the totals match.
+              </span>
+              {(entries ?? []).length === 0
+                ? " — the current training start date. Pick any Monday to set when training begins; the overall config start date will move to match."
+                : " — the Monday right after the previous entry ends. Push it later (must still be a Monday) to insert a Recovery rest gap between templates."}{" "}
+              The race date will re-anchor so the totals match.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2">
@@ -2191,7 +2202,11 @@ export default function Planner() {
               id="planner-pending-start-date"
               type="date"
               value={pendingApplyStartDate}
-              min={pendingApplyTemplate?.proposedStartDate}
+              min={
+                (entries ?? []).length > 0
+                  ? pendingApplyTemplate?.proposedStartDate
+                  : undefined
+              }
               onChange={(ev) => setPendingApplyStartDate(ev.target.value)}
               data-testid="planner-pending-apply-start-date"
             />
@@ -2209,6 +2224,7 @@ export default function Planner() {
               )}
             {pendingApplyStartDate &&
               pendingApplyTemplate &&
+              (entries ?? []).length > 0 &&
               pendingApplyStartDate < pendingApplyTemplate.proposedStartDate && (
                 <p className="text-xs text-destructive">
                   Cannot start before {pendingApplyTemplate.proposedStartDate}{" "}
@@ -2217,7 +2233,9 @@ export default function Planner() {
               )}
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel data-testid="planner-cancel-pending-apply">
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmPendingApplyTemplate}
               data-testid="planner-confirm-pending-apply"
@@ -2225,6 +2243,7 @@ export default function Planner() {
                 !pendingApplyStartDate ||
                 dayOfWeekUTC(pendingApplyStartDate) !== 1 ||
                 (pendingApplyTemplate !== null &&
+                  (entries ?? []).length > 0 &&
                   pendingApplyStartDate <
                     pendingApplyTemplate.proposedStartDate)
               }

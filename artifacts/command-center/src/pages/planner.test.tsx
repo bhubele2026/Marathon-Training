@@ -496,6 +496,8 @@ describe("Planner template library (entries-mode)", () => {
     expect(screen.queryByTestId("planner-composition-editor")).toBeNull();
 
     fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
+    // Every Apply (including the first) opens the start-date dialog.
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
 
     const editor = screen.getByTestId("planner-composition-editor");
     expect(editor).toBeTruthy();
@@ -556,6 +558,7 @@ describe("Planner template library (entries-mode)", () => {
   it("removing an entry with a downstream gap normalizes startDates so the composition stays saveable", () => {
     renderPlanner();
     fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
     fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
     const dateInput = screen.getByTestId(
       "planner-pending-apply-start-date",
@@ -611,8 +614,9 @@ describe("Planner template library (entries-mode)", () => {
 
   it("applying a 2nd template opens the start-date dialog and stacks back-to-back by default", () => {
     renderPlanner();
-    // First Apply: appends immediately (no dialog).
+    // First Apply also opens the dialog now; confirm with default to add.
     fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
     expect(screen.queryByTestId("planner-pending-apply-start-date")).toBeNull();
     const headerBefore = screen.getByText(/Composition · 1 entry/);
     expect(headerBefore).toBeTruthy();
@@ -636,6 +640,7 @@ describe("Planner template library (entries-mode)", () => {
   it("pushing the 2nd entry's start date later inserts a Recovery gap and re-anchors the race date", () => {
     renderPlanner();
     fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
     fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
     const dateInput = screen.getByTestId(
       "planner-pending-apply-start-date",
@@ -659,6 +664,7 @@ describe("Planner template library (entries-mode)", () => {
   it("changing the config start date re-projects gaps and re-anchors the race date", () => {
     renderPlanner();
     fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
     fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
     const dateInput = screen.getByTestId(
       "planner-pending-apply-start-date",
@@ -688,6 +694,89 @@ describe("Planner template library (entries-mode)", () => {
     expect(Date.parse(`${raceAfter}T00:00:00Z`) - Date.parse(`${raceBefore}T00:00:00Z`)).toBe(
       7 * 24 * 3600 * 1000,
     );
+  });
+
+  it("renders the Config (start/marathon date) card above the Plan Template Library card", () => {
+    renderPlanner();
+    const config = screen.getByTestId("planner-config-card");
+    const library = screen.getByTestId("planner-template-library");
+    // DOCUMENT_POSITION_FOLLOWING (4) means library follows config in the DOM.
+    expect(
+      config.compareDocumentPosition(library) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    // The two-step helper text lives next to the start-date input.
+    expect(screen.getByTestId("planner-start-date-helper").textContent).toMatch(
+      /Pick when training starts/,
+    );
+  });
+
+  it("applying the first template opens the start-date dialog (cancelable) and confirming adds the entry at the chosen date", () => {
+    renderPlanner();
+    expect(screen.queryByTestId("planner-composition-editor")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
+    // Dialog opens for entry #1 too, pre-filled with the current config start.
+    const dateInput = screen.getByTestId(
+      "planner-pending-apply-start-date",
+    ) as HTMLInputElement;
+    const startInput = screen.getByTestId(
+      "planner-start-date",
+    ) as HTMLInputElement;
+    expect(dateInput.value).toBe(startInput.value);
+
+    // Cancel does NOT add an entry.
+    fireEvent.click(screen.getByTestId("planner-cancel-pending-apply"));
+    expect(screen.queryByTestId("planner-composition-editor")).toBeNull();
+
+    // Open again and pick a later Monday → confirming adds entry AND
+    // shifts the config start date to match.
+    fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
+    const dateInput2 = screen.getByTestId(
+      "planner-pending-apply-start-date",
+    ) as HTMLInputElement;
+    const baseMs = Date.parse(`${dateInput2.value}T00:00:00Z`);
+    const pushed = new Date(baseMs + 7 * 24 * 3600 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    fireEvent.change(dateInput2, { target: { value: pushed } });
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
+
+    // Entry was added.
+    expect(screen.getByTestId("planner-composition-editor")).toBeTruthy();
+    // Config start date now equals the chosen Monday.
+    expect(
+      (screen.getByTestId("planner-start-date") as HTMLInputElement).value,
+    ).toBe(pushed);
+  });
+
+  it("editing entry #1's start date updates the overall config start in lockstep", () => {
+    renderPlanner();
+    // Add a first entry via the library + dialog.
+    fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
+
+    // Entry #1 now has an editable date input (not a read-only span).
+    const entryStart = screen.getByTestId(
+      "planner-entry-0-start-date",
+    ) as HTMLInputElement;
+    expect(entryStart.tagName).toBe("INPUT");
+    expect(entryStart.type).toBe("date");
+
+    const startInput = screen.getByTestId(
+      "planner-start-date",
+    ) as HTMLInputElement;
+    const baseMs = Date.parse(`${startInput.value}T00:00:00Z`);
+    const newMonday = new Date(baseMs + 7 * 24 * 3600 * 1000)
+      .toISOString()
+      .slice(0, 10);
+
+    fireEvent.change(entryStart, { target: { value: newMonday } });
+
+    // Editing entry #1's start drives the overall config start.
+    expect(
+      (screen.getByTestId("planner-start-date") as HTMLInputElement).value,
+    ).toBe(newMonday);
   });
 
   it("removing an entry re-projects blocks and re-anchors the race date so the sum invariant holds", () => {
