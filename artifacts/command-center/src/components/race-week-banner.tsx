@@ -26,6 +26,9 @@ export function RaceWeekBanner() {
   }
   if (!data || !data.inWindow) return null;
 
+  if (data.racePassed) {
+    return <PostRaceRecovery data={data} />;
+  }
   if (data.isRaceDay) {
     return <RaceDayHero data={data} />;
   }
@@ -80,15 +83,80 @@ function RaceWeekCountdown({ data }: { data: RaceWeekStatus }) {
         </div>
 
         <div className="space-y-3">
-          <div className="flex items-center gap-2 text-xs uppercase tracking-wider font-bold text-muted-foreground">
-            <ListChecks className="h-4 w-4" />
-            Taper Checklist
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-wider font-bold text-muted-foreground">
+              <ListChecks className="h-4 w-4" />
+              Taper Checklist
+            </div>
+            {(() => {
+              const done = data.checklist.filter((c) => c.checked).length;
+              const total = data.checklist.length;
+              const remaining = total - done;
+              if (remaining === 0) return (
+                <span className="text-[10px] uppercase tracking-wider font-bold text-emerald-600 dark:text-emerald-400">
+                  All done
+                </span>
+              );
+              if (data.daysToRace <= 2 && remaining > 0) return (
+                <span className="text-[10px] uppercase tracking-wider font-bold text-amber-600 dark:text-amber-400" data-testid="checklist-nudge">
+                  {remaining} item{remaining === 1 ? "" : "s"} left — race is close!
+                </span>
+              );
+              return (
+                <span className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">
+                  {done}/{total} complete
+                </span>
+              );
+            })()}
           </div>
           <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {data.checklist.map((item) => (
               <ChecklistRow key={item.itemId} item={item} />
             ))}
           </ul>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PostRaceRecovery({ data }: { data: RaceWeekStatus }) {
+  return (
+    <Card
+      className="border-emerald-500/40 bg-gradient-to-br from-emerald-500/15 via-emerald-500/5 to-background overflow-hidden"
+      data-testid="post-race-banner"
+    >
+      <CardContent className="p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="rounded-md bg-emerald-500/20 p-2">
+            <Trophy className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] font-bold text-emerald-600 dark:text-emerald-400">
+              Recovery Mode
+            </p>
+            <h2 className="text-xl md:text-2xl font-black uppercase tracking-wider">
+              Race Complete — Day {data.daysAfterRace ?? 0} Recovery
+            </h2>
+          </div>
+        </div>
+        <div className="space-y-2 text-sm text-muted-foreground">
+          <p>Focus on gentle movement, hydration, and nutrition. Your body earned this rest.</p>
+          {(data.daysAfterRace ?? 0) <= 3 && (
+            <p className="text-emerald-600 dark:text-emerald-400 font-bold uppercase text-xs tracking-wider">
+              Days 1-3: Walk only. Ice sore spots. Eat well. Sleep extra.
+            </p>
+          )}
+          {(data.daysAfterRace ?? 0) > 3 && (data.daysAfterRace ?? 0) <= 7 && (
+            <p className="text-emerald-600 dark:text-emerald-400 font-bold uppercase text-xs tracking-wider">
+              Days 4-7: Light movement OK. No intensity. Listen to your body.
+            </p>
+          )}
+          {(data.daysAfterRace ?? 0) > 7 && (
+            <p className="text-emerald-600 dark:text-emerald-400 font-bold uppercase text-xs tracking-wider">
+              Week 2+: Gradually return to easy efforts. No racing for 2-4 weeks.
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>

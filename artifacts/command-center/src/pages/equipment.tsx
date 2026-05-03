@@ -14,7 +14,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { formatDistance, formatDuration, formatLoad, formatDate } from "@/lib/format";
-import { Activity, Dumbbell, Clock, Route } from "lucide-react";
+import { Activity, Dumbbell, Clock, Route, AlertTriangle, Timer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { phaseColor } from "@/lib/phase-colors";
 
@@ -319,11 +319,79 @@ export default function Equipment() {
                     hideWhenEmpty={!eq.plannedDistance && !eq.totalDistance}
                   />
                 </div>
+                {["Peloton Bike", "Peloton Row", "Peloton Tread"].includes(eq.equipment) && eq.plannedMinutes > 0 && (
+                  <div className="mt-3 pt-3 border-t border-border" data-testid={`cardio-pace-${eq.equipment.toLowerCase().replace(/\s+/g, "-")}`}>
+                    <div className="flex items-center gap-1 text-[10px] uppercase font-bold text-muted-foreground mb-1">
+                      <Timer className="h-3 w-3" />
+                      Cardio Pace
+                    </div>
+                    <div className="flex items-center gap-3 text-xs">
+                      <span className="font-mono">
+                        {eq.sessions > 0
+                          ? `${Math.round(eq.totalMinutes / eq.sessions)} min/session avg`
+                          : "No sessions yet"}
+                      </span>
+                      {eq.plannedToDateMinutes > 0 && (
+                        <span className={cn(
+                          "text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded",
+                          eq.totalMinutes >= eq.plannedToDateMinutes * 0.85
+                            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                            : "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+                        )}>
+                          {Math.round((eq.totalMinutes / eq.plannedToDateMinutes) * 100)}% of plan
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
         </div>
       )}
+
+      {(() => {
+        const behindMachines = (usage ?? []).filter(
+          (eq) => paceStatus(eq.sessions, eq.plannedToDateSessions) === "behind",
+        );
+        if (behindMachines.length === 0) return null;
+        return (
+          <Card
+            className="border-amber-500/40 bg-amber-500/5"
+            data-testid="behind-machines-banner"
+          >
+            <CardContent className="p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                <span className="font-black uppercase tracking-wider text-sm">
+                  {behindMachines.length} Machine{behindMachines.length === 1 ? "" : "s"} Behind Pace
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {behindMachines.map((eq) => {
+                  const ratio = eq.plannedToDateSessions > 0
+                    ? Math.round((eq.sessions / eq.plannedToDateSessions) * 100)
+                    : 0;
+                  return (
+                    <button
+                      key={eq.equipment}
+                      type="button"
+                      onClick={() => setSelectedEquipment(eq.equipment)}
+                      className="flex items-center justify-between rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-left transition-colors hover:bg-amber-500/20"
+                      data-testid={`behind-machine-${eq.equipment.toLowerCase().replace(/\s+/g, "-")}`}
+                    >
+                      <span className="font-bold uppercase tracking-wider text-xs">{eq.equipment}</span>
+                      <span className="text-xs font-mono text-amber-600 dark:text-amber-400">
+                        {eq.sessions}/{eq.plannedToDateSessions} ({ratio}%)
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       <div className="pt-6 border-t border-border">
         <div className="mb-4">

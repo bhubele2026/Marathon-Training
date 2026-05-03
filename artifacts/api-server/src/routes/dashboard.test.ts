@@ -723,7 +723,7 @@ describe("GET /api/dashboard/long-run-progression", () => {
       actualMi: number;
     }>;
     const ours = rows.find((r) => r.week === week);
-    expect(ours).toEqual({ week, date: "2099-09-26", phase, plannedMi: 12, actualMi: 11.5 });
+    expect(ours).toEqual({ week, date: "2099-09-26", phase, plannedMi: 12, actualMi: 11.5, cardioMin: null });
   });
 });
 

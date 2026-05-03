@@ -145,13 +145,12 @@ export async function storeResetSnapshot(
 export async function consumeResetSnapshot(
   token: string,
 ): Promise<ResetSnapshot | null> {
-  const now = new Date();
   const deleted = await db
     .delete(resetUndoSnapshotsTable)
     .where(
       and(
         sql`${resetUndoSnapshotsTable.token} = ${token}`,
-        gt(resetUndoSnapshotsTable.expiresAt, now),
+        sql`${resetUndoSnapshotsTable.expiresAt} > NOW()`,
       ),
     )
     .returning();

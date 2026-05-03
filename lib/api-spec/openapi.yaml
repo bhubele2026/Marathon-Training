@@ -916,6 +916,14 @@ components:
         phaseChanged:
           type: boolean
           description: True when the swap moved sessions across a phase boundary (the two days started out in different phases).
+        undoToken:
+          type: string
+          nullable: true
+          description: Short-lived token for POST /plan/reset/undo to restore the pre-swap state. Expires after roughly 30 seconds.
+        undoExpiresInSeconds:
+          type: integer
+          nullable: true
+          description: Approximate number of seconds the undoToken will remain valid for. Null when undoToken is null.
 
     ResetPlanWeekResponse:
       type: object
@@ -1048,6 +1056,10 @@ components:
         completedSessions: { type: integer, nullable: true }
         totalSessions: { type: integer, nullable: true }
         missedSessions: { type: integer, nullable: true }
+        customizedDays:
+          type: integer
+          nullable: true
+          description: Number of plan days in this week that have been edited or swapped from the original prescription.
         dominantCardioEquipment:
           type: string
           nullable: true
@@ -1344,6 +1356,10 @@ components:
         weeklySessionsCompleted: { type: integer }
         weeklySessionsPlanned: { type: integer }
         weeklyLifestyleMinutes: { type: number }
+        prevWeeklyLifestyleMinutes:
+          type: number
+          nullable: true
+          description: Lifestyle minutes from the previous plan week. Null when there is no previous week (week 1).
         totalMilesAllTime: { type: number }
         longestRunMi: { type: number }
         weightStart: { type: number }
@@ -1482,6 +1498,10 @@ components:
         phase: { type: string }
         plannedMi: { type: number }
         actualMi: { type: number }
+        cardioMin:
+          type: number
+          nullable: true
+          description: Cardio minutes logged on the same date as the long run. Useful for cross-train weeks where a bike/row session accompanies the long run.
 
     RaceWeekChecklistItem:
       type: object
@@ -1503,13 +1523,20 @@ components:
 
     RaceWeekStatus:
       type: object
-      required: [raceDate, daysToRace, hoursToRace, inWindow, isRaceDay, checklist]
+      required: [raceDate, daysToRace, hoursToRace, inWindow, isRaceDay, racePassed, checklist]
       properties:
         raceDate: { type: string }
         daysToRace: { type: integer }
         hoursToRace: { type: integer }
         inWindow: { type: boolean }
         isRaceDay: { type: boolean }
+        racePassed:
+          type: boolean
+          description: True when the race date is in the past and the runner is in the post-race recovery window.
+        daysAfterRace:
+          type: integer
+          nullable: true
+          description: Number of days since race day. Null when race has not yet passed.
         racePlan:
           allOf:
             - $ref: "#/components/schemas/RaceWeekRacePlan"

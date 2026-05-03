@@ -36,9 +36,13 @@ export function categorizeTemplate(
   if (tpl.id.endsWith("_custom")) return "Custom";
   const eq = tpl.metadata.equipmentMixHint.toLowerCase();
   const goal = tpl.goalDistance.toLowerCase();
-  // HYROX is a hybrid race format regardless of equipment list phrasing.
+  if (
+    eq.includes("runner-defined") ||
+    tpl.tags.includes("scaffold")
+  ) {
+    return "Custom";
+  }
   if (eq.includes("hyrox") || goal.includes("hyrox")) return "Hybrid";
-  // Recovery / mobility / maintenance plans don't fit a single modality.
   if (
     goal.includes("recovery") ||
     goal.includes("mobility") ||
@@ -58,8 +62,6 @@ export function categorizeTemplate(
     eq.includes("walk") ||
     eq.includes("hike") ||
     eq.includes("tread");
-  // Strength + cardio = hybrid (strength-priority programs that pair
-  // lifting with running/biking/rowing).
   if (hasStrength && (hasBike || hasRow || hasRun)) return "Hybrid";
   if (hasStrength) return "Strength";
   if (hasBike && !hasRun && !hasRow) return "Bike";

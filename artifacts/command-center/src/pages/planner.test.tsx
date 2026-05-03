@@ -950,10 +950,9 @@ const EXPECTED_CATEGORIES: Record<string, string> = {
   strength_custom: "Custom",
   hybrid_custom: "Custom",
   // race_countdown's equipment hint is "Runner-defined", which the
-  // categorizer treats as a Run (the substring "run" matches). Pinned
-  // here so that classification is locked down even though the id has
-  // no "_custom" suffix.
-  race_countdown: "Run",
+  // categorizer routes to Custom (runner-defined templates are always
+  // Custom scaffolds). Pinned here so classification is locked down.
+  race_countdown: "Custom",
 };
 
 describe("categorizeTemplate (table-driven)", () => {

@@ -19,7 +19,9 @@ import {
 } from "@workspace/api-client-react";
 import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
 import { formatDate } from "@/lib/format";
-import { ArrowLeftRight, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import { ArrowLeftRight, ChevronLeft, ChevronRight, Sparkles, ShieldAlert } from "lucide-react";
+import { UndoCountdownAction } from "@/components/undo-countdown-action";
+import { useUndoPlanReset, useGetPlanOverview } from "@workspace/api-client-react";
 
 interface MoveDayPickerProps {
   open: boolean;
@@ -31,6 +33,8 @@ export function MoveDayPicker({ open, onOpenChange, day }: MoveDayPickerProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const swapPlanDay = useSwapPlanDay();
+  const undoPlanReset = useUndoPlanReset();
+  const { data: overview } = useGetPlanOverview();
 
   // Lets the runner navigate week by week from inside the picker. Defaults
   // back to the source day's own week each time the dialog opens so the
@@ -62,23 +66,48 @@ export function MoveDayPicker({ open, onOpenChange, day }: MoveDayPickerProps) {
     (d) => d.id !== day.id,
   );
 
+  const handleUndoSwap = (undoToken: string) => {
+    undoPlanReset.mutate(
+      { data: { undoToken } },
+      {
+        onSuccess: (data) => {
+          toast({
+            title: "Swap undone",
+            description: `${data.daysRestored} day${data.daysRestored === 1 ? "" : "s"} restored.`,
+          });
+          invalidateMissionRelatedQueries(queryClient);
+        },
+        onError: () => {
+          toast({ title: "Couldn't undo", description: "The undo window has expired.", variant: "destructive" });
+        },
+      },
+    );
+  };
+
   const handleSwap = (other: PlanDay) => {
     swapPlanDay.mutate(
       { id: day.id, data: { withDayId: other.id } },
       {
         onSuccess: (response) => {
-          // Cross-week swaps moved sessions across a phase boundary roughly
-          // half the time; surface that explicitly so the runner knows the
-          // workout's character changed (e.g. an easy Foundation run landing
-          // in the middle of a Race-Specific block).
           const description = response.phaseChanged
             ? `${day.day} (${day.phase}) traded places with ${other.day} (${other.phase}). Phase changed — review intensity.`
             : sameWeek
               ? `${day.day} (${day.sessionType}) traded places with ${other.day} (${other.sessionType}).`
               : `${day.day} (W${day.week}) traded places with ${other.day} (W${other.week}).`;
+          const undoToken = response.undoToken;
+          const undoSeconds = response.undoExpiresInSeconds ?? 30;
           toast({
             title: response.phaseChanged ? "Days swapped — phase changed" : "Days swapped",
             description,
+            duration: undoToken ? undoSeconds * 1000 : undefined,
+            action: undoToken ? (
+              <UndoCountdownAction
+                altText="Undo swap"
+                expiresInSeconds={undoSeconds}
+                onUndo={() => handleUndoSwap(undoToken)}
+                testId="button-undo-swap"
+              />
+            ) : undefined,
           });
           invalidateMissionRelatedQueries(queryClient);
           onOpenChange(false);
@@ -150,6 +179,25 @@ export function MoveDayPicker({ open, onOpenChange, day }: MoveDayPickerProps) {
             </span>
           </div>
         )}
+
+        {overview?.raceDate && (() => {
+          const raceDate = overview.raceDate;
+          const targetEnd = targetWeekMeta?.endDate;
+          if (targetEnd && targetEnd > raceDate) {
+            return (
+              <div
+                className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+                data-testid="alert-past-race"
+              >
+                <ShieldAlert className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                <span>
+                  This week extends past race day ({formatDate(raceDate)}). Moving a session here means it won't be completed before the race.
+                </span>
+              </div>
+            );
+          }
+          return null;
+        })()}
 
         <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
           {loadingWeek && (

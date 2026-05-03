@@ -26,6 +26,7 @@ import {
 
 export default function Log() {
   const [equipment, setEquipment] = useState<string>("All");
+  const [timeOfDay, setTimeOfDay] = useState<string>("All");
   const [from, setFrom] = useState<string>("");
   const [to, setTo] = useState<string>("");
   const [formOpen, setFormOpen] = useState(false);
@@ -37,7 +38,10 @@ export default function Log() {
     ...(to ? { to } : {}),
   };
 
-  const { data: workouts, isLoading } = useListWorkouts(queryParams);
+  const { data: rawWorkouts, isLoading } = useListWorkouts(queryParams);
+  const workouts = timeOfDay === "All"
+    ? rawWorkouts
+    : rawWorkouts?.filter((w) => (w.timeOfDay ?? "Other") === timeOfDay);
   const deleteWorkout = useDeleteWorkout();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -89,6 +93,20 @@ export default function Log() {
               <SelectItem value="Outdoor">Outdoor</SelectItem>
               <SelectItem value="Lifestyle">Lifestyle</SelectItem>
               <SelectItem value="None">None / Rest</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2 flex-1 w-full md:w-auto">
+          <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Time of Day</label>
+          <Select value={timeOfDay} onValueChange={setTimeOfDay}>
+            <SelectTrigger>
+              <SelectValue placeholder="All Times" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All Times</SelectItem>
+              <SelectItem value="AM">AM</SelectItem>
+              <SelectItem value="PM">PM</SelectItem>
+              <SelectItem value="Other">Other</SelectItem>
             </SelectContent>
           </Select>
         </div>

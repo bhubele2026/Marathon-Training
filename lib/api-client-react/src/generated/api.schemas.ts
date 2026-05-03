@@ -90,6 +90,10 @@ export interface SwapPlanDayResponse {
   weeksAffected: number[];
   /** True when the swap moved sessions across a phase boundary (the two days started out in different phases). */
   phaseChanged: boolean;
+  /** Short-lived token for POST /plan/reset/undo to restore the pre-swap state. Expires after roughly 30 seconds. */
+  undoToken?: string | null;
+  /** Approximate number of seconds the undoToken will remain valid for. Null when undoToken is null. */
+  undoExpiresInSeconds?: number | null;
 }
 
 export interface ResetPlanWeekResponse {
@@ -166,6 +170,8 @@ in the same style run weeks render miles.
   completedSessions?: number | null;
   totalSessions?: number | null;
   missedSessions?: number | null;
+  /** Number of plan days in this week that have been edited or swapped from the original prescription. */
+  customizedDays?: number | null;
   /** For Bike-only / Row-only weeks where `plannedMiles` is 0 but
 `plannedCardio` is high, the most-used cardio machine across
 the week's non-rest plan days (e.g. "Peloton Bike",
@@ -425,6 +431,8 @@ export interface DashboardSummary {
   weeklySessionsCompleted: number;
   weeklySessionsPlanned: number;
   weeklyLifestyleMinutes: number;
+  /** Lifestyle minutes from the previous plan week. Null when there is no previous week (week 1). */
+  prevWeeklyLifestyleMinutes?: number | null;
   totalMilesAllTime: number;
   longestRunMi: number;
   weightStart: number;
@@ -505,6 +513,8 @@ export interface LongRunPoint {
   phase?: string;
   plannedMi: number;
   actualMi: number;
+  /** Cardio minutes logged on the same date as the long run. Useful for cross-train weeks where a bike/row session accompanies the long run. */
+  cardioMin?: number | null;
 }
 
 export interface RaceWeekChecklistItem {
@@ -527,6 +537,10 @@ export interface RaceWeekStatus {
   hoursToRace: number;
   inWindow: boolean;
   isRaceDay: boolean;
+  /** True when the race date is in the past and the runner is in the post-race recovery window. */
+  racePassed: boolean;
+  /** Number of days since race day. Null when race has not yet passed. */
+  daysAfterRace?: number | null;
   racePlan?: RaceWeekRacePlan | null;
   checklist: RaceWeekChecklistItem[];
 }

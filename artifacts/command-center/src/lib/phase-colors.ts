@@ -33,9 +33,12 @@ function hashString(s: string): number {
   return Math.abs(h);
 }
 
-export function phaseColor(phase: string): string {
-  if (!phase) return PHASE_PALETTE[0];
+const NEUTRAL_GRAY = "hsl(220 9% 46%)";
+
+export function phaseColor(phase: string | null | undefined): string {
+  if (!phase || !phase.trim()) return NEUTRAL_GRAY;
   const key = normalizePhase(phase);
+  if (!key) return NEUTRAL_GRAY;
   const canonical = CANONICAL_PHASE_COLORS[key];
   if (canonical) return canonical;
   return PHASE_PALETTE[hashString(key) % PHASE_PALETTE.length];

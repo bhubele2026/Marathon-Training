@@ -45,6 +45,12 @@ export const ListPlanWeeksResponseItem = zod.object({
   completedSessions: zod.number().nullish(),
   totalSessions: zod.number().nullish(),
   missedSessions: zod.number().nullish(),
+  customizedDays: zod
+    .number()
+    .nullish()
+    .describe(
+      "Number of plan days in this week that have been edited or swapped from the original prescription.",
+    ),
   dominantCardioEquipment: zod
     .string()
     .nullish()
@@ -79,6 +85,12 @@ export const GetPlanWeekResponse = zod
     completedSessions: zod.number().nullish(),
     totalSessions: zod.number().nullish(),
     missedSessions: zod.number().nullish(),
+    customizedDays: zod
+      .number()
+      .nullish()
+      .describe(
+        "Number of plan days in this week that have been edited or swapped from the original prescription.",
+      ),
     dominantCardioEquipment: zod
       .string()
       .nullish()
@@ -377,6 +389,18 @@ export const SwapPlanDayResponse = zod.object({
     .boolean()
     .describe(
       "True when the swap moved sessions across a phase boundary (the two days started out in different phases).",
+    ),
+  undoToken: zod
+    .string()
+    .nullish()
+    .describe(
+      "Short-lived token for POST \/plan\/reset\/undo to restore the pre-swap state. Expires after roughly 30 seconds.",
+    ),
+  undoExpiresInSeconds: zod
+    .number()
+    .nullish()
+    .describe(
+      "Approximate number of seconds the undoToken will remain valid for. Null when undoToken is null.",
     ),
 });
 
@@ -1038,6 +1062,12 @@ export const GetDashboardSummaryResponse = zod.object({
   weeklySessionsCompleted: zod.number(),
   weeklySessionsPlanned: zod.number(),
   weeklyLifestyleMinutes: zod.number(),
+  prevWeeklyLifestyleMinutes: zod
+    .number()
+    .nullish()
+    .describe(
+      "Lifestyle minutes from the previous plan week. Null when there is no previous week (week 1).",
+    ),
   totalMilesAllTime: zod.number(),
   longestRunMi: zod.number(),
   weightStart: zod.number(),
@@ -1147,6 +1177,12 @@ export const GetLongRunProgressionResponseItem = zod.object({
   phase: zod.string().optional(),
   plannedMi: zod.number(),
   actualMi: zod.number(),
+  cardioMin: zod
+    .number()
+    .nullish()
+    .describe(
+      "Cardio minutes logged on the same date as the long run. Useful for cross-train weeks where a bike\/row session accompanies the long run.",
+    ),
 });
 export const GetLongRunProgressionResponse = zod.array(
   GetLongRunProgressionResponseItem,
@@ -1906,6 +1942,17 @@ export const GetRaceWeekResponse = zod.object({
   hoursToRace: zod.number(),
   inWindow: zod.boolean(),
   isRaceDay: zod.boolean(),
+  racePassed: zod
+    .boolean()
+    .describe(
+      "True when the race date is in the past and the runner is in the post-race recovery window.",
+    ),
+  daysAfterRace: zod
+    .number()
+    .nullish()
+    .describe(
+      "Number of days since race day. Null when race has not yet passed.",
+    ),
   racePlan: zod
     .object({
       distanceMi: zod.number(),

@@ -7,6 +7,7 @@ import { readActiveRaceDate } from "./planner";
 const router: IRouter = Router();
 const START_WEIGHT = 281.6;
 const GOAL_WEIGHT = 210;
+const LIFESTYLE_EQUIPMENT = "Lifestyle";
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -22,11 +23,19 @@ router.get("/dashboard/summary", async (_req, res) => {
   const endDate = weekRow?.endDate ?? today;
 
   const weekActuals = await db.execute<{ miles: number; load: number; sessions: number }>(
-    sql`SELECT COALESCE(SUM(distance_mi), 0)::float AS miles, COALESCE(SUM(total_load), 0)::float AS load, COUNT(*)::int AS sessions FROM workouts WHERE date BETWEEN ${startDate} AND ${endDate} AND equipment <> 'Lifestyle'`,
+    sql`SELECT COALESCE(SUM(distance_mi), 0)::float AS miles, COALESCE(SUM(total_load), 0)::float AS load, COUNT(*)::int AS sessions FROM workouts WHERE date BETWEEN ${startDate} AND ${endDate} AND equipment <> ${LIFESTYLE_EQUIPMENT}`,
   );
   const weekLifestyle = await db.execute<{ minutes: number }>(
-    sql`SELECT COALESCE(SUM(duration_min), 0)::float AS minutes FROM workouts WHERE date BETWEEN ${startDate} AND ${endDate} AND equipment = 'Lifestyle'`,
+    sql`SELECT COALESCE(SUM(duration_min), 0)::float AS minutes FROM workouts WHERE date BETWEEN ${startDate} AND ${endDate} AND equipment = ${LIFESTYLE_EQUIPMENT}`,
   );
+  const prevWeekRow = weekRow
+    ? (await db.select().from(planWeeksTable).where(eq(planWeeksTable.week, weekRow.week - 1)).limit(1))[0]
+    : null;
+  const prevWeekLifestyle = prevWeekRow
+    ? await db.execute<{ minutes: number }>(
+        sql`SELECT COALESCE(SUM(duration_min), 0)::float AS minutes FROM workouts WHERE date BETWEEN ${prevWeekRow.startDate} AND ${prevWeekRow.endDate} AND equipment = ${LIFESTYLE_EQUIPMENT}`,
+      )
+    : null;
   const weekPlanned = await db.execute<{ planned_sessions: number }>(
     sql`SELECT COUNT(*)::int AS planned_sessions FROM plan_days WHERE week = ${weekRow?.week ?? 0} AND is_rest = false`,
   );
@@ -82,6 +91,7 @@ router.get("/dashboard/summary", async (_req, res) => {
     weeklySessionsCompleted: weekActuals.rows[0]?.sessions ?? 0,
     weeklySessionsPlanned: weekPlanned.rows[0]?.planned_sessions ?? 0,
     weeklyLifestyleMinutes: weekLifestyle.rows[0]?.minutes ?? 0,
+    prevWeeklyLifestyleMinutes: prevWeekLifestyle ? (prevWeekLifestyle.rows[0]?.minutes ?? 0) : null,
     totalMilesAllTime: allTime.rows[0]?.total_miles ?? 0,
     longestRunMi: longestRunActual.rows[0]?.longest ?? 0,
     weightStart: START_WEIGHT,
@@ -295,7 +305,7 @@ router.get("/dashboard/equipment-phase-summary", async (_req, res) => {
         FROM workouts w
         JOIN plan_weeks pw
           ON w.date BETWEEN pw.start_date AND pw.end_date
-        WHERE w.equipment NOT IN ('Off / Rest', 'Off / Mobility', 'None', 'Rest', 'Lifestyle')
+        WHERE w.equipment NOT IN ('Off / Rest', 'Off / Mobility', 'None', 'Rest', ${LIFESTYLE_EQUIPMENT})
           AND w.session_type <> 'Skipped'
         GROUP BY pw.phase, w.equipment`,
   );
@@ -359,14 +369,16 @@ router.get("/dashboard/equipment-phase-summary", async (_req, res) => {
 });
 
 router.get("/dashboard/long-run-progression", async (_req, res) => {
-  const rows = await db.execute<{ week: number; date: string; phase: string; planned_mi: number; actual_mi: number }>(
+  const rows = await db.execute<{ week: number; date: string; phase: string; planned_mi: number; actual_mi: number; cardio_min: number | null }>(
     sql`
       SELECT pd.week,
         TO_CHAR(pd.date, 'YYYY-MM-DD') AS date,
         pw.phase AS phase,
         pd.distance_mi::float AS planned_mi,
         COALESCE((SELECT MAX(distance_mi) FROM workouts w
-          WHERE w.date = pd.date AND w.session_type IN ('Long Run', 'Race')), 0)::float AS actual_mi
+          WHERE w.date = pd.date AND w.session_type IN ('Long Run', 'Race')), 0)::float AS actual_mi,
+        (SELECT SUM(cardio_min)::float FROM workouts w
+          WHERE w.date = pd.date AND w.cardio_min > 0) AS cardio_min
       FROM plan_days pd
       LEFT JOIN plan_weeks pw ON pw.week = pd.week
       WHERE pd.session_type IN ('Long Run', 'Race')
@@ -379,6 +391,7 @@ router.get("/dashboard/long-run-progression", async (_req, res) => {
     phase: r.phase,
     plannedMi: r.planned_mi,
     actualMi: r.actual_mi,
+    cardioMin: r.cardio_min ?? null,
   })));
 });
 

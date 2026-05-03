@@ -44,7 +44,9 @@ router.get("/race-week", async (_req, res) => {
   const hoursToRace = Math.max(0, Math.ceil((raceStart.getTime() - Date.now()) / (3600 * 1000)));
   const dayDelta = Math.round((raceStart.getTime() - today.getTime()) / msPerDay);
   const isRaceDay = dayDelta === 0;
-  const inWindow = dayDelta >= 0 && dayDelta <= WINDOW_DAYS;
+  const racePassed = dayDelta < 0;
+  const daysAfterRace = racePassed ? Math.abs(dayDelta) : null;
+  const inWindow = (dayDelta >= 0 && dayDelta <= WINDOW_DAYS) || (racePassed && Math.abs(dayDelta) <= 14);
 
   // Pull race-day plan row to summarize race plan when in the window.
   let racePlan: {
@@ -85,6 +87,8 @@ router.get("/race-week", async (_req, res) => {
     hoursToRace,
     inWindow,
     isRaceDay,
+    racePassed,
+    daysAfterRace,
     racePlan,
     checklist,
   });

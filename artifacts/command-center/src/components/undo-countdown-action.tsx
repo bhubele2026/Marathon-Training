@@ -60,13 +60,33 @@ export function UndoCountdownAction({
 
   const expired = secondsLeft <= 0;
 
+  const progress = expiresInSeconds > 0 ? secondsLeft / expiresInSeconds : 0;
+  const r = 8;
+  const circ = 2 * Math.PI * r;
+  const offset = circ * (1 - progress);
+
   return (
     <ToastAction
       altText={altText}
       onClick={onUndo}
       disabled={expired}
       data-testid={testId}
+      className="gap-1.5"
     >
+      <svg width="20" height="20" viewBox="0 0 20 20" className="shrink-0 -ml-0.5">
+        <circle cx="10" cy="10" r={r} fill="none" stroke="currentColor" strokeWidth="2" opacity={0.2} />
+        <circle
+          cx="10" cy="10" r={r}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeDasharray={circ}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          transform="rotate(-90 10 10)"
+          style={{ transition: "stroke-dashoffset 0.25s linear" }}
+        />
+      </svg>
       Undo {expired ? "(expired)" : `(${secondsLeft}s)`}
     </ToastAction>
   );

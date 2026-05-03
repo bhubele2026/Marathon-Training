@@ -36,6 +36,8 @@ import {
   AlertTriangle,
   RotateCcw,
   Flame,
+  Sparkles,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { phaseColor } from "@/lib/phase-colors";
@@ -181,6 +183,9 @@ export default function Plan() {
   // phase, so headers and copy fall back to a generic "workout plan"
   // framing instead of presupposing a race.
   const hasRace = weeks.some((w) => w.phase === "Marathon-Specific");
+  const totalMissed = weeks.reduce((sum, w) => sum + (w.missedSessions ?? 0), 0);
+  const totalCustomized = weeks.reduce((sum, w) => sum + (w.customizedDays ?? 0), 0);
+  const nextMissedWeek = weeks.find((w) => (w.missedSessions ?? 0) > 0);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto">
@@ -194,6 +199,37 @@ export default function Plan() {
               ? `${overview.weeksRemaining} Weeks to Race Day · ${formatDate(overview.raceDate)}`
               : `${overview.weeksRemaining} Weeks Remaining · Ends ${formatDate(overview.raceDate)}`}
           </p>
+          <div className="flex flex-wrap items-center gap-3 mt-2">
+            {totalMissed > 0 && (
+              <span
+                className="flex items-center gap-1 text-xs bg-destructive/15 text-destructive px-2 py-1 rounded font-bold uppercase tracking-wider"
+                data-testid="badge-total-missed"
+              >
+                <AlertTriangle className="h-3 w-3" />
+                {totalMissed} Missed
+              </span>
+            )}
+            {totalCustomized > 0 && (
+              <span
+                className="flex items-center gap-1 text-xs bg-amber-500/15 text-amber-600 dark:text-amber-400 px-2 py-1 rounded font-bold uppercase tracking-wider"
+                data-testid="badge-total-customized"
+              >
+                <Sparkles className="h-3 w-3" />
+                {totalCustomized} Edited
+              </span>
+            )}
+            {nextMissedWeek && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs uppercase font-bold tracking-wider text-destructive h-auto py-1 px-2"
+                onClick={() => setLocation(`/plan/${nextMissedWeek.week}`)}
+                data-testid="button-jump-to-missed"
+              >
+                Jump to W{nextMissedWeek.week} <ChevronRight className="h-3 w-3 ml-0.5" />
+              </Button>
+            )}
+          </div>
         </div>
         <Button
           variant="outline"
@@ -381,6 +417,15 @@ export default function Plan() {
                         <div className="flex justify-between items-center text-[10px] uppercase font-bold text-muted-foreground">
                           <span>Adherence</span>
                           <div className="flex items-center gap-2">
+                            {(week.customizedDays ?? 0) > 0 && (
+                              <span
+                                className="flex items-center gap-1 bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider"
+                                data-testid={`badge-customized-week-${week.week}`}
+                              >
+                                <Sparkles className="h-2.5 w-2.5" />
+                                {week.customizedDays} Edited
+                              </span>
+                            )}
                             {(week.missedSessions ?? 0) > 0 && (
                               <span
                                 className="flex items-center gap-1 bg-destructive/15 text-destructive px-1.5 py-0.5 rounded font-bold uppercase tracking-wider"

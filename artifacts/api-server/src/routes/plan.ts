@@ -22,6 +22,7 @@ import {
   releaseResetSnapshot,
   snapshotPlanDay,
   storeResetSnapshot,
+  RESET_UNDO_TTL_MS,
   type PlanDaySnapshot,
 } from "../lib/reset-undo";
 
@@ -110,6 +111,12 @@ router.get("/plan/weeks", async (_req, res) => {
     `,
   );
   const byWeek = new Map(actuals.rows.map((r) => [r.week, r]));
+  const customizedCounts = await db.execute<{ week: number; customized: number }>(
+    sql`SELECT week, COUNT(*) FILTER (WHERE seed_session_type IS NOT NULL)::int AS customized
+        FROM plan_days
+        GROUP BY week`,
+  );
+  const customizedByWeek = new Map(customizedCounts.rows.map((r) => [r.week, r.customized]));
   // Per-week dominant cardio machine: the equipment with the highest total
   // cardio_min across non-rest plan days. Used by the weekly summary cards
   // to surface "X min cardio · Peloton Bike" for bike-only / row-only weeks
@@ -139,6 +146,7 @@ router.get("/plan/weeks", async (_req, res) => {
         completedSessions: a?.completed_sessions ?? 0,
         totalSessions: a?.total_sessions ?? 0,
         missedSessions: a?.missed_sessions ?? 0,
+        customizedDays: customizedByWeek.get(w.week) ?? 0,
         dominantCardioEquipment: dominantByWeek.get(w.week) ?? null,
       });
     }),
@@ -629,12 +637,12 @@ router.post("/plan/days/:id/swap", async (req, res): Promise<void> => {
     if (!a || !b) return { kind: "not-found" as const };
     await ensureSeedSnapshot(tx, a);
     await ensureSeedSnapshot(tx, b);
+    const preSwapSnapshots: PlanDaySnapshot[] = [
+      snapshotPlanDay(a),
+      snapshotPlanDay(b),
+    ];
     const aFields = pickMutableFields(a);
     const bFields = pickMutableFields(b);
-    // Overwrite a with b's prescription and vice-versa. date / day / week /
-    // phase / id / seed_* stay put so the calendar position, the phase
-    // boundaries, and the original prescription snapshot are preserved even
-    // when the two days come from different weeks.
     const updatedA = await tx
       .update(planDaysTable)
       .set(bFields)
@@ -645,10 +653,6 @@ router.post("/plan/days/:id/swap", async (req, res): Promise<void> => {
       .set(aFields)
       .where(eq(planDaysTable.id, b.id))
       .returning();
-    // Recompute aggregates for every week touched by the swap. For a
-    // cross-week swap that's both weeks (deduped); for an in-week swap it's
-    // just the one. Both happen inside this transaction so the two weeks
-    // either both get their new totals or the swap rolls back together.
     const weeksAffected = a.week === b.week ? [a.week] : [a.week, b.week];
     for (const w of weeksAffected) {
       await recomputeWeekTotals(tx, w);
@@ -657,6 +661,7 @@ router.post("/plan/days/:id/swap", async (req, res): Promise<void> => {
       kind: "ok" as const,
       a: updatedA[0]!,
       b: updatedB[0]!,
+      preSwapSnapshots,
       weeksAffected,
       phaseChanged: a.phase !== b.phase,
     };
@@ -665,12 +670,16 @@ router.post("/plan/days/:id/swap", async (req, res): Promise<void> => {
     res.status(404).json({ error: "plan day not found" });
     return;
   }
+  const swapSnapshots = result.preSwapSnapshots;
+  const { token: undoToken, expiresInSeconds: undoExpiresInSeconds } =
+    await storeResetSnapshot(swapSnapshots, result.weeksAffected);
   req.log.info(
     {
       fromId: id,
       toId: withDayId,
       weeksAffected: result.weeksAffected,
       phaseChanged: result.phaseChanged,
+      undoToken,
     },
     "plan days swapped",
   );
@@ -679,6 +688,8 @@ router.post("/plan/days/:id/swap", async (req, res): Promise<void> => {
     to: toPlanDay(result.b),
     weeksAffected: result.weeksAffected,
     phaseChanged: result.phaseChanged,
+    undoToken,
+    undoExpiresInSeconds,
   });
 });
 

@@ -12,13 +12,13 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  BarChart, Bar, Legend, AreaChart, Area, Cell
+  BarChart, Bar, Legend, AreaChart, Area, Cell, ReferenceLine
 } from "recharts";
 import { formatDistance, formatLoad, formatWeight, formatDate, formatDuration } from "@/lib/format";
 import { format } from "date-fns";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Activity, CalendarDays, CheckCircle2, TrendingDown, Target, Zap, Edit, Trash2, ExternalLink, Pencil, XCircle } from "lucide-react";
+import { Activity, CalendarDays, CheckCircle2, TrendingDown, TrendingUp, ArrowRight, Target, Zap, Edit, Trash2, ExternalLink, Pencil, XCircle } from "lucide-react";
 import { useMissionActions } from "@/hooks/use-mission-actions";
 import { QuickLogActivity } from "@/components/quick-log-activity";
 import { RaceWeekBanner } from "@/components/race-week-banner";
@@ -295,7 +295,27 @@ export default function Dashboard() {
                 data-testid="row-lifestyle-minutes"
               >
                 <span>Lifestyle Minutes</span>
-                <span className="font-mono text-foreground">{formatDuration(summary.weeklyLifestyleMinutes)}</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-foreground">{formatDuration(summary.weeklyLifestyleMinutes)}</span>
+                  {summary.prevWeeklyLifestyleMinutes != null && (() => {
+                    const diff = summary.weeklyLifestyleMinutes - summary.prevWeeklyLifestyleMinutes;
+                    if (diff > 0) return (
+                      <span className="flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400 text-xs" data-testid="lifestyle-trend-up">
+                        <TrendingUp className="h-3 w-3" />+{Math.round(diff)}m
+                      </span>
+                    );
+                    if (diff < 0) return (
+                      <span className="flex items-center gap-0.5 text-amber-600 dark:text-amber-400 text-xs" data-testid="lifestyle-trend-down">
+                        <TrendingDown className="h-3 w-3" />{Math.round(diff)}m
+                      </span>
+                    );
+                    return (
+                      <span className="flex items-center gap-0.5 text-muted-foreground text-xs" data-testid="lifestyle-trend-flat">
+                        <ArrowRight className="h-3 w-3" />same
+                      </span>
+                    );
+                  })()}
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -350,6 +370,16 @@ export default function Dashboard() {
                           }}
                         />
                         <Legend />
+                        {summary && (
+                          <ReferenceLine
+                            yAxisId="miles"
+                            x={summary.currentWeek}
+                            stroke="hsl(var(--primary))"
+                            strokeDasharray="4 4"
+                            strokeWidth={2}
+                            label={{ value: "Now", position: "top", fill: "hsl(var(--primary))", fontSize: 10, fontWeight: 700 }}
+                          />
+                        )}
                         <Bar yAxisId="miles" dataKey="plannedMiles" name="Planned" fill="hsl(var(--muted-foreground))" opacity={0.3} radius={[2, 2, 0, 0]} />
                         <Bar yAxisId="miles" dataKey="actualMiles" name="Actual" radius={[2, 2, 0, 0]}>
                           {(mileage ?? []).map((row, i) => (
@@ -397,7 +427,10 @@ export default function Dashboard() {
                       <LineChart data={longRun}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
                         <XAxis dataKey="week" tickFormatter={(v) => `W${v}`} />
-                        <YAxis />
+                        <YAxis yAxisId="miles" />
+                        {longRun?.some((p) => p.cardioMin != null && p.cardioMin > 0) && (
+                          <YAxis yAxisId="cardio" orientation="right" tickFormatter={(v) => `${v}m`} />
+                        )}
                         <Tooltip
                           contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
                           labelFormatter={(label, payload) => {
@@ -406,8 +439,9 @@ export default function Dashboard() {
                           }}
                         />
                         <Legend />
-                        <Line type="stepAfter" dataKey="plannedMi" name="Target" stroke="hsl(var(--muted-foreground))" strokeDasharray="5 5" strokeWidth={2} dot={false} />
+                        <Line yAxisId="miles" type="stepAfter" dataKey="plannedMi" name="Target" stroke="hsl(var(--muted-foreground))" strokeDasharray="5 5" strokeWidth={2} dot={false} />
                         <Line
+                          yAxisId="miles"
                           type="monotone"
                           dataKey="actualMi"
                           name="Completed"
@@ -437,6 +471,16 @@ export default function Dashboard() {
                             );
                           }}
                         />
+                        {longRun?.some((p) => p.cardioMin != null && p.cardioMin > 0) && (
+                          <Bar
+                            yAxisId="cardio"
+                            dataKey="cardioMin"
+                            name="Cardio min"
+                            fill="hsl(var(--chart-2, var(--primary)))"
+                            opacity={0.25}
+                            radius={[2, 2, 0, 0]}
+                          />
+                        )}
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
