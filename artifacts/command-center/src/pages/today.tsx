@@ -15,6 +15,7 @@ import {
   getPrimaryMetric,
   getPrimaryMetricCompare,
 } from "@/lib/primary-metric";
+import { RunTargetLine } from "@/components/run-target-line";
 import { format, parseISO } from "date-fns";
 
 export default function Today() {
@@ -117,6 +118,15 @@ export default function Today() {
                         );
                       })}
                     </div>
+                    <RunTargetLine
+                      sessionType={today.firstSession.sessionType}
+                      week={today.firstSession.week}
+                      runMin={today.firstSession.runMin}
+                      distanceMi={today.firstSession.distanceMi}
+                      pace={today.firstSession.pace}
+                      variant="prominent"
+                      testId="first-session-run-target"
+                    />
                     <PlannedBreakdown
                       totalMin={today.firstSession.totalMin}
                       strengthMin={today.firstSession.strengthMin}
@@ -209,6 +219,17 @@ export default function Today() {
                               </span>
                             ))}
                           </div>
+                        )}
+                        {today.plan && (
+                          <RunTargetLine
+                            sessionType={today.plan.sessionType}
+                            week={today.plan.week}
+                            runMin={today.plan.runMin}
+                            distanceMi={today.plan.distanceMi}
+                            pace={today.plan.pace}
+                            variant="prominent"
+                            testId="today-plan-run-target"
+                          />
                         )}
                         {today.plan && (
                           <PlannedBreakdown

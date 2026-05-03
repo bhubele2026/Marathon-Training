@@ -3,6 +3,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 
 vi.mock("@workspace/api-client-react", () => ({
   useGetTodayPlan: vi.fn(),
+  useGetUserPreferences: () => ({ data: { runTargetingMode: "effort" } }),
 }));
 
 vi.mock("@/hooks/use-mission-actions", () => ({

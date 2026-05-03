@@ -5,3 +5,4 @@ export * from "./measurements";
 export * from "./raceWeekChecklist";
 export * from "./resetUndoSnapshots";
 export * from "./plannerConfigs";
+export * from "./userPreferences";

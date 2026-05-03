@@ -14,6 +14,7 @@ tags:
   - name: dashboard
   - name: race-week
   - name: planner
+  - name: preferences
 paths:
   /healthz:
     get:
@@ -739,6 +740,41 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
+
+  /preferences:
+    get:
+      operationId: getUserPreferences
+      tags: [preferences]
+      description: Read the singleton user preferences row. Lazily seeded with defaults on first read so the client never has to handle a missing-prefs case.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserPreferences" }
+    put:
+      operationId: updateUserPreferences
+      tags: [preferences]
+      description: Update one or more preference fields. Partial PATCH-style — fields omitted from the body are left untouched.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateUserPreferencesBody" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserPreferences" }
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ValidationError"
 
   /race-week:
     get:
@@ -1830,6 +1866,33 @@ components:
           type: integer
           nullable: true
           description: id of the config promoted to active because the deleted one was active. Null when the deleted config was not active (so no promotion happened).
+
+    UserPreferences:
+      type: object
+      required: [runTargetingMode, updatedAt]
+      description: Single-user preferences applied across the app. Currently exposes the run targeting mode (Task #134) which drives how every prescribed run is displayed on Today, Week Detail, and the expanded card detail.
+      properties:
+        runTargetingMode:
+          type: string
+          enum: [effort, intervals, hr_zones, pace]
+          description: |
+            How prescribed runs are displayed.
+              - effort     : RPE-style label like "Easy conversational" or "Hard but sustainable".
+              - intervals  : walk/run recipe like "5 min run / 1 min walk × 5", scaled to the planned duration with a beginner ratio that eases over the campaign.
+              - hr_zones   : heart-rate zone label like "Zone 2".
+              - pace       : the legacy explicit "9:30/mi" pace string.
+            Default for new accounts is "effort".
+        updatedAt:
+          type: string
+          format: date-time
+
+    UpdateUserPreferencesBody:
+      type: object
+      description: Partial update of UserPreferences. Omitted fields are left untouched.
+      properties:
+        runTargetingMode:
+          type: string
+          enum: [effort, intervals, hr_zones, pace]
 
     ApplyPlannerConfigResponse:
       type: object

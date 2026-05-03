@@ -69,6 +69,7 @@ import {
   getPrimaryMetric,
   getPrimaryMetricCompare,
 } from "@/lib/primary-metric";
+import { RunTargetLine } from "@/components/run-target-line";
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -674,29 +675,38 @@ export default function WeekDetail() {
                               </span>
                             ))}
                           </div>
-                        <div className="flex flex-wrap gap-4 text-sm">
-                          {day.distanceMi != null && (
-                            <div>
-                              <span className="text-[10px] uppercase font-bold text-muted-foreground block">Distance</span>
-                              <span className="font-mono font-medium">{formatDistance(day.distanceMi)}</span>
-                            </div>
-                          )}
-                          {day.totalLoad != null && day.totalLoad > 0 && (
-                            <div>
-                              <span className="text-[10px] uppercase font-bold text-muted-foreground block">Load</span>
-                              <span className="font-mono font-medium">{formatLoad(day.totalLoad)}</span>
-                            </div>
-                          )}
-                          <PlannedBreakdown
-                            totalMin={day.totalMin}
-                            strengthMin={day.strengthMin}
-                            cardioMin={day.cardioMin}
+                          <div className="flex flex-wrap gap-4 text-sm">
+                            {day.distanceMi != null && (
+                              <div>
+                                <span className="text-[10px] uppercase font-bold text-muted-foreground block">Distance</span>
+                                <span className="font-mono font-medium">{formatDistance(day.distanceMi)}</span>
+                              </div>
+                            )}
+                            {day.totalLoad != null && day.totalLoad > 0 && (
+                              <div>
+                                <span className="text-[10px] uppercase font-bold text-muted-foreground block">Load</span>
+                                <span className="font-mono font-medium">{formatLoad(day.totalLoad)}</span>
+                              </div>
+                            )}
+                            <PlannedBreakdown
+                              totalMin={day.totalMin}
+                              strengthMin={day.strengthMin}
+                              cardioMin={day.cardioMin}
+                              runMin={day.runMin}
+                              runDistanceMi={day.distanceMi}
+                              variant="compact"
+                              testIdPrefix={`day-${day.date}`}
+                            />
+                          </div>
+                          <RunTargetLine
+                            sessionType={day.sessionType}
+                            week={day.week}
                             runMin={day.runMin}
-                            runDistanceMi={day.distanceMi}
-                            variant="compact"
-                            testIdPrefix={`day-${day.date}`}
+                            distanceMi={day.distanceMi}
+                            pace={day.pace}
+                            variant="prominent"
+                            testId={`day-${day.date}-run-target`}
                           />
-                        </div>
                         </div>
                       </SessionDetailDisclosure>
                     </div>

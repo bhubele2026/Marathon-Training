@@ -2013,6 +2013,48 @@ export const ApplyPlannerConfigResponse = zod
     "Result of regenerating plan_weeks and plan_days from the saved Planner config. Workouts and measurements are preserved (not wiped); reset undo snapshots are dropped because their plan_day ids no longer match.",
   );
 
+/**
+ * Read the singleton user preferences row. Lazily seeded with defaults on first read so the client never has to handle a missing-prefs case.
+ */
+export const GetUserPreferencesResponse = zod
+  .object({
+    runTargetingMode: zod
+      .enum(["effort", "intervals", "hr_zones", "pace"])
+      .describe(
+        'How prescribed runs are displayed.\n  - effort     : RPE-style label like \"Easy conversational\" or \"Hard but sustainable\".\n  - intervals  : walk\/run recipe like \"5 min run \/ 1 min walk × 5\", scaled to the planned duration with a beginner ratio that eases over the campaign.\n  - hr_zones   : heart-rate zone label like \"Zone 2\".\n  - pace       : the legacy explicit \"9:30\/mi\" pace string.\nDefault for new accounts is \"effort\".\n',
+      ),
+    updatedAt: zod.coerce.date(),
+  })
+  .describe(
+    "Single-user preferences applied across the app. Currently exposes the run targeting mode (Task",
+  );
+
+/**
+ * Update one or more preference fields. Partial PATCH-style — fields omitted from the body are left untouched.
+ */
+export const UpdateUserPreferencesBody = zod
+  .object({
+    runTargetingMode: zod
+      .enum(["effort", "intervals", "hr_zones", "pace"])
+      .optional(),
+  })
+  .describe(
+    "Partial update of UserPreferences. Omitted fields are left untouched.",
+  );
+
+export const UpdateUserPreferencesResponse = zod
+  .object({
+    runTargetingMode: zod
+      .enum(["effort", "intervals", "hr_zones", "pace"])
+      .describe(
+        'How prescribed runs are displayed.\n  - effort     : RPE-style label like \"Easy conversational\" or \"Hard but sustainable\".\n  - intervals  : walk\/run recipe like \"5 min run \/ 1 min walk × 5\", scaled to the planned duration with a beginner ratio that eases over the campaign.\n  - hr_zones   : heart-rate zone label like \"Zone 2\".\n  - pace       : the legacy explicit \"9:30\/mi\" pace string.\nDefault for new accounts is \"effort\".\n',
+      ),
+    updatedAt: zod.coerce.date(),
+  })
+  .describe(
+    "Single-user preferences applied across the app. Currently exposes the run targeting mode (Task",
+  );
+
 export const GetRaceWeekResponse = zod.object({
   raceDate: zod.string(),
   daysToRace: zod.number(),

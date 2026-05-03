@@ -733,6 +733,57 @@ export interface DeletePlannerConfigResponse {
 }
 
 /**
+ * How prescribed runs are displayed.
+  - effort     : RPE-style label like "Easy conversational" or "Hard but sustainable".
+  - intervals  : walk/run recipe like "5 min run / 1 min walk × 5", scaled to the planned duration with a beginner ratio that eases over the campaign.
+  - hr_zones   : heart-rate zone label like "Zone 2".
+  - pace       : the legacy explicit "9:30/mi" pace string.
+Default for new accounts is "effort".
+
+ */
+export type UserPreferencesRunTargetingMode =
+  (typeof UserPreferencesRunTargetingMode)[keyof typeof UserPreferencesRunTargetingMode];
+
+export const UserPreferencesRunTargetingMode = {
+  effort: "effort",
+  intervals: "intervals",
+  hr_zones: "hr_zones",
+  pace: "pace",
+} as const;
+
+/**
+ * Single-user preferences applied across the app. Currently exposes the run targeting mode (Task
+ */
+export interface UserPreferences {
+  /** How prescribed runs are displayed.
+  - effort     : RPE-style label like "Easy conversational" or "Hard but sustainable".
+  - intervals  : walk/run recipe like "5 min run / 1 min walk × 5", scaled to the planned duration with a beginner ratio that eases over the campaign.
+  - hr_zones   : heart-rate zone label like "Zone 2".
+  - pace       : the legacy explicit "9:30/mi" pace string.
+Default for new accounts is "effort".
+ */
+  runTargetingMode: UserPreferencesRunTargetingMode;
+  updatedAt: string;
+}
+
+export type UpdateUserPreferencesBodyRunTargetingMode =
+  (typeof UpdateUserPreferencesBodyRunTargetingMode)[keyof typeof UpdateUserPreferencesBodyRunTargetingMode];
+
+export const UpdateUserPreferencesBodyRunTargetingMode = {
+  effort: "effort",
+  intervals: "intervals",
+  hr_zones: "hr_zones",
+  pace: "pace",
+} as const;
+
+/**
+ * Partial update of UserPreferences. Omitted fields are left untouched.
+ */
+export interface UpdateUserPreferencesBody {
+  runTargetingMode?: UpdateUserPreferencesBodyRunTargetingMode;
+}
+
+/**
  * Result of regenerating plan_weeks and plan_days from the saved Planner config. Workouts and measurements are preserved (not wiped); reset undo snapshots are dropped because their plan_day ids no longer match.
  */
 export interface ApplyPlannerConfigResponse {

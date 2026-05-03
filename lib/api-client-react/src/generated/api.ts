@@ -52,7 +52,9 @@ import type {
   UpdateMeasurementBody,
   UpdatePlanDayBody,
   UpdatePlannerConfigBody,
+  UpdateUserPreferencesBody,
   UpdateWorkoutBody,
+  UserPreferences,
   ValidationError,
   WeeklyMileagePoint,
   WeightPoint,
@@ -2833,6 +2835,163 @@ export const useApplyPlannerConfig = <
   TContext
 > => {
   return useMutation(getApplyPlannerConfigMutationOptions(options));
+};
+
+/**
+ * Read the singleton user preferences row. Lazily seeded with defaults on first read so the client never has to handle a missing-prefs case.
+ */
+export const getGetUserPreferencesUrl = () => {
+  return `/api/preferences`;
+};
+
+export const getUserPreferences = async (
+  options?: RequestInit,
+): Promise<UserPreferences> => {
+  return customFetch<UserPreferences>(getGetUserPreferencesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetUserPreferencesQueryKey = () => {
+  return [`/api/preferences`] as const;
+};
+
+export const getGetUserPreferencesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getUserPreferences>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getUserPreferences>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetUserPreferencesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getUserPreferences>>
+  > = ({ signal }) => getUserPreferences({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getUserPreferences>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetUserPreferencesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getUserPreferences>>
+>;
+export type GetUserPreferencesQueryError = ErrorType<unknown>;
+
+export function useGetUserPreferences<
+  TData = Awaited<ReturnType<typeof getUserPreferences>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getUserPreferences>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetUserPreferencesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Update one or more preference fields. Partial PATCH-style — fields omitted from the body are left untouched.
+ */
+export const getUpdateUserPreferencesUrl = () => {
+  return `/api/preferences`;
+};
+
+export const updateUserPreferences = async (
+  updateUserPreferencesBody: UpdateUserPreferencesBody,
+  options?: RequestInit,
+): Promise<UserPreferences> => {
+  return customFetch<UserPreferences>(getUpdateUserPreferencesUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateUserPreferencesBody),
+  });
+};
+
+export const getUpdateUserPreferencesMutationOptions = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateUserPreferences>>,
+    TError,
+    { data: BodyType<UpdateUserPreferencesBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateUserPreferences>>,
+  TError,
+  { data: BodyType<UpdateUserPreferencesBody> },
+  TContext
+> => {
+  const mutationKey = ["updateUserPreferences"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateUserPreferences>>,
+    { data: BodyType<UpdateUserPreferencesBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateUserPreferences(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateUserPreferencesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateUserPreferences>>
+>;
+export type UpdateUserPreferencesMutationBody =
+  BodyType<UpdateUserPreferencesBody>;
+export type UpdateUserPreferencesMutationError = ErrorType<
+  Error | ValidationError
+>;
+
+export const useUpdateUserPreferences = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateUserPreferences>>,
+    TError,
+    { data: BodyType<UpdateUserPreferencesBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateUserPreferences>>,
+  TError,
+  { data: BodyType<UpdateUserPreferencesBody> },
+  TContext
+> => {
+  return useMutation(getUpdateUserPreferencesMutationOptions(options));
 };
 
 export const getGetRaceWeekUrl = () => {

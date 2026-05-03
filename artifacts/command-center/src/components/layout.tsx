@@ -8,6 +8,7 @@ import {
   LineChart,
   ListOrdered,
   Scale,
+  Settings as SettingsIcon,
   SlidersHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,7 @@ export function Layout({ children }: LayoutProps) {
     { href: "/measurements", label: "Body Metrics", icon: Scale },
     { href: "/equipment", label: "Equipment", icon: Dumbbell },
     { href: "/planner", label: "Phase Planner", icon: SlidersHorizontal },
+    { href: "/settings", label: "Settings", icon: SettingsIcon },
   ];
 
   return (

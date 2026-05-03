@@ -13,6 +13,7 @@ import Log from "@/pages/log";
 import Measurements from "@/pages/measurements";
 import Equipment from "@/pages/equipment";
 import Planner from "@/pages/planner";
+import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -29,6 +30,7 @@ function Router() {
         <Route path="/measurements" component={Measurements} />
         <Route path="/equipment" component={Equipment} />
         <Route path="/planner" component={Planner} />
+        <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
