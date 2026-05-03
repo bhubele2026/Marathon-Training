@@ -48,7 +48,8 @@ vi.mock("@/lib/invalidate-mission-queries", () => ({
   invalidateMissionRelatedQueries: vi.fn(),
 }));
 
-import Planner from "./planner";
+import Planner, { defaultBlankConfig } from "./planner";
+import { validatePlannerConfig } from "@workspace/plan-generator";
 
 const SAMPLE_CONFIG = {
   id: 1,
@@ -864,5 +865,17 @@ describe("Planner Apply Template race-date overrun warning", () => {
     expect(screen.queryByTestId("planner-pending-apply-overrun-warning")).toBeNull();
     // The race-date preview is still shown for transparency.
     expect(screen.getByTestId("planner-pending-apply-race-preview")).toBeTruthy();
+  });
+});
+
+describe("defaultBlankConfig", () => {
+  it("produces a payload that passes validatePlannerConfig (legacy blocks-mode)", () => {
+    const blank = defaultBlankConfig();
+    const issues = validatePlannerConfig({
+      startDate: blank.startDate,
+      marathonDate: blank.marathonDate,
+      blocks: blank.blocks,
+    });
+    expect(issues).toEqual([]);
   });
 });

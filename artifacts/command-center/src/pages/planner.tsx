@@ -72,6 +72,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
+import { extractValidationError } from "@/lib/api-errors";
 
 // FOCUS_TYPES, FocusType, and MARATHON_TAIL_WEEKS are imported from
 // @workspace/plan-generator above so the planner page, the validator, and
@@ -129,25 +130,37 @@ function totalWeeksBetween(startISO: string, raceISO: string): number {
 }
 
 // Default config offered when no config has ever been saved (i.e. first
-// run of the app). Anchors to the next Monday and an 8-week Tonal-first
-// upper-body lift block so the planner opens as a general workout
-// planner rather than presupposing a marathon campaign. The runner can
-// flip the "Training for a marathon?" toggle and add user blocks /
-// templates to grow it into a race campaign.
-function defaultBlankConfig(): {
+// run of the app). Anchors to the next Monday and a short Tonal-first
+// upper-body lift block followed by the auto-pinned 16-week
+// Marathon-Specific tail so the resulting payload immediately satisfies
+// validatePlannerConfig (legacy blocks-mode requires
+// sum(user blocks) === totalWeeks - MARATHON_TAIL_WEEKS, which would be
+// negative if marathonDate were closer than MARATHON_TAIL_WEEKS out).
+// The runner can flip the "Training for a marathon?" toggle and add
+// user blocks / templates to grow it into a race campaign.
+//
+// Default user phase length (weeks) prepended before the auto-pinned
+// MARATHON_TAIL_WEEKS Marathon-Specific tail. Kept short so the runner
+// can immediately edit it, but >= 1 so the validator's
+// "block weeks must sum to totalWeeks - MARATHON_TAIL_WEEKS" rule
+// is satisfied by the blank payload.
+const DEFAULT_BLANK_USER_WEEKS = 4;
+
+export function defaultBlankConfig(): {
   startDate: string;
   marathonDate: string;
   blocks: PhaseBlock[];
 } {
   const start = nextMondayISO();
-  const marathon = computeRaceDateForTotalWeeks(start, 8);
+  const totalWeeks = DEFAULT_BLANK_USER_WEEKS + MARATHON_TAIL_WEEKS;
+  const marathon = computeRaceDateForTotalWeeks(start, totalWeeks);
   return {
     startDate: start,
     marathonDate: marathon,
     blocks: [
       {
         focusType: "Custom",
-        weeks: 8,
+        weeks: DEFAULT_BLANK_USER_WEEKS,
         customName: "Tonal Strength — Upper",
         customNotes: "[lift-primary:upper]",
       },
@@ -1185,9 +1198,26 @@ export default function Planner() {
           invalidatePlannerLists();
         },
         onError: (err: unknown) => {
+          const envelope = extractValidationError(err);
+          let description: string;
+          if (envelope) {
+            const firstForm = envelope.formErrors[0];
+            const firstField = Object.entries(envelope.fieldErrors)[0];
+            if (firstForm) {
+              description = firstForm;
+            } else if (firstField) {
+              const [field, messages] = firstField;
+              description = `${field}: ${messages[0] ?? "invalid"}`;
+            } else {
+              description =
+                err instanceof Error ? err.message : "Unknown error";
+            }
+          } else {
+            description = err instanceof Error ? err.message : "Unknown error";
+          }
           toast({
             title: "Create failed",
-            description: err instanceof Error ? err.message : "Unknown error",
+            description,
             variant: "destructive",
           });
         },
