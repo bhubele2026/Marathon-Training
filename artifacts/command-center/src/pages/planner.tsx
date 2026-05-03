@@ -267,6 +267,10 @@ export default function Planner() {
     | null
   >(null);
   const [pendingApplyStartDate, setPendingApplyStartDate] = useState<string>("");
+  // Index of the composition entry currently hovered/focused via the
+  // timeline strip (or list row), used to highlight the corresponding
+  // bar/row pair. Null = nothing highlighted.
+  const [hoveredEntry, setHoveredEntry] = useState<number | null>(null);
 
   const detailQuery = useGetPlannerConfig(selectedId ?? 0, {
     query: {
@@ -1683,11 +1687,20 @@ export default function Planner() {
                 {entries!.map((e, i) => {
                   const tpl = getTemplateById(e.templateId);
                   const proj = entryProjections.find((p) => p.entryIndex === i);
+                  const isHighlighted = hoveredEntry === i;
                   return (
                     <li
                       key={i}
-                      className="border rounded-lg p-3 bg-card"
+                      className={`border rounded-lg p-3 bg-card transition-shadow ${
+                        isHighlighted
+                          ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
+                          : ""
+                      }`}
                       data-testid={`planner-entry-${i}`}
+                      onMouseEnter={() => setHoveredEntry(i)}
+                      onMouseLeave={() =>
+                        setHoveredEntry((cur) => (cur === i ? null : cur))
+                      }
                     >
                       {proj && proj.gapWeeksBefore > 0 && (
                         <div
@@ -1857,6 +1870,145 @@ export default function Planner() {
                   );
                 })}
               </ol>
+            )}
+            {entries!.length > 0 && entryProjections.length > 0 && (
+              <div
+                className="mt-4 border rounded-lg p-3 bg-muted/30"
+                data-testid="planner-composition-timeline"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Timeline · {entriesProjectedWeeks}w total
+                  </div>
+                  <div className="text-[10px] text-muted-foreground font-mono tabular-nums">
+                    {startDate} → {marathonDate}
+                  </div>
+                </div>
+                <div
+                  className="relative w-full h-14 rounded-md overflow-hidden bg-background border"
+                  role="list"
+                  aria-label="Composition timeline"
+                >
+                  {(() => {
+                    const total = entriesProjectedWeeks;
+                    if (total <= 0) return null;
+                    const segs: React.ReactNode[] = [];
+                    let cursorPct = 0;
+                    for (let i = 0; i < entries!.length; i++) {
+                      const proj = entryProjections.find(
+                        (p) => p.entryIndex === i,
+                      );
+                      if (!proj) continue;
+                      const e = entries![i]!;
+                      const tpl = getTemplateById(e.templateId);
+                      // Render gap (if any) immediately before this entry.
+                      if (proj.gapWeeksBefore > 0) {
+                        const gapPct = (proj.gapWeeksBefore / total) * 100;
+                        segs.push(
+                          <div
+                            key={`gap-${i}`}
+                            className="absolute top-0 bottom-0 border-r border-background/50"
+                            style={{
+                              left: `${cursorPct}%`,
+                              width: `${gapPct}%`,
+                              backgroundImage:
+                                "repeating-linear-gradient(45deg, hsl(var(--muted-foreground) / 0.25) 0 4px, transparent 4px 8px)",
+                              backgroundColor:
+                                "hsl(var(--muted) / 0.6)",
+                            }}
+                            title={`Recovery gap · ${proj.gapWeeksBefore}w`}
+                            data-testid={`planner-timeline-gap-${i}`}
+                          >
+                            <div className="absolute inset-0 flex items-center justify-center text-[9px] uppercase tracking-wider text-muted-foreground font-medium pointer-events-none">
+                              {proj.gapWeeksBefore >= 2 ? `Gap ${proj.gapWeeksBefore}w` : ""}
+                            </div>
+                          </div>,
+                        );
+                        cursorPct += gapPct;
+                      }
+                      const entryPct = ((e.weeks || 0) / total) * 100;
+                      // Stable per-template hue derived from templateId.
+                      let hash = 0;
+                      for (let k = 0; k < e.templateId.length; k++) {
+                        hash = (hash * 31 + e.templateId.charCodeAt(k)) | 0;
+                      }
+                      const hue = Math.abs(hash) % 360;
+                      const isActive = hoveredEntry === i;
+                      segs.push(
+                        <button
+                          type="button"
+                          key={`entry-${i}`}
+                          className={`absolute top-0 bottom-0 border-r border-background/50 text-left overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:z-10 ${
+                            isActive ? "ring-2 ring-primary z-10" : ""
+                          }`}
+                          style={{
+                            left: `${cursorPct}%`,
+                            width: `${entryPct}%`,
+                            backgroundColor: `hsl(${hue} 65% 55% / ${isActive ? 0.95 : 0.78})`,
+                          }}
+                          title={`${tpl?.name ?? e.templateId} · ${e.weeks}w · ${proj.startDateISO} → ${proj.endDateISO}`}
+                          aria-label={`${tpl?.name ?? e.templateId}, ${e.weeks} weeks, ${proj.startDateISO} to ${proj.endDateISO}`}
+                          onMouseEnter={() => setHoveredEntry(i)}
+                          onMouseLeave={() =>
+                            setHoveredEntry((cur) =>
+                              cur === i ? null : cur,
+                            )
+                          }
+                          onFocus={() => setHoveredEntry(i)}
+                          onBlur={() =>
+                            setHoveredEntry((cur) =>
+                              cur === i ? null : cur,
+                            )
+                          }
+                          onClick={() => {
+                            setHoveredEntry(i);
+                            if (typeof window !== "undefined") {
+                              const el = document.querySelector(
+                                `[data-testid="planner-entry-${i}"]`,
+                              );
+                              if (el) {
+                                el.scrollIntoView({
+                                  behavior: "smooth",
+                                  block: "center",
+                                });
+                              }
+                            }
+                          }}
+                          data-testid={`planner-timeline-bar-${i}`}
+                        >
+                          <div className="absolute inset-x-0 top-0 h-7 px-1.5 flex items-center text-[10px] font-medium text-white drop-shadow-sm pointer-events-none">
+                            <span className="truncate">
+                              #{i + 1} {tpl?.name ?? e.templateId} · {e.weeks}w
+                            </span>
+                          </div>
+                          <div className="absolute inset-x-0 bottom-0 h-6 px-1.5 flex items-center justify-between text-[9px] font-mono tabular-nums text-white/90 drop-shadow-sm pointer-events-none gap-1">
+                            <span className="truncate">{proj.startDateISO}</span>
+                            {entryPct > 14 && (
+                              <span className="truncate">{proj.endDateISO}</span>
+                            )}
+                          </div>
+                        </button>,
+                      );
+                      cursorPct += entryPct;
+                    }
+                    return segs;
+                  })()}
+                </div>
+                <div className="mt-2 flex items-center gap-3 text-[10px] text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <span
+                      className="inline-block w-3 h-3 rounded-sm"
+                      style={{
+                        backgroundImage:
+                          "repeating-linear-gradient(45deg, hsl(var(--muted-foreground) / 0.4) 0 3px, transparent 3px 6px)",
+                        backgroundColor: "hsl(var(--muted) / 0.6)",
+                      }}
+                    />
+                    Recovery gap
+                  </span>
+                  <span>Hover or click a bar to highlight its entry above.</span>
+                </div>
+              </div>
             )}
             <div className="mt-3 flex items-center gap-2">
               <Label className="text-xs">Quick-add template:</Label>
