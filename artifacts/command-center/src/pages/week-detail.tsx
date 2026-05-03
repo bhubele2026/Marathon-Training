@@ -289,7 +289,34 @@ export default function WeekDetail() {
         </div>
         <div>
           <p className="text-[10px] uppercase font-bold text-muted-foreground">Volume</p>
-          <p className="font-black text-lg">{formatDistance(week.actualMiles)} / {formatDistance(week.plannedMiles)}</p>
+          {/*
+            Bike-only / Row-only weeks (task #107): if the prescription is
+            entirely cardio-bucket time (planned_miles 0, planned_cardio
+            > 0) the legacy "0 mi / 0 mi" headline made the week look
+            empty. Lead with the planned cardio minutes and the dominant
+            machine chip so the runner sees the substantial Peloton Bike
+            or Row block at a glance. Anything with planned miles keeps
+            the original mileage headline.
+          */}
+          {week.plannedMiles === 0 && (week.plannedCardio ?? 0) > 0 ? (
+            <div className="space-y-1" data-testid="week-volume-cardio">
+              <p className="font-black text-lg">
+                {Math.round(week.plannedCardio ?? 0)} min cardio
+              </p>
+              {week.dominantCardioEquipment && (
+                <span
+                  className="inline-block text-[10px] bg-secondary text-secondary-foreground px-2 py-0.5 rounded font-bold uppercase tracking-wider"
+                  data-testid="week-volume-cardio-chip"
+                >
+                  {week.dominantCardioEquipment}
+                </span>
+              )}
+            </div>
+          ) : (
+            <p className="font-black text-lg" data-testid="week-volume-miles">
+              {formatDistance(week.actualMiles)} / {formatDistance(week.plannedMiles)}
+            </p>
+          )}
         </div>
         <div>
           <p className="text-[10px] uppercase font-bold text-muted-foreground">Long Run</p>

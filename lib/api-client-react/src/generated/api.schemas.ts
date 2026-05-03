@@ -160,6 +160,15 @@ export interface PlanWeek {
   completedSessions?: number | null;
   totalSessions?: number | null;
   missedSessions?: number | null;
+  /** For Bike-only / Row-only weeks where `plannedMiles` is 0 but
+`plannedCardio` is high, the most-used cardio machine across
+the week's non-rest plan days (e.g. "Peloton Bike",
+"Peloton Row"). Computed by summing `cardio_min` per equipment
+and picking the highest. Null when no plan day has cardio_min
+> 0 or when the week has no plan days yet (legacy / freshly
+seeded weeks).
+ */
+  dominantCardioEquipment?: string | null;
 }
 
 /**

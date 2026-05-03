@@ -107,6 +107,7 @@ export function toPlanWeek(
     completedSessions?: number;
     totalSessions?: number;
     missedSessions?: number;
+    dominantCardioEquipment?: string | null;
   },
 ) {
   return {
@@ -123,6 +124,7 @@ export function toPlanWeek(
     completedSessions: extras?.completedSessions ?? null,
     totalSessions: extras?.totalSessions ?? null,
     missedSessions: extras?.missedSessions ?? null,
+    dominantCardioEquipment: extras?.dominantCardioEquipment ?? null,
   };
 }
 

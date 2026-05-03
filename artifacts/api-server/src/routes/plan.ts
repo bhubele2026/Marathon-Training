@@ -108,6 +108,26 @@ router.get("/plan/weeks", async (_req, res) => {
     `,
   );
   const byWeek = new Map(actuals.rows.map((r) => [r.week, r]));
+  // Per-week dominant cardio machine: the equipment with the highest total
+  // cardio_min across non-rest plan days. Used by the weekly summary cards
+  // to surface "X min cardio · Peloton Bike" for bike-only / row-only weeks
+  // where plannedMiles is 0 but plannedCardio is high (task #107). Ties
+  // broken by equipment name (deterministic) so repeated requests agree.
+  const cardioEq = await db.execute<{ week: number; equipment: string }>(
+    sql`
+      SELECT DISTINCT ON (week) week, equipment
+      FROM (
+        SELECT week, equipment, SUM(cardio_min)::int AS total_min
+        FROM plan_days
+        WHERE is_rest = false AND COALESCE(cardio_min, 0) > 0
+        GROUP BY week, equipment
+      ) agg
+      ORDER BY week, total_min DESC, equipment ASC
+    `,
+  );
+  const dominantByWeek = new Map(
+    cardioEq.rows.map((r) => [r.week, r.equipment]),
+  );
   res.json(
     weeks.map((w) => {
       const a = byWeek.get(w.week);
@@ -116,6 +136,7 @@ router.get("/plan/weeks", async (_req, res) => {
         completedSessions: a?.completed_sessions ?? 0,
         totalSessions: a?.total_sessions ?? 0,
         missedSessions: a?.missed_sessions ?? 0,
+        dominantCardioEquipment: dominantByWeek.get(w.week) ?? null,
       });
     }),
   );
@@ -145,11 +166,28 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
     const recent = recentByPair.get(pairKey(d.sessionType, d.equipment)) ?? [];
     return { ...base, suggestions: buildSuggestions(d, recent) };
   });
+  // Same dominant-cardio computation as /plan/weeks (task #107) but scoped
+  // to this single week — sum cardio_min per equipment across non-rest
+  // days and pick the highest, with equipment name as the tiebreaker.
+  const cardioTotals = new Map<string, number>();
+  for (const d of nonRestDays) {
+    const m = d.cardioMin ?? 0;
+    if (m <= 0) continue;
+    cardioTotals.set(d.equipment, (cardioTotals.get(d.equipment) ?? 0) + m);
+  }
+  let dominantCardioEquipment: string | null = null;
+  if (cardioTotals.size > 0) {
+    const ranked = [...cardioTotals.entries()].sort((a, b) =>
+      b[1] !== a[1] ? b[1] - a[1] : a[0].localeCompare(b[0]),
+    );
+    dominantCardioEquipment = ranked[0][0];
+  }
   res.json({
     ...toPlanWeek(weekRow, {
       actualMiles: actuals.rows[0]?.actual_miles ?? 0,
       completedSessions: actuals.rows[0]?.completed ?? 0,
       totalSessions,
+      dominantCardioEquipment,
     }),
     days: daysWithSuggestions,
   });

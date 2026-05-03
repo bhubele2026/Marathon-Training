@@ -291,7 +291,39 @@ export default function Plan() {
                       <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-sm mb-4">
                         <div>
                           <p className="text-[10px] uppercase font-bold text-muted-foreground">Volume</p>
-                          <p className="font-mono font-medium">{formatDistance(week.plannedMiles)}</p>
+                          {/*
+                            Bike-only / Row-only weeks (task #107): when the
+                            generator emits 0 planned miles but routes the
+                            equivalent zone-controlled work into the cardio
+                            bucket, leading with "0 mi" makes the card look
+                            empty. Lead with "X min cardio" + the dominant
+                            machine chip instead so a Peloton Bike or Row
+                            block reads as the substantial session it is.
+                            Run-based weeks (anything with planned miles)
+                            keep the original mileage headline.
+                          */}
+                          {week.plannedMiles === 0 && (week.plannedCardio ?? 0) > 0 ? (
+                            <div className="space-y-1" data-testid={`week-volume-cardio-${week.week}`}>
+                              <p className="font-mono font-medium">
+                                {Math.round(week.plannedCardio ?? 0)} min cardio
+                              </p>
+                              {week.dominantCardioEquipment && (
+                                <span
+                                  className="inline-block text-[10px] bg-secondary text-secondary-foreground px-2 py-0.5 rounded font-bold uppercase tracking-wider"
+                                  data-testid={`week-volume-cardio-chip-${week.week}`}
+                                >
+                                  {week.dominantCardioEquipment}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <p
+                              className="font-mono font-medium"
+                              data-testid={`week-volume-miles-${week.week}`}
+                            >
+                              {formatDistance(week.plannedMiles)}
+                            </p>
+                          )}
                         </div>
                         <div>
                           <p className="text-[10px] uppercase font-bold text-muted-foreground">Long Run</p>

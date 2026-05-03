@@ -39,6 +39,12 @@ export const ListPlanWeeksResponseItem = zod.object({
   completedSessions: zod.number().nullish(),
   totalSessions: zod.number().nullish(),
   missedSessions: zod.number().nullish(),
+  dominantCardioEquipment: zod
+    .string()
+    .nullish()
+    .describe(
+      'For Bike-only \/ Row-only weeks where `plannedMiles` is 0 but\n`plannedCardio` is high, the most-used cardio machine across\nthe week\'s non-rest plan days (e.g. \"Peloton Bike\",\n\"Peloton Row\"). Computed by summing `cardio_min` per equipment\nand picking the highest. Null when no plan day has cardio_min\n> 0 or when the week has no plan days yet (legacy \/ freshly\nseeded weeks).\n',
+    ),
 });
 export const ListPlanWeeksResponse = zod.array(ListPlanWeeksResponseItem);
 
@@ -61,6 +67,12 @@ export const GetPlanWeekResponse = zod
     completedSessions: zod.number().nullish(),
     totalSessions: zod.number().nullish(),
     missedSessions: zod.number().nullish(),
+    dominantCardioEquipment: zod
+      .string()
+      .nullish()
+      .describe(
+        'For Bike-only \/ Row-only weeks where `plannedMiles` is 0 but\n`plannedCardio` is high, the most-used cardio machine across\nthe week\'s non-rest plan days (e.g. \"Peloton Bike\",\n\"Peloton Row\"). Computed by summing `cardio_min` per equipment\nand picking the highest. Null when no plan day has cardio_min\n> 0 or when the week has no plan days yet (legacy \/ freshly\nseeded weeks).\n',
+      ),
   })
   .and(
     zod.object({

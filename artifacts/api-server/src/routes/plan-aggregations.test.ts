@@ -14,9 +14,11 @@ import {
   insertWorkout,
   E_GYM,
   E_OUTDOOR,
+  T_BIKE,
   T_REST,
   T_RUN,
   T_STRENGTH,
+  TEST_TAG,
 } from "../test-helpers";
 
 beforeEach(async () => {
@@ -152,6 +154,114 @@ describe("GET /api/plan/weeks", () => {
         totalSessions: 3,
       }),
     );
+  });
+
+  it("surfaces the dominant cardio machine for bike-only / row-only weeks (task #107)", async () => {
+    // Bike-only week: 0 planned miles, plannedCardio reflects the cardio
+    // bucket time, and every non-rest day uses the same Peloton-Bike-style
+    // equipment. The summary card needs a `dominantCardioEquipment` so it
+    // can render "X min cardio · Peloton Bike" instead of a misleading
+    // "0 mi" headline.
+    const bikeWeek = 8301;
+    const E_BIKE = `${TEST_TAG}peloton_bike`;
+    await insertWeek(bikeWeek, {
+      startDate: "2099-11-02",
+      endDate: "2099-11-08",
+      phase: "Bike Block",
+      plannedMiles: 0,
+      plannedCardio: 180,
+    });
+    await insertPlanDay(bikeWeek, "Bike Block", {
+      date: "2099-11-02", day: "Mon", sessionType: T_REST,
+      equipment: E_BIKE, isRest: true,
+    });
+    await insertPlanDay(bikeWeek, "Bike Block", {
+      date: "2099-11-03", day: "Tue", sessionType: T_BIKE,
+      equipment: E_BIKE, cardioMin: 60,
+    });
+    await insertPlanDay(bikeWeek, "Bike Block", {
+      date: "2099-11-04", day: "Wed", sessionType: T_BIKE,
+      equipment: E_BIKE, cardioMin: 75,
+    });
+    await insertPlanDay(bikeWeek, "Bike Block", {
+      // Strength touch-up day with a small cardio cooldown on the gym
+      // equipment — the bike still wins by total cardio_min so it must
+      // be the dominant chip.
+      date: "2099-11-05", day: "Thu", sessionType: T_STRENGTH,
+      equipment: E_GYM, cardioMin: 10, strengthLoad: 100,
+    });
+    await insertPlanDay(bikeWeek, "Bike Block", {
+      date: "2099-11-06", day: "Fri", sessionType: T_BIKE,
+      equipment: E_BIKE, cardioMin: 45,
+    });
+
+    // Run-based week: should keep `dominantCardioEquipment` as null so the
+    // UI keeps leading with mileage.
+    const runWeek = 8302;
+    await insertWeek(runWeek, {
+      startDate: "2099-11-09",
+      endDate: "2099-11-15",
+      phase: "Run Block",
+      plannedMiles: 20,
+    });
+    await insertPlanDay(runWeek, "Run Block", {
+      date: "2099-11-09", day: "Mon", sessionType: T_RUN,
+      equipment: E_OUTDOOR, distanceMi: 5,
+    });
+
+    const res = await request(app).get("/api/plan/weeks");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(ListPlanWeeksResponse, res.body);
+    const rows = res.body as Array<{
+      week: number;
+      dominantCardioEquipment: string | null;
+    }>;
+    const bike = rows.find((r) => r.week === bikeWeek);
+    const run = rows.find((r) => r.week === runWeek);
+    expect(bike?.dominantCardioEquipment).toBe(E_BIKE);
+    expect(run?.dominantCardioEquipment).toBeNull();
+
+    // The single-week endpoint mirrors the same value so /plan/:n stays
+    // in sync with the list view.
+    const detail = await request(app).get(`/api/plan/weeks/${bikeWeek}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.dominantCardioEquipment).toBe(E_BIKE);
+
+    // Row-only week: parallel coverage so a Concept2 / Peloton Row
+    // prescription gets the same cardio-first headline + chip as the
+    // bike block above. Uses a different week id and a row-style
+    // equipment so the dominant-equipment computation has to actually
+    // pick row over the gym cooldown.
+    const rowWeek = 8303;
+    const E_ROW = `${TEST_TAG}peloton_row`;
+    await insertWeek(rowWeek, {
+      startDate: "2099-11-16",
+      endDate: "2099-11-22",
+      phase: "Row Block",
+      plannedMiles: 0,
+      plannedCardio: 150,
+    });
+    await insertPlanDay(rowWeek, "Row Block", {
+      date: "2099-11-17", day: "Tue", sessionType: T_BIKE,
+      equipment: E_ROW, cardioMin: 70,
+    });
+    await insertPlanDay(rowWeek, "Row Block", {
+      date: "2099-11-19", day: "Thu", sessionType: T_BIKE,
+      equipment: E_ROW, cardioMin: 70,
+    });
+    await insertPlanDay(rowWeek, "Row Block", {
+      date: "2099-11-20", day: "Fri", sessionType: T_STRENGTH,
+      equipment: E_GYM, cardioMin: 10, strengthLoad: 100,
+    });
+
+    const rowList = await request(app).get("/api/plan/weeks");
+    const rowRow = (rowList.body as Array<{
+      week: number;
+      dominantCardioEquipment: string | null;
+    }>).find((r) => r.week === rowWeek);
+    expect(rowRow?.dominantCardioEquipment).toBe(E_ROW);
+    const rowDetail = await request(app).get(`/api/plan/weeks/${rowWeek}`);
+    expect(rowDetail.body.dominantCardioEquipment).toBe(E_ROW);
   });
 
   it("returns zero aggregates for a week with no workouts or non-rest plan days", async () => {

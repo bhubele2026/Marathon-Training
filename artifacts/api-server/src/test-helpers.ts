@@ -120,6 +120,8 @@ export interface PlanWeekInput {
   plannedMiles?: number;
   longRunMi?: number;
   plannedTotalLoad?: number;
+  plannedCardio?: number | null;
+  plannedStrength?: number | null;
 }
 
 export async function insertWeek(week: number, opts: PlanWeekInput): Promise<void> {
@@ -131,6 +133,8 @@ export async function insertWeek(week: number, opts: PlanWeekInput): Promise<voi
     plannedTotalLoad: opts.plannedTotalLoad ?? 0,
     plannedMiles: opts.plannedMiles ?? 0,
     longRunMi: opts.longRunMi ?? 0,
+    plannedCardio: opts.plannedCardio ?? null,
+    plannedStrength: opts.plannedStrength ?? null,
   });
 }
 
