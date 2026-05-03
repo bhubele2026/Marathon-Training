@@ -106,11 +106,18 @@
   --input: 0 0% 85%;
   --ring: 24 95% 53%;
 
+  /* Logo-derived brand palette: orange "H" + purple "2" + lavender swoosh.
+     chart-2 maps to brand purple so dual-series charts (mileage vs goal,
+     long-run distance vs cardio minutes) read as the brand instead of
+     orange-on-gray. brand-purple is exposed as its own token for spot
+     accents (race-week banner, milestone badges, etc.). */
+  --brand-orange: 24 95% 53%;
+  --brand-purple: 262 60% 65%;
   --chart-1: 24 95% 53%;
-  --chart-2: 0 0% 30%;
-  --chart-3: 0 0% 50%;
-  --chart-4: 0 0% 70%;
-  --chart-5: 0 0% 80%;
+  --chart-2: 262 60% 65%;
+  --chart-3: 24 80% 70%;
+  --chart-4: 262 45% 80%;
+  --chart-5: 0 0% 60%;
 
   --app-font-sans: 'Inter', sans-serif;
   --app-font-serif: Georgia, serif;
@@ -170,11 +177,13 @@
   --input: 0 0% 18%;
   --ring: 24 95% 53%;
   
+  --brand-orange: 24 95% 53%;
+  --brand-purple: 262 65% 72%;
   --chart-1: 24 95% 53%;
-  --chart-2: 0 0% 60%;
-  --chart-3: 0 0% 40%;
-  --chart-4: 0 0% 25%;
-  --chart-5: 0 0% 15%;
+  --chart-2: 262 65% 72%;
+  --chart-3: 24 80% 65%;
+  --chart-4: 262 50% 55%;
+  --chart-5: 0 0% 60%;
 }
 
 @layer base {
