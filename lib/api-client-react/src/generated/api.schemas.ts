@@ -30,6 +30,12 @@ export interface ValidationError {
   error: ValidationErrorError;
 }
 
+export type PlanDayCustomizedDiffItem = {
+  field: string;
+  before: string | null;
+  after: string | null;
+};
+
 export interface PlanDay {
   id: number;
   week: number;
@@ -59,6 +65,8 @@ export interface PlanDay {
   isCustomized: boolean;
   /** camelCase field names whose current value differs from the seeded snapshot. Empty when isCustomized is false. */
   customizedFields: string[];
+  /** Per-field before/after diff for the "Edited" badge popover. One entry per item in customizedFields (same order). Empty when isCustomized is false. Values are stringified — the UI applies field-specific formatting (e.g. distanceMi gets a "mi" suffix). null values mean the field had no seeded value or has been cleared. */
+  customizedDiff: PlanDayCustomizedDiffItem[];
 }
 
 /**

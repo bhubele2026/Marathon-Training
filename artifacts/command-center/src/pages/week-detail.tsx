@@ -59,6 +59,7 @@ import { PlanDayForm } from "@/components/plan-day-form";
 import { MoveDayPicker } from "@/components/move-day-picker";
 import { sortWorkoutsByTimeOfDay } from "@/lib/time-of-day";
 import { TimeOfDayBadge } from "@/components/time-of-day-badge";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { UndoCountdownAction } from "@/components/undo-countdown-action";
 import { PlannedBreakdown } from "@/components/planned-breakdown";
 import { ActualBreakdown } from "@/components/actual-breakdown";
@@ -84,28 +85,75 @@ const CUSTOMIZED_FIELD_LABELS: Record<string, string> = {
   isRest: "Rest day",
 };
 
+// Format a stringified diff value for display in the "Edited" popover.
+// Field-specific suffixes keep the diff readable (4 mi, 45 min, 8:30/mi)
+// even though the wire format is a plain string. Empty/null becomes an
+// em-dash so an "added" or "cleared" field is still visually present.
+function formatDiffValue(field: string, value: string | null): string {
+  if (value == null || value === "") return "—";
+  if (field === "distanceMi") return `${value} mi`;
+  if (field === "strengthMin" || field === "cardioMin" || field === "runMin") {
+    return `${value} min`;
+  }
+  if (field === "isRest") return value === "true" ? "Rest" : "Active";
+  return value;
+}
+
 function CustomizedBadge({ day }: { day: PlanDay }) {
   if (!day.isCustomized) return null;
-  const labels = day.customizedFields
-    .map((f) => CUSTOMIZED_FIELD_LABELS[f] ?? f)
-    .filter((v, i, arr) => arr.indexOf(v) === i);
-  const tooltipText =
-    labels.length > 0
-      ? `Edited from original: ${labels.join(", ")}`
-      : "Edited from original";
+  const diff = day.customizedDiff ?? [];
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span
-          className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-2 py-1 rounded font-bold uppercase tracking-wider flex items-center gap-1 cursor-help"
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-2 py-1 rounded font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer hover:bg-amber-500/25 transition-colors"
           data-testid={`badge-customized-${day.date}`}
+          aria-label="Show what changed"
         >
           <Sparkles className="h-3 w-3" />
           Edited
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>{tooltipText}</TooltipContent>
-    </Tooltip>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-72 p-3"
+        data-testid={`popover-customized-${day.date}`}
+      >
+        <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
+          Edited from original
+        </div>
+        {diff.length === 0 ? (
+          <div className="text-xs text-muted-foreground">No field-level diff available.</div>
+        ) : (
+          <ul className="space-y-1.5">
+            {diff.map((entry) => {
+              const label = CUSTOMIZED_FIELD_LABELS[entry.field] ?? entry.field;
+              return (
+                <li
+                  key={entry.field}
+                  className="text-xs flex flex-col gap-0.5"
+                  data-testid={`diff-row-${entry.field}`}
+                >
+                  <span className="font-semibold text-foreground">{label}</span>
+                  <span className="font-mono text-muted-foreground">
+                    <span data-testid={`diff-before-${entry.field}`}>
+                      {formatDiffValue(entry.field, entry.before)}
+                    </span>
+                    <span className="mx-1.5">→</span>
+                    <span
+                      className="text-amber-600 dark:text-amber-400"
+                      data-testid={`diff-after-${entry.field}`}
+                    >
+                      {formatDiffValue(entry.field, entry.after)}
+                    </span>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }
 

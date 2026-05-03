@@ -143,6 +143,51 @@ describe("toPlanDay", () => {
     const out = toPlanDay(makeRow({ seedSessionType: null }));
     expect(out.isCustomized).toBe(false);
     expect(out.customizedFields).toEqual([]);
+    expect(out.customizedDiff).toEqual([]);
+  });
+
+  it("emits a customizedDiff entry per changed field with stringified before/after values", () => {
+    const row = makeRow({
+      sessionType: "Run + Accessory",
+      strengthMin: 30,
+      distanceMi: 4,
+      pace: "9:30",
+      isRest: false,
+      seedSessionType: "Strength + Cardio",
+      seedEquipment: "Tonal",
+      seedDescription: "Heavy upper-body Tonal",
+      seedDistanceMi: null,
+      seedStrengthMin: 45,
+      seedCardioMin: 0,
+      seedRunMin: 0,
+      seedPace: null,
+      seedStrengthLoad: 60,
+      seedTotalLoad: 85,
+      seedIsRest: false,
+    });
+    const out = toPlanDay(row);
+    expect(out.customizedDiff.length).toBe(out.customizedFields.length);
+    const byField = new Map(out.customizedDiff.map((d) => [d.field, d]));
+    expect(byField.get("sessionType")).toEqual({
+      field: "sessionType",
+      before: "Strength + Cardio",
+      after: "Run + Accessory",
+    });
+    expect(byField.get("strengthMin")).toEqual({
+      field: "strengthMin",
+      before: "45",
+      after: "30",
+    });
+    expect(byField.get("distanceMi")).toEqual({
+      field: "distanceMi",
+      before: null,
+      after: "4",
+    });
+    expect(byField.get("pace")).toEqual({
+      field: "pace",
+      before: null,
+      after: "9:30",
+    });
   });
 
   // Regression for the equipment-rail null asymmetry fixed in task #77:

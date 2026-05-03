@@ -834,6 +834,7 @@ components:
           totalLoad,
           isCustomized,
           customizedFields,
+          customizedDiff,
         ]
       properties:
         id: { type: integer }
@@ -878,6 +879,16 @@ components:
           type: array
           items: { type: string }
           description: camelCase field names whose current value differs from the seeded snapshot. Empty when isCustomized is false.
+        customizedDiff:
+          type: array
+          description: Per-field before/after diff for the "Edited" badge popover. One entry per item in customizedFields (same order). Empty when isCustomized is false. Values are stringified — the UI applies field-specific formatting (e.g. distanceMi gets a "mi" suffix). null values mean the field had no seeded value or has been cleared.
+          items:
+            type: object
+            required: [field, before, after]
+            properties:
+              field: { type: string }
+              before: { type: string, nullable: true }
+              after: { type: string, nullable: true }
 
     UpdatePlanDayBody:
       type: object

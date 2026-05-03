@@ -21,6 +21,24 @@ export function normalizeEquipmentList(
 // non-customized. Once the snapshot exists, every mutable column is mirrored
 // into seed_* (see ensureSeedSnapshot in routes/plan.ts), so equality
 // checks below are well-defined for every field.
+// Public diff entry for the "Edited" badge popover. `before` is the seeded
+// value at the time the row was first edited; `after` is the current value.
+// Both are stringified so the wire format is uniform across mixed types
+// (numbers, strings, booleans, arrays). The UI applies its own formatting
+// per field name.
+export type PlanDayDiffEntry = {
+  field: string;
+  before: string | null;
+  after: string | null;
+};
+
+function stringifyDiffValue(v: unknown): string | null {
+  if (v == null) return null;
+  if (Array.isArray(v)) return v.join(", ");
+  if (typeof v === "boolean") return v ? "true" : "false";
+  return String(v);
+}
+
 function planDayCustomizedFields(r: PlanDayRow): string[] {
   if (r.seedSessionType == null) return [];
   const fields: string[] = [];
@@ -69,8 +87,45 @@ export function computeTotalMin(r: {
   return (r.strengthMin ?? 0) + (r.cardioMin ?? 0) + (r.runMin ?? 0);
 }
 
+// Build the before/after diff array consumed by the "Edited" badge popover
+// in week-detail.tsx. Mirrors planDayCustomizedFields above and stays in
+// lock-step with it: every field that shows up in `customizedFields` also
+// has an entry here with its seeded `before` and current `after` value.
+function planDayCustomizedDiff(r: PlanDayRow): PlanDayDiffEntry[] {
+  const fields = planDayCustomizedFields(r);
+  if (fields.length === 0) return [];
+  const liveList = normalizeEquipmentList(r.equipmentList, r.equipment);
+  const seedList = normalizeEquipmentList(
+    r.seedEquipmentList,
+    r.seedEquipment ?? r.equipment,
+  );
+  const lookup: Record<string, { before: unknown; after: unknown }> = {
+    sessionType: { before: r.seedSessionType, after: r.sessionType },
+    equipment: { before: r.seedEquipment, after: r.equipment },
+    equipmentList: { before: seedList, after: liveList },
+    description: { before: r.seedDescription, after: r.description },
+    distanceMi: { before: r.seedDistanceMi, after: r.distanceMi },
+    strengthMin: { before: r.seedStrengthMin, after: r.strengthMin },
+    cardioMin: { before: r.seedCardioMin, after: r.cardioMin },
+    runMin: { before: r.seedRunMin, after: r.runMin },
+    pace: { before: r.seedPace, after: r.pace },
+    strengthLoad: { before: r.seedStrengthLoad, after: r.strengthLoad },
+    totalLoad: { before: r.seedTotalLoad, after: r.totalLoad },
+    isRest: { before: r.seedIsRest, after: r.isRest },
+  };
+  return fields.map((field) => {
+    const pair = lookup[field];
+    return {
+      field,
+      before: stringifyDiffValue(pair?.before),
+      after: stringifyDiffValue(pair?.after),
+    };
+  });
+}
+
 export function toPlanDay(r: PlanDayRow) {
   const customizedFields = planDayCustomizedFields(r);
+  const customizedDiff = planDayCustomizedDiff(r);
   return {
     id: r.id,
     week: r.week,
@@ -97,6 +152,7 @@ export function toPlanDay(r: PlanDayRow) {
     totalLoad: r.totalLoad,
     isCustomized: customizedFields.length > 0,
     customizedFields,
+    customizedDiff,
   };
 }
 

@@ -156,6 +156,17 @@ export const GetPlanWeekResponse = zod
               .describe(
                 "camelCase field names whose current value differs from the seeded snapshot. Empty when isCustomized is false.",
               ),
+            customizedDiff: zod
+              .array(
+                zod.object({
+                  field: zod.string(),
+                  before: zod.string().nullable(),
+                  after: zod.string().nullable(),
+                }),
+              )
+              .describe(
+                'Per-field before\/after diff for the \"Edited\" badge popover. One entry per item in customizedFields (same order). Empty when isCustomized is false. Values are stringified — the UI applies field-specific formatting (e.g. distanceMi gets a \"mi\" suffix). null values mean the field had no seeded value or has been cleared.',
+              ),
           })
           .and(
             zod.object({
@@ -255,6 +266,17 @@ export const UpdatePlanDayResponse = zod.object({
     .describe(
       "camelCase field names whose current value differs from the seeded snapshot. Empty when isCustomized is false.",
     ),
+  customizedDiff: zod
+    .array(
+      zod.object({
+        field: zod.string(),
+        before: zod.string().nullable(),
+        after: zod.string().nullable(),
+      }),
+    )
+    .describe(
+      'Per-field before\/after diff for the \"Edited\" badge popover. One entry per item in customizedFields (same order). Empty when isCustomized is false. Values are stringified — the UI applies field-specific formatting (e.g. distanceMi gets a \"mi\" suffix). null values mean the field had no seeded value or has been cleared.',
+    ),
 });
 
 export const SwapPlanDayParams = zod.object({
@@ -324,6 +346,17 @@ export const SwapPlanDayResponse = zod.object({
       .describe(
         "camelCase field names whose current value differs from the seeded snapshot. Empty when isCustomized is false.",
       ),
+    customizedDiff: zod
+      .array(
+        zod.object({
+          field: zod.string(),
+          before: zod.string().nullable(),
+          after: zod.string().nullable(),
+        }),
+      )
+      .describe(
+        'Per-field before\/after diff for the \"Edited\" badge popover. One entry per item in customizedFields (same order). Empty when isCustomized is false. Values are stringified — the UI applies field-specific formatting (e.g. distanceMi gets a \"mi\" suffix). null values mean the field had no seeded value or has been cleared.',
+      ),
   }),
   to: zod.object({
     id: zod.number(),
@@ -378,6 +411,17 @@ export const SwapPlanDayResponse = zod.object({
       .array(zod.string())
       .describe(
         "camelCase field names whose current value differs from the seeded snapshot. Empty when isCustomized is false.",
+      ),
+    customizedDiff: zod
+      .array(
+        zod.object({
+          field: zod.string(),
+          before: zod.string().nullable(),
+          after: zod.string().nullable(),
+        }),
+      )
+      .describe(
+        'Per-field before\/after diff for the \"Edited\" badge popover. One entry per item in customizedFields (same order). Empty when isCustomized is false. Values are stringified — the UI applies field-specific formatting (e.g. distanceMi gets a \"mi\" suffix). null values mean the field had no seeded value or has been cleared.',
       ),
   }),
   weeksAffected: zod
@@ -461,6 +505,17 @@ export const ResetPlanDayResponse = zod.object({
     .array(zod.string())
     .describe(
       "camelCase field names whose current value differs from the seeded snapshot. Empty when isCustomized is false.",
+    ),
+  customizedDiff: zod
+    .array(
+      zod.object({
+        field: zod.string(),
+        before: zod.string().nullable(),
+        after: zod.string().nullable(),
+      }),
+    )
+    .describe(
+      'Per-field before\/after diff for the \"Edited\" badge popover. One entry per item in customizedFields (same order). Empty when isCustomized is false. Values are stringified — the UI applies field-specific formatting (e.g. distanceMi gets a \"mi\" suffix). null values mean the field had no seeded value or has been cleared.',
     ),
 });
 
@@ -657,6 +712,17 @@ export const GetTodayPlanResponse = zod.object({
         .describe(
           "camelCase field names whose current value differs from the seeded snapshot. Empty when isCustomized is false.",
         ),
+      customizedDiff: zod
+        .array(
+          zod.object({
+            field: zod.string(),
+            before: zod.string().nullable(),
+            after: zod.string().nullable(),
+          }),
+        )
+        .describe(
+          'Per-field before\/after diff for the \"Edited\" badge popover. One entry per item in customizedFields (same order). Empty when isCustomized is false. Values are stringified — the UI applies field-specific formatting (e.g. distanceMi gets a \"mi\" suffix). null values mean the field had no seeded value or has been cleared.',
+        ),
     })
     .nullish(),
   loggedWorkouts: zod
@@ -797,6 +863,17 @@ export const GetTodayPlanResponse = zod.object({
         .array(zod.string())
         .describe(
           "camelCase field names whose current value differs from the seeded snapshot. Empty when isCustomized is false.",
+        ),
+      customizedDiff: zod
+        .array(
+          zod.object({
+            field: zod.string(),
+            before: zod.string().nullable(),
+            after: zod.string().nullable(),
+          }),
+        )
+        .describe(
+          'Per-field before\/after diff for the \"Edited\" badge popover. One entry per item in customizedFields (same order). Empty when isCustomized is false. Values are stringified — the UI applies field-specific formatting (e.g. distanceMi gets a \"mi\" suffix). null values mean the field had no seeded value or has been cleared.',
         ),
     })
     .nullish()
