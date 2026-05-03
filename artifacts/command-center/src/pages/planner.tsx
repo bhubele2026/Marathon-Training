@@ -155,11 +155,12 @@ function weeksFromEndDateISO(
   const endMs = Date.parse(`${endISO}T00:00:00Z`);
   if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return null;
   const days = Math.round((endMs - startMs) / 86400000);
-  // weeks satisfies endISO == startISO + (weeks*7 - 1) days, so
-  // weeks = round((days + 1) / 7). Snap to nearest whole week.
-  // End dates at or before start floor to 1 week (caller's clamp then
-  // raises that to minWeeks if minWeeks > 1).
-  const rawWeeks = Math.max(1, Math.round((days + 1) / 7));
+  // weeks satisfies endISO == startISO + (weeks*7 - 1) days, so a Sunday
+  // pick on week N gives days+1 == 7*N exactly. Mid-week picks snap
+  // FORWARD to the next Sunday (ceil) so the runner never loses a week
+  // they meant to include. End dates at or before start floor to 1 week
+  // (caller's clamp then raises that to minWeeks if minWeeks > 1).
+  const rawWeeks = Math.max(1, Math.ceil((days + 1) / 7));
   const clamped = rawWeeks < minWeeks || rawWeeks > maxWeeks;
   const weeks = Math.min(maxWeeks, Math.max(minWeeks, rawWeeks));
   return { weeks, clamped, rawWeeks };

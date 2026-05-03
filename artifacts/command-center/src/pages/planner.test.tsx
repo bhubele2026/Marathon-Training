@@ -885,7 +885,7 @@ describe("Planner template entry end-date picker", () => {
     ).toBe("10");
   });
 
-  it("picking a mid-week end date snaps to the nearest whole-week boundary", () => {
+  it("picking a mid-week end date snaps forward to the next Sunday", () => {
     renderPlanner();
     fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
     fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
@@ -894,9 +894,11 @@ describe("Planner template entry end-date picker", () => {
       "planner-entry-0-end-date",
     ) as HTMLInputElement;
     const startMs = Date.parse(`${SAMPLE_CONFIG.startDate}T00:00:00Z`);
-    // 14 weeks would be start + 97 days (days+1=98, 98/7=14). Pick
-    // start + 95 days (Fri of week 14) → days+1=96, round(96/7)=14.
-    const target = new Date(startMs + 95 * 86400000)
+    // Pick Tuesday of week 14 (start + 92 days). Nearest-rounding would
+    // snap BACK to week 13; the helper must snap FORWARD to week 14
+    // (next Sunday at start + 97 days) so the runner doesn't lose a
+    // week they meant to include.
+    const target = new Date(startMs + 92 * 86400000)
       .toISOString()
       .slice(0, 10);
     fireEvent.change(endInput, { target: { value: target } });
@@ -904,6 +906,15 @@ describe("Planner template entry end-date picker", () => {
       (within(list).getByTestId("planner-entry-0-weeks") as HTMLInputElement)
         .value,
     ).toBe("14");
+    // And the end-date input now shows the snapped Sunday, not the
+    // Tuesday the runner clicked.
+    expect(
+      (within(list).getByTestId(
+        "planner-entry-0-end-date",
+      ) as HTMLInputElement).value,
+    ).toBe(
+      new Date(startMs + (14 * 7 - 1) * 86400000).toISOString().slice(0, 10),
+    );
   });
 
   it("apply dialog end-date picker drives the staged entry's weeks", () => {
