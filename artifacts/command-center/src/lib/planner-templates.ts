@@ -1,0 +1,113 @@
+// Shared helpers for the planner's searchable template pickers.
+//
+// Two surfaces in the planner filter the same template catalog by the
+// same fields and bucket the matches into the same categories:
+//   1. The Plan Template Library card (free-text search + grouped grid).
+//   2. The entries-mode "Quick-add template" combobox (task #106).
+//
+// Both call into the helpers below so adding a new searchable field or
+// changing the category-grouping rule is a single edit that updates
+// both surfaces in lock-step.
+
+import { type PlanTemplate } from "@workspace/plan-generator";
+
+export const TEMPLATE_CATEGORIES = [
+  "Run",
+  "Bike",
+  "Row",
+  "Strength",
+  "Hybrid",
+  "Conditioning",
+  "Custom",
+] as const;
+export type TemplateCategory = (typeof TEMPLATE_CATEGORIES)[number];
+
+// Accepts both the in-process PlanTemplate (which carries an expand fn)
+// and the API-shaped PlanTemplate (no expand) so the picker can
+// categorize whichever the templatesQuery returns.
+export type CategorizableTemplate = Pick<
+  PlanTemplate,
+  "id" | "name" | "source" | "goalDistance" | "metadata"
+>;
+
+export function categorizeTemplate(
+  tpl: CategorizableTemplate,
+): TemplateCategory {
+  if (tpl.id.endsWith("_custom")) return "Custom";
+  const eq = tpl.metadata.equipmentMixHint.toLowerCase();
+  const goal = tpl.goalDistance.toLowerCase();
+  // HYROX is a hybrid race format regardless of equipment list phrasing.
+  if (eq.includes("hyrox") || goal.includes("hyrox")) return "Hybrid";
+  // Recovery / mobility / maintenance plans don't fit a single modality.
+  if (
+    goal.includes("recovery") ||
+    goal.includes("mobility") ||
+    goal.includes("hold fitness") ||
+    eq.startsWith("mat-only")
+  ) {
+    return "Conditioning";
+  }
+  const hasStrength =
+    eq.includes("tonal") ||
+    eq.includes("kettlebell") ||
+    eq.includes("barbell");
+  const hasBike = eq.includes("bike");
+  const hasRow = eq.includes("row") || eq.includes("concept2");
+  const hasRun =
+    eq.includes("run") ||
+    eq.includes("walk") ||
+    eq.includes("hike") ||
+    eq.includes("tread");
+  // Strength + cardio = hybrid (strength-priority programs that pair
+  // lifting with running/biking/rowing).
+  if (hasStrength && (hasBike || hasRow || hasRun)) return "Hybrid";
+  if (hasStrength) return "Strength";
+  if (hasBike && !hasRun && !hasRow) return "Bike";
+  if (hasRow && !hasRun && !hasBike) return "Row";
+  if (hasRun) return "Run";
+  return "Conditioning";
+}
+
+// Fields the picker matches the free-text query against, in order.
+// Add a new entry here to make a field searchable in BOTH the Plan
+// Template Library card and the entries-mode quick-add combobox at
+// once.
+const SEARCHABLE_FIELDS: ReadonlyArray<(t: CategorizableTemplate) => string> = [
+  (t) => t.name,
+  (t) => t.source,
+  (t) => t.metadata.equipmentMixHint,
+  (t) => t.goalDistance,
+];
+
+export function filterTemplatesByQuery<T extends CategorizableTemplate>(
+  templates: readonly T[],
+  query: string,
+): T[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [...templates];
+  return templates.filter((tpl) =>
+    SEARCHABLE_FIELDS.some((get) => get(tpl).toLowerCase().includes(q)),
+  );
+}
+
+export interface TemplateGroup<T> {
+  cat: TemplateCategory;
+  list: T[];
+}
+
+// Bucket templates into the canonical category order, dropping empty
+// buckets so the section list adapts to the current filter. Custom
+// stays last because TEMPLATE_CATEGORIES lists it last.
+export function groupTemplatesByCategory<T extends CategorizableTemplate>(
+  templates: readonly T[],
+): TemplateGroup<T>[] {
+  const buckets = new Map<TemplateCategory, T[]>();
+  for (const cat of TEMPLATE_CATEGORIES) buckets.set(cat, []);
+  for (const tpl of templates) {
+    buckets.get(categorizeTemplate(tpl))!.push(tpl);
+  }
+  return TEMPLATE_CATEGORIES.map((cat) => ({
+    cat,
+    list: buckets.get(cat) ?? [],
+  })).filter((g) => g.list.length > 0);
+}

@@ -958,6 +958,8 @@ describe("categorizeTemplate (table-driven)", () => {
     expect(
       categorizeTemplate({
         id: "anything_custom",
+        name: "Anything Custom",
+        source: "test",
         goalDistance: "26.2 mi",
         metadata: {
           intensityDistribution: "",

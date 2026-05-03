@@ -191,65 +191,25 @@ export function defaultBlankConfig(): {
 // from 16 to 54+ templates so a flat grid is unbrowsable; we bucket
 // each template by its primary modality (cardio machine vs strength
 // vs custom slot) so the runner can collapse irrelevant sections.
-const TEMPLATE_CATEGORIES = [
-  "Run",
-  "Bike",
-  "Row",
-  "Strength",
-  "Hybrid",
-  "Conditioning",
-  "Custom",
-] as const;
-type TemplateCategory = (typeof TEMPLATE_CATEGORIES)[number];
+//
+// TEMPLATE_CATEGORIES, categorizeTemplate, filterTemplatesByQuery, and
+// groupTemplatesByCategory all live in src/lib/planner-templates.ts so
+// the Plan Template Library card and the entries-mode quick-add
+// combobox stay in lock-step when new searchable fields are added.
+import {
+  TEMPLATE_CATEGORIES,
+  type TemplateCategory,
+  categorizeTemplate,
+  filterTemplatesByQuery,
+  groupTemplatesByCategory,
+} from "../lib/planner-templates";
+export { categorizeTemplate };
 
 // localStorage key for the planner's per-category collapse state.
 // Versioned so we can change the shape later without colliding with
 // stale entries.
 const COLLAPSED_CATEGORIES_STORAGE_KEY =
   "planner.collapsedTemplateCategories.v1";
-
-// Accepts both the in-process PlanTemplate (which carries an expand fn)
-// and the API-shaped PlanTemplate (no expand) so the picker can
-// categorize whichever the templatesQuery returns.
-type CategorizableTemplate = Pick<
-  PlanTemplate,
-  "id" | "goalDistance" | "metadata"
->;
-export function categorizeTemplate(
-  tpl: CategorizableTemplate,
-): TemplateCategory {
-  if (tpl.id.endsWith("_custom")) return "Custom";
-  const eq = tpl.metadata.equipmentMixHint.toLowerCase();
-  const goal = tpl.goalDistance.toLowerCase();
-  // HYROX is a hybrid race format regardless of equipment list phrasing.
-  if (eq.includes("hyrox") || goal.includes("hyrox")) return "Hybrid";
-  // Recovery / mobility / maintenance plans don't fit a single modality.
-  if (
-    goal.includes("recovery") ||
-    goal.includes("mobility") ||
-    goal.includes("hold fitness") ||
-    eq.startsWith("mat-only")
-  ) {
-    return "Conditioning";
-  }
-  const hasStrength =
-    eq.includes("tonal") ||
-    eq.includes("kettlebell") ||
-    eq.includes("barbell");
-  const hasBike = eq.includes("bike");
-  const hasRow = eq.includes("row") || eq.includes("concept2");
-  const hasRun =
-    eq.includes("run") || eq.includes("walk") || eq.includes("hike") ||
-    eq.includes("tread");
-  // Strength + cardio = hybrid (strength-priority programs that pair
-  // lifting with running/biking/rowing).
-  if (hasStrength && (hasBike || hasRow || hasRun)) return "Hybrid";
-  if (hasStrength) return "Strength";
-  if (hasBike && !hasRun && !hasRow) return "Bike";
-  if (hasRow && !hasRun && !hasBike) return "Row";
-  if (hasRun) return "Run";
-  return "Conditioning";
-}
 
 interface DraftBlock {
   focusType: FocusType;
@@ -469,28 +429,9 @@ export default function Planner() {
   // Empty categories are dropped so the section list adapts to the
   // current filter.
   const groupedTemplates = useMemo(() => {
-    type T = (typeof templates)[number];
-    const q = templateSearch.trim().toLowerCase();
-    const matches = (tpl: T): boolean => {
-      if (!q) return true;
-      return (
-        tpl.name.toLowerCase().includes(q) ||
-        tpl.source.toLowerCase().includes(q) ||
-        tpl.metadata.equipmentMixHint.toLowerCase().includes(q) ||
-        tpl.goalDistance.toLowerCase().includes(q)
-      );
-    };
-    const buckets = new Map<TemplateCategory, T[]>();
-    for (const cat of TEMPLATE_CATEGORIES) buckets.set(cat, []);
-    for (const tpl of templates) {
-      if (!matches(tpl)) continue;
-      const cat = categorizeTemplate(tpl);
-      buckets.get(cat)!.push(tpl);
-    }
-    return TEMPLATE_CATEGORIES.map((cat) => ({
-      cat,
-      list: buckets.get(cat) ?? [],
-    })).filter((g) => g.list.length > 0);
+    return groupTemplatesByCategory(
+      filterTemplatesByQuery(templates, templateSearch),
+    );
   }, [templates, templateSearch]);
   const totalMatchedTemplates = groupedTemplates.reduce(
     (s, g) => s + g.list.length,
@@ -2506,10 +2447,11 @@ export default function Planner() {
                     so the runner can type to filter the 50+ templates
                     by name, source, equipment hint, or goal distance
                     (mirrors the Plan Template Library search). We do
-                    the filtering manually rather than relying on
-                    cmdk's built-in scoring so we can match the same
-                    fields as the picker (cmdk's default only looks at
-                    each item's `value` / textContent).
+                    the filtering manually via filterTemplatesByQuery
+                    rather than relying on cmdk's built-in scoring so
+                    we match the same fields as the picker (cmdk's
+                    default only looks at each item's `value` /
+                    textContent).
                   */}
                   <Command shouldFilter={false}>
                     <CommandInput
@@ -2521,33 +2463,14 @@ export default function Planner() {
                     <CommandList>
                       <CommandEmpty>No templates match.</CommandEmpty>
                       {(() => {
-                        type T = (typeof templates)[number];
-                        const q = quickAddSearch.trim().toLowerCase();
-                        const matches = (tpl: T): boolean => {
-                          if (!q) return true;
-                          return (
-                            tpl.name.toLowerCase().includes(q) ||
-                            tpl.source.toLowerCase().includes(q) ||
-                            tpl.metadata.equipmentMixHint
-                              .toLowerCase()
-                              .includes(q) ||
-                            tpl.goalDistance.toLowerCase().includes(q)
-                          );
-                        };
-                        const buckets = new Map<TemplateCategory, T[]>();
-                        for (const cat of TEMPLATE_CATEGORIES) {
-                          buckets.set(cat, []);
-                        }
-                        for (const tpl of templates) {
-                          if (!matches(tpl)) continue;
-                          buckets.get(categorizeTemplate(tpl))!.push(tpl);
-                        }
-                        // TEMPLATE_CATEGORIES already lists Custom
-                        // last so the Custom-slot templates stay
-                        // pinned to the bottom of the popover.
-                        return TEMPLATE_CATEGORIES.map((cat) => {
-                          const list = buckets.get(cat) ?? [];
-                          if (list.length === 0) return null;
+                        // Custom-slot templates stay pinned to the
+                        // bottom of the popover because TEMPLATE_CATEGORIES
+                        // (used inside groupTemplatesByCategory) lists
+                        // Custom last.
+                        const groups = groupTemplatesByCategory(
+                          filterTemplatesByQuery(templates, quickAddSearch),
+                        );
+                        return groups.map(({ cat, list }) => {
                           return (
                             <CommandGroup key={cat} heading={cat}>
                               {list.map((t) => (
