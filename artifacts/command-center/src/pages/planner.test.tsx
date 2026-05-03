@@ -940,6 +940,77 @@ describe("Planner template entry end-date picker", () => {
     const re = new RegExp(`Composition · 2 entries · ${total}\\/${total}w`);
     expect(screen.getByText(re)).toBeTruthy();
   });
+
+  it("shows a clamp hint in the entry row when the picked end date overshoots maxWeeks", () => {
+    renderPlanner();
+    fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
+    const list = screen.getByTestId("planner-composition-list");
+    const endInput = within(list).getByTestId(
+      "planner-entry-0-end-date",
+    ) as HTMLInputElement;
+    const startMs = Date.parse(`${SAMPLE_CONFIG.startDate}T00:00:00Z`);
+    // 30 weeks past start → clamps to maxWeeks=16, raw=30.
+    const target = new Date(startMs + (30 * 7 - 1) * 86400000)
+      .toISOString()
+      .slice(0, 10);
+    fireEvent.change(endInput, { target: { value: target } });
+    const hint = within(list).getByTestId("planner-entry-0-clamp-hint");
+    expect(hint.textContent).toMatch(/Adjusted to 16w/);
+    expect(hint.textContent).toMatch(/max for this template/);
+    expect(hint.textContent).toMatch(/picked 30w/);
+    // Picking an in-range date clears the hint.
+    const inRange = new Date(startMs + (12 * 7 - 1) * 86400000)
+      .toISOString()
+      .slice(0, 10);
+    fireEvent.change(endInput, { target: { value: inRange } });
+    expect(
+      within(list).queryByTestId("planner-entry-0-clamp-hint"),
+    ).toBeNull();
+  });
+
+  it("shows a clamp hint in the entry row when the picked end date undershoots minWeeks", () => {
+    renderPlanner();
+    fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
+    const list = screen.getByTestId("planner-composition-list");
+    const endInput = within(list).getByTestId(
+      "planner-entry-0-end-date",
+    ) as HTMLInputElement;
+    const startMs = Date.parse(`${SAMPLE_CONFIG.startDate}T00:00:00Z`);
+    // 2 weeks past start → clamps to minWeeks=10, raw=2.
+    const target = new Date(startMs + (2 * 7 - 1) * 86400000)
+      .toISOString()
+      .slice(0, 10);
+    fireEvent.change(endInput, { target: { value: target } });
+    const hint = within(list).getByTestId("planner-entry-0-clamp-hint");
+    expect(hint.textContent).toMatch(/Adjusted to 10w/);
+    expect(hint.textContent).toMatch(/min for this template/);
+    expect(hint.textContent).toMatch(/picked 2w/);
+  });
+
+  it("shows a clamp hint in the apply dialog when the picked end date is outside the range", () => {
+    renderPlanner();
+    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
+    fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
+    const startInput = screen.getByTestId(
+      "planner-pending-apply-start-date",
+    ) as HTMLInputElement;
+    const endInput = screen.getByTestId(
+      "planner-pending-apply-end-date",
+    ) as HTMLInputElement;
+    const cursorMs = Date.parse(`${startInput.value}T00:00:00Z`);
+    // 30 weeks past cursor → clamps to maxWeeks=16.
+    const target = new Date(cursorMs + (30 * 7 - 1) * 86400000)
+      .toISOString()
+      .slice(0, 10);
+    fireEvent.change(endInput, { target: { value: target } });
+    const hint = screen.getByTestId("planner-pending-apply-clamp-hint");
+    expect(hint.textContent).toMatch(/Adjusted to 16w/);
+    expect(hint.textContent).toMatch(/max for this template/);
+    expect(hint.textContent).toMatch(/picked 30w/);
+  });
 });
 
 describe("Planner Apply Template race-date overrun warning", () => {

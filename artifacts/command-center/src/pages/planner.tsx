@@ -625,6 +625,16 @@ export default function Planner() {
   // timeline strip (or list row), used to highlight the corresponding
   // bar/row pair. Null = nothing highlighted.
   const [hoveredEntry, setHoveredEntry] = useState<number | null>(null);
+  // Per-entry clamp feedback: last picked end date that was outside the
+  // template's published [minWeeks, maxWeeks] range and got snapped.
+  // Cleared when the user picks an in-range date or removes the entry.
+  const [entryClampHints, setEntryClampHints] = useState<
+    Record<number, { rawWeeks: number; clampedWeeks: number; bound: "min" | "max" }>
+  >({});
+  // Same shape for the Apply Template dialog (single staged entry).
+  const [applyClampHint, setApplyClampHint] = useState<
+    { rawWeeks: number; clampedWeeks: number; bound: "min" | "max" } | null
+  >(null);
   // Open state for the searchable Quick-add template combobox in the
   // Composition card. We control it so we can close the popover after
   // the runner picks a template.
@@ -2776,7 +2786,24 @@ export default function Planner() {
                                     tpl.minWeeks,
                                     tpl.maxWeeks,
                                   );
-                                  if (r) updateEntry(i, { weeks: r.weeks });
+                                  if (!r) return;
+                                  updateEntry(i, { weeks: r.weeks });
+                                  setEntryClampHints((prev) => {
+                                    const next = { ...prev };
+                                    if (r.clamped) {
+                                      next[i] = {
+                                        rawWeeks: r.rawWeeks,
+                                        clampedWeeks: r.weeks,
+                                        bound:
+                                          r.rawWeeks > tpl.maxWeeks
+                                            ? "max"
+                                            : "min",
+                                      };
+                                    } else {
+                                      delete next[i];
+                                    }
+                                    return next;
+                                  });
                                 }}
                                 data-testid={`planner-entry-${i}-end-date`}
                               />
@@ -2815,6 +2842,16 @@ export default function Planner() {
                               Outside the published {tpl.minWeeks}–{tpl.maxWeeks}w range — server will reject save.
                             </p>
                           )}
+                          {entryClampHints[i] && (
+                            <p
+                              className="text-[10px] text-amber-600 dark:text-amber-400"
+                              data-testid={`planner-entry-${i}-clamp-hint`}
+                            >
+                              Adjusted to {entryClampHints[i].clampedWeeks}w (
+                              {entryClampHints[i].bound === "max" ? "max" : "min"}{" "}
+                              for this template); you picked {entryClampHints[i].rawWeeks}w.
+                            </p>
+                          )}
                           <div className="flex items-center justify-between gap-2">
                             <p className="text-[10px] text-muted-foreground italic flex-1 min-w-0 truncate">
                               {tpl.citation}
@@ -2830,6 +2867,16 @@ export default function Planner() {
                               View source
                             </Button>
                           </div>
+                        </div>
+                      )}
+                      {!tpl && proj && (
+                        <div
+                          className="text-[10px] text-muted-foreground"
+                          data-testid={`planner-entry-${i}-end-readonly`}
+                        >
+                          Ends{" "}
+                          <span className="font-mono">{proj.endDateISO}</span>{" "}
+                          ({e.weeks}w)
                         </div>
                       )}
                     </li>
@@ -3627,6 +3674,15 @@ export default function Planner() {
                       ...pendingApplyTemplate,
                       weeks: r.weeks,
                     });
+                    if (r.clamped) {
+                      setApplyClampHint({
+                        rawWeeks: r.rawWeeks,
+                        clampedWeeks: r.weeks,
+                        bound: r.rawWeeks > tpl.maxWeeks ? "max" : "min",
+                      });
+                    } else {
+                      setApplyClampHint(null);
+                    }
                   }}
                   data-testid="planner-pending-apply-end-date"
                 />
@@ -3644,6 +3700,16 @@ export default function Planner() {
                       : "";
                   })()}
                 </p>
+                {applyClampHint && (
+                  <p
+                    className="text-[10px] text-amber-600 dark:text-amber-400"
+                    data-testid="planner-pending-apply-clamp-hint"
+                  >
+                    Adjusted to {applyClampHint.clampedWeeks}w (
+                    {applyClampHint.bound === "max" ? "max" : "min"} for this
+                    template); you picked {applyClampHint.rawWeeks}w.
+                  </p>
+                )}
               </div>
             )}
             {pendingApplyPreview && (
