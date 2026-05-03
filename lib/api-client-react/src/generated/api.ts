@@ -38,6 +38,7 @@ import type {
   PlanWeek,
   PlanWeekDetail,
   PlannerConfig,
+  PlannerTemplatesResponse,
   RaceWeekChecklistItem,
   RaceWeekStatus,
   ResetPlanResponse,
@@ -2087,6 +2088,77 @@ export function useGetRecentActivity<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetRecentActivityQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Static catalog of research-backed plan templates (Couch-to-5K, 5K Improver, 10K Builder, Half Marathon, Marathon, Ultramarathon 50K, Aerobic Base, Speed Block, Hybrid Strength + Run, Cardio + Weight Loss, Recovery, Maintenance) plus three opinionated starter shortcuts. Returned data is read-only and shipped from `@workspace/plan-generator`. The UI Template Library renders this catalog and the runner composes ordered TemplateEntry[] arrays inside their PlannerConfig.
+ */
+export const getListPlannerTemplatesUrl = () => {
+  return `/api/planner/templates`;
+};
+
+export const listPlannerTemplates = async (
+  options?: RequestInit,
+): Promise<PlannerTemplatesResponse> => {
+  return customFetch<PlannerTemplatesResponse>(getListPlannerTemplatesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListPlannerTemplatesQueryKey = () => {
+  return [`/api/planner/templates`] as const;
+};
+
+export const getListPlannerTemplatesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPlannerTemplates>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listPlannerTemplates>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListPlannerTemplatesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listPlannerTemplates>>
+  > = ({ signal }) => listPlannerTemplates({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listPlannerTemplates>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListPlannerTemplatesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPlannerTemplates>>
+>;
+export type ListPlannerTemplatesQueryError = ErrorType<unknown>;
+
+export function useListPlannerTemplates<
+  TData = Awaited<ReturnType<typeof listPlannerTemplates>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listPlannerTemplates>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListPlannerTemplatesQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

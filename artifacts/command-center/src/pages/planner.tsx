@@ -18,11 +18,13 @@ import {
   MARATHON_TAIL_WEEKS,
   PLAN_TEMPLATES,
   STARTER_SHORTCUTS,
+  expandEntriesToBlocks,
   getTemplateById,
   previewWeeklyMileage,
   type FocusType,
   type PlanTemplate,
   type StarterShortcut,
+  type TemplateEntry,
   type WeekMileagePreview,
 } from "@workspace/plan-generator";
 import { useQueryClient } from "@tanstack/react-query";
@@ -200,12 +202,18 @@ export default function Planner() {
   // date so the auto-pinned 16-week tail still lands on a Sunday.
   const [tplWeeks, setTplWeeks] = useState<Record<string, number>>(() => {
     const out: Record<string, number> = {};
-    for (const t of PLAN_TEMPLATES) out[t.id] = t.defaultUserWeeks;
+    for (const t of PLAN_TEMPLATES) out[t.id] = t.defaultWeeks;
     return out;
   });
   const [lastAppliedTemplate, setLastAppliedTemplate] = useState<string | null>(
     null,
   );
+  // Entries-mode state (Task #84). When non-null, the runner is composing
+  // their plan from PLAN_TEMPLATES instead of editing focus-type blocks
+  // directly. The server projects entries → blocks at write time, so the
+  // legacy `draft` (PhaseBlock[]) below stays in sync as the read-only
+  // projection used for the mileage preview / timeline.
+  const [entries, setEntries] = useState<TemplateEntry[] | null>(null);
 
   const detailQuery = useGetPlannerConfig(selectedId ?? 0, {
     query: {
@@ -246,13 +254,24 @@ export default function Planner() {
     setStartDate(cfg.startDate);
     setMarathonDate(cfg.marathonDate);
     setDraft(blocksToDraft(cfg.blocks as PhaseBlock[]));
+    // Hydrate entries-mode if the saved config has entries; otherwise
+    // null = legacy blocks-mode (auto-pinned 16-week tail).
+    const cfgEntries = (cfg as { entries?: TemplateEntry[] | null }).entries;
+    setEntries(
+      Array.isArray(cfgEntries) && cfgEntries.length > 0 ? cfgEntries : null,
+    );
     setHydratedForId(selectedId);
   }, [selectedId, hydratedForId, detailQuery.data]);
+
+  const isEntriesMode = entries !== null;
 
   // ---- Derived timeline math (mirrors the server validator) -----------
   const totalWeeks = totalWeeksBetween(startDate, marathonDate);
   const expectedUserWeeks = Math.max(0, totalWeeks - MARATHON_TAIL_WEEKS);
   const userWeeksSum = draft.reduce((s, b) => s + (b.weeks || 0), 0);
+  const entriesWeeksSum = isEntriesMode
+    ? entries!.reduce((s, e) => s + (e.weeks || 0), 0)
+    : 0;
   const startDow = dayOfWeekUTC(startDate);
   const raceDow = dayOfWeekUTC(marathonDate);
 
@@ -262,22 +281,44 @@ export default function Planner() {
   else if (startDow !== 1) issues.push("Training start date must be a Monday.");
   if (!marathonDate) issues.push("Pick a marathon date.");
   else if (raceDow !== 0) issues.push("Marathon date must be a Sunday.");
-  if (totalWeeks > 0 && totalWeeks < MARATHON_TAIL_WEEKS) {
-    issues.push(
-      `Marathon date is only ${totalWeeks} weeks out — needs at least ${MARATHON_TAIL_WEEKS} for the auto-pinned Marathon-Specific block.`,
-    );
-  } else if (totalWeeks > 0 && userWeeksSum !== expectedUserWeeks) {
-    issues.push(
-      `Block weeks total ${userWeeksSum}, but need exactly ${expectedUserWeeks} (the trailing ${MARATHON_TAIL_WEEKS}-week Marathon-Specific block is auto-pinned).`,
-    );
-  }
-  for (let i = 0; i < draft.length; i++) {
-    const b = draft[i]!;
-    if (!b.weeks || b.weeks < 1) {
-      issues.push(`Block ${i + 1} (${b.focusType}) needs at least 1 week.`);
+  if (isEntriesMode) {
+    // Entries-mode: each template owns its own taper, so entries weeks
+    // must sum to the FULL total span (no auto-pinned tail).
+    if (entries!.length === 0) {
+      issues.push("Composition is empty — add at least one template entry.");
     }
-    if (b.focusType === "Custom" && !b.customName.trim()) {
-      issues.push(`Block ${i + 1} (Custom) needs a name.`);
+    if (totalWeeks > 0 && entriesWeeksSum !== totalWeeks) {
+      issues.push(
+        `Template entries total ${entriesWeeksSum} weeks, but need exactly ${totalWeeks} (each template owns its own taper — no auto-pinned tail).`,
+      );
+    }
+    for (let i = 0; i < entries!.length; i++) {
+      const e = entries![i]!;
+      if (!e.weeks || e.weeks < 1) {
+        issues.push(`Entry ${i + 1} needs at least 1 week.`);
+      }
+      if (!getTemplateById(e.templateId)) {
+        issues.push(`Entry ${i + 1} references unknown template "${e.templateId}".`);
+      }
+    }
+  } else {
+    if (totalWeeks > 0 && totalWeeks < MARATHON_TAIL_WEEKS) {
+      issues.push(
+        `Marathon date is only ${totalWeeks} weeks out — needs at least ${MARATHON_TAIL_WEEKS} for the auto-pinned Marathon-Specific block.`,
+      );
+    } else if (totalWeeks > 0 && userWeeksSum !== expectedUserWeeks) {
+      issues.push(
+        `Block weeks total ${userWeeksSum}, but need exactly ${expectedUserWeeks} (the trailing ${MARATHON_TAIL_WEEKS}-week Marathon-Specific block is auto-pinned).`,
+      );
+    }
+    for (let i = 0; i < draft.length; i++) {
+      const b = draft[i]!;
+      if (!b.weeks || b.weeks < 1) {
+        issues.push(`Block ${i + 1} (${b.focusType}) needs at least 1 week.`);
+      }
+      if (b.focusType === "Custom" && !b.customName.trim()) {
+        issues.push(`Block ${i + 1} (Custom) needs a name.`);
+      }
     }
   }
   const isValid = issues.length === 0;
@@ -320,45 +361,95 @@ export default function Planner() {
   }
 
   // ---- Plan Template Library handlers ---------------------------------
-  // Apply a template by expanding it into the focus-type editor. Always
-  // adjusts the marathon date so totalWeeks = userWeeks + MARATHON_TAIL_WEEKS,
-  // keeping the existing startDate (or seeding next-Monday if missing).
-  // The auto-pinned 16-week Marathon-Specific tail handles the final
-  // race-specific phase, so the template only fills the lead-in.
-  function applyTemplate(tpl: PlanTemplate, userWeeks: number) {
+  // Apply a template ADDS it as a TemplateEntry to the entries composition
+  // (Task #84). Each template owns its own taper, so the new entry's weeks
+  // are the FULL span — no auto-pinned 16-week tail. Switches the editor
+  // into entries-mode if it isn't already, and bumps the marathon date so
+  // totalWeeks == sum(entries.weeks).
+  function applyTemplate(tpl: PlanTemplate, weeks: number) {
     const start =
       startDate && dayOfWeekUTC(startDate) === 1 ? startDate : nextMondayISO();
-    const totalSpan = userWeeks + MARATHON_TAIL_WEEKS;
-    const race = computeRaceDateForTotalWeeks(start, totalSpan);
-    const blocks = tpl.expand(userWeeks);
+    const nextEntries: TemplateEntry[] = [
+      ...(entries ?? []),
+      { templateId: tpl.id, weeks, customNotes: null },
+    ];
+    const total = nextEntries.reduce((s, e) => s + (e.weeks || 0), 0);
+    const race = computeRaceDateForTotalWeeks(start, total);
+    setEntries(nextEntries);
     setStartDate(start);
     setMarathonDate(race);
-    setDraft(blocksToDraft(blocks));
+    setDraft(blocksToDraft(expandEntriesToBlocks(nextEntries)));
     setLastAppliedTemplate(tpl.id);
     toast({
-      title: `${tpl.name} applied`,
-      description: `${userWeeks} user-block weeks + ${MARATHON_TAIL_WEEKS}-week pinned tail. Source: ${tpl.source}.`,
+      title: `${tpl.name} added`,
+      description: `${weeks}-week entry added (total span ${total}w). Source: ${tpl.source}.`,
     });
   }
 
-  // Apply a one-click starter shortcut: sets dates AND blocks AND a
+  // Apply a one-click starter shortcut: sets dates AND ENTRIES AND a
   // suggested config name. Uses next-Monday as the start so the runner
-  // can save immediately without picking dates manually.
+  // can save immediately. Replaces (rather than appends to) any existing
+  // entries — starters are a "fresh slate" workflow. Total span equals
+  // s.weeks; the template owns its own taper (no auto-pinned tail).
   function applyStarter(s: StarterShortcut) {
     const tpl = getTemplateById(s.templateId);
     if (!tpl) return;
     const start = nextMondayISO();
-    const race = computeRaceDateForTotalWeeks(start, s.totalWeeks);
-    const userWeeks = s.totalWeeks - MARATHON_TAIL_WEEKS;
+    const race = computeRaceDateForTotalWeeks(start, s.weeks);
+    const nextEntries: TemplateEntry[] = [
+      { templateId: s.templateId, weeks: s.weeks, customNotes: null },
+    ];
+    setEntries(nextEntries);
     setStartDate(start);
     setMarathonDate(race);
-    setDraft(blocksToDraft(tpl.expand(userWeeks)));
+    setDraft(blocksToDraft(expandEntriesToBlocks(nextEntries)));
     setLastAppliedTemplate(tpl.id);
     if (!name.trim()) setName(s.name);
     toast({
       title: `${s.name} loaded`,
       description: `Start ${start}, race ${race}. Save then Apply to generate workouts.`,
     });
+  }
+
+  // Entries-mode mutators. Every mutation re-projects entries → draft
+  // blocks so the mileage preview and timeline stay in sync.
+  function reprojectEntries(next: TemplateEntry[]) {
+    setEntries(next);
+    setDraft(blocksToDraft(expandEntriesToBlocks(next)));
+  }
+  function updateEntry(i: number, patch: Partial<TemplateEntry>) {
+    if (!entries) return;
+    reprojectEntries(entries.map((e, idx) => (idx === i ? { ...e, ...patch } : e)));
+  }
+  function removeEntry(i: number) {
+    if (!entries) return;
+    reprojectEntries(entries.filter((_, idx) => idx !== i));
+  }
+  function moveEntry(i: number, dir: -1 | 1) {
+    if (!entries) return;
+    const next = [...entries];
+    const j = i + dir;
+    if (j < 0 || j >= next.length) return;
+    const [item] = next.splice(i, 1);
+    next.splice(j, 0, item!);
+    reprojectEntries(next);
+  }
+  function addEntry(templateId: string) {
+    const tpl = getTemplateById(templateId);
+    if (!tpl) return;
+    const base: TemplateEntry[] = entries ?? [];
+    const next: TemplateEntry[] = [
+      ...base,
+      { templateId, weeks: tpl.defaultWeeks, customNotes: null },
+    ];
+    reprojectEntries(next);
+  }
+  function exitEntriesMode() {
+    setEntries(null);
+  }
+  function enterEntriesMode() {
+    setEntries([]);
+    setDraft([]);
   }
 
   function invalidatePlannerLists() {
@@ -388,6 +479,7 @@ export default function Planner() {
           startDate,
           marathonDate,
           blocks: draftToBlocks(draft),
+          entries: isEntriesMode ? entries! : null,
         },
       },
       {
@@ -431,6 +523,7 @@ export default function Planner() {
           startDate,
           marathonDate,
           blocks: draftToBlocks(draft),
+          entries: isEntriesMode ? entries! : null,
         },
       },
       {
@@ -492,13 +585,15 @@ export default function Planner() {
   // updates live as the runner edits block weeks.
   const mileagePreview = useMemo<WeekMileagePreview[]>(() => {
     try {
+      // In entries-mode each template owns its own taper, so we MUST NOT
+      // append the auto-pinned 16w Marathon-Specific tail to the preview.
       return previewWeeklyMileage(draftToBlocks(draft), {
-        appendMarathonTail: true,
+        appendMarathonTail: !isEntriesMode,
       });
     } catch {
       return [];
     }
-  }, [draft]);
+  }, [draft, isEntriesMode]);
 
   // Per-block slices keyed by blockIndex (user blocks are 0..draft.length-1,
   // the auto-pinned tail is draft.length).
@@ -690,22 +785,27 @@ export default function Planner() {
       });
       week += w;
     }
-    list.push({
-      label: "Marathon-Specific",
-      focusType: "Marathon-Specific",
-      weeks: MARATHON_TAIL_WEEKS,
-      startWeek: week,
-      endWeek: week + MARATHON_TAIL_WEEKS - 1,
-      startDateISO: Number.isFinite(startMs)
-        ? new Date(startMs + (week - 1) * 7 * 24 * 3600 * 1000)
-            .toISOString()
-            .slice(0, 10)
-        : null,
-      endDateISO: isoForWeek(week, MARATHON_TAIL_WEEKS),
-      autoPinned: true,
-    });
+    // Legacy mode pins the trailing 16-week Marathon-Specific block;
+    // entries-mode lets each template own its own taper, so the timeline
+    // ends at the last user block.
+    if (!isEntriesMode) {
+      list.push({
+        label: "Marathon-Specific",
+        focusType: "Marathon-Specific",
+        weeks: MARATHON_TAIL_WEEKS,
+        startWeek: week,
+        endWeek: week + MARATHON_TAIL_WEEKS - 1,
+        startDateISO: Number.isFinite(startMs)
+          ? new Date(startMs + (week - 1) * 7 * 24 * 3600 * 1000)
+              .toISOString()
+              .slice(0, 10)
+          : null,
+        endDateISO: isoForWeek(week, MARATHON_TAIL_WEEKS),
+        autoPinned: true,
+      });
+    }
     return list;
-  }, [draft, startDate]);
+  }, [draft, startDate, isEntriesMode]);
 
   // ---- Loading / empty states ------------------------------------------
   if (listQuery.isLoading) {
@@ -895,9 +995,9 @@ export default function Planner() {
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {PLAN_TEMPLATES.map((tpl) => {
-                const weeks = tplWeeks[tpl.id] ?? tpl.defaultUserWeeks;
+                const weeks = tplWeeks[tpl.id] ?? tpl.defaultWeeks;
                 const outOfRange =
-                  weeks < tpl.minUserWeeks || weeks > tpl.maxUserWeeks;
+                  weeks < tpl.minWeeks || weeks > tpl.maxWeeks;
                 const isLastApplied = lastAppliedTemplate === tpl.id;
                 return (
                   <div
@@ -929,7 +1029,7 @@ export default function Planner() {
                         htmlFor={`tpl-weeks-${tpl.id}`}
                         className="text-xs whitespace-nowrap"
                       >
-                        Weeks ({tpl.minUserWeeks}–{tpl.maxUserWeeks})
+                        Weeks ({tpl.minWeeks}–{tpl.maxWeeks})
                       </Label>
                       <Input
                         id={`tpl-weeks-${tpl.id}`}
@@ -1078,20 +1178,172 @@ export default function Planner() {
         </CardContent>
       </Card>
 
-      {/* ---------- BLOCKS EDITOR ---------- */}
+      {/* ---------- COMPOSITION EDITOR (entries mode, Task #84) ---------- */}
+      {isEntriesMode && (
+        <Card data-testid="planner-composition-editor">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle className="uppercase tracking-wider text-sm">
+                Composition · {entries!.length} entr{entries!.length === 1 ? "y" : "ies"} · {entriesWeeksSum}/{totalWeeks}w
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Each template owns its own taper — no auto-pinned 16-week
+                tail. Use Apply Template above to add more entries; reorder
+                or remove below.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={exitEntriesMode}
+              data-testid="planner-exit-entries-mode"
+            >
+              Switch to advanced (legacy) editor
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {entries!.length === 0 ? (
+              <p
+                className="text-sm text-muted-foreground"
+                data-testid="planner-composition-empty"
+              >
+                No entries yet — pick a template from the library above and
+                click &quot;Use this starter&quot; or set the weeks and
+                &quot;Apply Template&quot; to add it here.
+              </p>
+            ) : (
+              <ol
+                className="space-y-2"
+                data-testid="planner-composition-list"
+              >
+                {entries!.map((e, i) => {
+                  const tpl = getTemplateById(e.templateId);
+                  return (
+                    <li
+                      key={i}
+                      className="border rounded-lg p-3 bg-card"
+                      data-testid={`planner-entry-${i}`}
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-mono text-muted-foreground w-6">
+                          #{i + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm">
+                            {tpl?.name ?? e.templateId}
+                          </div>
+                          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                            {tpl?.goalDistance ?? "—"} · {tpl?.source ?? "unknown source"}
+                          </div>
+                        </div>
+                        <Input
+                          type="number"
+                          min={1}
+                          className="w-24"
+                          value={e.weeks}
+                          onChange={(ev) =>
+                            updateEntry(i, {
+                              weeks: Math.max(1, Number(ev.target.value) || 1),
+                            })
+                          }
+                          data-testid={`planner-entry-${i}-weeks`}
+                        />
+                        <span className="text-xs text-muted-foreground">weeks</span>
+                        <div className="ml-auto flex gap-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => moveEntry(i, -1)}
+                            disabled={i === 0}
+                            aria-label="Move up"
+                            data-testid={`planner-entry-${i}-up`}
+                          >
+                            <ArrowUp className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => moveEntry(i, 1)}
+                            disabled={i === entries!.length - 1}
+                            aria-label="Move down"
+                            data-testid={`planner-entry-${i}-down`}
+                          >
+                            <ArrowDown className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => removeEntry(i)}
+                            aria-label="Remove entry"
+                            data-testid={`planner-entry-${i}-remove`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      {tpl && (
+                        <p className="text-[10px] text-muted-foreground italic mt-2">
+                          {tpl.citation}
+                        </p>
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+            <div className="mt-3 flex items-center gap-2">
+              <Label className="text-xs">Quick-add template:</Label>
+              <Select onValueChange={(v) => addEntry(v)} value="">
+                <SelectTrigger
+                  className="h-8 w-64"
+                  data-testid="planner-entry-add-select"
+                >
+                  <SelectValue placeholder="Pick a template…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PLAN_TEMPLATES.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name} ({t.defaultWeeks}w default)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ---------- BLOCKS EDITOR (legacy / advanced) ---------- */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="uppercase tracking-wider text-sm">
             Phase Blocks
+            {isEntriesMode && (
+              <span className="ml-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+                (read-only projection from composition)
+              </span>
+            )}
           </CardTitle>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={addBlock}
-            data-testid="planner-add-block"
-          >
-            <Plus className="h-4 w-4 mr-1" /> Add Block
-          </Button>
+          {!isEntriesMode ? (
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={enterEntriesMode}
+                data-testid="planner-enter-entries-mode"
+              >
+                Switch to template composition
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={addBlock}
+                data-testid="planner-add-block"
+              >
+                <Plus className="h-4 w-4 mr-1" /> Add Block
+              </Button>
+            </div>
+          ) : null}
         </CardHeader>
         <CardContent>
           <ol className="space-y-3" data-testid="planner-blocks-list">

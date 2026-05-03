@@ -1175,6 +1175,54 @@ export const GetRecentActivityResponse = zod.array(
 );
 
 /**
+ * Static catalog of research-backed plan templates (Couch-to-5K, 5K Improver, 10K Builder, Half Marathon, Marathon, Ultramarathon 50K, Aerobic Base, Speed Block, Hybrid Strength + Run, Cardio + Weight Loss, Recovery, Maintenance) plus three opinionated starter shortcuts. Returned data is read-only and shipped from `@workspace/plan-generator`. The UI Template Library renders this catalog and the runner composes ordered TemplateEntry[] arrays inside their PlannerConfig.
+ */
+export const ListPlannerTemplatesResponse = zod.object({
+  templates: zod.array(
+    zod.object({
+      id: zod.string(),
+      name: zod.string(),
+      goalDistance: zod.string(),
+      source: zod
+        .string()
+        .describe(
+          'Originating coach \/ methodology (e.g. \"Hal Higdon\", \"Pete Pfitzinger\").',
+        ),
+      citation: zod
+        .string()
+        .describe("Concrete reference (book + edition \/ URL) for the source."),
+      shortDescription: zod.string(),
+      longDescription: zod.string(),
+      minWeeks: zod.number(),
+      maxWeeks: zod.number(),
+      defaultWeeks: zod.number(),
+      metadata: zod.object({
+        intensityDistribution: zod.string(),
+        peakLongRun: zod.string(),
+        peakWeeklyVolume: zod.string(),
+        taperLength: zod.string(),
+        cutbackCadence: zod.string(),
+        mandatoryRestDays: zod.number(),
+        equipmentMixHint: zod.string(),
+      }),
+    }),
+  ),
+  starters: zod.array(
+    zod
+      .object({
+        id: zod.string(),
+        name: zod.string(),
+        description: zod.string(),
+        templateId: zod.string(),
+        weeks: zod.number(),
+      })
+      .describe(
+        "One-click shortcut that seeds entries=[{templateId, weeks}] for a common goal\/duration pairing.",
+      ),
+  ),
+});
+
+/**
  * List every saved Planner config and identify which one is currently active. The active config is what POST /planner/apply will regenerate the plan from.
  */
 export const ListPlannerConfigsResponse = zod.object({
@@ -1205,37 +1253,71 @@ export const CreatePlannerConfigBody = zod.object({
   name: zod.string(),
   startDate: zod.string(),
   marathonDate: zod.string(),
-  blocks: zod.array(
-    zod
-      .object({
-        focusType: zod.enum([
-          "Base",
-          "Time on Feet",
-          "Cardio + Weight Loss",
-          "Speed",
-          "Marathon-Specific",
-          "Taper",
-          "Recovery",
-          "Custom",
-        ]),
-        weeks: zod.number().min(1),
-        customName: zod
-          .string()
-          .nullish()
-          .describe(
-            'Required when focusType is \"Custom\"; ignored otherwise. Used as the phase label on plan_weeks\/plan_days for that block.',
-          ),
-        customNotes: zod
-          .string()
-          .nullish()
-          .describe(
-            'Optional free-text appended in `[brackets]` to every plan_day description in this block (handy for marking experiments, \"extra recovery\", etc.).',
-          ),
-      })
-      .describe(
-        "One block in the runner's Phase Planner config. The trailing 16-week\nMarathon-Specific block is auto-pinned at generation time and is NOT\npresent in the user-defined `blocks` array; users only pick the\nblocks that come BEFORE the auto-pinned tail.\n",
-      ),
-  ),
+  blocks: zod
+    .array(
+      zod
+        .object({
+          focusType: zod.enum([
+            "Base",
+            "Time on Feet",
+            "Cardio + Weight Loss",
+            "Speed",
+            "Marathon-Specific",
+            "Taper",
+            "Recovery",
+            "Custom",
+          ]),
+          weeks: zod.number().min(1),
+          customName: zod
+            .string()
+            .nullish()
+            .describe(
+              'Required when focusType is \"Custom\"; ignored otherwise. Used as the phase label on plan_weeks\/plan_days for that block.',
+            ),
+          customNotes: zod
+            .string()
+            .nullish()
+            .describe(
+              'Optional free-text appended in `[brackets]` to every plan_day description in this block (handy for marking experiments, \"extra recovery\", etc.).',
+            ),
+        })
+        .describe(
+          "One block in the runner's Phase Planner config. The trailing 16-week\nMarathon-Specific block is auto-pinned at generation time and is NOT\npresent in the user-defined `blocks` array; users only pick the\nblocks that come BEFORE the auto-pinned tail.\n",
+        ),
+    )
+    .describe(
+      "Required for legacy mode. Ignored when `entries` is non-null — the server recomputes blocks from entries.",
+    ),
+  entries: zod
+    .array(
+      zod
+        .object({
+          templateId: zod
+            .string()
+            .describe(
+              'Identifier of an entry in PLAN_TEMPLATES (e.g. \"half_marathon\", \"marathon\", \"aerobic_base\"). Unknown ids are rejected at validation.',
+            ),
+          weeks: zod
+            .number()
+            .min(1)
+            .describe(
+              "Number of weeks this entry's template should expand to. Must be a positive integer; values outside the template's published min\/max range surface a UI warning but are accepted.",
+            ),
+          customNotes: zod
+            .string()
+            .nullish()
+            .describe(
+              "Optional per-entry note merged into every expanded block's customNotes so the runner-supplied context surfaces in the daily plan.",
+            ),
+        })
+        .describe(
+          "A single composed entry inside an entries-mode PlannerConfig. References a plan template by id and supplies the runner-chosen week count for that template.",
+        ),
+    )
+    .nullish()
+    .describe(
+      "Optional. When non-null, switches the config into entries-mode (Task",
+    ),
   notes: zod.string().nullish(),
   setActive: zod
     .boolean()
@@ -1267,39 +1349,71 @@ export const GetPlannerConfigResponse = zod.object({
   marathonDate: zod
     .string()
     .describe(
-      "ISO yyyy-mm-dd; race day, the Sunday the auto-pinned 16-week Marathon-Specific block ends on. Must be a Sunday and at least 16 weeks after startDate.",
+      "ISO yyyy-mm-dd; race \/ final day. Must be a Sunday. In legacy blocks-mode it must be at least 16 weeks after startDate (the auto-pinned Marathon-Specific tail). In entries-mode it must equal sum(entries.weeks) weeks after startDate (templates own their own taper).",
     ),
-  blocks: zod.array(
-    zod
-      .object({
-        focusType: zod.enum([
-          "Base",
-          "Time on Feet",
-          "Cardio + Weight Loss",
-          "Speed",
-          "Marathon-Specific",
-          "Taper",
-          "Recovery",
-          "Custom",
-        ]),
-        weeks: zod.number().min(1),
-        customName: zod
-          .string()
-          .nullish()
-          .describe(
-            'Required when focusType is \"Custom\"; ignored otherwise. Used as the phase label on plan_weeks\/plan_days for that block.',
-          ),
-        customNotes: zod
-          .string()
-          .nullish()
-          .describe(
-            'Optional free-text appended in `[brackets]` to every plan_day description in this block (handy for marking experiments, \"extra recovery\", etc.).',
-          ),
-      })
-      .describe(
-        "One block in the runner's Phase Planner config. The trailing 16-week\nMarathon-Specific block is auto-pinned at generation time and is NOT\npresent in the user-defined `blocks` array; users only pick the\nblocks that come BEFORE the auto-pinned tail.\n",
-      ),
-  ),
+  blocks: zod
+    .array(
+      zod
+        .object({
+          focusType: zod.enum([
+            "Base",
+            "Time on Feet",
+            "Cardio + Weight Loss",
+            "Speed",
+            "Marathon-Specific",
+            "Taper",
+            "Recovery",
+            "Custom",
+          ]),
+          weeks: zod.number().min(1),
+          customName: zod
+            .string()
+            .nullish()
+            .describe(
+              'Required when focusType is \"Custom\"; ignored otherwise. Used as the phase label on plan_weeks\/plan_days for that block.',
+            ),
+          customNotes: zod
+            .string()
+            .nullish()
+            .describe(
+              'Optional free-text appended in `[brackets]` to every plan_day description in this block (handy for marking experiments, \"extra recovery\", etc.).',
+            ),
+        })
+        .describe(
+          "One block in the runner's Phase Planner config. The trailing 16-week\nMarathon-Specific block is auto-pinned at generation time and is NOT\npresent in the user-defined `blocks` array; users only pick the\nblocks that come BEFORE the auto-pinned tail.\n",
+        ),
+    )
+    .describe(
+      "In legacy mode, the user-edited PhaseBlock list (auto-pinned 16-week tail appended at generation time). In entries-mode, the server-computed projection of `entries` for downstream consumers.",
+    ),
+  entries: zod
+    .array(
+      zod
+        .object({
+          templateId: zod
+            .string()
+            .describe(
+              'Identifier of an entry in PLAN_TEMPLATES (e.g. \"half_marathon\", \"marathon\", \"aerobic_base\"). Unknown ids are rejected at validation.',
+            ),
+          weeks: zod
+            .number()
+            .min(1)
+            .describe(
+              "Number of weeks this entry's template should expand to. Must be a positive integer; values outside the template's published min\/max range surface a UI warning but are accepted.",
+            ),
+          customNotes: zod
+            .string()
+            .nullish()
+            .describe(
+              "Optional per-entry note merged into every expanded block's customNotes so the runner-supplied context surfaces in the daily plan.",
+            ),
+        })
+        .describe(
+          "A single composed entry inside an entries-mode PlannerConfig. References a plan template by id and supplies the runner-chosen week count for that template.",
+        ),
+    )
+    .nullish()
+    .describe("ENTRIES mode (Task"),
   notes: zod.string().nullish(),
   updatedAt: zod.coerce
     .date()
@@ -1326,37 +1440,71 @@ export const UpdatePlannerConfigBody = zod.object({
   name: zod.string(),
   startDate: zod.string(),
   marathonDate: zod.string(),
-  blocks: zod.array(
-    zod
-      .object({
-        focusType: zod.enum([
-          "Base",
-          "Time on Feet",
-          "Cardio + Weight Loss",
-          "Speed",
-          "Marathon-Specific",
-          "Taper",
-          "Recovery",
-          "Custom",
-        ]),
-        weeks: zod.number().min(1),
-        customName: zod
-          .string()
-          .nullish()
-          .describe(
-            'Required when focusType is \"Custom\"; ignored otherwise. Used as the phase label on plan_weeks\/plan_days for that block.',
-          ),
-        customNotes: zod
-          .string()
-          .nullish()
-          .describe(
-            'Optional free-text appended in `[brackets]` to every plan_day description in this block (handy for marking experiments, \"extra recovery\", etc.).',
-          ),
-      })
-      .describe(
-        "One block in the runner's Phase Planner config. The trailing 16-week\nMarathon-Specific block is auto-pinned at generation time and is NOT\npresent in the user-defined `blocks` array; users only pick the\nblocks that come BEFORE the auto-pinned tail.\n",
-      ),
-  ),
+  blocks: zod
+    .array(
+      zod
+        .object({
+          focusType: zod.enum([
+            "Base",
+            "Time on Feet",
+            "Cardio + Weight Loss",
+            "Speed",
+            "Marathon-Specific",
+            "Taper",
+            "Recovery",
+            "Custom",
+          ]),
+          weeks: zod.number().min(1),
+          customName: zod
+            .string()
+            .nullish()
+            .describe(
+              'Required when focusType is \"Custom\"; ignored otherwise. Used as the phase label on plan_weeks\/plan_days for that block.',
+            ),
+          customNotes: zod
+            .string()
+            .nullish()
+            .describe(
+              'Optional free-text appended in `[brackets]` to every plan_day description in this block (handy for marking experiments, \"extra recovery\", etc.).',
+            ),
+        })
+        .describe(
+          "One block in the runner's Phase Planner config. The trailing 16-week\nMarathon-Specific block is auto-pinned at generation time and is NOT\npresent in the user-defined `blocks` array; users only pick the\nblocks that come BEFORE the auto-pinned tail.\n",
+        ),
+    )
+    .describe(
+      "Required for legacy mode. Ignored when `entries` is non-null — the server recomputes blocks from entries.",
+    ),
+  entries: zod
+    .array(
+      zod
+        .object({
+          templateId: zod
+            .string()
+            .describe(
+              'Identifier of an entry in PLAN_TEMPLATES (e.g. \"half_marathon\", \"marathon\", \"aerobic_base\"). Unknown ids are rejected at validation.',
+            ),
+          weeks: zod
+            .number()
+            .min(1)
+            .describe(
+              "Number of weeks this entry's template should expand to. Must be a positive integer; values outside the template's published min\/max range surface a UI warning but are accepted.",
+            ),
+          customNotes: zod
+            .string()
+            .nullish()
+            .describe(
+              "Optional per-entry note merged into every expanded block's customNotes so the runner-supplied context surfaces in the daily plan.",
+            ),
+        })
+        .describe(
+          "A single composed entry inside an entries-mode PlannerConfig. References a plan template by id and supplies the runner-chosen week count for that template.",
+        ),
+    )
+    .nullish()
+    .describe(
+      "Optional. When non-null, switches the config into entries-mode (Task",
+    ),
   notes: zod.string().nullish(),
 });
 
@@ -1378,39 +1526,71 @@ export const UpdatePlannerConfigResponse = zod.object({
   marathonDate: zod
     .string()
     .describe(
-      "ISO yyyy-mm-dd; race day, the Sunday the auto-pinned 16-week Marathon-Specific block ends on. Must be a Sunday and at least 16 weeks after startDate.",
+      "ISO yyyy-mm-dd; race \/ final day. Must be a Sunday. In legacy blocks-mode it must be at least 16 weeks after startDate (the auto-pinned Marathon-Specific tail). In entries-mode it must equal sum(entries.weeks) weeks after startDate (templates own their own taper).",
     ),
-  blocks: zod.array(
-    zod
-      .object({
-        focusType: zod.enum([
-          "Base",
-          "Time on Feet",
-          "Cardio + Weight Loss",
-          "Speed",
-          "Marathon-Specific",
-          "Taper",
-          "Recovery",
-          "Custom",
-        ]),
-        weeks: zod.number().min(1),
-        customName: zod
-          .string()
-          .nullish()
-          .describe(
-            'Required when focusType is \"Custom\"; ignored otherwise. Used as the phase label on plan_weeks\/plan_days for that block.',
-          ),
-        customNotes: zod
-          .string()
-          .nullish()
-          .describe(
-            'Optional free-text appended in `[brackets]` to every plan_day description in this block (handy for marking experiments, \"extra recovery\", etc.).',
-          ),
-      })
-      .describe(
-        "One block in the runner's Phase Planner config. The trailing 16-week\nMarathon-Specific block is auto-pinned at generation time and is NOT\npresent in the user-defined `blocks` array; users only pick the\nblocks that come BEFORE the auto-pinned tail.\n",
-      ),
-  ),
+  blocks: zod
+    .array(
+      zod
+        .object({
+          focusType: zod.enum([
+            "Base",
+            "Time on Feet",
+            "Cardio + Weight Loss",
+            "Speed",
+            "Marathon-Specific",
+            "Taper",
+            "Recovery",
+            "Custom",
+          ]),
+          weeks: zod.number().min(1),
+          customName: zod
+            .string()
+            .nullish()
+            .describe(
+              'Required when focusType is \"Custom\"; ignored otherwise. Used as the phase label on plan_weeks\/plan_days for that block.',
+            ),
+          customNotes: zod
+            .string()
+            .nullish()
+            .describe(
+              'Optional free-text appended in `[brackets]` to every plan_day description in this block (handy for marking experiments, \"extra recovery\", etc.).',
+            ),
+        })
+        .describe(
+          "One block in the runner's Phase Planner config. The trailing 16-week\nMarathon-Specific block is auto-pinned at generation time and is NOT\npresent in the user-defined `blocks` array; users only pick the\nblocks that come BEFORE the auto-pinned tail.\n",
+        ),
+    )
+    .describe(
+      "In legacy mode, the user-edited PhaseBlock list (auto-pinned 16-week tail appended at generation time). In entries-mode, the server-computed projection of `entries` for downstream consumers.",
+    ),
+  entries: zod
+    .array(
+      zod
+        .object({
+          templateId: zod
+            .string()
+            .describe(
+              'Identifier of an entry in PLAN_TEMPLATES (e.g. \"half_marathon\", \"marathon\", \"aerobic_base\"). Unknown ids are rejected at validation.',
+            ),
+          weeks: zod
+            .number()
+            .min(1)
+            .describe(
+              "Number of weeks this entry's template should expand to. Must be a positive integer; values outside the template's published min\/max range surface a UI warning but are accepted.",
+            ),
+          customNotes: zod
+            .string()
+            .nullish()
+            .describe(
+              "Optional per-entry note merged into every expanded block's customNotes so the runner-supplied context surfaces in the daily plan.",
+            ),
+        })
+        .describe(
+          "A single composed entry inside an entries-mode PlannerConfig. References a plan template by id and supplies the runner-chosen week count for that template.",
+        ),
+    )
+    .nullish()
+    .describe("ENTRIES mode (Task"),
   notes: zod.string().nullish(),
   updatedAt: zod.coerce
     .date()
@@ -1496,39 +1676,71 @@ export const ActivatePlannerConfigResponse = zod.object({
   marathonDate: zod
     .string()
     .describe(
-      "ISO yyyy-mm-dd; race day, the Sunday the auto-pinned 16-week Marathon-Specific block ends on. Must be a Sunday and at least 16 weeks after startDate.",
+      "ISO yyyy-mm-dd; race \/ final day. Must be a Sunday. In legacy blocks-mode it must be at least 16 weeks after startDate (the auto-pinned Marathon-Specific tail). In entries-mode it must equal sum(entries.weeks) weeks after startDate (templates own their own taper).",
     ),
-  blocks: zod.array(
-    zod
-      .object({
-        focusType: zod.enum([
-          "Base",
-          "Time on Feet",
-          "Cardio + Weight Loss",
-          "Speed",
-          "Marathon-Specific",
-          "Taper",
-          "Recovery",
-          "Custom",
-        ]),
-        weeks: zod.number().min(1),
-        customName: zod
-          .string()
-          .nullish()
-          .describe(
-            'Required when focusType is \"Custom\"; ignored otherwise. Used as the phase label on plan_weeks\/plan_days for that block.',
-          ),
-        customNotes: zod
-          .string()
-          .nullish()
-          .describe(
-            'Optional free-text appended in `[brackets]` to every plan_day description in this block (handy for marking experiments, \"extra recovery\", etc.).',
-          ),
-      })
-      .describe(
-        "One block in the runner's Phase Planner config. The trailing 16-week\nMarathon-Specific block is auto-pinned at generation time and is NOT\npresent in the user-defined `blocks` array; users only pick the\nblocks that come BEFORE the auto-pinned tail.\n",
-      ),
-  ),
+  blocks: zod
+    .array(
+      zod
+        .object({
+          focusType: zod.enum([
+            "Base",
+            "Time on Feet",
+            "Cardio + Weight Loss",
+            "Speed",
+            "Marathon-Specific",
+            "Taper",
+            "Recovery",
+            "Custom",
+          ]),
+          weeks: zod.number().min(1),
+          customName: zod
+            .string()
+            .nullish()
+            .describe(
+              'Required when focusType is \"Custom\"; ignored otherwise. Used as the phase label on plan_weeks\/plan_days for that block.',
+            ),
+          customNotes: zod
+            .string()
+            .nullish()
+            .describe(
+              'Optional free-text appended in `[brackets]` to every plan_day description in this block (handy for marking experiments, \"extra recovery\", etc.).',
+            ),
+        })
+        .describe(
+          "One block in the runner's Phase Planner config. The trailing 16-week\nMarathon-Specific block is auto-pinned at generation time and is NOT\npresent in the user-defined `blocks` array; users only pick the\nblocks that come BEFORE the auto-pinned tail.\n",
+        ),
+    )
+    .describe(
+      "In legacy mode, the user-edited PhaseBlock list (auto-pinned 16-week tail appended at generation time). In entries-mode, the server-computed projection of `entries` for downstream consumers.",
+    ),
+  entries: zod
+    .array(
+      zod
+        .object({
+          templateId: zod
+            .string()
+            .describe(
+              'Identifier of an entry in PLAN_TEMPLATES (e.g. \"half_marathon\", \"marathon\", \"aerobic_base\"). Unknown ids are rejected at validation.',
+            ),
+          weeks: zod
+            .number()
+            .min(1)
+            .describe(
+              "Number of weeks this entry's template should expand to. Must be a positive integer; values outside the template's published min\/max range surface a UI warning but are accepted.",
+            ),
+          customNotes: zod
+            .string()
+            .nullish()
+            .describe(
+              "Optional per-entry note merged into every expanded block's customNotes so the runner-supplied context surfaces in the daily plan.",
+            ),
+        })
+        .describe(
+          "A single composed entry inside an entries-mode PlannerConfig. References a plan template by id and supplies the runner-chosen week count for that template.",
+        ),
+    )
+    .nullish()
+    .describe("ENTRIES mode (Task"),
   notes: zod.string().nullish(),
   updatedAt: zod.coerce
     .date()

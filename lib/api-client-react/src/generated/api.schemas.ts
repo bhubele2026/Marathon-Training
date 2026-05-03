@@ -542,6 +542,21 @@ export interface PhaseBlock {
   customNotes?: string | null;
 }
 
+/**
+ * A single composed entry inside an entries-mode PlannerConfig. References a plan template by id and supplies the runner-chosen week count for that template.
+ */
+export interface TemplateEntry {
+  /** Identifier of an entry in PLAN_TEMPLATES (e.g. "half_marathon", "marathon", "aerobic_base"). Unknown ids are rejected at validation. */
+  templateId: string;
+  /**
+   * Number of weeks this entry's template should expand to. Must be a positive integer; values outside the template's published min/max range surface a UI warning but are accepted.
+   * @minimum 1
+   */
+  weeks: number;
+  /** Optional per-entry note merged into every expanded block's customNotes so the runner-supplied context surfaces in the daily plan. */
+  customNotes?: string | null;
+}
+
 export interface PlannerConfig {
   /** Server-assigned identifier. Stable across renames. */
   id: number;
@@ -551,14 +566,59 @@ export interface PlannerConfig {
   isActive: boolean;
   /** ISO yyyy-mm-dd; week 1 begins on this date. Must be a Monday. */
   startDate: string;
-  /** ISO yyyy-mm-dd; race day, the Sunday the auto-pinned 16-week Marathon-Specific block ends on. Must be a Sunday and at least 16 weeks after startDate. */
+  /** ISO yyyy-mm-dd; race / final day. Must be a Sunday. In legacy blocks-mode it must be at least 16 weeks after startDate (the auto-pinned Marathon-Specific tail). In entries-mode it must equal sum(entries.weeks) weeks after startDate (templates own their own taper). */
   marathonDate: string;
+  /** In legacy mode, the user-edited PhaseBlock list (auto-pinned 16-week tail appended at generation time). In entries-mode, the server-computed projection of `entries` for downstream consumers. */
   blocks: PhaseBlock[];
+  /** ENTRIES mode (Task */
+  entries?: TemplateEntry[] | null;
   notes?: string | null;
   /** Server-set timestamp for the most recent write. Read-only — ignored on writes. */
   updatedAt?: string;
   /** Timestamp of the most recent /planner/apply that pivoted on this config. NULL if it has never been applied. */
   lastAppliedAt?: string | null;
+}
+
+export interface PlanTemplateMetadata {
+  intensityDistribution: string;
+  peakLongRun: string;
+  peakWeeklyVolume: string;
+  taperLength: string;
+  cutbackCadence: string;
+  mandatoryRestDays: number;
+  equipmentMixHint: string;
+}
+
+export interface PlanTemplate {
+  id: string;
+  name: string;
+  goalDistance: string;
+  /** Originating coach / methodology (e.g. "Hal Higdon", "Pete Pfitzinger"). */
+  source: string;
+  /** Concrete reference (book + edition / URL) for the source. */
+  citation: string;
+  shortDescription: string;
+  longDescription: string;
+  minWeeks: number;
+  maxWeeks: number;
+  defaultWeeks: number;
+  metadata: PlanTemplateMetadata;
+}
+
+/**
+ * One-click shortcut that seeds entries=[{templateId, weeks}] for a common goal/duration pairing.
+ */
+export interface StarterShortcut {
+  id: string;
+  name: string;
+  description: string;
+  templateId: string;
+  weeks: number;
+}
+
+export interface PlannerTemplatesResponse {
+  templates: PlanTemplate[];
+  starters: StarterShortcut[];
 }
 
 /**
@@ -584,7 +644,10 @@ export interface CreatePlannerConfigBody {
   name: string;
   startDate: string;
   marathonDate: string;
+  /** Required for legacy mode. Ignored when `entries` is non-null — the server recomputes blocks from entries. */
   blocks: PhaseBlock[];
+  /** Optional. When non-null, switches the config into entries-mode (Task */
+  entries?: TemplateEntry[] | null;
   notes?: string | null;
   /** When true, mark the new config active immediately. Defaults to true if no configs exist yet, false otherwise. */
   setActive?: boolean | null;
@@ -594,7 +657,10 @@ export interface UpdatePlannerConfigBody {
   name: string;
   startDate: string;
   marathonDate: string;
+  /** Required for legacy mode. Ignored when `entries` is non-null — the server recomputes blocks from entries. */
   blocks: PhaseBlock[];
+  /** Optional. When non-null, switches the config into entries-mode (Task */
+  entries?: TemplateEntry[] | null;
   notes?: string | null;
 }
 

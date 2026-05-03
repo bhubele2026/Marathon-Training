@@ -530,6 +530,18 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/Workout" }
 
+  /planner/templates:
+    get:
+      operationId: listPlannerTemplates
+      tags: [planner]
+      description: Static catalog of research-backed plan templates (Couch-to-5K, 5K Improver, 10K Builder, Half Marathon, Marathon, Ultramarathon 50K, Aerobic Base, Speed Block, Hybrid Strength + Run, Cardio + Weight Loss, Recovery, Maintenance) plus three opinionated starter shortcuts. Returned data is read-only and shipped from `@workspace/plan-generator`. The UI Template Library renders this catalog and the runner composes ordered TemplateEntry[] arrays inside their PlannerConfig.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlannerTemplatesResponse" }
+
   /planner/configs:
     get:
       operationId: listPlannerConfigs
@@ -1516,10 +1528,16 @@ components:
           description: ISO yyyy-mm-dd; week 1 begins on this date. Must be a Monday.
         marathonDate:
           type: string
-          description: ISO yyyy-mm-dd; race day, the Sunday the auto-pinned 16-week Marathon-Specific block ends on. Must be a Sunday and at least 16 weeks after startDate.
+          description: ISO yyyy-mm-dd; race / final day. Must be a Sunday. In legacy blocks-mode it must be at least 16 weeks after startDate (the auto-pinned Marathon-Specific tail). In entries-mode it must equal sum(entries.weeks) weeks after startDate (templates own their own taper).
         blocks:
           type: array
           items: { $ref: "#/components/schemas/PhaseBlock" }
+          description: In legacy mode, the user-edited PhaseBlock list (auto-pinned 16-week tail appended at generation time). In entries-mode, the server-computed projection of `entries` for downstream consumers.
+        entries:
+          type: array
+          nullable: true
+          description: ENTRIES mode (Task #84). Ordered list of TemplateEntry objects. When non-null, entries are the source of truth for the editor; the server projects entries → blocks on every write. Sum of entry weeks must equal totalWeeks (no auto-pinned tail). NULL for legacy blocks-only configs.
+          items: { $ref: "#/components/schemas/TemplateEntry" }
         notes:
           type: string
           nullable: true
@@ -1532,6 +1550,99 @@ components:
           format: date-time
           nullable: true
           description: Timestamp of the most recent /planner/apply that pivoted on this config. NULL if it has never been applied.
+
+    TemplateEntry:
+      type: object
+      required: [templateId, weeks]
+      description: A single composed entry inside an entries-mode PlannerConfig. References a plan template by id and supplies the runner-chosen week count for that template.
+      properties:
+        templateId:
+          type: string
+          description: Identifier of an entry in PLAN_TEMPLATES (e.g. "half_marathon", "marathon", "aerobic_base"). Unknown ids are rejected at validation.
+        weeks:
+          type: integer
+          minimum: 1
+          description: Number of weeks this entry's template should expand to. Must be a positive integer; values outside the template's published min/max range surface a UI warning but are accepted.
+        customNotes:
+          type: string
+          nullable: true
+          description: Optional per-entry note merged into every expanded block's customNotes so the runner-supplied context surfaces in the daily plan.
+
+    PlanTemplateMetadata:
+      type: object
+      required:
+        [
+          intensityDistribution,
+          peakLongRun,
+          peakWeeklyVolume,
+          taperLength,
+          cutbackCadence,
+          mandatoryRestDays,
+          equipmentMixHint,
+        ]
+      properties:
+        intensityDistribution: { type: string }
+        peakLongRun: { type: string }
+        peakWeeklyVolume: { type: string }
+        taperLength: { type: string }
+        cutbackCadence: { type: string }
+        mandatoryRestDays: { type: integer }
+        equipmentMixHint: { type: string }
+
+    PlanTemplate:
+      type: object
+      required:
+        [
+          id,
+          name,
+          goalDistance,
+          source,
+          citation,
+          shortDescription,
+          longDescription,
+          minWeeks,
+          maxWeeks,
+          defaultWeeks,
+          metadata,
+        ]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        goalDistance: { type: string }
+        source:
+          type: string
+          description: Originating coach / methodology (e.g. "Hal Higdon", "Pete Pfitzinger").
+        citation:
+          type: string
+          description: Concrete reference (book + edition / URL) for the source.
+        shortDescription: { type: string }
+        longDescription: { type: string }
+        minWeeks: { type: integer }
+        maxWeeks: { type: integer }
+        defaultWeeks: { type: integer }
+        metadata: { $ref: "#/components/schemas/PlanTemplateMetadata" }
+
+    StarterShortcut:
+      type: object
+      required: [id, name, description, templateId, weeks]
+      description: One-click shortcut that seeds entries=[{templateId, weeks}] for a common goal/duration pairing.
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        templateId: { type: string }
+        weeks: { type: integer }
+
+    PlannerTemplatesResponse:
+      type: object
+      required: [templates, starters]
+      properties:
+        templates:
+          type: array
+          items: { $ref: "#/components/schemas/PlanTemplate" }
+        starters:
+          type: array
+          items: { $ref: "#/components/schemas/StarterShortcut" }
 
     PlannerConfigSummary:
       type: object
@@ -1568,6 +1679,12 @@ components:
         blocks:
           type: array
           items: { $ref: "#/components/schemas/PhaseBlock" }
+          description: Required for legacy mode. Ignored when `entries` is non-null — the server recomputes blocks from entries.
+        entries:
+          type: array
+          nullable: true
+          description: Optional. When non-null, switches the config into entries-mode (Task #84). The server projects entries → blocks and stores both. Sum of entry weeks must equal the totalWeeks span between startDate and marathonDate.
+          items: { $ref: "#/components/schemas/TemplateEntry" }
         notes: { type: string, nullable: true }
         setActive:
           type: boolean
@@ -1584,6 +1701,12 @@ components:
         blocks:
           type: array
           items: { $ref: "#/components/schemas/PhaseBlock" }
+          description: Required for legacy mode. Ignored when `entries` is non-null — the server recomputes blocks from entries.
+        entries:
+          type: array
+          nullable: true
+          description: Optional. When non-null, switches the config into entries-mode (Task #84). The server projects entries → blocks and stores both. Sum of entry weeks must equal the totalWeeks span between startDate and marathonDate.
+          items: { $ref: "#/components/schemas/TemplateEntry" }
         notes: { type: string, nullable: true }
 
     DuplicatePlannerConfigBody:

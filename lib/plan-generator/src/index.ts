@@ -5,6 +5,12 @@
 // bundlers if needed and so the api-server test suite can call it
 // directly without spinning up a CLI.
 
+import {
+  expandEntriesToBlocks,
+  getTemplateById,
+  type TemplateEntry,
+} from "./templates.js";
+
 export type DailyRow = {
   week: number;
   phase: string;
@@ -532,13 +538,22 @@ export interface PlannerConfig {
   // Mon..Sun day pattern lines up with the calendar; the validator enforces
   // this so a runner can't accidentally start mid-week.
   startDate: string;
-  // ISO yyyy-mm-dd; race day. Must be a Sunday and at least
-  // MARATHON_TAIL_WEEKS * 7 days after startDate so the auto-pinned
-  // Marathon-Specific block has room.
+  // ISO yyyy-mm-dd; race day. Must be a Sunday and the dates must form a
+  // whole number of Mon..Sun weeks. In LEGACY mode (entries == null/undef)
+  // the span must be at least MARATHON_TAIL_WEEKS so the auto-pinned tail
+  // fits; in ENTRIES mode the span must equal sum(entries.weeks).
   marathonDate: string;
-  // Ordered user-defined blocks BEFORE the auto-appended Marathon-Specific
-  // tail. Block weeks must sum to (totalWeeks - MARATHON_TAIL_WEEKS).
+  // Ordered user-defined blocks (LEGACY mode). When `entries` is present,
+  // `blocks` is treated as the projection of entries->blocks computed by
+  // the server at write time — the validator does NOT re-check
+  // sum(blocks.weeks) in entries-mode (entries ARE the source of truth).
   blocks: PhaseBlock[];
+  // ENTRIES mode (Task #84). Ordered list of TemplateEntry objects; each
+  // entry references a template by id and specifies the runner-chosen
+  // week count. When non-null, sum(entries.weeks) must equal totalWeeks
+  // and there is NO auto-pinned 16-week Marathon-Specific tail —
+  // templates own their own taper / race week.
+  entries?: TemplateEntry[] | null;
 }
 
 // The trailing Marathon-Specific block is always exactly 16 weeks. Pinned
@@ -642,6 +657,45 @@ export function validatePlannerConfig(
   if (issues.length > 0) return issues;
 
   const totalWeeks = totalWeeksFromDates(config.startDate, config.marathonDate);
+  const isEntriesMode = Array.isArray(config.entries) && config.entries.length > 0;
+
+  if (isEntriesMode) {
+    if (totalWeeks < 1) {
+      issues.push({
+        field: "marathonDate",
+        message: "must be at least 1 week after startDate",
+      });
+      return issues;
+    }
+    let entriesSum = 0;
+    for (let i = 0; i < config.entries!.length; i++) {
+      const e = config.entries![i]!;
+      const tpl = getTemplateById(e.templateId);
+      if (!tpl) {
+        issues.push({
+          field: `entries[${i}].templateId`,
+          message: `unknown template id "${e.templateId}"`,
+        });
+      }
+      if (!Number.isInteger(e.weeks) || e.weeks < 1) {
+        issues.push({
+          field: `entries[${i}].weeks`,
+          message: "must be a positive integer",
+        });
+      } else {
+        entriesSum += e.weeks;
+      }
+    }
+    if (entriesSum !== totalWeeks) {
+      issues.push({
+        field: "entries",
+        message: `template entry weeks must sum to ${totalWeeks} (got ${entriesSum}); each template owns its own taper, so entries must cover the full plan span — no auto-pinned tail`,
+      });
+    }
+    return issues;
+  }
+
+  // Legacy blocks-only mode: auto-pinned 16-week Marathon-Specific tail.
   if (totalWeeks < MARATHON_TAIL_WEEKS) {
     issues.push({
       field: "marathonDate",
@@ -688,10 +742,16 @@ export function validatePlannerConfig(
   return issues;
 }
 
-// Expand the user blocks with the auto-pinned Marathon-Specific tail. The
-// generator iterates over this expanded list. Exported so tests and the UI's
-// timeline preview agree on what the runner will end up with.
+// Expand the user blocks into the iteration list the generator walks. In
+// LEGACY mode the auto-pinned 16-week Marathon-Specific tail is appended;
+// in ENTRIES mode each entry's template is expanded in declared order
+// and concatenated, with NO auto-tail (templates own their own taper /
+// race week). Exported so tests and the UI's timeline preview agree on
+// what the runner will end up with.
 export function expandPlannerBlocks(config: PlannerConfig): PhaseBlock[] {
+  if (Array.isArray(config.entries) && config.entries.length > 0) {
+    return expandEntriesToBlocks(config.entries);
+  }
   return [
     ...config.blocks,
     {
@@ -1336,6 +1396,8 @@ export interface WeekMileagePreview {
 export interface PreviewWeeklyMileageOptions {
   // When true, the trailing 16-week Marathon-Specific block is appended so
   // the preview matches the eventual generated plan. Defaults to true.
+  // Pass false in entries-mode (templates own their own taper) — the
+  // entries-mode preview helpers below set this automatically.
   appendMarathonTail?: boolean;
 }
 
@@ -1507,6 +1569,9 @@ export {
   PLAN_TEMPLATES,
   STARTER_SHORTCUTS,
   getTemplateById,
+  expandEntriesToBlocks,
   type PlanTemplate,
+  type PlanTemplateMetadata,
   type StarterShortcut,
+  type TemplateEntry,
 } from "./templates.js";

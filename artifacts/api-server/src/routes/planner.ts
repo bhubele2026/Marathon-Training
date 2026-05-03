@@ -16,10 +16,14 @@ import {
 import {
   generatePlanFromConfig,
   validatePlannerConfig,
+  expandEntriesToBlocks,
+  PLAN_TEMPLATES,
+  STARTER_SHORTCUTS,
   RACE_DATE_ISO,
   type PlannerConfig,
   type PhaseBlock,
   type FocusType,
+  type TemplateEntry,
 } from "@workspace/plan-generator";
 
 const router: IRouter = Router();
@@ -34,6 +38,7 @@ type ApiPlannerConfig = {
   startDate: string;
   marathonDate: string;
   blocks: PhaseBlock[];
+  entries: TemplateEntry[] | null;
   notes: string | null;
   updatedAt: string;
   lastAppliedAt: string | null;
@@ -47,6 +52,7 @@ function toPlannerConfig(row: PlannerConfigRow): ApiPlannerConfig {
     startDate: row.startDate,
     marathonDate: row.marathonDate,
     blocks: row.blocks as PhaseBlock[],
+    entries: (row.entries as TemplateEntry[] | null) ?? null,
     notes: row.notes,
     updatedAt: row.updatedAt.toISOString(),
     lastAppliedAt: row.lastAppliedAt ? row.lastAppliedAt.toISOString() : null,
@@ -140,7 +146,12 @@ async function ensureSomeActive(): Promise<void> {
 }
 
 // Validate a Planner config payload. Returns a 400-shaped error envelope
-// or null when valid. Coerces the blocks into PhaseBlock shape.
+// or `{ ok: true, blocks, entries }` when valid. In ENTRIES mode (Task #84)
+// the server projects entries → blocks via expandEntriesToBlocks before
+// storing, so downstream generator paths can stay blocks-based while the
+// editor's source of truth is the entries array. In LEGACY mode (entries
+// null/empty) the body's `blocks` are used as-is and the auto-pinned
+// 16-week Marathon-Specific tail is appended at generation time.
 function validateBody(body: {
   startDate: string;
   marathonDate: string;
@@ -150,25 +161,48 @@ function validateBody(body: {
     customName?: string | null;
     customNotes?: string | null;
   }>;
+  entries?:
+    | Array<{
+        templateId: string;
+        weeks: number;
+        customNotes?: string | null;
+      }>
+    | null;
 }):
-  | { ok: true; blocks: PhaseBlock[] }
+  | { ok: true; blocks: PhaseBlock[]; entries: TemplateEntry[] | null }
   | { ok: false; status: 400; error: unknown } {
-  const blocks: PhaseBlock[] = body.blocks.map((b) => ({
-    focusType: b.focusType as FocusType,
-    weeks: b.weeks,
-    customName: b.customName ?? null,
-    customNotes: b.customNotes ?? null,
-  }));
+  const isEntriesMode =
+    Array.isArray(body.entries) && body.entries.length > 0;
+  const entries: TemplateEntry[] | null = isEntriesMode
+    ? body.entries!.map((e) => ({
+        templateId: e.templateId,
+        weeks: e.weeks,
+        customNotes: e.customNotes ?? null,
+      }))
+    : null;
+  // Project entries → blocks at write time so consumers (Apply, Full
+  // Reset, dashboard, race-week lookup) can keep reading `blocks`. In
+  // entries-mode the body's `blocks` payload is intentionally ignored —
+  // entries are the editor's source of truth.
+  const blocks: PhaseBlock[] = isEntriesMode
+    ? expandEntriesToBlocks(entries!)
+    : body.blocks.map((b) => ({
+        focusType: b.focusType as FocusType,
+        weeks: b.weeks,
+        customName: b.customName ?? null,
+        customNotes: b.customNotes ?? null,
+      }));
   const config: PlannerConfig = {
     startDate: body.startDate,
     marathonDate: body.marathonDate,
     blocks,
+    entries,
   };
   // todayISO is computed server-side so the runner can't bypass the
   // marathonDate-must-be-future check by spoofing their clock.
   const todayISO = new Date().toISOString().slice(0, 10);
   const issues = validatePlannerConfig(config, { todayISO });
-  if (issues.length === 0) return { ok: true, blocks };
+  if (issues.length === 0) return { ok: true, blocks, entries };
   const fieldErrors: Record<string, string[]> = {};
   const formErrors: string[] = [];
   for (const issue of issues) {
@@ -182,6 +216,28 @@ function validateBody(body: {
 }
 
 // ---- Routes -----------------------------------------------------------
+
+// Static catalog handler. Returns the in-process PLAN_TEMPLATES + the
+// three opinionated STARTER_SHORTCUTS shipped from @workspace/plan-generator.
+// No DB read, no per-runner state — safe to cache aggressively in the UI.
+router.get("/planner/templates", async (_req, res): Promise<void> => {
+  res.json({
+    templates: PLAN_TEMPLATES.map((t) => ({
+      id: t.id,
+      name: t.name,
+      goalDistance: t.goalDistance,
+      source: t.source,
+      citation: t.citation,
+      shortDescription: t.shortDescription,
+      longDescription: t.longDescription,
+      minWeeks: t.minWeeks,
+      maxWeeks: t.maxWeeks,
+      defaultWeeks: t.defaultWeeks,
+      metadata: t.metadata,
+    })),
+    starters: STARTER_SHORTCUTS,
+  });
+});
 
 router.get("/planner/configs", async (_req, res): Promise<void> => {
   await ensureSomeActive();
@@ -231,6 +287,7 @@ router.post("/planner/configs", async (req, res): Promise<void> => {
       startDate: parsed.data.startDate,
       marathonDate: parsed.data.marathonDate,
       blocks: validated.blocks,
+      entries: validated.entries,
       notes: parsed.data.notes ?? null,
       createdAt: now,
       updatedAt: now,
@@ -300,6 +357,7 @@ router.put("/planner/configs/:id", async (req, res): Promise<void> => {
       startDate: parsed.data.startDate,
       marathonDate: parsed.data.marathonDate,
       blocks: validated.blocks,
+      entries: validated.entries,
       notes: parsed.data.notes ?? null,
       updatedAt: new Date(),
     })
@@ -405,6 +463,7 @@ router.post("/planner/configs/:id/duplicate", async (req, res): Promise<void> =>
       startDate: src.startDate,
       marathonDate: src.marathonDate,
       blocks: src.blocks,
+      entries: src.entries,
       notes: src.notes,
       createdAt: now,
       updatedAt: now,
@@ -491,10 +550,15 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
     });
     return;
   }
+  // Surface entries so the generator picks the entries-mode codepath
+  // (template-owned taper, no auto-pinned 16w tail). Without this an
+  // entries-composed config would be re-validated as legacy and fail
+  // because stored projected blocks sum to the FULL totalWeeks.
   const config: PlannerConfig = {
     startDate: row.startDate,
     marathonDate: row.marathonDate,
     blocks: row.blocks as PhaseBlock[],
+    entries: (row.entries as TemplateEntry[] | null) ?? null,
   };
 
   // Generate OUTSIDE the transaction so a generator bug (e.g. validation
