@@ -793,3 +793,76 @@ describe("Planner template library (entries-mode)", () => {
     );
   });
 });
+
+describe("Planner Apply Template race-date overrun warning", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  // Config window is exactly 16 weeks (start 2026-05-04 → race
+  // 2026-08-23). Applying the marathon template at its 18-week default
+  // would push the race date forward by 2 weeks, which the dialog must
+  // surface as an explicit warning instead of silently re-anchoring.
+  function renderShortConfig() {
+    return renderPlanner({
+      config: {
+        marathonDate: "2026-08-23",
+        blocks: [
+          { focusType: "Base", weeks: 0, customName: null, customNotes: null },
+        ],
+      },
+    });
+  }
+
+  it("shows the race-date preview and overrun warning when the staged template would push the marathon date forward", () => {
+    renderShortConfig();
+    fireEvent.click(screen.getByTestId("planner-template-apply-marathon"));
+
+    const preview = screen.getByTestId("planner-pending-apply-race-preview");
+    expect(preview.textContent).toMatch(/2026-09-06/);
+    expect(preview.textContent).toMatch(/was/);
+    expect(preview.textContent).toMatch(/2026-08-23/);
+    expect(preview.textContent).toMatch(/\+2 weeks later/);
+
+    const warn = screen.getByTestId("planner-pending-apply-overrun-warning");
+    expect(warn.textContent).toMatch(/move your marathon date forward/);
+    expect(warn.textContent).toMatch(/2 weeks/);
+
+    const keepBtn = screen.getByTestId(
+      "planner-keep-race-date",
+    ) as HTMLButtonElement;
+    expect(keepBtn.textContent).toMatch(/trim to 16w/);
+
+    // The default Add-entry button is relabeled when the action would
+    // move race day, so the consequence is unambiguous before clicking.
+    expect(
+      screen.getByTestId("planner-confirm-pending-apply").textContent,
+    ).toMatch(/move race date/);
+  });
+
+  it("clicking Keep current race date trims the entry's weeks and leaves the marathon date untouched", () => {
+    renderShortConfig();
+    fireEvent.click(screen.getByTestId("planner-template-apply-marathon"));
+    fireEvent.click(screen.getByTestId("planner-keep-race-date"));
+
+    // Dialog closed.
+    expect(screen.queryByTestId("planner-pending-apply-race-preview")).toBeNull();
+
+    // Entry was added with the trimmed week count (16w, not 18w).
+    expect(screen.getByText(/Composition · 1 entry · 16\/16w/)).toBeTruthy();
+
+    // Race date input was NOT moved forward.
+    expect(
+      (screen.getByTestId("planner-marathon-date") as HTMLInputElement).value,
+    ).toBe("2026-08-23");
+  });
+
+  it("does not show the overrun warning when the staged template fits within the current race date", () => {
+    renderPlanner();
+    fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
+    expect(screen.queryByTestId("planner-pending-apply-overrun-warning")).toBeNull();
+    // The race-date preview is still shown for transparency.
+    expect(screen.getByTestId("planner-pending-apply-race-preview")).toBeTruthy();
+  });
+});

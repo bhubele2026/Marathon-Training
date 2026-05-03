@@ -329,6 +329,85 @@ export default function Planner() {
 
   const isEntriesMode = entries !== null;
 
+  // Preview the marathon-date impact of the staged Apply Template so
+  // the runner can see whether confirming will push race day forward
+  // (which is silent re-anchoring otherwise). When `willOverrun` is
+  // true we surface a warning + a "Keep current race date" trim option.
+  const pendingApplyPreview = useMemo(() => {
+    if (!pendingApplyTemplate) return null;
+    const chosen = pendingApplyStartDate;
+    if (!chosen || dayOfWeekUTC(chosen) !== 1) return null;
+    const existing = entries ?? [];
+    const isFirst = existing.length === 0;
+    const baseStart = isFirst
+      ? chosen
+      : startDate && dayOfWeekUTC(startDate) === 1
+        ? startDate
+        : nextMondayISO();
+    const cursorDefault = pendingApplyTemplate.proposedStartDate;
+    const startDateField = isFirst
+      ? null
+      : chosen !== cursorDefault
+        ? chosen
+        : null;
+    const staged: TemplateEntry[] = [
+      ...existing,
+      {
+        templateId: pendingApplyTemplate.templateId,
+        weeks: pendingApplyTemplate.weeks,
+        customName: null,
+        customNotes: null,
+        startDate: startDateField,
+      },
+    ];
+    const projs = projectEntries(staged, baseStart);
+    const projected =
+      staged.reduce((s, e) => s + (e.weeks || 0), 0) +
+      projs.reduce((s, p) => s + p.gapWeeksBefore, 0);
+    const previewRace = computeRaceDateForTotalWeeks(baseStart, projected);
+    if (!marathonDate) {
+      return {
+        previewRace,
+        currentRace: marathonDate,
+        weekDelta: 0,
+        willOverrun: false,
+        trimmedWeeks: null as number | null,
+      };
+    }
+    const previewMs = Date.parse(`${previewRace}T00:00:00Z`);
+    const currentMs = Date.parse(`${marathonDate}T00:00:00Z`);
+    const weekDelta = Number.isFinite(previewMs) && Number.isFinite(currentMs)
+      ? Math.round((previewMs - currentMs) / (7 * 86400000))
+      : 0;
+    const willOverrun = previewMs > currentMs;
+    let trimmedWeeks: number | null = null;
+    if (willOverrun) {
+      const baseProjs = projectEntries(existing, baseStart);
+      const existingProjected =
+        existing.reduce((s, e) => s + (e.weeks || 0), 0) +
+        baseProjs.reduce((s, p) => s + p.gapWeeksBefore, 0);
+      const probe: TemplateEntry[] = [
+        ...existing,
+        {
+          templateId: pendingApplyTemplate.templateId,
+          weeks: 1,
+          customName: null,
+          customNotes: null,
+          startDate: startDateField,
+        },
+      ];
+      const probeProjs = projectEntries(probe, baseStart);
+      const gapForNew =
+        probeProjs[probeProjs.length - 1]?.gapWeeksBefore ?? 0;
+      const currentTotal = isFirst
+        ? totalWeeksBetween(baseStart, marathonDate)
+        : totalWeeksBetween(startDate, marathonDate);
+      const t = currentTotal - existingProjected - gapForNew;
+      trimmedWeeks = t >= 1 ? t : null;
+    }
+    return { previewRace, currentRace: marathonDate, weekDelta, willOverrun, trimmedWeeks };
+  }, [pendingApplyTemplate, pendingApplyStartDate, entries, startDate, marathonDate]);
+
   // ---- Derived timeline math (mirrors the server validator) -----------
   const totalWeeks = totalWeeksBetween(startDate, marathonDate);
   const expectedUserWeeks = Math.max(0, totalWeeks - MARATHON_TAIL_WEEKS);
@@ -510,7 +589,7 @@ export default function Planner() {
   // the entry only when it differs from the cursor default — in which
   // case a Recovery gap is inserted. Either way, re-anchors the race
   // date to weeks + gap weeks.
-  function confirmPendingApplyTemplate() {
+  function confirmPendingApplyTemplate(opts: { keepRaceDate?: boolean } = {}) {
     if (!pendingApplyTemplate) return;
     const existing = entries ?? [];
     const isFirst = existing.length === 0;
@@ -530,11 +609,39 @@ export default function Planner() {
       : chosen && chosen !== cursorDefault
         ? chosen
         : null;
+    // "Keep current race date" mode: trim the new entry's weeks so the
+    // projected total span stays equal to the current totalWeeks
+    // between startDate/marathonDate (i.e. race day does NOT move).
+    let weeks = pendingApplyTemplate.weeks;
+    if (opts.keepRaceDate) {
+      const baseProjs = projectEntries(existing, baseStart);
+      const existingProjected =
+        existing.reduce((s, e) => s + (e.weeks || 0), 0) +
+        baseProjs.reduce((s, p) => s + p.gapWeeksBefore, 0);
+      const probe: TemplateEntry[] = [
+        ...existing,
+        {
+          templateId: pendingApplyTemplate.templateId,
+          weeks: 1,
+          customName: null,
+          customNotes: null,
+          startDate: startDateField,
+        },
+      ];
+      const probeProjs = projectEntries(probe, baseStart);
+      const gapForNew =
+        probeProjs[probeProjs.length - 1]?.gapWeeksBefore ?? 0;
+      const currentTotal = isFirst
+        ? totalWeeksBetween(baseStart, marathonDate)
+        : totalWeeksBetween(startDate, marathonDate);
+      const trimmed = currentTotal - existingProjected - gapForNew;
+      if (trimmed >= 1 && trimmed < weeks) weeks = trimmed;
+    }
     const nextEntries: TemplateEntry[] = [
       ...existing,
       {
         templateId: pendingApplyTemplate.templateId,
-        weeks: pendingApplyTemplate.weeks,
+        weeks,
         customName: null,
         customNotes: null,
         startDate: startDateField,
@@ -551,13 +658,16 @@ export default function Planner() {
     setDraft(blocksToDraft(expandEntriesToBlocksWithGaps(nextEntries, baseStart)));
     setLastAppliedTemplate(pendingApplyTemplate.templateId);
     const tplName = pendingApplyTemplate.templateName;
-    const w = pendingApplyTemplate.weeks;
+    const requested = pendingApplyTemplate.weeks;
     const src = pendingApplyTemplate.templateSource;
     setPendingApplyTemplate(null);
     setPendingApplyStartDate("");
     toast({
       title: `${tplName} added`,
-      description: `${w}-week entry added (total span ${projected}w). Source: ${src}.`,
+      description:
+        weeks !== requested
+          ? `Trimmed to ${weeks}w (was ${requested}w) to keep race date ${race}. Source: ${src}.`
+          : `${weeks}-week entry added (total span ${projected}w). Source: ${src}.`,
     });
   }
 
@@ -2383,13 +2493,75 @@ export default function Planner() {
                   (the end of the previous entry).
                 </p>
               )}
+            {pendingApplyPreview && (
+              <div
+                className="rounded-md border bg-muted/40 p-2 text-xs"
+                data-testid="planner-pending-apply-race-preview"
+              >
+                <div>
+                  Race date will be{" "}
+                  <span className="font-mono">
+                    {pendingApplyPreview.previewRace}
+                  </span>
+                  {marathonDate && (
+                    <>
+                      {" "}(was{" "}
+                      <span className="font-mono">{marathonDate}</span>
+                      {pendingApplyPreview.weekDelta === 0
+                        ? ", unchanged"
+                        : pendingApplyPreview.weekDelta > 0
+                          ? `, +${pendingApplyPreview.weekDelta} week${pendingApplyPreview.weekDelta === 1 ? "" : "s"} later`
+                          : `, ${Math.abs(pendingApplyPreview.weekDelta)} week${Math.abs(pendingApplyPreview.weekDelta) === 1 ? "" : "s"} earlier`}
+                      )
+                    </>
+                  )}
+                  .
+                </div>
+              </div>
+            )}
+            {pendingApplyPreview?.willOverrun && (
+              <div
+                className="rounded-md border border-destructive/50 bg-destructive/10 p-2 text-xs space-y-2"
+                data-testid="planner-pending-apply-overrun-warning"
+              >
+                <div>
+                  Heads up: confirming will move your marathon date forward
+                  by{" "}
+                  <span className="font-semibold">
+                    {pendingApplyPreview.weekDelta} week
+                    {pendingApplyPreview.weekDelta === 1 ? "" : "s"}
+                  </span>
+                  . If you have a fixed race date, keep it instead and
+                  shorten this entry.
+                </div>
+                {pendingApplyPreview.trimmedWeeks !== null ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      confirmPendingApplyTemplate({ keepRaceDate: true })
+                    }
+                    data-testid="planner-keep-race-date"
+                  >
+                    Keep current race date (trim to{" "}
+                    {pendingApplyPreview.trimmedWeeks}w)
+                  </Button>
+                ) : (
+                  <div className="text-muted-foreground">
+                    Can&apos;t fit any of this template before the current race
+                    date — pick an earlier start or accept the new race date.
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="planner-cancel-pending-apply">
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={confirmPendingApplyTemplate}
+              onClick={() => confirmPendingApplyTemplate()}
               data-testid="planner-confirm-pending-apply"
               disabled={
                 !pendingApplyStartDate ||
@@ -2400,7 +2572,9 @@ export default function Planner() {
                     pendingApplyTemplate.proposedStartDate)
               }
             >
-              Add entry
+              {pendingApplyPreview?.willOverrun
+                ? "Add entry & move race date"
+                : "Add entry"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
