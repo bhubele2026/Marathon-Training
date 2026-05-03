@@ -322,6 +322,69 @@ describe("POST /api/planner/apply", () => {
     expect(rw.body.raceDate).toBe(RACE_DATE_ISO);
   });
 
+  it("entries-mode apply round-trips through /plan/full-reset without re-validating as legacy", async () => {
+    // 16-week Mon→Sun span; pick entries whose summed weeks equal that span.
+    // Verifies: (a) entries-mode config saves with customName preserved,
+    // (b) Apply snapshots appliedEntries (not just appliedBlocks) so the
+    // subsequent Full Reset re-runs generatePlanFromConfig in entries-mode
+    // — without the snapshot, the row's appliedBlocks would sum to the
+    // FULL span and the legacy validator would reject it (expected
+    // sum = totalWeeks - MARATHON_TAIL_WEEKS).
+    const startDate = "2026-05-11"; // Monday
+    const marathonDate = "2026-08-30"; // Sunday, exactly 16 weeks out
+    const create = await request(app)
+      .post("/api/planner/configs")
+      .send({
+        name: "Entries-mode round-trip",
+        startDate,
+        marathonDate,
+        blocks: [],
+        entries: [
+          { templateId: "aerobic_base", weeks: 4, customName: "Spring base" },
+          { templateId: "half_marathon", weeks: 12, customName: "HM build" },
+        ],
+      });
+    expect(create.status).toBe(201);
+    expect(create.body.entries).toEqual([
+      { templateId: "aerobic_base", weeks: 4, customName: "Spring base", customNotes: null },
+      { templateId: "half_marathon", weeks: 12, customName: "HM build", customNotes: null },
+    ]);
+
+    const apply = await request(app).post("/api/planner/apply");
+    expect(apply.status).toBe(200);
+    expect(apply.body.totalWeeks).toBe(16);
+
+    // Snapshot was written with entries (not just blocks).
+    const rows = await db.select().from(plannerConfigsTable);
+    expect(rows[0]?.appliedEntries).toEqual([
+      { templateId: "aerobic_base", weeks: 4, customName: "Spring base", customNotes: null },
+      { templateId: "half_marathon", weeks: 12, customName: "HM build", customNotes: null },
+    ]);
+
+    // Full reset must re-pivot off the entries-mode snapshot. If the
+    // snapshot were legacy-only, the generator would reject this 16-week
+    // span as "must be at least 16 weeks of user blocks PLUS the auto
+    // 16-week tail" and the route would 500.
+    const reset = await request(app).post("/api/plan/full-reset");
+    expect(reset.status).toBe(200);
+    expect(reset.body.weeksSeeded).toBe(16);
+    expect(reset.body.daysSeeded).toBe(16 * 7);
+  });
+
+  it("rejects an empty entries array (mode is determined by presence, not length)", async () => {
+    const res = await request(app)
+      .post("/api/planner/configs")
+      .send({
+        name: "Empty entries",
+        startDate: PLAN_START_ISO,
+        marathonDate: RACE_DATE_ISO,
+        blocks: canonicalBlocks(),
+        entries: [],
+      });
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(res.body)).toMatch(/at least one template entry/);
+  });
+
   it("activating a different config without applying does NOT shift the race anchor", async () => {
     // Apply A.
     const a = await createCanonicalConfig("A");

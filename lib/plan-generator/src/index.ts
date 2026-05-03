@@ -657,7 +657,12 @@ export function validatePlannerConfig(
   if (issues.length > 0) return issues;
 
   const totalWeeks = totalWeeksFromDates(config.startDate, config.marathonDate);
-  const isEntriesMode = Array.isArray(config.entries) && config.entries.length > 0;
+  // entries-mode is determined by presence of the entries array, not its
+  // length. An empty array is invalid (the API route rejects it before we
+  // reach here), but treat it defensively as entries-mode so the validator
+  // surfaces a useful "must sum to totalWeeks" error instead of silently
+  // re-validating as legacy blocks-mode.
+  const isEntriesMode = Array.isArray(config.entries);
 
   if (isEntriesMode) {
     if (totalWeeks < 1) {
@@ -757,7 +762,7 @@ export function validatePlannerConfig(
 // race week). Exported so tests and the UI's timeline preview agree on
 // what the runner will end up with.
 export function expandPlannerBlocks(config: PlannerConfig): PhaseBlock[] {
-  if (Array.isArray(config.entries) && config.entries.length > 0) {
+  if (Array.isArray(config.entries)) {
     return expandEntriesToBlocks(config.entries);
   }
   return [

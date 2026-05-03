@@ -66,6 +66,7 @@ export const plannerConfigsTable = pgTable("planner_configs", {
     Array<{
       templateId: string;
       weeks: number;
+      customName?: string | null;
       customNotes?: string | null;
     }> | null
   >(),
@@ -92,6 +93,19 @@ export const plannerConfigsTable = pgTable("planner_configs", {
       customName?: string | null;
       customNotes?: string | null;
     }>
+  >(),
+  // Immutable snapshot of the entries array that was most recently APPLIED
+  // (NULL for legacy blocks-mode applies). Required so /plan/full-reset can
+  // re-run the generator in entries-mode — without this, an applied
+  // entries-mode plan would be re-validated as legacy and rejected (e.g.
+  // sum(blocks)=totalWeeks instead of totalWeeks - MARATHON_TAIL_WEEKS).
+  appliedEntries: jsonb("applied_entries").$type<
+    Array<{
+      templateId: string;
+      weeks: number;
+      customName?: string | null;
+      customNotes?: string | null;
+    }> | null
   >(),
 });
 

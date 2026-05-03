@@ -105,6 +105,11 @@ export async function readLastAppliedPlannerConfig(): Promise<PlannerConfig | nu
     startDate: row.appliedStartDate,
     marathonDate: row.appliedMarathonDate,
     blocks: row.appliedBlocks as PhaseBlock[],
+    // Surface the snapshotted entries so consumers (e.g. /plan/full-reset's
+    // generatePlanFromConfig call) re-run the generator in entries-mode.
+    // Without this an applied entries-mode plan would be re-validated as
+    // legacy (auto-pinned 16w tail expected) and immediately fail.
+    entries: (row.appliedEntries as TemplateEntry[] | null) ?? null,
   };
 }
 
@@ -165,18 +170,39 @@ function validateBody(body: {
     | Array<{
         templateId: string;
         weeks: number;
+        customName?: string | null;
         customNotes?: string | null;
       }>
     | null;
 }):
   | { ok: true; blocks: PhaseBlock[]; entries: TemplateEntry[] | null }
   | { ok: false; status: 400; error: unknown } {
-  const isEntriesMode =
-    Array.isArray(body.entries) && body.entries.length > 0;
+  // entries-mode is determined by entries being PRESENT (non-null/undefined),
+  // not by length. An explicit empty array is rejected here so the editor
+  // can't silently fall back to legacy blocks-mode after the runner cleared
+  // every composition entry.
+  const entriesProvided =
+    body.entries !== null && body.entries !== undefined;
+  if (entriesProvided && body.entries!.length === 0) {
+    return {
+      ok: false,
+      status: 400,
+      error: {
+        formErrors: [],
+        fieldErrors: {
+          entries: [
+            "entries-mode requires at least one template entry; pass null to switch back to legacy blocks-mode",
+          ],
+        },
+      },
+    };
+  }
+  const isEntriesMode = entriesProvided;
   const entries: TemplateEntry[] | null = isEntriesMode
     ? body.entries!.map((e) => ({
         templateId: e.templateId,
         weeks: e.weeks,
+        customName: e.customName ?? null,
         customNotes: e.customNotes ?? null,
       }))
     : null;
@@ -674,6 +700,10 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
         appliedStartDate: config.startDate,
         appliedMarathonDate: config.marathonDate,
         appliedBlocks: config.blocks,
+        // Snapshot entries (or NULL for legacy mode) so a later
+        // /plan/full-reset re-runs the generator in the SAME mode the
+        // runner originally applied, not silently downgraded to legacy.
+        appliedEntries: config.entries ?? null,
       })
       .where(eq(plannerConfigsTable.id, row.id));
 
