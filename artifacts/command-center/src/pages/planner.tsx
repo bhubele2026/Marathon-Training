@@ -225,6 +225,11 @@ const EXPANDED_TEMPLATES_STORAGE_KEY = "planner.expandedTemplates.v1";
 // stale entries.
 const TEMPLATE_SEARCH_STORAGE_KEY = "planner.templateSearch.v1";
 
+// localStorage key for the planner's tag-cloud filter selection in the
+// Plan Template Library card. Versioned so we can change the shape
+// later without colliding with stale entries.
+const SELECTED_TEMPLATE_TAGS_STORAGE_KEY = "planner.selectedTemplateTags.v1";
+
 interface DraftBlock {
   focusType: FocusType;
   weeks: number;
@@ -362,7 +367,33 @@ export default function Planner() {
   // make tag-based discovery work without typing, especially on mobile.
   const [selectedTemplateTags, setSelectedTemplateTags] = useState<
     Set<string>
-  >(() => new Set());
+  >(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = window.localStorage.getItem(
+          SELECTED_TEMPLATE_TAGS_STORAGE_KEY,
+        );
+        if (raw) {
+          const parsed: unknown = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            // Hydrate against the bundled fallback catalog so we can
+            // drop obviously-stale tags before the server catalog
+            // arrives. A second pass below prunes any tags that are
+            // present in the fallback but missing from the live
+            // server catalog (e.g. a tag the server has retired).
+            const knownTags = new Set(getAllTemplateTags(PLAN_TEMPLATES));
+            const valid = parsed.filter(
+              (t): t is string => typeof t === "string" && knownTags.has(t),
+            );
+            return new Set<string>(valid);
+          }
+        }
+      } catch {
+        // Ignore corrupt storage and fall through to default.
+      }
+    }
+    return new Set();
+  });
   function toggleTemplateTag(tag: string) {
     setSelectedTemplateTags((prev) => {
       const next = new Set(prev);
@@ -371,6 +402,21 @@ export default function Planner() {
       return next;
     });
   }
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (selectedTemplateTags.size === 0) {
+        window.localStorage.removeItem(SELECTED_TEMPLATE_TAGS_STORAGE_KEY);
+      } else {
+        window.localStorage.setItem(
+          SELECTED_TEMPLATE_TAGS_STORAGE_KEY,
+          JSON.stringify(Array.from(selectedTemplateTags)),
+        );
+      }
+    } catch {
+      // Storage may be full or disabled; ignore.
+    }
+  }, [selectedTemplateTags]);
   // Parallel tag-cloud filter applied to the entries-mode quick-add
   // popover so the runner can narrow the same catalog without typing
   // there too. Reset whenever the popover closes (alongside the
@@ -585,6 +631,21 @@ export default function Planner() {
     () => sortTagsByCount(allDistinctTags, quickAddTagCounts, quickAddSelectedTags),
     [allDistinctTags, quickAddTagCounts, quickAddSelectedTags],
   );
+  // Once the live server catalog resolves, drop any persisted tags
+  // that no longer exist (catalog churn between visits) so we never
+  // filter on a tag the runner can't see in the chip cloud.
+  useEffect(() => {
+    if (!templatesQuery.data) return;
+    if (selectedTemplateTags.size === 0) return;
+    const known = new Set(allTemplateTags);
+    let changed = false;
+    const pruned = new Set<string>();
+    for (const t of selectedTemplateTags) {
+      if (known.has(t)) pruned.add(t);
+      else changed = true;
+    }
+    if (changed) setSelectedTemplateTags(pruned);
+  }, [templatesQuery.data, allTemplateTags, selectedTemplateTags]);
 
   const configs = listQuery.data?.configs ?? [];
   const activeId = listQuery.data?.activeId ?? null;
