@@ -129,25 +129,27 @@ function totalWeeksBetween(startISO: string, raceISO: string): number {
 }
 
 // Default config offered when no config has ever been saved (i.e. first
-// run of the app). Anchors to the next Monday and a 52-week campaign so
-// the default does not silently drift to a past date over time.
+// run of the app). Anchors to the next Monday and an 8-week Tonal-first
+// upper-body lift block so the planner opens as a general workout
+// planner rather than presupposing a marathon campaign. The runner can
+// flip the "Training for a marathon?" toggle and add user blocks /
+// templates to grow it into a race campaign.
 function defaultBlankConfig(): {
   startDate: string;
   marathonDate: string;
   blocks: PhaseBlock[];
 } {
   const start = nextMondayISO();
-  const marathon = computeRaceDateForTotalWeeks(start, 52);
+  const marathon = computeRaceDateForTotalWeeks(start, 8);
   return {
     startDate: start,
     marathonDate: marathon,
     blocks: [
-      { focusType: "Base", weeks: 18, customName: null, customNotes: null },
       {
-        focusType: "Time on Feet",
-        weeks: 18,
-        customName: null,
-        customNotes: null,
+        focusType: "Custom",
+        weeks: 8,
+        customName: "Tonal Strength — Upper",
+        customNotes: "[lift-primary:upper]",
       },
     ],
   };
@@ -271,6 +273,15 @@ export default function Planner() {
   // timeline strip (or list row), used to highlight the corresponding
   // bar/row pair. Null = nothing highlighted.
   const [hoveredEntry, setHoveredEntry] = useState<number | null>(null);
+  // Marathon mode toggle. When true (legacy default), the planner
+  // auto-pins a trailing 16-week Marathon-Specific block, the validator
+  // requires (totalWeeks - 16) user-block weeks, and the preview / pinned
+  // tail card render. When false, the planner is a general workout
+  // planner — user blocks must sum to the full totalWeeks span. Hidden
+  // entirely in entries-mode (each template owns its own taper). The
+  // initial value is auto-detected on hydration so legacy marathon
+  // configs keep their old behavior.
+  const [isMarathonMode, setIsMarathonMode] = useState(false);
 
   const detailQuery = useGetPlannerConfig(selectedId ?? 0, {
     query: {
@@ -323,6 +334,20 @@ export default function Planner() {
     const cfgEntries = (cfg as { entries?: TemplateEntry[] | null }).entries;
     setEntries(
       Array.isArray(cfgEntries) && cfgEntries.length > 0 ? cfgEntries : null,
+    );
+    // Auto-detect marathon mode for legacy blocks-mode configs. Any
+    // Custom block whose customNotes opens with the lift-primary
+    // sentinel marks the config as a non-marathon (Tonal-first) plan;
+    // otherwise default to marathon-mode so pre-existing race configs
+    // keep auto-pinning the 16-week tail.
+    const hasLiftPrimary = (cfg.blocks as PhaseBlock[]).some(
+      (b) =>
+        b.focusType === "Custom" &&
+        typeof b.customNotes === "string" &&
+        /^\[lift-primary:/.test(b.customNotes),
+    );
+    setIsMarathonMode(
+      !(Array.isArray(cfgEntries) && cfgEntries.length > 0) && !hasLiftPrimary,
     );
     setHydratedForId(selectedId);
   }, [selectedId, hydratedForId, detailQuery.data]);
@@ -410,7 +435,10 @@ export default function Planner() {
 
   // ---- Derived timeline math (mirrors the server validator) -----------
   const totalWeeks = totalWeeksBetween(startDate, marathonDate);
-  const expectedUserWeeks = Math.max(0, totalWeeks - MARATHON_TAIL_WEEKS);
+  const expectedUserWeeks = Math.max(
+    0,
+    totalWeeks - (isMarathonMode ? MARATHON_TAIL_WEEKS : 0),
+  );
   const userWeeksSum = draft.reduce((s, b) => s + (b.weeks || 0), 0);
   const entriesWeeksSum = isEntriesMode
     ? entries!.reduce((s, e) => s + (e.weeks || 0), 0)
@@ -489,7 +517,7 @@ export default function Planner() {
         }
       }
     }
-  } else {
+  } else if (isMarathonMode) {
     if (totalWeeks > 0 && totalWeeks < MARATHON_TAIL_WEEKS) {
       issues.push(
         `Marathon date is only ${totalWeeks} weeks out — needs at least ${MARATHON_TAIL_WEEKS} for the auto-pinned Marathon-Specific block.`,
@@ -497,6 +525,21 @@ export default function Planner() {
     } else if (totalWeeks > 0 && userWeeksSum !== expectedUserWeeks) {
       issues.push(
         `Block weeks total ${userWeeksSum}, but need exactly ${expectedUserWeeks} (the trailing ${MARATHON_TAIL_WEEKS}-week Marathon-Specific block is auto-pinned).`,
+      );
+    }
+    for (let i = 0; i < draft.length; i++) {
+      const b = draft[i]!;
+      if (!b.weeks || b.weeks < 1) {
+        issues.push(`Block ${i + 1} (${b.focusType}) needs at least 1 week.`);
+      }
+      if (b.focusType === "Custom" && !b.customName.trim()) {
+        issues.push(`Block ${i + 1} (Custom) needs a name.`);
+      }
+    }
+  } else {
+    if (totalWeeks > 0 && userWeeksSum !== totalWeeks) {
+      issues.push(
+        `Block weeks total ${userWeeksSum}, but need exactly ${totalWeeks} (no auto-pinned tail when "Training for a marathon?" is off).`,
       );
     }
     for (let i = 0; i < draft.length; i++) {
@@ -1005,12 +1048,12 @@ export default function Planner() {
       // In entries-mode each template owns its own taper, so we MUST NOT
       // append the auto-pinned 16w Marathon-Specific tail to the preview.
       return previewWeeklyMileage(draftToBlocks(draft), {
-        appendMarathonTail: !isEntriesMode,
+        appendMarathonTail: !isEntriesMode && isMarathonMode,
       });
     } catch {
       return [];
     }
-  }, [draft, isEntriesMode]);
+  }, [draft, isEntriesMode, isMarathonMode]);
 
   // Per-block slices keyed by blockIndex (user blocks are 0..draft.length-1,
   // the auto-pinned tail is draft.length).
@@ -1208,7 +1251,7 @@ export default function Planner() {
     // Legacy mode pins the trailing 16-week Marathon-Specific block;
     // entries-mode lets each template own its own taper, so the timeline
     // ends at the last user block.
-    if (!isEntriesMode) {
+    if (!isEntriesMode && isMarathonMode) {
       list.push({
         label: "Marathon-Specific",
         focusType: "Marathon-Specific",
@@ -1286,9 +1329,10 @@ export default function Planner() {
           Phase Planner
         </h1>
         <p className="text-muted-foreground mt-1">
-          Build your campaign: pick the marathon date, the training start, and
-          the ordered phase blocks. The trailing 16-week Marathon-Specific
-          block is auto-pinned so race day always lands on the date you set.
+          Build your program: pick the program end date, the training start,
+          and the ordered phase blocks. Toggle &quot;Training for a marathon?&quot;
+          on the Config card to auto-pin the trailing 16-week Marathon-Specific
+          block, or leave it off for ongoing strength / conditioning programs.
         </p>
       </header>
 
@@ -1410,7 +1454,7 @@ export default function Planner() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="planner-marathon-date">
-              Marathon date (must be a Sunday)
+              Program end date (must be a Sunday)
             </Label>
             <Input
               id="planner-marathon-date"
@@ -1426,6 +1470,26 @@ export default function Planner() {
               </p>
             )}
           </div>
+          {!isEntriesMode && (
+            <div className="md:col-span-3 flex items-center gap-2 pt-2 border-t">
+              <input
+                type="checkbox"
+                id="planner-marathon-toggle"
+                data-testid="planner-marathon-toggle"
+                checked={isMarathonMode}
+                onChange={(e) => setIsMarathonMode(e.target.checked)}
+                className="h-4 w-4 cursor-pointer"
+              />
+              <Label
+                htmlFor="planner-marathon-toggle"
+                className="text-xs text-muted-foreground cursor-pointer font-normal"
+              >
+                Training for a marathon? (auto-pin a trailing 16-week
+                Marathon-Specific block so race day lands on the program end
+                date)
+              </Label>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -1718,8 +1782,20 @@ export default function Planner() {
                   ok={userWeeksSum === expectedUserWeeks && expectedUserWeeks > 0}
                   data-testid="planner-block-weeks-stat"
                 />
-                <Stat label="Auto-pinned" value={`${MARATHON_TAIL_WEEKS} weeks`} />
-                <Stat label="Blocks" value={`${draft.length} + 1 pinned`} />
+                {isMarathonMode ? (
+                  <>
+                    <Stat
+                      label="Auto-pinned"
+                      value={`${MARATHON_TAIL_WEEKS} weeks`}
+                    />
+                    <Stat
+                      label="Blocks"
+                      value={`${draft.length} + 1 pinned`}
+                    />
+                  </>
+                ) : (
+                  <Stat label="Blocks" value={`${draft.length}`} />
+                )}
               </>
             )}
           </div>
@@ -2282,28 +2358,32 @@ export default function Planner() {
             ))}
             {draft.length === 0 && (
               <li className="text-sm text-muted-foreground py-4 text-center">
-                No user blocks yet. Add one to get started — the
-                Marathon-Specific tail is already pinned.
+                No user blocks yet. Add one to get started
+                {isMarathonMode
+                  ? " — the Marathon-Specific tail is already pinned."
+                  : "."}
               </li>
             )}
-            <li className="border rounded-lg p-3 bg-muted/40 border-dashed">
-              <div className="flex items-center gap-2">
-                <Lock className="h-4 w-4 text-muted-foreground" />
-                <span className="text-xs font-mono text-muted-foreground w-6">
-                  #{draft.length + 1}
-                </span>
-                <Badge variant="secondary">Marathon-Specific</Badge>
-                <span className="text-sm">{MARATHON_TAIL_WEEKS} weeks</span>
-                <span className="ml-auto text-xs uppercase tracking-wider text-muted-foreground">
-                  Auto-pinned
-                </span>
-              </div>
-              <BlockSparkline
-                weeks={mileageByBlock.get(draft.length) ?? []}
-                peakTotalMi={peakTotalMi}
-                testId="planner-block-tail-sparkline"
-              />
-            </li>
+            {isMarathonMode && (
+              <li className="border rounded-lg p-3 bg-muted/40 border-dashed">
+                <div className="flex items-center gap-2">
+                  <Lock className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-xs font-mono text-muted-foreground w-6">
+                    #{draft.length + 1}
+                  </span>
+                  <Badge variant="secondary">Marathon-Specific</Badge>
+                  <span className="text-sm">{MARATHON_TAIL_WEEKS} weeks</span>
+                  <span className="ml-auto text-xs uppercase tracking-wider text-muted-foreground">
+                    Auto-pinned
+                  </span>
+                </div>
+                <BlockSparkline
+                  weeks={mileageByBlock.get(draft.length) ?? []}
+                  peakTotalMi={peakTotalMi}
+                  testId="planner-block-tail-sparkline"
+                />
+              </li>
+            )}
           </ol>
         </CardContent>
       </Card>
@@ -2585,8 +2665,9 @@ export default function Planner() {
           <AlertDialogHeader>
             <AlertDialogTitle>New Planner config</AlertDialogTitle>
             <AlertDialogDescription>
-              Starts from the canonical 52-week template. You can edit dates
-              and blocks after creating it.
+              Starts from the default 8-week Tonal upper-body block. You can
+              rename it, edit the dates, swap in a template, or toggle marathon
+              mode after creating it.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <Input

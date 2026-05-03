@@ -9,7 +9,7 @@ import {
 } from "@workspace/plan-generator";
 
 describe("PLAN_TEMPLATES", () => {
-  it("registers all 12 research-backed templates", () => {
+  it("registers all 16 research-backed templates", () => {
     const ids = PLAN_TEMPLATES.map((t) => t.id).sort();
     expect(ids).toEqual(
       [
@@ -22,8 +22,12 @@ describe("PLAN_TEMPLATES", () => {
         "hybrid_strength",
         "maintenance",
         "marathon",
+        "push_pull_legs",
         "recovery",
         "speed_block",
+        "tonal_conditioning",
+        "tonal_strength_lower",
+        "tonal_strength_upper",
         "ultramarathon_50k",
       ].sort(),
     );
@@ -68,6 +72,10 @@ describe("PLAN_TEMPLATES", () => {
       cardio_weight_loss: [6, 10, 16],
       recovery: [2, 4, 6],
       maintenance: [4, 6, 12],
+      tonal_strength_upper: [4, 8, 16],
+      tonal_strength_lower: [4, 8, 16],
+      push_pull_legs: [4, 8, 16],
+      tonal_conditioning: [4, 8, 16],
     };
     for (const t of PLAN_TEMPLATES) {
       const want = expected[t.id];

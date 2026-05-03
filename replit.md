@@ -2,7 +2,7 @@
 
 ## Overview
 
-Personal 1-year half-marathon training tracker. Goal: 281.6 lbs → 210 lbs by race day **2027-05-02** (Sun). Plan starts **2026-05-04** (Mon, week 1) and runs 52 weeks (5 phases: Foundation Build, Aerobic Build, Tempo / Threshold, Race-Specific, Taper & Race). Each week runs Mon → Sun; first training session is Tue 2026-05-05.
+Personal training tracker reframed as a general workout planner. Originally a 1-year half-marathon campaign (281.6 lbs → 210 lbs by race day **2027-05-02** Sun, plan starts **2026-05-04** Mon, 52 weeks across Foundation Build / Aerobic Build / Tempo-Threshold / Race-Specific / Taper & Race). The planner now also supports Tonal-first / non-running programs: 4 lift-priority templates (`tonal_strength_upper`, `tonal_strength_lower`, `push_pull_legs`, `tonal_conditioning`), an 8-week Tonal upper-body default for new configs, and a "Training for a marathon?" toggle on the Config card that gates the legacy 16-week MARATHON_TAIL auto-pin. Race-only UI surfaces (Race Campaign header, Race Day countdown, "13.1 mi") fall back to a generic "Workout Plan" framing when the active plan has no Marathon-Specific phase. Each week runs Mon → Sun.
 
 UI is an orange-on-dark "mission control" theme. No emojis anywhere.
 

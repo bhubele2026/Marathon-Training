@@ -505,7 +505,152 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
     },
     expand: (n) => [makeBlock("Base", n)],
   },
+  // ---------------------------------------------------------------------
+  // Tonal-first / non-running templates. Each expands into a single
+  // Custom block whose customNotes carries the `[lift-primary:<kind>]`
+  // sentinel that the generator's daily-recipes pipeline detects to
+  // emit a lift-only week (Mon/Wed/Fri/Sat heavy Tonal lift; Tue/Thu/Sun
+  // rest — no runs, no cardio sessions). These are the default starting
+  // point for runners who use the Command Center as a general workout
+  // planner instead of a marathon trainer.
+  // ---------------------------------------------------------------------
+  {
+    id: "tonal_strength_upper",
+    name: "Tonal Strength · Upper-Body Focus",
+    goalDistance: "Upper-body strength",
+    source: "Tonal coaching library",
+    citation:
+      "Tonal Strength Score — upper-body progression block (push/pull/core).",
+    shortDescription:
+      "Four heavy upper-body Tonal sessions per week with three full rest days.",
+    longDescription:
+      "Lift-primary Tonal block emphasizing upper-body push/pull (bench, row, overhead press, pull-up patterns) plus core. Mon/Wed/Fri/Sat are heavy Tonal sessions; Tue/Thu/Sun are full rest days for systemic recovery. No running or cardio sessions are scheduled — pair with another template for cardio if needed.",
+    minWeeks: 4,
+    maxWeeks: 16,
+    defaultWeeks: 8,
+    metadata: {
+      intensityDistribution: "Strength-priority — 4 heavy lift days / week",
+      peakLongRun: "N/A — lift-only template",
+      peakWeeklyVolume: "4 heavy Tonal sessions / week",
+      taperLength: "None — ongoing strength block",
+      cutbackCadence: "Every 4th week deload Tonal load ~25%",
+      mandatoryRestDays: 3,
+      equipmentMixHint: "Tonal only (no cardio machines)",
+    },
+    expand: (n) => [
+      makeBlock("Custom", n, {
+        customName: "Tonal Upper Block",
+        customNotes:
+          "[lift-primary:upper] Upper-body push/pull emphasis — no runs scheduled",
+      }),
+    ],
+  },
+  {
+    id: "tonal_strength_lower",
+    name: "Tonal Strength · Lower-Body Focus",
+    goalDistance: "Lower-body strength",
+    source: "Tonal coaching library",
+    citation:
+      "Tonal Strength Score — lower-body progression block (squat/hinge/lunge).",
+    shortDescription:
+      "Four heavy lower-body Tonal sessions per week with three full rest days.",
+    longDescription:
+      "Lift-primary Tonal block emphasizing lower-body squat/hinge/lunge patterns plus posterior-chain accessory work. Mon/Wed/Fri/Sat are heavy Tonal sessions; Tue/Thu/Sun are full rest days. No running or cardio sessions are scheduled.",
+    minWeeks: 4,
+    maxWeeks: 16,
+    defaultWeeks: 8,
+    metadata: {
+      intensityDistribution: "Strength-priority — 4 heavy lift days / week",
+      peakLongRun: "N/A — lift-only template",
+      peakWeeklyVolume: "4 heavy Tonal sessions / week",
+      taperLength: "None — ongoing strength block",
+      cutbackCadence: "Every 4th week deload Tonal load ~25%",
+      mandatoryRestDays: 3,
+      equipmentMixHint: "Tonal only (no cardio machines)",
+    },
+    expand: (n) => [
+      makeBlock("Custom", n, {
+        customName: "Tonal Lower Block",
+        customNotes:
+          "[lift-primary:lower] Lower-body squat/hinge emphasis — no runs scheduled",
+      }),
+    ],
+  },
+  {
+    id: "push_pull_legs",
+    name: "Push / Pull / Legs",
+    goalDistance: "General hypertrophy",
+    source: "Classic bodybuilding split",
+    citation:
+      "Schoenfeld et al., 'Strength and Hypertrophy Adaptations Between Low- vs. High-Load Resistance Training' — PPL split.",
+    shortDescription:
+      "Rotating push, pull, and legs days four times per week with rest in between.",
+    longDescription:
+      "Classic push/pull/legs hypertrophy split run on Tonal. Mon/Wed/Fri/Sat alternate through Push (chest/shoulders/triceps), Pull (back/biceps), and Legs (quads/hamstrings/glutes), then start the rotation again. Tue/Thu/Sun are full rest days. No running or cardio sessions are scheduled.",
+    minWeeks: 4,
+    maxWeeks: 16,
+    defaultWeeks: 8,
+    metadata: {
+      intensityDistribution: "Hypertrophy-priority — rotating PPL split",
+      peakLongRun: "N/A — lift-only template",
+      peakWeeklyVolume: "4 lift sessions / week (PPL rotation)",
+      taperLength: "None — ongoing hypertrophy block",
+      cutbackCadence: "Every 4th week deload all lifts ~25%",
+      mandatoryRestDays: 3,
+      equipmentMixHint: "Tonal only (no cardio machines)",
+    },
+    expand: (n) => [
+      makeBlock("Custom", n, {
+        customName: "Push / Pull / Legs",
+        customNotes:
+          "[lift-primary:ppl] Rotating push/pull/legs split — no runs scheduled",
+      }),
+    ],
+  },
+  {
+    id: "tonal_conditioning",
+    name: "Tonal Strength + Conditioning",
+    goalDistance: "Strength + work capacity",
+    source: "Tonal coaching library",
+    citation:
+      "Tonal Strength Score — full-body strength + conditioning circuit block.",
+    shortDescription:
+      "Heavy full-body Tonal lifts paired with metabolic conditioning finishers.",
+    longDescription:
+      "Lift-primary block: heavy full-body Tonal compound lifts (squat, bench, row, press, deadlift) with short metabolic conditioning finishers on the same Tonal session — no separate cardio machine work. Mon/Wed/Fri/Sat are sessions; Tue/Thu/Sun are full rest days.",
+    minWeeks: 4,
+    maxWeeks: 16,
+    defaultWeeks: 8,
+    metadata: {
+      intensityDistribution: "Strength + conditioning — 4 sessions / week",
+      peakLongRun: "N/A — lift-only template",
+      peakWeeklyVolume: "4 Tonal strength + finisher sessions / week",
+      taperLength: "None — ongoing strength block",
+      cutbackCadence: "Every 4th week deload load + finisher volume ~25%",
+      mandatoryRestDays: 3,
+      equipmentMixHint: "Tonal only (finishers performed on Tonal)",
+    },
+    expand: (n) => [
+      makeBlock("Custom", n, {
+        customName: "Tonal Conditioning Block",
+        customNotes:
+          "[lift-primary:conditioning] Full-body lift + finisher — no runs scheduled",
+      }),
+    ],
+  },
 ];
+
+// Returns the lift-primary "kind" parsed out of a Custom block's
+// customNotes sentinel (e.g. `[lift-primary:upper] ...` → `"upper"`),
+// or null when the block is not a lift-primary block. Used by the
+// daily-recipes pipeline (`buildWeekDays`) and the mileage preview to
+// emit a lift-only week (Mon/Wed/Fri/Sat lift; Tue/Thu/Sun rest; no
+// runs, no cardio sessions).
+export function liftPrimaryKind(notes: string | null | undefined): string | null {
+  if (!notes) return null;
+  const m = /^\[lift-primary:([^\]]+)\]/.exec(notes.trim());
+  return m ? (m[1] ?? "").trim() || null : null;
+}
 
 export function getTemplateById(id: string): PlanTemplate | null {
   return PLAN_TEMPLATES.find((t) => t.id === id) ?? null;

@@ -174,13 +174,24 @@ export default function Plan() {
     return acc;
   }, {} as Record<string, typeof weeks>);
 
+  // Heuristic: a "race" plan is one whose phase ladder includes the
+  // auto-pinned Marathon-Specific tail. Tonal-first / non-race plans
+  // (lift_primary blocks, ad-hoc Custom blocks, etc.) never produce that
+  // phase, so headers and copy fall back to a generic "workout plan"
+  // framing instead of presupposing a race.
+  const hasRace = weeks.some((w) => w.phase === "Marathon-Specific");
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-black uppercase tracking-tight text-primary">52-Week Half Marathon Campaign</h2>
+          <h2 className="text-3xl font-black uppercase tracking-tight text-primary">
+            {hasRace ? "Race Campaign" : "Workout Plan"}
+          </h2>
           <p className="text-muted-foreground uppercase font-medium tracking-widest mt-1">
-            {overview.weeksRemaining} Weeks to Race Day · 13.1 mi · {formatDate(overview.raceDate)}
+            {hasRace
+              ? `${overview.weeksRemaining} Weeks to Race Day · ${formatDate(overview.raceDate)}`
+              : `${overview.weeksRemaining} Weeks Remaining · Ends ${formatDate(overview.raceDate)}`}
           </p>
         </div>
         <Button
@@ -333,8 +344,8 @@ export default function Plan() {
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Wipes every logged workout, every body measurement, the
                 race-week checklist, every plan customization, then reseeds
-                the canonical 52-week plan and the seeded baseline weight
-                from scratch. This cannot be undone.
+                the canonical plan and the seeded baseline weight from
+                scratch. This cannot be undone.
               </p>
             </div>
             <Button
@@ -353,7 +364,7 @@ export default function Plan() {
       <AlertDialog open={resetPlanOpen} onOpenChange={closeResetPlanDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Reset the entire 52-week plan?</AlertDialogTitle>
+            <AlertDialogTitle>Reset the entire plan?</AlertDialogTitle>
             <AlertDialogDescription>
               This wipes every edit and swap you've ever made across all weeks
               and restores the original campaign prescription. Logged workouts

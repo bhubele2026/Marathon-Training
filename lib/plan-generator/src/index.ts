@@ -8,6 +8,7 @@
 import {
   expandEntriesToBlocksWithGaps,
   getTemplateById,
+  liftPrimaryKind,
   type TemplateEntry,
 } from "./templates.js";
 
@@ -1149,6 +1150,144 @@ function fridayContent(
   }
 }
 
+// Build a lift-primary (Tonal-only) week: Mon/Wed/Fri/Sat are heavy
+// Tonal lift sessions; Tue/Thu/Sun are full rest days. Used by the
+// non-running templates (tonal_strength_upper / lower, push_pull_legs,
+// tonal_conditioning) which the daily-recipes pipeline routes here via
+// the `[lift-primary:<kind>]` customNotes sentinel.
+function buildLiftPrimaryWeekDays(opts: {
+  weekNumber: number;
+  weekInBlock: number;
+  liftKind: string;
+  phase: string;
+  isCutback: boolean;
+  heavyStrengthLoad: number;
+  heavyTonalMin: number;
+  accessoryTonalMin: number;
+  wkStart: Date;
+  customSuffix: string;
+}): DailyRow[] {
+  const {
+    weekNumber,
+    weekInBlock,
+    liftKind,
+    phase,
+    isCutback,
+    heavyStrengthLoad,
+    heavyTonalMin,
+    accessoryTonalMin,
+    wkStart,
+    customSuffix,
+  } = opts;
+
+  // Per-kind labels for the four lift days (Mon, Wed, Fri, Sat). Each
+  // kind has a 4-day rotation; conditioning days append a finisher
+  // descriptor in place of separate cardio.
+  const rotations: Record<string, [string, string, string, string]> = {
+    upper: [
+      "Heavy push (bench, overhead press, triceps)",
+      "Heavy pull (row, pull-ups, biceps, rear-delt)",
+      "Push accessory (incline press, lateral raise, dips)",
+      "Pull accessory (chin-ups, face-pulls, curls) + core",
+    ],
+    lower: [
+      "Heavy squat (back squat, split squat, quad accessory)",
+      "Heavy hinge (deadlift, RDL, hamstring accessory)",
+      "Lunge / unilateral (Bulgarian split squat, step-up)",
+      "Posterior chain (good morning, hip thrust, calf) + core",
+    ],
+    ppl: [
+      "Push day (bench, overhead press, triceps, lateral raise)",
+      "Pull day (row, pull-ups, biceps, rear-delt)",
+      "Legs day (squat, RDL, lunge, calf)",
+      "Push day v2 (incline press, dips, push accessory) + core",
+    ],
+    conditioning: [
+      "Heavy full-body (squat + bench) + 8-min Tonal finisher",
+      "Heavy full-body (deadlift + row) + 8-min Tonal finisher",
+      "Heavy full-body (front squat + overhead press) + 10-min finisher",
+      "Heavy full-body (RDL + pull-up) + 10-min EMOM finisher + core",
+    ],
+  };
+  const labels =
+    rotations[liftKind] ??
+    ([
+      "Heavy full-body Tonal session",
+      "Heavy full-body Tonal session",
+      "Heavy full-body Tonal session",
+      "Heavy full-body Tonal session",
+    ] as [string, string, string, string]);
+
+  const accessoryLoad = isCutback ? Math.round(heavyStrengthLoad * 0.55) : Math.round(heavyStrengthLoad * 0.7);
+  const accessoryMin = Math.max(20, accessoryTonalMin + 5);
+
+  function rest(dayOffset: number, day: string, copy: string): DailyRow {
+    return {
+      week: weekNumber,
+      phase,
+      date: fmt(addDays(wkStart, dayOffset)),
+      day,
+      strength_load: 0,
+      equipment: "Off / Rest",
+      equipment_list: ["Off / Rest"],
+      description: copy + customSuffix,
+      strength_min: 0,
+      cardio_min: 0,
+      run_min: 0,
+      distance_mi: null,
+      pace: null,
+      session_type: "Rest",
+      is_rest: true,
+      total_load: 0,
+    };
+  }
+  function lift(
+    dayOffset: number,
+    day: string,
+    label: string,
+    isAccessory: boolean,
+  ): DailyRow {
+    const load = isAccessory ? accessoryLoad : heavyStrengthLoad;
+    const min = isAccessory ? accessoryMin : heavyTonalMin;
+    const intensity = isCutback
+      ? "deload week — keep effort to ~70%"
+      : isAccessory
+        ? "moderate effort, focus on quality reps"
+        : "80-85% effort, leave 1-2 reps in reserve";
+    return {
+      week: weekNumber,
+      phase,
+      date: fmt(addDays(wkStart, dayOffset)),
+      day,
+      strength_load: load,
+      equipment: "Tonal",
+      equipment_list: ["Tonal"],
+      description: `${label} on Tonal (${min} min, ${intensity})` + customSuffix,
+      strength_min: min,
+      cardio_min: 0,
+      run_min: 0,
+      distance_mi: null,
+      pace: null,
+      session_type: "Strength",
+      is_rest: false,
+      total_load: load,
+    };
+  }
+
+  // Light cutback wave on every 4th week-in-block: trims the Saturday
+  // accessory session so the runner gets a true deload day after three
+  // full lift weeks.
+  return [
+    lift(0, "Mon", labels[0], false),
+    rest(1, "Tue", `Rest day. Mobility, foam roll, hydrate. Lift block week ${weekInBlock}.`),
+    lift(2, "Wed", labels[1], false),
+    rest(3, "Thu", `Rest day. Optional 20-30 min easy walk, mobility, hydrate.`),
+    lift(4, "Fri", labels[2], false),
+    lift(5, "Sat", labels[3], true),
+    rest(6, "Sun", `Rest day. Full recovery — sleep, hydrate, gentle mobility flow.`),
+  ];
+}
+
 // Build the seven days of one week.
 function buildWeekDays(opts: {
   weekNumber: number;
@@ -1193,6 +1332,30 @@ function buildWeekDays(opts: {
         ? ` [${customName}: ${customNotes}]`
         : ` [${customName}]`
       : "";
+
+  // ---------- LIFT-PRIMARY (Tonal-only / non-running) ----------
+  // Custom blocks whose customNotes carry the `[lift-primary:<kind>]`
+  // sentinel render a Tonal-only week — Mon/Wed/Fri/Sat are heavy Tonal
+  // sessions, Tue/Thu/Sun are full rest days. No runs, no Bike/Row/Tread
+  // cardio sessions: pair with another template if cardio is needed.
+  // The `<kind>` suffix (upper / lower / ppl / conditioning) tunes only
+  // the per-day lift description; load/min math is shared.
+  const liftKind =
+    block.focusType === "Custom" ? liftPrimaryKind(block.customNotes) : null;
+  if (liftKind) {
+    return buildLiftPrimaryWeekDays({
+      weekNumber,
+      weekInBlock,
+      liftKind,
+      phase,
+      isCutback,
+      heavyStrengthLoad,
+      heavyTonalMin,
+      accessoryTonalMin,
+      wkStart,
+      customSuffix,
+    });
+  }
 
   // ---------- MON ----------
   // Recovery blocks turn Mon into a rest day with a longer optional walk;
@@ -1498,22 +1661,31 @@ export function previewWeeklyMileage(
     const w = b.weeks || 0;
     if (w < 1) return;
     const recipe = RECIPES[b.focusType];
+    // Lift-primary blocks render as Tonal-only weeks in the daily
+    // pipeline (no runs / no cardio sessions), so the mileage preview
+    // must zero-out every bucket to match `planned_miles`.
+    const isLiftPrimary =
+      b.focusType === "Custom" && liftPrimaryKind(b.customNotes) !== null;
     for (let weekInBlock = 1; weekInBlock <= w; weekInBlock++) {
       week += 1;
       const isRaceWeek = week === totalWeeks && appendTail;
       const isCutback = recipe.useCutbacks
         ? w >= 4 && weekInBlock % 4 === 0 && weekInBlock !== w
         : false;
-      const easyMi = recipe.easyRunMi(weekInBlock, w, isCutback);
+      const easyMi = isLiftPrimary ? 0 : recipe.easyRunMi(weekInBlock, w, isCutback);
       // Recovery blocks turn Friday into a rest day in `buildWeekDays`, so
       // the actual generated weekly mileage is easy + long only. Mirror
       // that here so the preview matches `planned_miles` exactly.
-      const qualityMi = recipe.isRecovery
+      const qualityMi = isLiftPrimary
         ? 0
-        : recipe.qualityRunMi(weekInBlock, w, isCutback);
-      const longMi = isRaceWeek
-        ? MARATHON_DISTANCE_MI
-        : recipe.longRunMi(weekInBlock, w, isCutback);
+        : recipe.isRecovery
+          ? 0
+          : recipe.qualityRunMi(weekInBlock, w, isCutback);
+      const longMi = isLiftPrimary
+        ? 0
+        : isRaceWeek
+          ? MARATHON_DISTANCE_MI
+          : recipe.longRunMi(weekInBlock, w, isCutback);
       const totalMi = r1(easyMi + qualityMi + longMi);
       out.push({
         week,
