@@ -49,6 +49,15 @@ export interface PlanTemplate {
   maxWeeks: number;
   defaultWeeks: number;
   metadata: PlanTemplateMetadata;
+  // Lightweight, runner-facing topic tags surfaced as searchable chips
+  // on the template card and matched by the planner's free-text filter.
+  // Use short, lowercase, hyphen-or-space tokens (e.g. "polarized",
+  // "hill focus", "low-mileage", "first-timer") so the runner can type
+  // any chip text to find similar plans. Plumbed through the same
+  // SEARCHABLE_FIELDS helper as name/source/equipment so adding new
+  // tags lights them up in both the Plan Template Library card and the
+  // entries-mode quick-add combobox in lock-step.
+  tags: string[];
   // Deterministic expansion. Returns blocks summing to exactly the
   // `weeks` argument. Templates that include a taper place it as the
   // LAST block so the entry naturally ends on race week. Templates
@@ -180,6 +189,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 4,
       equipmentMixHint: "Run-only; optional walking on rest days",
     },
+    tags: ["5k", "beginner", "first-timer", "run-walk", "low-mileage"],
     expand: (n) =>
       distribute(n, [
         { focus: "Recovery", weight: 1, min: 1 },
@@ -209,6 +219,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run-only with optional easy spin / cross-train",
     },
+    tags: ["5k", "intermediate", "speed", "vo2max", "pyramidal", "sharpening"],
     expand: (n) =>
       distribute(n, [
         { focus: "Base", weight: 2, min: 2 },
@@ -239,6 +250,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run-only with optional cross-train on rest day",
     },
+    tags: ["10k", "intermediate", "polarized", "tempo", "tune-up"],
     expand: (n) =>
       distribute(n, [
         { focus: "Base", weight: 4, min: 4 },
@@ -269,6 +281,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run-only with optional cross-train on rest day",
     },
+    tags: ["half-marathon", "intermediate", "polarized", "tempo"],
     expand: (n) =>
       distribute(n, [
         { focus: "Base", weight: 4, min: 4 },
@@ -299,6 +312,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run-only; cross-train discouraged late-cycle",
     },
+    tags: ["marathon", "pfitzinger", "advanced", "pyramidal", "threshold", "race-pace"],
     expand: (n) =>
       distribute(n, [
         { focus: "Base", weight: 3, min: 4 },
@@ -330,6 +344,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run + hike + strength accessory work",
     },
+    tags: ["ultra", "50k", "polarized", "back-to-back", "first-timer", "trail"],
     expand: (n) =>
       distribute(n, [
         { focus: "Base", weight: 3, min: 3 },
@@ -360,6 +375,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run + optional easy bike / strength on rest days",
     },
+    tags: ["base", "lydiard", "easy", "aerobic", "polarized", "lead-in"],
     expand: (n) => [makeBlock("Base", n)],
   },
   {
@@ -385,6 +401,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run-only; minimize cross-train late",
     },
+    tags: ["speed", "vo2max", "threshold", "sharpening", "intermediate", "pyramidal"],
     expand: (n) =>
       distribute(n, [
         { focus: "Speed", weight: 5, min: 3 },
@@ -414,6 +431,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Strength (barbell) + base running",
     },
+    tags: ["hybrid", "strength-priority", "tactical-barbell", "low-mileage", "concurrent"],
     expand: (n) =>
       distribute(n, [
         {
@@ -449,6 +467,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run + bike + rower mix; light strength",
     },
+    tags: ["weight-loss", "recomposition", "MAF", "low-intensity", "cross-train"],
     expand: (n) =>
       distribute(n, [
         { focus: "Cardio + Weight Loss", weight: 6, min: 3 },
@@ -478,6 +497,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 2,
       equipmentMixHint: "Run + walking; mobility/stretching emphasis",
     },
+    tags: ["recovery", "deload", "low-mileage", "transition", "off-season"],
     expand: (n) => [makeBlock("Recovery", n)],
   },
   {
@@ -503,6 +523,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run + light cross-train on rest day",
     },
+    tags: ["maintenance", "off-season", "easy", "low-mileage", "hold-fitness"],
     expand: (n) => [makeBlock("Base", n)],
   },
   // ---------------------------------------------------------------------
@@ -537,6 +558,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 3,
       equipmentMixHint: "Tonal only (no cardio machines)",
     },
+    tags: ["strength", "lift-only", "upper-body", "tonal", "hypertrophy"],
     expand: (n) => [
       makeBlock("Custom", n, {
         customName: "Tonal Upper Block",
@@ -568,6 +590,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 3,
       equipmentMixHint: "Tonal only (no cardio machines)",
     },
+    tags: ["strength", "lift-only", "lower-body", "tonal", "hypertrophy"],
     expand: (n) => [
       makeBlock("Custom", n, {
         customName: "Tonal Lower Block",
@@ -599,6 +622,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 3,
       equipmentMixHint: "Tonal only (no cardio machines)",
     },
+    tags: ["strength", "lift-only", "ppl", "hypertrophy", "tonal", "split"],
     expand: (n) => [
       makeBlock("Custom", n, {
         customName: "Push / Pull / Legs",
@@ -630,6 +654,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 3,
       equipmentMixHint: "Tonal only (finishers performed on Tonal)",
     },
+    tags: ["strength", "lift-only", "conditioning", "tonal", "full-body", "metcon"],
     expand: (n) => [
       makeBlock("Custom", n, {
         customName: "Tonal Conditioning Block",
@@ -669,6 +694,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 4,
       equipmentMixHint: "Run-only; optional walking on rest days",
     },
+    tags: ["5k", "beginner", "first-timer", "run-walk", "low-mileage", "active-beginner"],
     expand: (n) =>
       distribute(n, [
         { focus: "Recovery", weight: 1, min: 1 },
@@ -699,6 +725,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 2,
       equipmentMixHint: "Run-only",
     },
+    tags: ["5k", "novice", "beginner", "easy", "low-mileage", "higdon"],
     expand: (n) =>
       distribute(n, [
         { focus: "Base", weight: 5, min: 5 },
@@ -728,6 +755,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run + 1 strength / cross-train day",
     },
+    tags: ["5k", "intermediate", "tempo", "strides", "higdon"],
     expand: (n) =>
       distribute(n, [
         { focus: "Base", weight: 2, min: 2 },
@@ -758,6 +786,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run-only; minimize cross-train late",
     },
+    tags: ["5k", "advanced", "pyramidal", "vo2max", "threshold", "higdon"],
     expand: (n) =>
       distribute(n, [
         { focus: "Base", weight: 2, min: 2 },
@@ -788,6 +817,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run-only",
     },
+    tags: ["10k", "advanced", "pyramidal", "threshold", "high-mileage", "higdon"],
     expand: (n) =>
       distribute(n, [
         { focus: "Base", weight: 3, min: 4 },
@@ -818,6 +848,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run + cross-train day",
     },
+    tags: ["half-marathon", "novice", "polarized", "low-mileage", "higdon"],
     expand: (n) =>
       distribute(n, [
         { focus: "Base", weight: 5, min: 6 },
@@ -848,6 +879,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run-only",
     },
+    tags: ["half-marathon", "advanced", "pfitzinger", "pyramidal", "threshold", "race-pace"],
     expand: (n) =>
       distribute(n, [
         { focus: "Base", weight: 3, min: 4 },
@@ -878,6 +910,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run-only",
     },
+    tags: ["half-marathon", "advanced", "hansons", "cumulative-fatigue", "threshold"],
     expand: (n) =>
       distribute(n, [
         { focus: "Base", weight: 3, min: 4 },
@@ -908,6 +941,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run-only",
     },
+    tags: ["marathon", "pfitzinger", "intermediate", "threshold", "race-pace", "compressed"],
     expand: (n) =>
       distribute(n, [
         { focus: "Base", weight: 1, min: 2 },
@@ -939,6 +973,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run-only; cross-train discouraged late",
     },
+    tags: ["marathon", "pfitzinger", "advanced", "high-mileage", "race-pace", "threshold", "PR"],
     expand: (n) =>
       distribute(n, [
         { focus: "Base", weight: 3, min: 4 },
@@ -970,6 +1005,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run-only",
     },
+    tags: ["marathon", "advanced", "hansons", "cumulative-fatigue", "threshold", "race-pace"],
     expand: (n) =>
       distribute(n, [
         { focus: "Base", weight: 3, min: 4 },
@@ -1001,6 +1037,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run + optional easy cross-train",
     },
+    tags: ["marathon", "intermediate", "polarized", "80/20", "low-injury-risk", "fast-finish"],
     expand: (n) =>
       distribute(n, [
         { focus: "Base", weight: 4, min: 5 },
@@ -1032,6 +1069,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 2,
       equipmentMixHint: "Run + cross-train day",
     },
+    tags: ["marathon", "novice", "first-timer", "easy", "low-mileage", "higdon"],
     expand: (n) =>
       distribute(n, [
         { focus: "Base", weight: 3, min: 4 },
@@ -1062,6 +1100,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run-only",
     },
+    tags: ["marathon", "advanced", "pyramidal", "tempo", "high-mileage", "hill focus", "higdon", "PR"],
     expand: (n) =>
       distribute(n, [
         { focus: "Base", weight: 2, min: 3 },
@@ -1093,6 +1132,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run + hike + strength accessory",
     },
+    tags: ["ultra", "50-mile", "polarized", "back-to-back", "trail", "koop"],
     expand: (n) =>
       distribute(n, [
         { focus: "Base", weight: 3, min: 4 },
@@ -1123,6 +1163,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run + hike + strength + bike on rest days",
     },
+    tags: ["ultra", "100k", "polarized", "back-to-back", "trail", "koop", "high-mileage"],
     expand: (n) =>
       distribute(n, [
         { focus: "Base", weight: 3, min: 4 },
@@ -1153,6 +1194,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run-only with light strength",
     },
+    tags: ["norwegian", "sub-threshold", "threshold", "advanced", "lactate", "doubles"],
     expand: (n) =>
       distribute(n, [
         { focus: "Base", weight: 2, min: 3 },
@@ -1184,6 +1226,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 4,
       equipmentMixHint: "Peloton Bike only",
     },
+    tags: ["bike", "peloton", "beginner", "first-timer", "low-mileage", "onramp"],
     expand: (n) => [
       makeBlock("Base", n, {
         customNotes: "[primary-machine:bike] Peloton Bike onramp",
@@ -1235,6 +1278,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
           customNotes: "[primary-machine:bike] PZ taper / FTP retest",
         },
       ]),
+    tags: ["bike", "peloton", "power-zone", "ftp", "beginner"],
   },
   {
     id: "pelo_bike_pz_intermediate",
@@ -1282,6 +1326,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
           customNotes: "[primary-machine:bike] PZ taper / FTP retest",
         },
       ]),
+    tags: ["bike", "peloton", "power-zone", "ftp", "intermediate"],
   },
   {
     id: "pelo_bike_pz_advanced",
@@ -1329,6 +1374,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
           customNotes: "[primary-machine:bike] PZ taper / FTP retest",
         },
       ]),
+    tags: ["bike", "peloton", "power-zone", "ftp", "advanced", "high-mileage"],
   },
   {
     id: "pelo_bike_strength_for_cyclists",
@@ -1353,6 +1399,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 2,
       equipmentMixHint: "Tonal + Peloton Bike",
     },
+    tags: ["bike", "strength", "cycling-supportive", "tonal", "peloton", "lift-primary"],
     expand: (n) => [
       makeBlock("Custom", n, {
         customName: "Strength for Cyclists",
@@ -1407,6 +1454,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
           customNotes: "[primary-machine:row] DPZ-Row taper / FTP retest",
         },
       ]),
+    tags: ["row", "peloton", "power-zone", "ftp", "beginner", "intermediate"],
   },
   {
     id: "c2_row_30day",
@@ -1431,6 +1479,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 2,
       equipmentMixHint: "Concept2 / Peloton Row",
     },
+    tags: ["row", "concept2", "beginner", "first-timer", "low-mileage", "onramp"],
     expand: (n) => [
       makeBlock("Base", n, {
         customNotes:
@@ -1483,6 +1532,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
           customNotes: "[primary-machine:row] 5K Row taper",
         },
       ]),
+    tags: ["row", "concept2", "5k-row", "intermediate", "threshold", "PR"],
   },
   {
     id: "c2_row_2k",
@@ -1529,6 +1579,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
           customNotes: "[primary-machine:row] 2K Row sharpening taper",
         },
       ]),
+    tags: ["row", "concept2", "2k-row", "advanced", "speed", "sprint", "PR"],
   },
   // ---------- Strength (named programs) ----------
   {
@@ -1554,6 +1605,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 2,
       equipmentMixHint: "Tonal only",
     },
+    tags: ["strength", "lift-only", "full-body", "tonal", "high-frequency"],
     expand: (n) => [
       makeBlock("Custom", n, {
         customName: "Tonal Full Body 5x",
@@ -1585,6 +1637,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 4,
       equipmentMixHint: "Tonal (barbell-equivalent loads)",
     },
+    tags: ["strength", "lift-only", "linear-progression", "novice", "barbell", "5x5"],
     expand: (n) => [
       makeBlock("Custom", n, {
         customName: "Starting Strength",
@@ -1616,6 +1669,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 4,
       equipmentMixHint: "Tonal (barbell-equivalent loads)",
     },
+    tags: ["strength", "lift-only", "linear-progression", "novice", "barbell", "5x5"],
     expand: (n) => [
       makeBlock("Custom", n, {
         customName: "StrongLifts 5x5",
@@ -1647,6 +1701,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 3,
       equipmentMixHint: "Tonal (barbell-equivalent loads)",
     },
+    tags: ["strength", "lift-only", "531", "wendler", "hypertrophy", "intermediate", "barbell"],
     expand: (n) => [
       makeBlock("Custom", n, {
         customName: "5/3/1 Boring But Big",
@@ -1678,6 +1733,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 3,
       equipmentMixHint: "Tonal only",
     },
+    tags: ["strength", "lift-only", "hypertrophy", "upper-lower", "intermediate", "split"],
     expand: (n) => [
       makeBlock("Custom", n, {
         customName: "PHUL",
@@ -1709,6 +1765,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Tonal only",
     },
+    tags: ["strength", "lift-only", "ppl", "hypertrophy", "advanced", "high-frequency", "split"],
     expand: (n) => [
       makeBlock("Custom", n, {
         customName: "PPL 6-Day",
@@ -1740,6 +1797,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Kettlebell (Tonal-substitutable)",
     },
+    tags: ["strength", "lift-only", "kettlebell", "conditioning", "minimalist", "daily"],
     expand: (n) => [
       makeBlock("Custom", n, {
         customName: "Simple & Sinister",
@@ -1772,6 +1830,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Tonal + run (Tread + outdoor)",
     },
+    tags: ["hybrid", "half-marathon", "strength", "concurrent", "nick-bare"],
     expand: (n) =>
       distribute(n, [
         {
@@ -1810,6 +1869,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run + Tonal + Peloton Row + sled/wall ball",
     },
+    tags: ["hyrox", "hybrid", "race-prep", "functional", "mixed-modal", "peloton"],
     expand: (n) =>
       distribute(n, [
         {
@@ -1854,6 +1914,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run + optional easy bike",
     },
+    tags: ["MAF", "base", "low-intensity", "aerobic", "heart-rate", "maffetone"],
     expand: (n) => [makeBlock("Base", n, { customNotes: "MAF 180 HR-capped block" })],
   },
   {
@@ -1879,6 +1940,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 2,
       equipmentMixHint: "Peloton Bike + bodyweight floor",
     },
+    tags: ["bike", "peloton", "bootcamp", "bodyweight", "mixed-modal"],
     expand: (n) => [
       makeBlock("Cardio + Weight Loss", n, {
         customNotes:
@@ -1909,6 +1971,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Mat-only / no equipment",
     },
+    tags: ["yoga", "mobility", "recovery", "low-intensity", "daily"],
     expand: (n) => [
       makeBlock("Recovery", n, {
         customNotes: "YWA 30-day yoga journey — daily 20-30 min flow",
@@ -1939,6 +2002,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run + optional cross-train",
     },
+    tags: ["custom", "run", "scaffold"],
     expand: (n) => [
       makeBlock("Custom", n, {
         customName: "Custom Run",
@@ -1969,6 +2033,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 2,
       equipmentMixHint: "Peloton Bike",
     },
+    tags: ["custom", "bike", "scaffold"],
     expand: (n) => [
       makeBlock("Custom", n, {
         customName: "Custom Bike",
@@ -2000,6 +2065,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 2,
       equipmentMixHint: "Peloton Row / Concept2",
     },
+    tags: ["custom", "row", "scaffold"],
     expand: (n) => [
       makeBlock("Custom", n, {
         customName: "Custom Row",
@@ -2031,6 +2097,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 3,
       equipmentMixHint: "Tonal only",
     },
+    tags: ["custom", "strength", "lift-only", "scaffold"],
     expand: (n) => [
       makeBlock("Custom", n, {
         customName: "Custom Strength",
@@ -2062,6 +2129,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Tonal + run + cardio",
     },
+    tags: ["custom", "hybrid", "concurrent", "scaffold"],
     expand: (n) => [
       makeBlock("Custom", n, {
         customName: "Custom Hybrid",
@@ -2093,6 +2161,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Runner-defined",
     },
+    tags: ["custom", "race-prep", "scaffold", "taper", "countdown"],
     expand: (n) =>
       distribute(n, [
         { focus: "Base", weight: 2, min: 2 },

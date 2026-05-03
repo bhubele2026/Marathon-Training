@@ -631,6 +631,8 @@ export interface PlanTemplate {
   maxWeeks: number;
   defaultWeeks: number;
   metadata: PlanTemplateMetadata;
+  /** Lightweight, runner-facing topic tags surfaced as chips on the template card and matched by the planner's free-text filter (e.g. "polarized", "hill focus", "low-mileage", "first-timer"). */
+  tags: string[];
 }
 
 export type StarterShortcutEntriesItem = {

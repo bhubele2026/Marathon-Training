@@ -1246,6 +1246,11 @@ export const ListPlannerTemplatesResponse = zod.object({
         mandatoryRestDays: zod.number(),
         equipmentMixHint: zod.string(),
       }),
+      tags: zod
+        .array(zod.string())
+        .describe(
+          'Lightweight, runner-facing topic tags surfaced as chips on the template card and matched by the planner\'s free-text filter (e.g. \"polarized\", \"hill focus\", \"low-mileage\", \"first-timer\").',
+        ),
     }),
   ),
   starters: zod.array(

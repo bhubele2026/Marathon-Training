@@ -970,6 +970,7 @@ describe("categorizeTemplate (table-driven)", () => {
           mandatoryRestDays: 1,
           equipmentMixHint: "Run-only",
         },
+        tags: [],
       }),
     ).toBe("Custom");
   });

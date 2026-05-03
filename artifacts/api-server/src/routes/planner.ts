@@ -264,6 +264,7 @@ router.get("/planner/templates", async (_req, res): Promise<void> => {
       maxWeeks: t.maxWeeks,
       defaultWeeks: t.defaultWeeks,
       metadata: t.metadata,
+      tags: t.tags,
     })),
     starters: STARTER_SHORTCUTS,
   });

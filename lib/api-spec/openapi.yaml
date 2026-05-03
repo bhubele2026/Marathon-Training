@@ -1658,6 +1658,7 @@ components:
           maxWeeks,
           defaultWeeks,
           metadata,
+          tags,
         ]
       properties:
         id: { type: string }
@@ -1675,6 +1676,10 @@ components:
         maxWeeks: { type: integer }
         defaultWeeks: { type: integer }
         metadata: { $ref: "#/components/schemas/PlanTemplateMetadata" }
+        tags:
+          type: array
+          description: Lightweight, runner-facing topic tags surfaced as chips on the template card and matched by the planner's free-text filter (e.g. "polarized", "hill focus", "low-mileage", "first-timer").
+          items: { type: string }
 
     StarterShortcut:
       type: object

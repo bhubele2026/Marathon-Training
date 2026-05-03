@@ -1822,6 +1822,23 @@ export default function Planner() {
                     <div className="text-xs text-muted-foreground flex-1">
                       {tpl.shortDescription}
                     </div>
+                    {tpl.tags.length > 0 && (
+                      <div
+                        className="flex flex-wrap gap-1"
+                        data-testid={`planner-template-${tpl.id}-tags`}
+                      >
+                        {tpl.tags.map((tag) => (
+                          <Badge
+                            key={tag}
+                            variant="outline"
+                            className="text-[10px] font-normal px-1.5 py-0"
+                            data-testid={`planner-template-${tpl.id}-tag-${tag}`}
+                          >
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
                     <dl className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
                       <dt className="uppercase tracking-wider">Peak LR</dt>
                       <dd

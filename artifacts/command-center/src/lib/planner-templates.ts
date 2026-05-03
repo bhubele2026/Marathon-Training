@@ -27,7 +27,7 @@ export type TemplateCategory = (typeof TEMPLATE_CATEGORIES)[number];
 // categorize whichever the templatesQuery returns.
 export type CategorizableTemplate = Pick<
   PlanTemplate,
-  "id" | "name" | "source" | "goalDistance" | "metadata"
+  "id" | "name" | "source" | "goalDistance" | "metadata" | "tags"
 >;
 
 export function categorizeTemplate(
@@ -77,6 +77,10 @@ const SEARCHABLE_FIELDS: ReadonlyArray<(t: CategorizableTemplate) => string> = [
   (t) => t.source,
   (t) => t.metadata.equipmentMixHint,
   (t) => t.goalDistance,
+  // Topic tags rendered as chips on the template card. Joined with
+  // spaces so a substring match across multiple tags ("polarized",
+  // "hill focus") works the same as for any other field.
+  (t) => t.tags.join(" "),
 ];
 
 export function filterTemplatesByQuery<T extends CategorizableTemplate>(
