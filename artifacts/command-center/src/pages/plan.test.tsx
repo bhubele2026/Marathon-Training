@@ -88,8 +88,62 @@ describe("Plan page — bike/row cardio summary (task #109)", () => {
     ]);
     const headline = screen.getByTestId("week-volume-cardio-actual-1");
     expect(headline.textContent).toContain("120 / 180 min cardio");
+    // Task #112: in-progress (some actual, below planned) → amber tint.
+    expect(headline.getAttribute("data-adherence")).toBe("in-progress");
+    expect(headline.className).toContain("amber");
     // Mileage headline must not render on a cardio-only week.
     expect(screen.queryByTestId("week-volume-miles-1")).toBeNull();
+  });
+
+  it("colors the cardio headline green when planned cardio minutes are met", () => {
+    renderWith([
+      {
+        week: 1,
+        phase: "Bike Block",
+        startDate: "2026-05-04",
+        endDate: "2026-05-10",
+        plannedStrength: 0,
+        plannedCardio: 180,
+        plannedTotalLoad: 0,
+        plannedMiles: 0,
+        longRunMi: 0,
+        actualMiles: 0,
+        actualCardio: 200,
+        completedSessions: 3,
+        totalSessions: 3,
+        missedSessions: 0,
+        dominantCardioEquipment: "Peloton Bike",
+      },
+    ]);
+    const headline = screen.getByTestId("week-volume-cardio-actual-1");
+    expect(headline.getAttribute("data-adherence")).toBe("met");
+    expect(headline.className).toContain("emerald");
+  });
+
+  it("leaves a future cardio week neutral (0 actual, planned > 0)", () => {
+    renderWith([
+      {
+        week: 1,
+        phase: "Bike Block",
+        startDate: "2026-05-04",
+        endDate: "2026-05-10",
+        plannedStrength: 0,
+        plannedCardio: 180,
+        plannedTotalLoad: 0,
+        plannedMiles: 0,
+        longRunMi: 0,
+        actualMiles: 0,
+        actualCardio: 0,
+        completedSessions: 0,
+        totalSessions: 3,
+        missedSessions: 0,
+        dominantCardioEquipment: "Peloton Bike",
+      },
+    ]);
+    const headline = screen.getByTestId("week-volume-cardio-actual-1");
+    expect(headline.getAttribute("data-adherence")).toBe("neutral");
+    expect(headline.className).not.toContain("emerald");
+    expect(headline.className).not.toContain("amber");
   });
 
   it("keeps the mileage headline on run-based weeks (no cardio actual/planned)", () => {
@@ -112,7 +166,36 @@ describe("Plan page — bike/row cardio summary (task #109)", () => {
         dominantCardioEquipment: null,
       },
     ]);
-    expect(screen.getByTestId("week-volume-miles-2")).toBeTruthy();
+    const headline = screen.getByTestId("week-volume-miles-2");
+    expect(headline).toBeTruthy();
+    // Task #112: 12 of 20 planned mi → in-progress tint.
+    expect(headline.getAttribute("data-adherence")).toBe("in-progress");
+    expect(headline.className).toContain("amber");
     expect(screen.queryByTestId("week-volume-cardio-actual-2")).toBeNull();
+  });
+
+  it("colors the mileage headline green when planned miles are met", () => {
+    renderWith([
+      {
+        week: 2,
+        phase: "Run Block",
+        startDate: "2026-05-11",
+        endDate: "2026-05-17",
+        plannedStrength: 0,
+        plannedCardio: 0,
+        plannedTotalLoad: 0,
+        plannedMiles: 20,
+        longRunMi: 8,
+        actualMiles: 22,
+        actualCardio: 0,
+        completedSessions: 4,
+        totalSessions: 4,
+        missedSessions: 0,
+        dominantCardioEquipment: null,
+      },
+    ]);
+    const headline = screen.getByTestId("week-volume-miles-2");
+    expect(headline.getAttribute("data-adherence")).toBe("met");
+    expect(headline.className).toContain("emerald");
   });
 });

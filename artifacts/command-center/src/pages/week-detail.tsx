@@ -54,6 +54,7 @@ import {
 import { useMissionActions } from "@/hooks/use-mission-actions";
 import { cn } from "@/lib/utils";
 import { phaseColor } from "@/lib/phase-colors";
+import { adherenceStatus, adherenceTextClass } from "@/lib/adherence";
 import { PlanDayForm } from "@/components/plan-day-form";
 import { MoveDayPicker } from "@/components/move-day-picker";
 import { sortWorkoutsByTimeOfDay } from "@/lib/time-of-day";
@@ -307,9 +308,21 @@ export default function WeekDetail() {
                 actualCardio sums workouts.cardio_min for the week,
                 excluding Skipped sessions.
               */}
+              {/*
+                Task #112: tint the actual/planned cardio headline by
+                adherence — green when met or exceeded, amber while still
+                in progress, neutral otherwise so future weeks at 0
+                actual don't masquerade as completed.
+              */}
               <p
-                className="font-black text-lg"
+                className={cn(
+                  "font-black text-lg",
+                  adherenceTextClass(
+                    adherenceStatus(week.actualCardio, week.plannedCardio),
+                  ),
+                )}
                 data-testid="week-volume-cardio-actual"
+                data-adherence={adherenceStatus(week.actualCardio, week.plannedCardio)}
               >
                 {Math.round(week.actualCardio ?? 0)} / {Math.round(week.plannedCardio ?? 0)} min cardio
               </p>
@@ -323,7 +336,16 @@ export default function WeekDetail() {
               )}
             </div>
           ) : (
-            <p className="font-black text-lg" data-testid="week-volume-miles">
+            <p
+              className={cn(
+                "font-black text-lg",
+                adherenceTextClass(
+                  adherenceStatus(week.actualMiles, week.plannedMiles),
+                ),
+              )}
+              data-testid="week-volume-miles"
+              data-adherence={adherenceStatus(week.actualMiles, week.plannedMiles)}
+            >
               {formatDistance(week.actualMiles)} / {formatDistance(week.plannedMiles)}
             </p>
           )}
