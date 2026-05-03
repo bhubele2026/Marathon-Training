@@ -203,6 +203,7 @@ import {
   filterTemplatesByQuery,
   filterTemplatesByTags,
   getAllTemplateTags,
+  countTemplatesByTag,
   groupTemplatesByCategory,
 } from "../lib/planner-templates";
 export { categorizeTemplate };
@@ -550,6 +551,27 @@ export default function Planner() {
     [templates],
   );
   const allQuickAddTags = allTemplateTags;
+  // Per-chip "would-still-match" counts for each tag cloud, scoped to
+  // the surface's own free-text search + currently selected tags so a
+  // chip's "tag · N" annotation reflects how many templates would
+  // remain visible if that chip were added (or kept) in the filter.
+  // Chips with a zero count are de-emphasized in the UI below.
+  const templateTagCounts = useMemo(
+    () =>
+      countTemplatesByTag(
+        filterTemplatesByQuery(templates, templateSearch),
+        selectedTemplateTags,
+      ),
+    [templates, templateSearch, selectedTemplateTags],
+  );
+  const quickAddTagCounts = useMemo(
+    () =>
+      countTemplatesByTag(
+        filterTemplatesByQuery(templates, quickAddSearch),
+        quickAddSelectedTags,
+      ),
+    [templates, quickAddSearch, quickAddSelectedTags],
+  );
 
   const configs = listQuery.data?.configs ?? [];
   const activeId = listQuery.data?.activeId ?? null;
@@ -1806,20 +1828,35 @@ export default function Planner() {
               <div className="flex flex-wrap gap-1">
                 {allTemplateTags.map((tag) => {
                   const active = selectedTemplateTags.has(tag);
+                  const count = templateTagCounts.get(tag) ?? 0;
+                  // De-emphasize (and disable) chips that would yield
+                  // zero results if added to the current selection so
+                  // runners avoid over-narrowing dead-ends. Active
+                  // chips are always interactive (clicking deselects).
+                  const wouldZero = !active && count === 0;
                   return (
                     <button
                       key={tag}
                       type="button"
                       onClick={() => toggleTemplateTag(tag)}
                       aria-pressed={active}
+                      disabled={wouldZero}
                       data-testid={`planner-template-tag-chip-${tag}`}
                       className={
                         active
                           ? "text-[10px] px-1.5 py-0.5 rounded border border-primary bg-primary text-primary-foreground"
-                          : "text-[10px] px-1.5 py-0.5 rounded border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                          : wouldZero
+                            ? "text-[10px] px-1.5 py-0.5 rounded border border-border bg-background text-muted-foreground/40 opacity-50 cursor-not-allowed"
+                            : "text-[10px] px-1.5 py-0.5 rounded border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
                       }
                     >
                       {tag}
+                      <span
+                        className="ml-1 opacity-70 tabular-nums"
+                        data-testid={`planner-template-tag-chip-count-${tag}`}
+                      >
+                        · {count}
+                      </span>
                     </button>
                   );
                 })}
@@ -2680,20 +2717,35 @@ export default function Planner() {
                         <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
                           {allQuickAddTags.map((tag) => {
                             const active = quickAddSelectedTags.has(tag);
+                            const count = quickAddTagCounts.get(tag) ?? 0;
+                            // De-emphasize (and disable) chips that
+                            // would yield zero results if added so
+                            // runners avoid dead-end clicks. Active
+                            // chips stay interactive (click deselects).
+                            const wouldZero = !active && count === 0;
                             return (
                               <button
                                 key={tag}
                                 type="button"
                                 onClick={() => toggleQuickAddTag(tag)}
                                 aria-pressed={active}
+                                disabled={wouldZero}
                                 data-testid={`planner-entry-add-tag-chip-${tag}`}
                                 className={
                                   active
                                     ? "text-[10px] px-1.5 py-0.5 rounded border border-primary bg-primary text-primary-foreground"
-                                    : "text-[10px] px-1.5 py-0.5 rounded border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                                    : wouldZero
+                                      ? "text-[10px] px-1.5 py-0.5 rounded border border-border bg-background text-muted-foreground/40 opacity-50 cursor-not-allowed"
+                                      : "text-[10px] px-1.5 py-0.5 rounded border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
                                 }
                               >
                                 {tag}
+                                <span
+                                  className="ml-1 opacity-70 tabular-nums"
+                                  data-testid={`planner-entry-add-tag-chip-count-${tag}`}
+                                >
+                                  · {count}
+                                </span>
                               </button>
                             );
                           })}

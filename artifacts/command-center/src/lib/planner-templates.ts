@@ -106,6 +106,42 @@ export function getAllTemplateTags(
   return Array.from(set).sort((a, b) => a.localeCompare(b));
 }
 
+// Count, for every distinct tag in the catalog, how many templates
+// would remain visible if that tag were added to the current selection
+// (AND-semantics, matching filterTemplatesByTags). Used to render a
+// "tag · count" annotation on each chip in the tag cloud so runners
+// can see at a glance how broad or narrow each tag is in the current
+// filter context. Callers should pass the already-query-filtered
+// template list so the counts reflect the active free-text search.
+//
+// For a tag the user has already selected, the resulting count equals
+// the count of templates that currently match the selection (because
+// adding an already-selected tag is a no-op under AND semantics).
+export function countTemplatesByTag(
+  templates: readonly CategorizableTemplate[],
+  selectedTags: ReadonlySet<string>,
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const tpl of templates) {
+    const tagSet = new Set(tpl.tags);
+    let carriesAllSelected = true;
+    for (const sel of selectedTags) {
+      if (!tagSet.has(sel)) {
+        carriesAllSelected = false;
+        break;
+      }
+    }
+    if (!carriesAllSelected) continue;
+    // Every tag on this template would still match if added to the
+    // selection, since the template already carries all currently
+    // selected tags.
+    for (const tag of tagSet) {
+      counts.set(tag, (counts.get(tag) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
 // Narrow templates to those that carry EVERY selected tag (AND
 // semantics). An empty selection is a no-op so callers can compose
 // this with the free-text filter unconditionally.
