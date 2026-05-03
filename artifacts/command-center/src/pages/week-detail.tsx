@@ -63,6 +63,12 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { UndoCountdownAction } from "@/components/undo-countdown-action";
 import { PlannedBreakdown } from "@/components/planned-breakdown";
 import { ActualBreakdown } from "@/components/actual-breakdown";
+import { PrimaryMetricDisplay } from "@/components/primary-metric-display";
+import { SessionDetailDisclosure } from "@/components/session-detail-disclosure";
+import {
+  getPrimaryMetric,
+  getPrimaryMetricCompare,
+} from "@/lib/primary-metric";
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -489,19 +495,10 @@ export default function WeekDetail() {
                         <div className="text-sm font-bold uppercase tracking-wider">{day.day}</div>
                         <div className="text-xs text-muted-foreground">{formatDate(day.date)}</div>
                       </div>
-                      {/* Task #77: rest days still get a single-chip rail
-                          (e.g. "Off / Rest") so every day card in the
-                          week view has a consistent equipment rail and
-                          the eye can scan straight down the column. */}
-                      {(day.equipmentList ?? [day.equipment]).map((eq, idx) => (
-                        <span
-                          key={`${day.date}-eq-${idx}`}
-                          className="text-[10px] bg-secondary text-secondary-foreground px-2 py-1 rounded font-bold uppercase tracking-wider"
-                          data-testid={`chip-equipment-${day.date}-${idx}`}
-                        >
-                          {eq}
-                        </span>
-                      ))}
+                      {/* Task #133: equipment chips moved into the
+                          disclosure below so the rest-day card surface
+                          stays slim. CustomizedBadge stays as a status
+                          marker (not a metric/equipment chip). */}
                       <CustomizedBadge day={day} />
                     </div>
                     <div className="text-sm text-muted-foreground font-medium uppercase tracking-wider flex items-center gap-2">
@@ -520,6 +517,19 @@ export default function WeekDetail() {
                       </Button>
                     </div>
                   </div>
+                  <SessionDetailDisclosure testId={`toggle-day-plan-detail-${day.date}`}>
+                    <div className="flex flex-wrap gap-2">
+                      {(day.equipmentList ?? [day.equipment]).map((eq, idx) => (
+                        <span
+                          key={`${day.date}-eq-${idx}`}
+                          className="text-[10px] bg-secondary text-secondary-foreground px-2 py-1 rounded font-bold uppercase tracking-wider"
+                          data-testid={`chip-equipment-${day.date}-${idx}`}
+                        >
+                          {eq}
+                        </span>
+                      ))}
+                    </div>
+                  </SessionDetailDisclosure>
                   {sessions.length > 0 && (
                     <div className="space-y-2 pl-1">
                       {sessions.map((session) => (
@@ -528,27 +538,37 @@ export default function WeekDetail() {
                           className="flex items-center justify-between gap-3 bg-background/60 border border-border rounded px-3 py-2"
                           data-testid={`session-${day.date}-${session.id}`}
                         >
-                          <div className="text-xs font-mono flex flex-wrap items-center gap-x-3 gap-y-1">
-                            <TimeOfDayBadge
-                              value={session.timeOfDay}
-                              testId={`badge-time-of-day-week-${session.id}`}
-                            />
-                            <span className="font-bold uppercase tracking-wider">{session.sessionType}</span>
-                            {session.distanceMi != null && <span>{formatDistance(session.distanceMi)}</span>}
-                            {/* Per-bucket actual minutes (Task #76). For
-                                rest days the planned bucket values are
-                                all zero, so this collapses to a single
-                                Total tile (or the legacy Duration tile
-                                for older logs). */}
-                            <ActualBreakdown
-                              totalMin={session.totalMin}
-                              strengthMin={session.strengthMin}
-                              cardioMin={session.cardioMin}
-                              runMin={session.runMin}
-                              durationMin={session.durationMin}
-                              variant="compact"
-                              testIdPrefix={`session-${day.date}-${session.id}`}
-                            />
+                          {/* Slim collapsed row (Task #133): just title +
+                              the one headline number. The per-bucket
+                              ActualBreakdown moves into the disclosure
+                              below alongside the rest of the detail. */}
+                          <div className="flex flex-col gap-1 min-w-0 flex-1">
+                            <div className="text-xs font-mono flex flex-wrap items-center gap-x-3 gap-y-1">
+                              <TimeOfDayBadge
+                                value={session.timeOfDay}
+                                testId={`badge-time-of-day-week-${session.id}`}
+                              />
+                              <span className="font-bold uppercase tracking-wider">{session.sessionType}</span>
+                              <PrimaryMetricDisplay
+                                metric={getPrimaryMetricCompare(session, null)}
+                                variant="compact"
+                                testIdPrefix={`session-${day.date}-${session.id}`}
+                                className="ml-auto"
+                              />
+                            </div>
+                            <SessionDetailDisclosure
+                              testId={`toggle-session-detail-${session.id}`}
+                            >
+                              <ActualBreakdown
+                                totalMin={session.totalMin}
+                                strengthMin={session.strengthMin}
+                                cardioMin={session.cardioMin}
+                                runMin={session.runMin}
+                                durationMin={session.durationMin}
+                                variant="compact"
+                                testIdPrefix={`session-${day.date}-${session.id}`}
+                              />
+                            </SessionDetailDisclosure>
                           </div>
                           <div className="flex gap-1">
                             <Button
@@ -607,16 +627,10 @@ export default function WeekDetail() {
                   >
                     <div className="text-sm font-black uppercase tracking-wider">{day.day}</div>
                     <div className="text-xs text-muted-foreground mb-3">{formatDate(day.date)}</div>
+                    {/* Task #133: equipment chips moved into the
+                        right-column disclosure so the always-visible
+                        left rail stays at title + status only. */}
                     <div className="mt-auto flex flex-wrap items-center gap-2">
-                      {(day.equipmentList ?? [day.equipment]).map((eq, idx) => (
-                        <span
-                          key={`${day.date}-eq-${idx}`}
-                          className="text-[10px] bg-secondary text-secondary-foreground px-2 py-1 rounded font-bold uppercase tracking-wider"
-                          data-testid={`chip-equipment-${day.date}-${idx}`}
-                        >
-                          {eq}
-                        </span>
-                      ))}
                       <CustomizedBadge day={day} />
                       {hasSessions && (
                         <span className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider flex items-center gap-1">
@@ -638,29 +652,53 @@ export default function WeekDetail() {
                     <div className="space-y-3">
                       <h4 className="text-xl font-black uppercase tracking-tight">{day.sessionType}</h4>
                       <p className="text-sm text-muted-foreground line-clamp-2">{day.description}</p>
-                      <div className="flex flex-wrap gap-4 text-sm pt-2">
-                        {day.distanceMi != null && (
-                          <div>
-                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">Distance</span>
-                            <span className="font-mono font-medium">{formatDistance(day.distanceMi)}</span>
+                      {/* Slim day card (Task #133): show just the one
+                          headline number for the planned session.
+                          PlannedBreakdown, distance and total load tiles
+                          all move into the "Show details" disclosure. */}
+                      <PrimaryMetricDisplay
+                        metric={getPrimaryMetric(day)}
+                        variant="compact"
+                        testIdPrefix={`day-${day.date}`}
+                      />
+                      <SessionDetailDisclosure testId={`toggle-day-plan-detail-${day.date}`}>
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap gap-2">
+                            {(day.equipmentList ?? [day.equipment]).map((eq, idx) => (
+                              <span
+                                key={`${day.date}-eq-${idx}`}
+                                className="text-[10px] bg-secondary text-secondary-foreground px-2 py-1 rounded font-bold uppercase tracking-wider"
+                                data-testid={`chip-equipment-${day.date}-${idx}`}
+                              >
+                                {eq}
+                              </span>
+                            ))}
                           </div>
-                        )}
-                        {day.totalLoad != null && day.totalLoad > 0 && (
-                          <div>
-                            <span className="text-[10px] uppercase font-bold text-muted-foreground block">Load</span>
-                            <span className="font-mono font-medium">{formatLoad(day.totalLoad)}</span>
-                          </div>
-                        )}
-                        <PlannedBreakdown
-                          totalMin={day.totalMin}
-                          strengthMin={day.strengthMin}
-                          cardioMin={day.cardioMin}
-                          runMin={day.runMin}
-                          runDistanceMi={day.distanceMi}
-                          variant="compact"
-                          testIdPrefix={`day-${day.date}`}
-                        />
-                      </div>
+                        <div className="flex flex-wrap gap-4 text-sm">
+                          {day.distanceMi != null && (
+                            <div>
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground block">Distance</span>
+                              <span className="font-mono font-medium">{formatDistance(day.distanceMi)}</span>
+                            </div>
+                          )}
+                          {day.totalLoad != null && day.totalLoad > 0 && (
+                            <div>
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground block">Load</span>
+                              <span className="font-mono font-medium">{formatLoad(day.totalLoad)}</span>
+                            </div>
+                          )}
+                          <PlannedBreakdown
+                            totalMin={day.totalMin}
+                            strengthMin={day.strengthMin}
+                            cardioMin={day.cardioMin}
+                            runMin={day.runMin}
+                            runDistanceMi={day.distanceMi}
+                            variant="compact"
+                            testIdPrefix={`day-${day.date}`}
+                          />
+                        </div>
+                        </div>
+                      </SessionDetailDisclosure>
                     </div>
 
                     {hasSessions && (
@@ -673,42 +711,57 @@ export default function WeekDetail() {
                               className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-muted/30 border border-border rounded p-3"
                               data-testid={`session-${day.date}-${session.id}`}
                             >
-                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-mono">
-                                <TimeOfDayBadge
-                                  value={session.timeOfDay}
-                                  testId={`badge-time-of-day-week-${session.id}`}
-                                />
-                                <span className="font-bold uppercase tracking-wider">{session.sessionType}</span>
-                                {session.distanceMi != null && (
-                                  <span><span className="text-muted-foreground">Dist</span> {formatDistance(session.distanceMi)}</span>
-                                )}
-                                {/* Per-bucket actuals with planned context
-                                    (Task #76) — replaces the bare "Dur"
-                                    tile so the user sees the gap between
-                                    prescribed and actual minutes per
-                                    bucket without leaving the row. */}
-                                <ActualBreakdown
-                                  totalMin={session.totalMin}
-                                  strengthMin={session.strengthMin}
-                                  cardioMin={session.cardioMin}
-                                  runMin={session.runMin}
-                                  durationMin={session.durationMin}
-                                  plannedTotalMin={day.totalMin}
-                                  plannedStrengthMin={day.strengthMin}
-                                  plannedCardioMin={day.cardioMin}
-                                  plannedRunMin={day.runMin}
-                                  variant="compact"
-                                  testIdPrefix={`session-${day.date}-${session.id}`}
-                                />
-                                {session.pace && (
-                                  <span><span className="text-muted-foreground">Pace</span> {session.pace}/mi</span>
-                                )}
-                                {session.rpe != null && (
-                                  <span><span className="text-muted-foreground">RPE</span> {session.rpe}/10</span>
-                                )}
-                                {session.totalLoad != null && (
-                                  <span><span className="text-muted-foreground">Load</span> {formatLoad(session.totalLoad)}</span>
-                                )}
+                              {/* Slim collapsed row (Task #133): only
+                                  title + the one headline number (actual
+                                  vs planned). The per-bucket
+                                  ActualBreakdown, distance, pace, RPE
+                                  and load tiles all move into the
+                                  disclosure below. */}
+                              <div className="flex flex-col gap-2 min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-mono">
+                                  <TimeOfDayBadge
+                                    value={session.timeOfDay}
+                                    testId={`badge-time-of-day-week-${session.id}`}
+                                  />
+                                  <span className="font-bold uppercase tracking-wider">{session.sessionType}</span>
+                                  <PrimaryMetricDisplay
+                                    metric={getPrimaryMetricCompare(session, day)}
+                                    variant="compact"
+                                    testIdPrefix={`session-${day.date}-${session.id}`}
+                                    className="ml-auto"
+                                  />
+                                </div>
+                                <SessionDetailDisclosure
+                                  testId={`toggle-session-detail-${session.id}`}
+                                >
+                                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-mono">
+                                    {session.distanceMi != null && (
+                                      <span><span className="text-muted-foreground">Dist</span> {formatDistance(session.distanceMi)}</span>
+                                    )}
+                                    <ActualBreakdown
+                                      totalMin={session.totalMin}
+                                      strengthMin={session.strengthMin}
+                                      cardioMin={session.cardioMin}
+                                      runMin={session.runMin}
+                                      durationMin={session.durationMin}
+                                      plannedTotalMin={day.totalMin}
+                                      plannedStrengthMin={day.strengthMin}
+                                      plannedCardioMin={day.cardioMin}
+                                      plannedRunMin={day.runMin}
+                                      variant="compact"
+                                      testIdPrefix={`session-${day.date}-${session.id}`}
+                                    />
+                                    {session.pace && (
+                                      <span><span className="text-muted-foreground">Pace</span> {session.pace}/mi</span>
+                                    )}
+                                    {session.rpe != null && (
+                                      <span><span className="text-muted-foreground">RPE</span> {session.rpe}/10</span>
+                                    )}
+                                    {session.totalLoad != null && (
+                                      <span><span className="text-muted-foreground">Load</span> {formatLoad(session.totalLoad)}</span>
+                                    )}
+                                  </div>
+                                </SessionDetailDisclosure>
                               </div>
                               <div className="flex gap-2 shrink-0">
                                 <Button

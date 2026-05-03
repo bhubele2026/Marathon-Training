@@ -15,6 +15,14 @@ import {
   BarChart, Bar, Legend, AreaChart, Area, Cell, ReferenceLine
 } from "recharts";
 import { formatDistance, formatLoad, formatWeight, formatDate, formatDuration } from "@/lib/format";
+import { PrimaryMetricDisplay } from "@/components/primary-metric-display";
+import { SessionDetailDisclosure } from "@/components/session-detail-disclosure";
+import { PlannedBreakdown } from "@/components/planned-breakdown";
+import { ActualBreakdown } from "@/components/actual-breakdown";
+import {
+  getPrimaryMetric,
+  getPrimaryMetricCompare,
+} from "@/lib/primary-metric";
 import { format } from "date-fns";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -142,16 +150,71 @@ export default function Dashboard() {
                 today?.hasPlan ? (
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-background p-4 rounded-md border border-border">
                     <div className="flex-1 min-w-0">
+                      {/* Slim collapsed view (Task #133): title + the
+                          one headline number for the planned session.
+                          Equipment chip and distance/cardio/load tiles
+                          drop off the surface — open Today for full
+                          detail. */}
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-bold text-lg">{today.plan?.sessionType}</span>
-                        <span className="text-xs px-2 py-0.5 bg-secondary text-secondary-foreground rounded uppercase font-bold">{today.plan?.equipment}</span>
                       </div>
                       <p className="text-sm text-muted-foreground line-clamp-2">{today.plan?.description}</p>
-                      <div className="flex flex-wrap gap-4 mt-3 text-sm font-medium">
-                        {today.plan?.distanceMi ? <span>{formatDistance(today.plan.distanceMi)}</span> : null}
-                        {today.plan?.cardioMin ? <span>{today.plan.cardioMin} min</span> : null}
-                        {today.plan?.strengthLoad ? <span>Load: {today.plan.strengthLoad}</span> : null}
+                      <div className="mt-3">
+                        <PrimaryMetricDisplay
+                          metric={getPrimaryMetric(today.plan)}
+                          variant="compact"
+                          testIdPrefix="dashboard-today-plan"
+                        />
                       </div>
+
+                      {today.plan && (
+                        <div className="mt-3">
+                          <SessionDetailDisclosure testId="toggle-dashboard-today-plan-detail">
+                            <div className="space-y-3">
+                              <div className="flex flex-wrap gap-2">
+                                {(today.plan.equipmentList ?? [today.plan.equipment]).map((eq, idx) => (
+                                  <span
+                                    key={`dash-eq-${idx}`}
+                                    className="px-2 py-0.5 bg-secondary text-secondary-foreground rounded text-xs uppercase font-bold tracking-wider"
+                                    data-testid={`chip-equipment-dashboard-${today.plan!.date}-${idx}`}
+                                  >
+                                    {eq}
+                                  </span>
+                                ))}
+                              </div>
+                              <PlannedBreakdown
+                                totalMin={today.plan.totalMin}
+                                strengthMin={today.plan.strengthMin}
+                                cardioMin={today.plan.cardioMin}
+                                runMin={today.plan.runMin}
+                                runDistanceMi={today.plan.distanceMi}
+                                variant="compact"
+                                testIdPrefix="dashboard-today-plan"
+                              />
+                              <div className="grid grid-cols-3 gap-3">
+                                {today.plan.distanceMi != null && (
+                                  <div>
+                                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Distance</p>
+                                    <p className="text-sm font-black">{formatDistance(today.plan.distanceMi)}</p>
+                                  </div>
+                                )}
+                                {today.plan.strengthLoad && (
+                                  <div>
+                                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Strength Load</p>
+                                    <p className="text-sm font-black">{today.plan.strengthLoad}</p>
+                                  </div>
+                                )}
+                                {today.plan.totalLoad != null && (
+                                  <div>
+                                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Total Load</p>
+                                    <p className="text-sm font-black">{formatLoad(today.plan.totalLoad)}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </SessionDetailDisclosure>
+                        </div>
+                      )}
 
                       {hasTodaySessions && (
                         <div className="mt-3 pt-3 border-t border-border space-y-2">
@@ -164,7 +227,12 @@ export default function Dashboard() {
                               className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-background border border-border rounded px-3 py-2"
                               data-testid={`session-dashboard-${session.id}`}
                             >
-                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                              {/* Slim collapsed row (Task #133): title +
+                                  one headline number (actual vs
+                                  planned). Pace, RPE, raw duration etc.
+                                  are hidden — the full detail lives on
+                                  the Today page. */}
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm flex-1 min-w-0">
                                 <TimeOfDayBadge
                                   value={session.timeOfDay}
                                   testId={`badge-time-of-day-dashboard-${session.id}`}
@@ -172,18 +240,12 @@ export default function Dashboard() {
                                 <span className="text-xs uppercase font-bold tracking-wider text-muted-foreground">
                                   {session.sessionType}
                                 </span>
-                                {session.distanceMi != null && (
-                                  <span><span className="text-muted-foreground">Dist</span> <span className="font-bold">{formatDistance(session.distanceMi)}</span></span>
-                                )}
-                                {session.durationMin != null && (
-                                  <span><span className="text-muted-foreground">Dur</span> <span className="font-bold">{formatDuration(session.durationMin)}</span></span>
-                                )}
-                                {session.pace && (
-                                  <span><span className="text-muted-foreground">Pace</span> <span className="font-bold">{session.pace}/mi</span></span>
-                                )}
-                                {session.rpe != null && (
-                                  <span><span className="text-muted-foreground">RPE</span> <span className="font-bold">{session.rpe}/10</span></span>
-                                )}
+                                <PrimaryMetricDisplay
+                                  metric={getPrimaryMetricCompare(session, today.plan)}
+                                  variant="compact"
+                                  testIdPrefix={`session-dashboard-${session.id}`}
+                                  className="ml-auto"
+                                />
                               </div>
                               <div className="flex gap-2 shrink-0">
                                 <Button
@@ -203,6 +265,73 @@ export default function Dashboard() {
                                 >
                                   <Trash2 className="h-3 w-3" />
                                 </Button>
+                              </div>
+                              <div className="basis-full">
+                                <SessionDetailDisclosure
+                                  testId={`toggle-dashboard-session-detail-${session.id}`}
+                                >
+                                  <div className="space-y-3">
+                                    <span
+                                      className="flex flex-wrap gap-1"
+                                      data-testid={`chip-rail-actual-dashboard-${session.id}`}
+                                    >
+                                      {(session.equipmentList ?? [session.equipment]).map((eq, idx) => (
+                                        <span
+                                          key={`dash-actual-eq-${session.id}-${idx}`}
+                                          className="text-[10px] bg-secondary text-secondary-foreground px-2 py-0.5 rounded font-bold uppercase tracking-wider"
+                                          data-testid={`chip-equipment-actual-dashboard-${session.id}-${idx}`}
+                                        >
+                                          {eq}
+                                        </span>
+                                      ))}
+                                    </span>
+                                    <ActualBreakdown
+                                      totalMin={session.totalMin}
+                                      strengthMin={session.strengthMin}
+                                      cardioMin={session.cardioMin}
+                                      runMin={session.runMin}
+                                      durationMin={session.durationMin}
+                                      plannedTotalMin={today.plan?.totalMin}
+                                      plannedStrengthMin={today.plan?.strengthMin}
+                                      plannedCardioMin={today.plan?.cardioMin}
+                                      plannedRunMin={today.plan?.runMin}
+                                      variant="compact"
+                                      testIdPrefix={`session-dashboard-${session.id}`}
+                                    />
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                      {session.distanceMi != null && (
+                                        <div>
+                                          <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Distance</p>
+                                          <p className="text-sm font-black">{formatDistance(session.distanceMi)}</p>
+                                        </div>
+                                      )}
+                                      {session.pace && (
+                                        <div>
+                                          <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Pace</p>
+                                          <p className="text-sm font-black">{session.pace}/mi</p>
+                                        </div>
+                                      )}
+                                      {session.rpe != null && (
+                                        <div>
+                                          <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">RPE</p>
+                                          <p className="text-sm font-black">{session.rpe}/10</p>
+                                        </div>
+                                      )}
+                                      {session.totalLoad != null && (
+                                        <div>
+                                          <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Total Load</p>
+                                          <p className="text-sm font-black">{formatLoad(session.totalLoad)}</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                    {session.notes && (
+                                      <div className="pt-2 border-t border-border">
+                                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Notes</p>
+                                        <p className="text-sm">{session.notes}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </SessionDetailDisclosure>
                               </div>
                             </div>
                           ))}

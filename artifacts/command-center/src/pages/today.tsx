@@ -9,6 +9,12 @@ import { QuickLogActivity } from "@/components/quick-log-activity";
 import { TimeOfDayBadge } from "@/components/time-of-day-badge";
 import { PlannedBreakdown } from "@/components/planned-breakdown";
 import { ActualBreakdown } from "@/components/actual-breakdown";
+import { PrimaryMetricDisplay } from "@/components/primary-metric-display";
+import { SessionDetailDisclosure } from "@/components/session-detail-disclosure";
+import {
+  getPrimaryMetric,
+  getPrimaryMetricCompare,
+} from "@/lib/primary-metric";
 import { format, parseISO } from "date-fns";
 
 export default function Today() {
@@ -79,59 +85,69 @@ export default function Today() {
               <p className="text-lg font-black uppercase tracking-tight" data-testid="text-first-session-date">
                 {format(parseISO(today.firstSession.date), "EEE MMM d")} —{" "}
                 <span className="text-primary">{today.firstSession.sessionType}</span>
-                <span className="text-muted-foreground">
-                  {" "}
-                  ·{" "}
-                  {(today.firstSession.equipmentList ?? [today.firstSession.equipment])
-                    .map((eq) => eq)
-                    .join(" · ")}
-                </span>
               </p>
-              <div className="flex flex-wrap gap-2 mt-3">
-                {(today.firstSession.equipmentList ?? [today.firstSession.equipment]).map((eq, idx) => {
-                  const date = today.firstSession!.date;
-                  return (
-                    <span
-                      key={`first-eq-${idx}`}
-                      className="text-[10px] bg-secondary text-secondary-foreground px-2 py-1 rounded font-bold uppercase tracking-wider"
-                      data-testid={`chip-equipment-${date}-${idx}`}
-                    >
-                      {eq}
-                    </span>
-                  );
-                })}
-              </div>
-              <p className="text-sm text-muted-foreground mt-2">{today.firstSession.description}</p>
-              <div className="space-y-4 mt-4 pt-4 border-t border-border">
-                <PlannedBreakdown
-                  totalMin={today.firstSession.totalMin}
-                  strengthMin={today.firstSession.strengthMin}
-                  cardioMin={today.firstSession.cardioMin}
-                  runMin={today.firstSession.runMin}
-                  runDistanceMi={today.firstSession.distanceMi}
+              {today.firstSession.description && (
+                <p className="text-sm text-muted-foreground mt-2">{today.firstSession.description}</p>
+              )}
+              {/* Slim collapsed view (Task #133): just the one headline
+                  number for the first session. Equipment chips, the
+                  planned minute breakdown, and the strength / total load
+                  tiles all live behind "Show details" below. */}
+              <div className="mt-4">
+                <PrimaryMetricDisplay
+                  metric={getPrimaryMetric(today.firstSession)}
                   variant="prominent"
                   testIdPrefix="first-session"
                 />
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {today.firstSession.distanceMi != null && today.firstSession.distanceMi > 0 && (
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Distance</p>
-                      <p className="text-base font-black">{formatDistance(today.firstSession.distanceMi)}</p>
+              </div>
+              <div className="mt-4">
+                <SessionDetailDisclosure testId="toggle-first-session-detail">
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap gap-2">
+                      {(today.firstSession.equipmentList ?? [today.firstSession.equipment]).map((eq, idx) => {
+                        const date = today.firstSession!.date;
+                        return (
+                          <span
+                            key={`first-eq-${idx}`}
+                            className="text-[10px] bg-secondary text-secondary-foreground px-2 py-1 rounded font-bold uppercase tracking-wider"
+                            data-testid={`chip-equipment-${date}-${idx}`}
+                          >
+                            {eq}
+                          </span>
+                        );
+                      })}
                     </div>
-                  )}
-                  {today.firstSession.strengthLoad != null && today.firstSession.strengthLoad > 0 && (
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Strength Load</p>
-                      <p className="text-base font-black">{today.firstSession.strengthLoad}</p>
+                    <PlannedBreakdown
+                      totalMin={today.firstSession.totalMin}
+                      strengthMin={today.firstSession.strengthMin}
+                      cardioMin={today.firstSession.cardioMin}
+                      runMin={today.firstSession.runMin}
+                      runDistanceMi={today.firstSession.distanceMi}
+                      variant="prominent"
+                      testIdPrefix="first-session"
+                    />
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                      {today.firstSession.distanceMi != null && today.firstSession.distanceMi > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Distance</p>
+                          <p className="text-base font-black">{formatDistance(today.firstSession.distanceMi)}</p>
+                        </div>
+                      )}
+                      {today.firstSession.strengthLoad != null && today.firstSession.strengthLoad > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Strength Load</p>
+                          <p className="text-base font-black">{today.firstSession.strengthLoad}</p>
+                        </div>
+                      )}
+                      {today.firstSession.totalLoad > 0 && (
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Total Load</p>
+                          <p className="text-base font-black">{formatLoad(today.firstSession.totalLoad)}</p>
+                        </div>
+                      )}
                     </div>
-                  )}
-                  {today.firstSession.totalLoad > 0 && (
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Total Load</p>
-                      <p className="text-base font-black">{formatLoad(today.firstSession.totalLoad)}</p>
-                    </div>
-                  )}
-                </div>
+                  </div>
+                </SessionDetailDisclosure>
               </div>
             </div>
             <p className="text-sm text-muted-foreground italic">
@@ -161,55 +177,72 @@ export default function Today() {
               <div className="bg-background p-6 rounded-md border border-border">
                 <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
                   <div className="space-y-4 flex-1">
-                    <div className="flex flex-wrap items-center gap-3">
+                    {/* Slim collapsed view (Task #133): title + the one
+                        headline number. Equipment chips, planned minute
+                        breakdown, distance, strength load and total load
+                        all live in the "Show details" disclosure below. */}
+                    <div className="flex flex-wrap items-baseline gap-3">
                       <span className="font-black text-2xl uppercase tracking-tight">{today.plan?.sessionType}</span>
-                      {today.plan &&
-                        (today.plan.equipmentList ?? [today.plan.equipment]).map((eq, idx) => (
-                          <span
-                            key={`today-eq-${idx}`}
-                            className="px-3 py-1 bg-secondary text-secondary-foreground rounded text-sm uppercase font-bold tracking-wider"
-                            data-testid={`chip-equipment-${today.plan!.date}-${idx}`}
-                          >
-                            {eq}
-                          </span>
-                        ))}
                     </div>
 
-                    <p className="text-foreground text-lg leading-relaxed">{today.plan?.description}</p>
+                    {today.plan?.description && (
+                      <p className="text-foreground text-lg leading-relaxed">{today.plan.description}</p>
+                    )}
 
-                    <div className="space-y-4 mt-6 pt-6 border-t border-border">
-                      {today.plan && (
-                        <PlannedBreakdown
-                          totalMin={today.plan.totalMin}
-                          strengthMin={today.plan.strengthMin}
-                          cardioMin={today.plan.cardioMin}
-                          runMin={today.plan.runMin}
-                          runDistanceMi={today.plan.distanceMi}
-                          variant="prominent"
-                          testIdPrefix="today-plan"
-                        />
-                      )}
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                        {today.plan?.distanceMi && (
-                          <div>
-                            <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Distance</p>
-                            <p className="text-xl font-black">{formatDistance(today.plan.distanceMi)}</p>
+                    <PrimaryMetricDisplay
+                      metric={getPrimaryMetric(today.plan)}
+                      variant="prominent"
+                      testIdPrefix="today-plan"
+                    />
+
+                    <SessionDetailDisclosure testId="toggle-today-plan-detail">
+                      <div className="space-y-4">
+                        {today.plan && (
+                          <div className="flex flex-wrap gap-2">
+                            {(today.plan.equipmentList ?? [today.plan.equipment]).map((eq, idx) => (
+                              <span
+                                key={`today-eq-${idx}`}
+                                className="px-3 py-1 bg-secondary text-secondary-foreground rounded text-sm uppercase font-bold tracking-wider"
+                                data-testid={`chip-equipment-${today.plan!.date}-${idx}`}
+                              >
+                                {eq}
+                              </span>
+                            ))}
                           </div>
                         )}
-                        {today.plan?.strengthLoad && (
-                          <div>
-                            <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Strength Load</p>
-                            <p className="text-xl font-black">{today.plan.strengthLoad}</p>
-                          </div>
+                        {today.plan && (
+                          <PlannedBreakdown
+                            totalMin={today.plan.totalMin}
+                            strengthMin={today.plan.strengthMin}
+                            cardioMin={today.plan.cardioMin}
+                            runMin={today.plan.runMin}
+                            runDistanceMi={today.plan.distanceMi}
+                            variant="prominent"
+                            testIdPrefix="today-plan"
+                          />
                         )}
-                        {today.plan?.totalLoad && (
-                          <div>
-                            <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Total Load</p>
-                            <p className="text-xl font-black">{formatLoad(today.plan.totalLoad)}</p>
-                          </div>
-                        )}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                          {today.plan?.distanceMi && (
+                            <div>
+                              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Distance</p>
+                              <p className="text-xl font-black">{formatDistance(today.plan.distanceMi)}</p>
+                            </div>
+                          )}
+                          {today.plan?.strengthLoad && (
+                            <div>
+                              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Strength Load</p>
+                              <p className="text-xl font-black">{today.plan.strengthLoad}</p>
+                            </div>
+                          )}
+                          {today.plan?.totalLoad && (
+                            <div>
+                              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Total Load</p>
+                              <p className="text-xl font-black">{formatLoad(today.plan.totalLoad)}</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    </SessionDetailDisclosure>
                   </div>
 
                   <div className="shrink-0 flex flex-col items-stretch justify-center gap-3 border-t md:border-t-0 md:border-l border-border pt-6 md:pt-0 md:pl-6 md:w-56">
@@ -265,20 +298,6 @@ export default function Today() {
                   <span className="text-xs font-mono normal-case tracking-normal text-muted-foreground ml-2">
                     {session.sessionType}
                   </span>
-                  <span
-                    className="flex flex-wrap gap-1 ml-2"
-                    data-testid={`chip-rail-actual-${session.id}`}
-                  >
-                    {(session.equipmentList ?? [session.equipment]).map((eq, idx) => (
-                      <span
-                        key={`actual-eq-${session.id}-${idx}`}
-                        className="text-[10px] bg-secondary text-secondary-foreground px-2 py-0.5 rounded font-bold uppercase tracking-wider"
-                        data-testid={`chip-equipment-actual-${session.id}-${idx}`}
-                      >
-                        {eq}
-                      </span>
-                    ))}
-                  </span>
                 </CardTitle>
                 <div className="flex gap-2">
                   <Button
@@ -300,63 +319,88 @@ export default function Today() {
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent className="p-6 space-y-6">
-                {/* Per-bucket actual minutes (Task #76). Shows TOTAL · LIFT
-                    · CARDIO · RUN with the planned values inline beneath
-                    each tile so the user can see where the gap was. Falls
-                    back to a single Duration tile for legacy rows that
-                    only have `durationMin`. */}
-                <ActualBreakdown
-                  totalMin={session.totalMin}
-                  strengthMin={session.strengthMin}
-                  cardioMin={session.cardioMin}
-                  runMin={session.runMin}
-                  durationMin={session.durationMin}
-                  plannedTotalMin={today.plan?.totalMin}
-                  plannedStrengthMin={today.plan?.strengthMin}
-                  plannedCardioMin={today.plan?.cardioMin}
-                  plannedRunMin={today.plan?.runMin}
+              <CardContent className="p-6 space-y-4">
+                {/* Slim collapsed view (Task #133): show only the one
+                    headline actual-vs-planned number. The full per-bucket
+                    ActualBreakdown, distance, pace, RPE, avg HR, load,
+                    equipment chips and notes all live in the disclosure
+                    below so the card stays scannable. */}
+                <PrimaryMetricDisplay
+                  metric={getPrimaryMetricCompare(session, today.plan)}
                   variant="prominent"
                   testIdPrefix={`session-today-${session.id}`}
                 />
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
-                  {session.distanceMi != null && (
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Distance</p>
-                      <p className="text-xl font-black">{formatDistance(session.distanceMi)}</p>
+                <SessionDetailDisclosure
+                  testId={`toggle-today-session-detail-${session.id}`}
+                >
+                  <div className="space-y-6">
+                    <span
+                      className="flex flex-wrap gap-1"
+                      data-testid={`chip-rail-actual-${session.id}`}
+                    >
+                      {(session.equipmentList ?? [session.equipment]).map((eq, idx) => (
+                        <span
+                          key={`actual-eq-${session.id}-${idx}`}
+                          className="text-[10px] bg-secondary text-secondary-foreground px-2 py-0.5 rounded font-bold uppercase tracking-wider"
+                          data-testid={`chip-equipment-actual-${session.id}-${idx}`}
+                        >
+                          {eq}
+                        </span>
+                      ))}
+                    </span>
+                    <ActualBreakdown
+                      totalMin={session.totalMin}
+                      strengthMin={session.strengthMin}
+                      cardioMin={session.cardioMin}
+                      runMin={session.runMin}
+                      durationMin={session.durationMin}
+                      plannedTotalMin={today.plan?.totalMin}
+                      plannedStrengthMin={today.plan?.strengthMin}
+                      plannedCardioMin={today.plan?.cardioMin}
+                      plannedRunMin={today.plan?.runMin}
+                      variant="prominent"
+                      testIdPrefix={`session-today-${session.id}`}
+                    />
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+                      {session.distanceMi != null && (
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Distance</p>
+                          <p className="text-xl font-black">{formatDistance(session.distanceMi)}</p>
+                        </div>
+                      )}
+                      {session.pace && (
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Pace</p>
+                          <p className="text-xl font-black">{session.pace}/mi</p>
+                        </div>
+                      )}
+                      {session.rpe != null && (
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">RPE</p>
+                          <p className="text-xl font-black">{session.rpe}/10</p>
+                        </div>
+                      )}
+                      {session.avgHr != null && (
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Avg HR</p>
+                          <p className="text-xl font-black">{session.avgHr} bpm</p>
+                        </div>
+                      )}
+                      {session.totalLoad != null && (
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Total Load</p>
+                          <p className="text-xl font-black">{formatLoad(session.totalLoad)}</p>
+                        </div>
+                      )}
                     </div>
-                  )}
-                  {session.pace && (
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Pace</p>
-                      <p className="text-xl font-black">{session.pace}/mi</p>
-                    </div>
-                  )}
-                  {session.rpe != null && (
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">RPE</p>
-                      <p className="text-xl font-black">{session.rpe}/10</p>
-                    </div>
-                  )}
-                  {session.avgHr != null && (
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Avg HR</p>
-                      <p className="text-xl font-black">{session.avgHr} bpm</p>
-                    </div>
-                  )}
-                  {session.totalLoad != null && (
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Total Load</p>
-                      <p className="text-xl font-black">{formatLoad(session.totalLoad)}</p>
-                    </div>
-                  )}
-                </div>
-                {session.notes && (
-                  <div className="mt-6 pt-6 border-t border-border">
-                    <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-2">Notes</p>
-                    <p className="text-sm">{session.notes}</p>
+                    {session.notes && (
+                      <div className="pt-4 border-t border-border">
+                        <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-2">Notes</p>
+                        <p className="text-sm">{session.notes}</p>
+                      </div>
+                    )}
                   </div>
-                )}
+                </SessionDetailDisclosure>
               </CardContent>
             </Card>
           ))}
