@@ -16,7 +16,7 @@ import {
 import {
   generatePlanFromConfig,
   validatePlannerConfig,
-  expandEntriesToBlocks,
+  expandEntriesToBlocksWithGaps,
   PLAN_TEMPLATES,
   STARTER_SHORTCUTS,
   RACE_DATE_ISO,
@@ -172,6 +172,7 @@ function validateBody(body: {
         weeks: number;
         customName?: string | null;
         customNotes?: string | null;
+        startDate?: string | null;
       }>
     | null;
 }):
@@ -204,14 +205,17 @@ function validateBody(body: {
         weeks: e.weeks,
         customName: e.customName ?? null,
         customNotes: e.customNotes ?? null,
+        startDate: e.startDate ?? null,
       }))
     : null;
   // Project entries → blocks at write time so consumers (Apply, Full
   // Reset, dashboard, race-week lookup) can keep reading `blocks`. In
   // entries-mode the body's `blocks` payload is intentionally ignored —
-  // entries are the editor's source of truth.
+  // entries are the editor's source of truth. Gap-aware expansion
+  // honors per-entry startDate overrides by inserting Recovery filler
+  // blocks between non-adjacent entries.
   const blocks: PhaseBlock[] = isEntriesMode
-    ? expandEntriesToBlocks(entries!)
+    ? expandEntriesToBlocksWithGaps(entries!, body.startDate)
     : body.blocks.map((b) => ({
         focusType: b.focusType as FocusType,
         weeks: b.weeks,

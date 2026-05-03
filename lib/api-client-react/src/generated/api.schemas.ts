@@ -557,6 +557,8 @@ export interface TemplateEntry {
   customName?: string | null;
   /** Optional per-entry note merged into every expanded block's customNotes so the runner-supplied context surfaces in the daily plan. */
   customNotes?: string | null;
+  /** Optional ISO yyyy-mm-dd Monday on which this entry begins. When omitted (null), the entry stacks immediately after the previous entry. When set later than the running cursor, the gap is bridged with a Recovery filler block (sum of entry weeks + gap weeks must still equal totalWeeks). The first entry's startDate, when set, must equal the config's startDate. Overlapping entries (startDate before the previous entry's end) are rejected at validation. */
+  startDate?: string | null;
 }
 
 export interface PlannerConfig {

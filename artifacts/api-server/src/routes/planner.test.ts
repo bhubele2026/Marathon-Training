@@ -347,8 +347,8 @@ describe("POST /api/planner/apply", () => {
       });
     expect(create.status).toBe(201);
     expect(create.body.entries).toEqual([
-      { templateId: "aerobic_base", weeks: 4, customName: "Spring base", customNotes: null },
-      { templateId: "half_marathon", weeks: 12, customName: "HM build", customNotes: null },
+      { templateId: "aerobic_base", weeks: 4, customName: "Spring base", customNotes: null, startDate: null },
+      { templateId: "half_marathon", weeks: 12, customName: "HM build", customNotes: null, startDate: null },
     ]);
 
     const apply = await request(app).post("/api/planner/apply");
@@ -358,8 +358,8 @@ describe("POST /api/planner/apply", () => {
     // Snapshot was written with entries (not just blocks).
     const rows = await db.select().from(plannerConfigsTable);
     expect(rows[0]?.appliedEntries).toEqual([
-      { templateId: "aerobic_base", weeks: 4, customName: "Spring base", customNotes: null },
-      { templateId: "half_marathon", weeks: 12, customName: "HM build", customNotes: null },
+      { templateId: "aerobic_base", weeks: 4, customName: "Spring base", customNotes: null, startDate: null },
+      { templateId: "half_marathon", weeks: 12, customName: "HM build", customNotes: null, startDate: null },
     ]);
 
     // Full reset must re-pivot off the entries-mode snapshot. If the

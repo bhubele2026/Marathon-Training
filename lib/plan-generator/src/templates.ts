@@ -69,6 +69,14 @@ export interface TemplateEntry {
   customName?: string | null;
   // Optional per-entry note (appended to expanded block customNotes).
   customNotes?: string | null;
+  // Optional absolute start date (ISO yyyy-mm-dd, MUST be a Monday) for
+  // this entry. When omitted, the entry stacks immediately after the
+  // previous entry (back-to-back). When present and later than the
+  // running cursor, a Recovery filler block is inserted to bridge the
+  // gap (rest week / travel / off-season). Cannot precede the cursor
+  // (no overlapping templates) — the validator rejects that. The first
+  // entry's startDate (when set) must equal the config's startDate.
+  startDate?: string | null;
 }
 
 function makeBlock(
@@ -555,6 +563,11 @@ export const STARTER_SHORTCUTS: StarterShortcut[] = [
 // ids before reaching this function. Per-entry customNotes are merged
 // into each expanded block's notes so the runner-supplied context
 // surfaces in the daily plan.
+//
+// NOTE: this overload does NOT honor per-entry `startDate` gaps — it
+// stacks entries back-to-back. Callers that need gap support (the
+// generator, the validator, the planner UI) should use
+// `expandEntriesToBlocksWithGaps(entries, configStartDate)` instead.
 export function expandEntriesToBlocks(
   entries: ReadonlyArray<TemplateEntry>,
 ): PhaseBlock[] {
@@ -575,6 +588,120 @@ export function expandEntriesToBlocks(
       // Apply the entry-level label only to the first block of the
       // entry — that's the runner's named "section" of their plan.
       if (label && i === 0) {
+        merged.customName = label;
+      }
+      out.push(merged);
+    }
+  }
+  return out;
+}
+
+const _ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function _parseUTC(iso: string): number | null {
+  if (!_ISO_DATE_RE.test(iso)) return null;
+  const t = Date.parse(`${iso}T00:00:00Z`);
+  return Number.isFinite(t) ? t : null;
+}
+
+function _addDaysISO(iso: string, days: number): string | null {
+  const t = _parseUTC(iso);
+  if (t === null) return null;
+  return new Date(t + days * 86400000).toISOString().slice(0, 10);
+}
+
+// Per-entry projection used by both the generator (gap-aware block
+// expansion) and the planner UI (per-entry start/end date display).
+// Each item describes the runner's logical "section" of the plan plus
+// any leading filler gap before it.
+export interface EntryProjection {
+  // Index into the source entries[] array.
+  entryIndex: number;
+  // The Monday this entry actually begins on. Equals the running
+  // cursor unless the entry has an explicit (later) startDate set.
+  startDateISO: string;
+  // The Sunday this entry ends on (startDate + weeks*7 - 1 days).
+  endDateISO: string;
+  // Number of filler weeks inserted BEFORE this entry to bridge a
+  // user-chosen gap between this entry and the previous one. 0 when
+  // the entry stacks immediately after the previous one.
+  gapWeeksBefore: number;
+}
+
+// Compute per-entry start/end dates and any leading gaps, given the
+// config's startDate. Entries with malformed startDate values are
+// silently treated as "no override" (back-to-back) — the validator
+// surfaces the format error to the runner separately.
+export function projectEntries(
+  entries: ReadonlyArray<TemplateEntry>,
+  configStartDate: string,
+): EntryProjection[] {
+  const out: EntryProjection[] = [];
+  let cursorISO = configStartDate;
+  if (_parseUTC(cursorISO) === null) return out;
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i]!;
+    let startISO = cursorISO;
+    let gapWeeksBefore = 0;
+    if (e.startDate && _ISO_DATE_RE.test(e.startDate)) {
+      const cursorMs = _parseUTC(cursorISO)!;
+      const eMs = _parseUTC(e.startDate);
+      if (eMs !== null && eMs >= cursorMs) {
+        const days = Math.round((eMs - cursorMs) / 86400000);
+        if (days % 7 === 0) {
+          gapWeeksBefore = days / 7;
+          startISO = e.startDate;
+        }
+      }
+    }
+    const weeks = Math.max(0, Math.floor(e.weeks));
+    const endISO = _addDaysISO(startISO, weeks * 7 - 1) ?? startISO;
+    out.push({ entryIndex: i, startDateISO: startISO, endDateISO: endISO, gapWeeksBefore });
+    cursorISO = _addDaysISO(startISO, weeks * 7) ?? cursorISO;
+  }
+  return out;
+}
+
+// Gap-aware expansion: walks `entries` against the config startDate,
+// inserting a Recovery filler PhaseBlock before any entry whose
+// `startDate` is later than the running cursor. Use this from the
+// generator / validator / preview so saved `blocks` reflect the chosen
+// dates exactly. When `configStartDate` is malformed, falls back to the
+// stack-back-to-back expansion (matches `expandEntriesToBlocks`).
+export function expandEntriesToBlocksWithGaps(
+  entries: ReadonlyArray<TemplateEntry>,
+  configStartDate: string,
+): PhaseBlock[] {
+  if (_parseUTC(configStartDate) === null) {
+    return expandEntriesToBlocks(entries);
+  }
+  const projections = projectEntries(entries, configStartDate);
+  const out: PhaseBlock[] = [];
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i]!;
+    const tpl = getTemplateById(entry.templateId);
+    if (!tpl) continue;
+    const proj = projections.find((p) => p.entryIndex === i);
+    const gap = proj?.gapWeeksBefore ?? 0;
+    if (gap > 0) {
+      out.push({
+        focusType: "Recovery",
+        weeks: gap,
+        customName: null,
+        customNotes: "Gap between templates",
+      });
+    }
+    const blocks = tpl.expand(Math.max(0, Math.floor(entry.weeks)));
+    const note = entry.customNotes?.trim() || null;
+    const label = entry.customName?.trim() || null;
+    for (let j = 0; j < blocks.length; j++) {
+      const b = blocks[j]!;
+      const merged: PhaseBlock = { ...b };
+      if (note) {
+        const existing = b.customNotes?.trim();
+        merged.customNotes = existing ? `${existing}; ${note}` : note;
+      }
+      if (label && j === 0) {
         merged.customName = label;
       }
       out.push(merged);

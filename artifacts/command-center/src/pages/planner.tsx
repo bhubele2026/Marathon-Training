@@ -19,7 +19,8 @@ import {
   MARATHON_TAIL_WEEKS,
   PLAN_TEMPLATES,
   STARTER_SHORTCUTS,
-  expandEntriesToBlocks,
+  expandEntriesToBlocksWithGaps,
+  projectEntries,
   getTemplateById,
   previewWeeklyMileage,
   type FocusType,
@@ -128,18 +129,18 @@ function totalWeeksBetween(startISO: string, raceISO: string): number {
 }
 
 // Default config offered when no config has ever been saved (i.e. first
-// run of the app). Mirrors the canonical 52-week campaign.
-const DEFAULT_START_DATE = "2026-05-04";
-const DEFAULT_MARATHON_DATE = "2027-05-02";
-
+// run of the app). Anchors to the next Monday and a 52-week campaign so
+// the default does not silently drift to a past date over time.
 function defaultBlankConfig(): {
   startDate: string;
   marathonDate: string;
   blocks: PhaseBlock[];
 } {
+  const start = nextMondayISO();
+  const marathon = computeRaceDateForTotalWeeks(start, 52);
   return {
-    startDate: DEFAULT_START_DATE,
-    marathonDate: DEFAULT_MARATHON_DATE,
+    startDate: start,
+    marathonDate: marathon,
     blocks: [
       { focusType: "Base", weeks: 18, customName: null, customNotes: null },
       {
@@ -252,6 +253,20 @@ export default function Planner() {
   // legacy `draft` (PhaseBlock[]) below stays in sync as the read-only
   // projection used for the mileage preview / timeline.
   const [entries, setEntries] = useState<TemplateEntry[] | null>(null);
+  // Apply Template on a 2nd+ entry stages a pending template; the
+  // dialog asks for the Monday it should start on (default = stack
+  // back-to-back; later = insert a Recovery filler gap).
+  const [pendingApplyTemplate, setPendingApplyTemplate] = useState<
+    | {
+        templateId: string;
+        templateName: string;
+        templateSource: string;
+        weeks: number;
+        proposedStartDate: string;
+      }
+    | null
+  >(null);
+  const [pendingApplyStartDate, setPendingApplyStartDate] = useState<string>("");
 
   const detailQuery = useGetPlannerConfig(selectedId ?? 0, {
     query: {
@@ -317,6 +332,21 @@ export default function Planner() {
   const entriesWeeksSum = isEntriesMode
     ? entries!.reduce((s, e) => s + (e.weeks || 0), 0)
     : 0;
+  // Per-entry projections (start/end ISO + leading gap weeks). Only
+  // computed when the runner has a valid Monday startDate so the
+  // running cursor is well-defined.
+  const entryProjections = useMemo(() => {
+    if (!isEntriesMode || !startDate || dayOfWeekUTC(startDate) !== 1) return [];
+    return projectEntries(entries!, startDate);
+  }, [entries, isEntriesMode, startDate]);
+  const entriesGapWeeksSum = entryProjections.reduce(
+    (s, p) => s + p.gapWeeksBefore,
+    0,
+  );
+  // Projected span = sum of entry weeks + sum of leading gap weeks.
+  // This is what the server's totalWeeks invariant compares against in
+  // entries-mode (each gap is filled with a Recovery block).
+  const entriesProjectedWeeks = entriesWeeksSum + entriesGapWeeksSum;
   const startDow = dayOfWeekUTC(startDate);
   const raceDow = dayOfWeekUTC(marathonDate);
 
@@ -328,13 +358,18 @@ export default function Planner() {
   else if (raceDow !== 0) issues.push("Marathon date must be a Sunday.");
   if (isEntriesMode) {
     // Entries-mode: each template owns its own taper, so entries weeks
-    // must sum to the FULL total span (no auto-pinned tail).
+    // (plus any per-entry gap weeks) must sum to the FULL total span
+    // (no auto-pinned tail).
     if (entries!.length === 0) {
       issues.push("Composition is empty — add at least one template entry.");
     }
-    if (totalWeeks > 0 && entriesWeeksSum !== totalWeeks) {
+    if (totalWeeks > 0 && entriesProjectedWeeks !== totalWeeks) {
+      const gapsCopy =
+        entriesGapWeeksSum > 0
+          ? ` plus ${entriesGapWeeksSum} gap week(s)`
+          : "";
       issues.push(
-        `Template entries total ${entriesWeeksSum} weeks, but need exactly ${totalWeeks} (each template owns its own taper — no auto-pinned tail).`,
+        `Template entries total ${entriesWeeksSum} weeks${gapsCopy}, but need exactly ${totalWeeks} (each template owns its own taper — no auto-pinned tail).`,
       );
     }
     for (let i = 0; i < entries!.length; i++) {
@@ -344,6 +379,31 @@ export default function Planner() {
       }
       if (!getTemplateById(e.templateId)) {
         issues.push(`Entry ${i + 1} references unknown template "${e.templateId}".`);
+      }
+      // Per-entry startDate sanity (Monday, on/after cursor, first
+      // equals config startDate). Mirrors the server validator so
+      // Save/Apply gating reflects what the server will accept.
+      const sd = e.startDate;
+      if (sd != null && sd !== "") {
+        if (!ISO_DATE_RE.test(sd)) {
+          issues.push(`Entry ${i + 1} start date must be yyyy-mm-dd.`);
+        } else if (dayOfWeekUTC(sd) !== 1) {
+          issues.push(`Entry ${i + 1} start date must be a Monday.`);
+        } else if (i === 0 && startDate && sd !== startDate) {
+          issues.push(
+            `Entry 1 start date must equal the config start date (${startDate}).`,
+          );
+        } else if (i > 0) {
+          const prev = entryProjections.find((p) => p.entryIndex === i - 1);
+          if (prev) {
+            const cursor = addDaysISO(prev.endDateISO, 1);
+            if (sd < cursor) {
+              issues.push(
+                `Entry ${i + 1} start date (${sd}) overlaps the previous entry — must be on or after ${cursor}.`,
+              );
+            }
+          }
+        }
       }
     }
   } else {
@@ -417,20 +477,86 @@ export default function Planner() {
   ) {
     const start =
       startDate && dayOfWeekUTC(startDate) === 1 ? startDate : nextMondayISO();
+    const existing = entries ?? [];
+    // First entry: append immediately. Subsequent entries: open the
+    // start-date confirmation dialog so the runner can insert a gap.
+    if (existing.length > 0) {
+      // Proposed start = end of last entry's last day + 1 (the next Monday).
+      const projections = projectEntries(existing, start);
+      const last = projections[projections.length - 1];
+      const cursor =
+        last && last.endDateISO
+          ? addDaysISO(last.endDateISO, 1)
+          : start;
+      setPendingApplyTemplate({
+        templateId: tpl.id,
+        templateName: tpl.name,
+        templateSource: tpl.source,
+        weeks,
+        proposedStartDate: cursor,
+      });
+      setPendingApplyStartDate(cursor);
+      return;
+    }
     const nextEntries: TemplateEntry[] = [
-      ...(entries ?? []),
-      { templateId: tpl.id, weeks, customName: null, customNotes: null },
+      { templateId: tpl.id, weeks, customName: null, customNotes: null, startDate: null },
     ];
-    const total = nextEntries.reduce((s, e) => s + (e.weeks || 0), 0);
-    const race = computeRaceDateForTotalWeeks(start, total);
+    const projections = projectEntries(nextEntries, start);
+    const projected =
+      nextEntries.reduce((s, e) => s + (e.weeks || 0), 0) +
+      projections.reduce((s, p) => s + p.gapWeeksBefore, 0);
+    const race = computeRaceDateForTotalWeeks(start, projected);
     setEntries(nextEntries);
     setStartDate(start);
     setMarathonDate(race);
-    setDraft(blocksToDraft(expandEntriesToBlocks(nextEntries)));
+    setDraft(blocksToDraft(expandEntriesToBlocksWithGaps(nextEntries, start)));
     setLastAppliedTemplate(tpl.id);
     toast({
       title: `${tpl.name} added`,
-      description: `${weeks}-week entry added (total span ${total}w). Source: ${tpl.source}.`,
+      description: `${weeks}-week entry added (total span ${projected}w). Source: ${tpl.source}.`,
+    });
+  }
+
+  // Confirms the dialog opened by applyTemplate for a non-first entry:
+  // appends with chosen startDate (null when it equals the cursor) and
+  // re-anchors the race date to weeks + gap weeks.
+  function confirmPendingApplyTemplate() {
+    if (!pendingApplyTemplate) return;
+    const start =
+      startDate && dayOfWeekUTC(startDate) === 1 ? startDate : nextMondayISO();
+    const existing = entries ?? [];
+    const chosen = pendingApplyStartDate;
+    const cursorDefault = pendingApplyTemplate.proposedStartDate;
+    const startDateField =
+      chosen && chosen !== cursorDefault ? chosen : null;
+    const nextEntries: TemplateEntry[] = [
+      ...existing,
+      {
+        templateId: pendingApplyTemplate.templateId,
+        weeks: pendingApplyTemplate.weeks,
+        customName: null,
+        customNotes: null,
+        startDate: startDateField,
+      },
+    ];
+    const projections = projectEntries(nextEntries, start);
+    const projected =
+      nextEntries.reduce((s, e) => s + (e.weeks || 0), 0) +
+      projections.reduce((s, p) => s + p.gapWeeksBefore, 0);
+    const race = computeRaceDateForTotalWeeks(start, projected);
+    setEntries(nextEntries);
+    setStartDate(start);
+    setMarathonDate(race);
+    setDraft(blocksToDraft(expandEntriesToBlocksWithGaps(nextEntries, start)));
+    setLastAppliedTemplate(pendingApplyTemplate.templateId);
+    const tplName = pendingApplyTemplate.templateName;
+    const w = pendingApplyTemplate.weeks;
+    const src = pendingApplyTemplate.templateSource;
+    setPendingApplyTemplate(null);
+    setPendingApplyStartDate("");
+    toast({
+      title: `${tplName} added`,
+      description: `${w}-week entry added (total span ${projected}w). Source: ${src}.`,
     });
   }
 
@@ -441,7 +567,11 @@ export default function Planner() {
   // are a "fresh slate" workflow. Total span = sum(entries.weeks); each
   // template owns its own taper (no auto-pinned tail).
   function applyStarter(s: StarterShortcut) {
-    const start = nextMondayISO();
+    // Respect the user's chosen config start date when it's a valid
+    // Monday so picking a custom start date before applying a starter
+    // is preserved; otherwise fall back to the next Monday.
+    const start =
+      startDate && dayOfWeekUTC(startDate) === 1 ? startDate : nextMondayISO();
     const total = s.entries.reduce((acc, e) => acc + e.weeks, 0);
     const race = computeRaceDateForTotalWeeks(start, total);
     const nextEntries: TemplateEntry[] = s.entries.map((e) => ({
@@ -449,11 +579,12 @@ export default function Planner() {
       weeks: e.weeks,
       customName: null,
       customNotes: null,
+      startDate: null,
     }));
     setEntries(nextEntries);
     setStartDate(start);
     setMarathonDate(race);
-    setDraft(blocksToDraft(expandEntriesToBlocks(nextEntries)));
+    setDraft(blocksToDraft(expandEntriesToBlocksWithGaps(nextEntries, start)));
     const last = nextEntries[nextEntries.length - 1];
     if (last) setLastAppliedTemplate(last.templateId);
     if (!name.trim()) setName(s.name);
@@ -468,15 +599,103 @@ export default function Planner() {
   // re-anchors the marathonDate so sum(entries.weeks) === totalWeeks
   // — the server's entries-mode invariant — without making the runner
   // hand-fix dates after every add/remove/reorder.
+  // Changing the config start date when entries already exist must:
+  // 1. Shift entry-1's pinned startDate (which must equal config start)
+  //    so the validator stays happy.
+  // 2. Re-project the gap-aware draft so the preview/timeline reflect
+  //    the new dates without losing composed gaps.
+  // 3. Re-anchor the marathon date to the same projected span.
+  function handleConfigStartDateChange(nextStart: string) {
+    const prevStart = startDate;
+    setStartDate(nextStart);
+    if (
+      !prevStart ||
+      !nextStart ||
+      !ISO_DATE_RE.test(prevStart) ||
+      !ISO_DATE_RE.test(nextStart) ||
+      dayOfWeekUTC(nextStart) !== 1
+    ) {
+      return;
+    }
+    const days = Math.round(
+      (Date.parse(`${nextStart}T00:00:00Z`) -
+        Date.parse(`${prevStart}T00:00:00Z`)) /
+        86400000,
+    );
+    if (entries && entries.length > 0) {
+      // Shift every pinned entry startDate by the same delta so composed
+      // gaps survive the move; reproject the gap-aware draft and
+      // re-anchor marathonDate from the projected span.
+      const next = entries.map((e, i) => {
+        if (i === 0 && e.startDate) return { ...e, startDate: nextStart };
+        if (e.startDate && ISO_DATE_RE.test(e.startDate)) {
+          return { ...e, startDate: addDaysISO(e.startDate, days) };
+        }
+        return e;
+      });
+      setEntries(next);
+      setDraft(blocksToDraft(expandEntriesToBlocksWithGaps(next, nextStart)));
+      const projections = projectEntries(next, nextStart);
+      const projected =
+        next.reduce((s, e) => s + (e.weeks || 0), 0) +
+        projections.reduce((s, p) => s + p.gapWeeksBefore, 0);
+      if (projected > 0) {
+        setMarathonDate(computeRaceDateForTotalWeeks(nextStart, projected));
+      }
+      return;
+    }
+    // Legacy/blank/empty-entries: preserve the current total span by
+    // shifting marathonDate by the same delta so changing the config
+    // start date does not silently alter the plan duration.
+    if (marathonDate && ISO_DATE_RE.test(marathonDate)) {
+      setMarathonDate(addDaysISO(marathonDate, days));
+    }
+  }
+  // Normalize per-entry startDate values after a structural mutation
+  // (remove/move/update). Rules mirror the server validator so the
+  // composition stays saveable:
+  //   - Entry 0: startDate must be null OR exactly the config start.
+  //     Anything else (e.g. an absolute Monday inherited from a moved
+  //     entry) is cleared so it stacks on the config start.
+  //   - Entries i>0: startDate must be Monday and >= the running
+  //     cursor (= projected end of previous entry + 1 day). Anything
+  //     else is cleared so it stacks back-to-back.
+  function normalizeEntries(
+    next: TemplateEntry[],
+    configStart: string,
+  ): TemplateEntry[] {
+    const out: TemplateEntry[] = [];
+    let cursor = configStart;
+    for (let i = 0; i < next.length; i++) {
+      const e = next[i]!;
+      let sd: string | null = e.startDate ?? null;
+      if (i === 0) {
+        if (sd && sd !== configStart) sd = null;
+      } else if (sd) {
+        const valid =
+          ISO_DATE_RE.test(sd) && dayOfWeekUTC(sd) === 1 && sd >= cursor;
+        if (!valid) sd = null;
+      }
+      const startISO = sd ?? cursor;
+      out.push({ ...e, startDate: sd });
+      const weeks = Math.max(0, Math.floor(e.weeks));
+      cursor = addDaysISO(startISO, weeks * 7);
+    }
+    return out;
+  }
   function reprojectEntries(next: TemplateEntry[]) {
-    setEntries(next);
-    setDraft(blocksToDraft(expandEntriesToBlocks(next)));
-    const total = next.reduce((s, e) => s + (e.weeks || 0), 0);
-    if (total > 0 && startDate) {
-      const start =
-        dayOfWeekUTC(startDate) === 1 ? startDate : nextMondayISO();
+    const start =
+      startDate && dayOfWeekUTC(startDate) === 1 ? startDate : nextMondayISO();
+    const normalized = normalizeEntries(next, start);
+    setEntries(normalized);
+    setDraft(blocksToDraft(expandEntriesToBlocksWithGaps(normalized, start)));
+    const projections = projectEntries(normalized, start);
+    const projected =
+      normalized.reduce((s, e) => s + (e.weeks || 0), 0) +
+      projections.reduce((s, p) => s + p.gapWeeksBefore, 0);
+    if (projected > 0) {
       if (start !== startDate) setStartDate(start);
-      setMarathonDate(computeRaceDateForTotalWeeks(start, total));
+      setMarathonDate(computeRaceDateForTotalWeeks(start, projected));
     }
   }
   function updateEntry(i: number, patch: Partial<TemplateEntry>) {
@@ -502,7 +721,13 @@ export default function Planner() {
     const base: TemplateEntry[] = entries ?? [];
     const next: TemplateEntry[] = [
       ...base,
-      { templateId, weeks: tpl.defaultWeeks, customName: null, customNotes: null },
+      {
+        templateId,
+        weeks: tpl.defaultWeeks,
+        customName: null,
+        customNotes: null,
+        startDate: null,
+      },
     ];
     reprojectEntries(next);
   }
@@ -842,6 +1067,9 @@ export default function Planner() {
       const endMs = ms + (weekCount * 7 - 1) * 24 * 3600 * 1000;
       return new Date(endMs).toISOString().slice(0, 10);
     };
+    // In entries-mode `draft` is the gap-aware projection (Recovery
+    // filler blocks already inserted between non-adjacent entries), so
+    // the timeline reads back the canonical block list including gaps.
     let week = 1;
     for (const b of draft) {
       const w = b.weeks || 0;
@@ -1305,7 +1533,7 @@ export default function Planner() {
               data-testid="planner-start-date"
               type="date"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              onChange={(e) => handleConfigStartDateChange(e.target.value)}
             />
             {startDate && startDow !== 1 && (
               <p className="text-xs text-destructive">
@@ -1348,14 +1576,34 @@ export default function Planner() {
             data-testid="planner-timeline-math"
           >
             <Stat label="Total weeks" value={totalWeeks || "—"} />
-            <Stat
-              label="User-block weeks"
-              value={`${userWeeksSum} / ${expectedUserWeeks}`}
-              ok={userWeeksSum === expectedUserWeeks && expectedUserWeeks > 0}
-              data-testid="planner-block-weeks-stat"
-            />
-            <Stat label="Auto-pinned" value={`${MARATHON_TAIL_WEEKS} weeks`} />
-            <Stat label="Blocks" value={`${draft.length} + 1 pinned`} />
+            {entries !== null ? (
+              <>
+                <Stat
+                  label="Template weeks"
+                  value={entries.reduce((s, e) => s + (e.weeks || 0), 0)}
+                  data-testid="planner-block-weeks-stat"
+                />
+                <Stat
+                  label="Gap weeks"
+                  value={entriesGapWeeksSum}
+                />
+                <Stat
+                  label="Blocks"
+                  value={`${draft.length}`}
+                />
+              </>
+            ) : (
+              <>
+                <Stat
+                  label="User-block weeks"
+                  value={`${userWeeksSum} / ${expectedUserWeeks}`}
+                  ok={userWeeksSum === expectedUserWeeks && expectedUserWeeks > 0}
+                  data-testid="planner-block-weeks-stat"
+                />
+                <Stat label="Auto-pinned" value={`${MARATHON_TAIL_WEEKS} weeks`} />
+                <Stat label="Blocks" value={`${draft.length} + 1 pinned`} />
+              </>
+            )}
           </div>
           {issues.length > 0 && (
             <ul
@@ -1387,12 +1635,21 @@ export default function Planner() {
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <div>
               <CardTitle className="uppercase tracking-wider text-sm">
-                Composition · {entries!.length} entr{entries!.length === 1 ? "y" : "ies"} · {entriesWeeksSum}/{totalWeeks}w
+                Composition · {entries!.length} entr{entries!.length === 1 ? "y" : "ies"} · {entriesProjectedWeeks}/{totalWeeks}w
+                {entriesGapWeeksSum > 0 && (
+                  <span
+                    className="ml-2 text-[10px] font-normal text-muted-foreground normal-case tracking-normal"
+                    data-testid="planner-composition-gap-summary"
+                  >
+                    ({entriesWeeksSum}w templates + {entriesGapWeeksSum}w gap)
+                  </span>
+                )}
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-1">
                 Each template owns its own taper — no auto-pinned 16-week
                 tail. Use Apply Template above to add more entries; reorder
-                or remove below.
+                or remove below. Push an entry's start date later to
+                insert a Recovery rest gap between templates.
               </p>
             </div>
             <Button
@@ -1421,12 +1678,22 @@ export default function Planner() {
               >
                 {entries!.map((e, i) => {
                   const tpl = getTemplateById(e.templateId);
+                  const proj = entryProjections.find((p) => p.entryIndex === i);
                   return (
                     <li
                       key={i}
                       className="border rounded-lg p-3 bg-card"
                       data-testid={`planner-entry-${i}`}
                     >
+                      {proj && proj.gapWeeksBefore > 0 && (
+                        <div
+                          className="mb-2 text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1"
+                          data-testid={`planner-entry-${i}-gap-banner`}
+                        >
+                          ↳ {proj.gapWeeksBefore}w Recovery gap before this
+                          entry
+                        </div>
+                      )}
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-xs font-mono text-muted-foreground w-6">
                           #{i + 1}
@@ -1497,6 +1764,53 @@ export default function Planner() {
                             }
                             data-testid={`planner-entry-${i}-name`}
                           />
+                          {proj && (
+                            <div
+                              className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground"
+                              data-testid={`planner-entry-${i}-dates`}
+                            >
+                              <span className="uppercase tracking-wider">
+                                Starts
+                              </span>
+                              {i === 0 ? (
+                                <span className="font-mono tabular-nums">
+                                  {proj.startDateISO}
+                                </span>
+                              ) : (
+                                <Input
+                                  type="date"
+                                  value={proj.startDateISO}
+                                  className="h-6 w-36 text-xs"
+                                  onChange={(ev) => {
+                                    const v = ev.target.value;
+                                    updateEntry(i, {
+                                      startDate: v || null,
+                                    });
+                                  }}
+                                  data-testid={`planner-entry-${i}-start-date`}
+                                />
+                              )}
+                              <span className="uppercase tracking-wider">
+                                Ends
+                              </span>
+                              <span className="font-mono tabular-nums">
+                                {proj.endDateISO}
+                              </span>
+                              {i > 0 && e.startDate && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-5 px-2 text-[10px] uppercase tracking-wider"
+                                  onClick={() =>
+                                    updateEntry(i, { startDate: null })
+                                  }
+                                  data-testid={`planner-entry-${i}-clear-start-date`}
+                                >
+                                  Stack
+                                </Button>
+                              )}
+                            </div>
+                          )}
                           <p
                             className="text-[10px] text-muted-foreground"
                             data-testid={`planner-entry-${i}-range`}
@@ -1839,6 +2153,83 @@ export default function Planner() {
               data-testid="planner-confirm-delete"
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={pendingApplyTemplate !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingApplyTemplate(null);
+            setPendingApplyStartDate("");
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              When should &quot;{pendingApplyTemplate?.templateName}&quot; start?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Default is{" "}
+              <span className="font-mono">
+                {pendingApplyTemplate?.proposedStartDate}
+              </span>{" "}
+              — the Monday right after the previous entry ends. Push it
+              later (must still be a Monday) to insert a Recovery rest
+              gap between templates. The race date will re-anchor so
+              the totals match.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="planner-pending-start-date">
+              Entry start date
+            </Label>
+            <Input
+              id="planner-pending-start-date"
+              type="date"
+              value={pendingApplyStartDate}
+              min={pendingApplyTemplate?.proposedStartDate}
+              onChange={(ev) => setPendingApplyStartDate(ev.target.value)}
+              data-testid="planner-pending-apply-start-date"
+            />
+            {pendingApplyStartDate &&
+              dayOfWeekUTC(pendingApplyStartDate) !== 1 && (
+                <p className="text-xs text-destructive">
+                  Must be a Monday — currently a{" "}
+                  {
+                    ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][
+                      dayOfWeekUTC(pendingApplyStartDate) ?? 0
+                    ]
+                  }
+                  .
+                </p>
+              )}
+            {pendingApplyStartDate &&
+              pendingApplyTemplate &&
+              pendingApplyStartDate < pendingApplyTemplate.proposedStartDate && (
+                <p className="text-xs text-destructive">
+                  Cannot start before {pendingApplyTemplate.proposedStartDate}{" "}
+                  (the end of the previous entry).
+                </p>
+              )}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmPendingApplyTemplate}
+              data-testid="planner-confirm-pending-apply"
+              disabled={
+                !pendingApplyStartDate ||
+                dayOfWeekUTC(pendingApplyStartDate) !== 1 ||
+                (pendingApplyTemplate !== null &&
+                  pendingApplyStartDate <
+                    pendingApplyTemplate.proposedStartDate)
+              }
+            >
+              Add entry
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -4,6 +4,8 @@ import {
   STARTER_SHORTCUTS,
   getTemplateById,
   expandEntriesToBlocks,
+  expandEntriesToBlocksWithGaps,
+  projectEntries,
 } from "@workspace/plan-generator";
 
 describe("PLAN_TEMPLATES", () => {
@@ -206,5 +208,90 @@ describe("expandEntriesToBlocks", () => {
     ]);
     expect(blocks).toHaveLength(1);
     expect(blocks[0]!.customNotes).toBe("Heat block");
+  });
+});
+
+describe("projectEntries (gap-aware)", () => {
+  // 2026-01-05 is a Monday. Aerobic Base 4w → ends 2026-02-01 (Sunday).
+  // Next stack-cursor Monday is 2026-02-02.
+  it("stacks entries back-to-back when no startDate overrides are set", () => {
+    const out = projectEntries(
+      [
+        { templateId: "aerobic_base", weeks: 4 },
+        { templateId: "half_marathon", weeks: 12 },
+      ],
+      "2026-01-05",
+    );
+    expect(out).toHaveLength(2);
+    expect(out[0]).toMatchObject({
+      entryIndex: 0,
+      gapWeeksBefore: 0,
+      startDateISO: "2026-01-05",
+      endDateISO: "2026-02-01",
+    });
+    expect(out[1]).toMatchObject({
+      entryIndex: 1,
+      gapWeeksBefore: 0,
+      startDateISO: "2026-02-02",
+    });
+  });
+
+  it("inserts a leading gap when a non-first entry's startDate skips Mondays", () => {
+    // Push the half marathon 2 weeks past the back-to-back cursor.
+    const out = projectEntries(
+      [
+        { templateId: "aerobic_base", weeks: 4 },
+        {
+          templateId: "half_marathon",
+          weeks: 12,
+          startDate: "2026-02-16",
+        },
+      ],
+      "2026-01-05",
+    );
+    expect(out[1]!.gapWeeksBefore).toBe(2);
+    expect(out[1]!.startDateISO).toBe("2026-02-16");
+  });
+});
+
+describe("expandEntriesToBlocksWithGaps", () => {
+  it("inserts Recovery filler blocks for gap weeks between entries", () => {
+    const blocks = expandEntriesToBlocksWithGaps(
+      [
+        { templateId: "aerobic_base", weeks: 4 },
+        {
+          templateId: "half_marathon",
+          weeks: 12,
+          startDate: "2026-02-16",
+        },
+      ],
+      "2026-01-05",
+    );
+    // 4w aerobic → 1+ blocks, 2w gap (Recovery filler), then 12w HM blocks.
+    const total = blocks.reduce((s, b) => s + b.weeks, 0);
+    expect(total).toBe(4 + 2 + 12);
+    const gap = blocks.find(
+      (b) => b.focusType === "Recovery" && b.customNotes === "Gap between templates",
+    );
+    expect(gap, "expected Recovery filler block").toBeTruthy();
+    expect(gap!.weeks).toBe(2);
+  });
+
+  it("matches plain expandEntriesToBlocks when no gaps are present", () => {
+    const a = expandEntriesToBlocks([
+      { templateId: "aerobic_base", weeks: 8 },
+      { templateId: "half_marathon", weeks: 12 },
+    ]);
+    const b = expandEntriesToBlocksWithGaps(
+      [
+        { templateId: "aerobic_base", weeks: 8 },
+        { templateId: "half_marathon", weeks: 12 },
+      ],
+      "2026-01-05",
+    );
+    const sumA = a.reduce((s, x) => s + x.weeks, 0);
+    const sumB = b.reduce((s, x) => s + x.weeks, 0);
+    expect(sumB).toBe(sumA);
+    expect(b.some((x) => x.customNotes === "Gap between templates")).toBe(false);
   });
 });

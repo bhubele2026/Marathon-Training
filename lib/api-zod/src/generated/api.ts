@@ -1322,6 +1322,12 @@ export const CreatePlannerConfigBody = zod.object({
             .describe(
               "Optional per-entry note merged into every expanded block's customNotes so the runner-supplied context surfaces in the daily plan.",
             ),
+          startDate: zod
+            .string()
+            .nullish()
+            .describe(
+              "Optional ISO yyyy-mm-dd Monday on which this entry begins. When omitted (null), the entry stacks immediately after the previous entry. When set later than the running cursor, the gap is bridged with a Recovery filler block (sum of entry weeks + gap weeks must still equal totalWeeks). The first entry's startDate, when set, must equal the config's startDate. Overlapping entries (startDate before the previous entry's end) are rejected at validation.",
+            ),
         })
         .describe(
           "A single composed entry inside an entries-mode PlannerConfig. References a plan template by id and supplies the runner-chosen week count for that template.",
@@ -1426,6 +1432,12 @@ export const GetPlannerConfigResponse = zod.object({
             .describe(
               "Optional per-entry note merged into every expanded block's customNotes so the runner-supplied context surfaces in the daily plan.",
             ),
+          startDate: zod
+            .string()
+            .nullish()
+            .describe(
+              "Optional ISO yyyy-mm-dd Monday on which this entry begins. When omitted (null), the entry stacks immediately after the previous entry. When set later than the running cursor, the gap is bridged with a Recovery filler block (sum of entry weeks + gap weeks must still equal totalWeeks). The first entry's startDate, when set, must equal the config's startDate. Overlapping entries (startDate before the previous entry's end) are rejected at validation.",
+            ),
         })
         .describe(
           "A single composed entry inside an entries-mode PlannerConfig. References a plan template by id and supplies the runner-chosen week count for that template.",
@@ -1523,6 +1535,12 @@ export const UpdatePlannerConfigBody = zod.object({
             .describe(
               "Optional per-entry note merged into every expanded block's customNotes so the runner-supplied context surfaces in the daily plan.",
             ),
+          startDate: zod
+            .string()
+            .nullish()
+            .describe(
+              "Optional ISO yyyy-mm-dd Monday on which this entry begins. When omitted (null), the entry stacks immediately after the previous entry. When set later than the running cursor, the gap is bridged with a Recovery filler block (sum of entry weeks + gap weeks must still equal totalWeeks). The first entry's startDate, when set, must equal the config's startDate. Overlapping entries (startDate before the previous entry's end) are rejected at validation.",
+            ),
         })
         .describe(
           "A single composed entry inside an entries-mode PlannerConfig. References a plan template by id and supplies the runner-chosen week count for that template.",
@@ -1616,6 +1634,12 @@ export const UpdatePlannerConfigResponse = zod.object({
             .nullish()
             .describe(
               "Optional per-entry note merged into every expanded block's customNotes so the runner-supplied context surfaces in the daily plan.",
+            ),
+          startDate: zod
+            .string()
+            .nullish()
+            .describe(
+              "Optional ISO yyyy-mm-dd Monday on which this entry begins. When omitted (null), the entry stacks immediately after the previous entry. When set later than the running cursor, the gap is bridged with a Recovery filler block (sum of entry weeks + gap weeks must still equal totalWeeks). The first entry's startDate, when set, must equal the config's startDate. Overlapping entries (startDate before the previous entry's end) are rejected at validation.",
             ),
         })
         .describe(
@@ -1774,6 +1798,12 @@ export const ActivatePlannerConfigResponse = zod.object({
             .nullish()
             .describe(
               "Optional per-entry note merged into every expanded block's customNotes so the runner-supplied context surfaces in the daily plan.",
+            ),
+          startDate: zod
+            .string()
+            .nullish()
+            .describe(
+              "Optional ISO yyyy-mm-dd Monday on which this entry begins. When omitted (null), the entry stacks immediately after the previous entry. When set later than the running cursor, the gap is bridged with a Recovery filler block (sum of entry weeks + gap weeks must still equal totalWeeks). The first entry's startDate, when set, must equal the config's startDate. Overlapping entries (startDate before the previous entry's end) are rejected at validation.",
             ),
         })
         .describe(

@@ -533,6 +533,67 @@ describe("Planner template library (entries-mode)", () => {
     expect(screen.getByText(/Composition · 2 entries · 16\/16w/)).toBeTruthy();
   });
 
+  it("applying a starter respects a custom config start date already set", () => {
+    renderPlanner();
+    const startInput = screen.getByTestId("planner-start-date") as HTMLInputElement;
+    const startMs = Date.parse(`${startInput.value}T00:00:00Z`);
+    const customStart = new Date(startMs + 21 * 24 * 3600 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    fireEvent.change(startInput, { target: { value: customStart } });
+    fireEvent.click(screen.getByTestId("planner-starter-apply-hm_beginner_16w"));
+    expect(
+      (screen.getByTestId("planner-start-date") as HTMLInputElement).value,
+    ).toBe(customStart);
+    const raceMs = Date.parse(
+      `${(screen.getByTestId("planner-marathon-date") as HTMLInputElement).value}T00:00:00Z`,
+    );
+    expect(raceMs - Date.parse(`${customStart}T00:00:00Z`)).toBe(
+      16 * 7 * 24 * 3600 * 1000 - 24 * 3600 * 1000,
+    );
+  });
+
+  it("removing an entry with a downstream gap normalizes startDates so the composition stays saveable", () => {
+    renderPlanner();
+    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
+    const dateInput = screen.getByTestId(
+      "planner-pending-apply-start-date",
+    ) as HTMLInputElement;
+    const cursorMs = Date.parse(`${dateInput.value}T00:00:00Z`);
+    const pushed = new Date(cursorMs + 14 * 24 * 3600 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    fireEvent.change(dateInput, { target: { value: pushed } });
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
+    // Sanity: 10 + 12 + 2 gap = 24w span.
+    expect(screen.getByText(/Composition · 2 entries · 22\/22w/)).toBeTruthy();
+
+    // Remove entry 0 — entry 1's absolute startDate would otherwise
+    // violate "entry 0 must equal config start". Normalization clears
+    // it so the remaining entry starts on the config Monday.
+    fireEvent.click(screen.getByTestId("planner-entry-0-remove"));
+    expect(screen.getByText(/Composition · 1 entry · 12\/12w/)).toBeTruthy();
+    // No "issues" panel rendered → composition is saveable.
+    expect(screen.queryByTestId("planner-issues")).toBeNull();
+  });
+
+  it("changing the config start date in legacy block mode shifts the race date by the same delta", () => {
+    renderPlanner();
+    const startInput = screen.getByTestId("planner-start-date") as HTMLInputElement;
+    const raceInput = screen.getByTestId("planner-marathon-date") as HTMLInputElement;
+    const raceBefore = raceInput.value;
+    const startMs = Date.parse(`${startInput.value}T00:00:00Z`);
+    const newStart = new Date(startMs + 7 * 24 * 3600 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    fireEvent.change(startInput, { target: { value: newStart } });
+    const raceAfter = (screen.getByTestId("planner-marathon-date") as HTMLInputElement).value;
+    expect(Date.parse(`${raceAfter}T00:00:00Z`) - Date.parse(`${raceBefore}T00:00:00Z`)).toBe(
+      7 * 24 * 3600 * 1000,
+    );
+  });
+
   it("disables Apply Template and surfaces a server-rejection warning when weeks fall outside the published range", () => {
     renderPlanner();
     const weeksInput = screen.getByTestId(
@@ -546,6 +607,87 @@ describe("Planner template library (entries-mode)", () => {
         "planner-template-apply-half_marathon",
       ) as HTMLButtonElement).disabled,
     ).toBe(true);
+  });
+
+  it("applying a 2nd template opens the start-date dialog and stacks back-to-back by default", () => {
+    renderPlanner();
+    // First Apply: appends immediately (no dialog).
+    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    expect(screen.queryByTestId("planner-pending-apply-start-date")).toBeNull();
+    const headerBefore = screen.getByText(/Composition · 1 entry/);
+    expect(headerBefore).toBeTruthy();
+
+    // Second Apply: opens dialog with proposed Monday cursor.
+    fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
+    const dateInput = screen.getByTestId(
+      "planner-pending-apply-start-date",
+    ) as HTMLInputElement;
+    expect(dateInput).toBeTruthy();
+    expect(dateInput.value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+    // Confirm with the default cursor → no gap, totals stack to 8w + 12w.
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
+    expect(screen.queryByTestId("planner-pending-apply-start-date")).toBeNull();
+    expect(screen.getByText(/Composition · 2 entries · 20\/20w/)).toBeTruthy();
+    // No gap inserted → no gap summary chip.
+    expect(screen.queryByTestId("planner-composition-gap-summary")).toBeNull();
+  });
+
+  it("pushing the 2nd entry's start date later inserts a Recovery gap and re-anchors the race date", () => {
+    renderPlanner();
+    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
+    const dateInput = screen.getByTestId(
+      "planner-pending-apply-start-date",
+    ) as HTMLInputElement;
+    // Push 14 days (2 Mondays) past the proposed cursor.
+    const cursorMs = Date.parse(`${dateInput.value}T00:00:00Z`);
+    const pushed = new Date(cursorMs + 14 * 24 * 3600 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    fireEvent.change(dateInput, { target: { value: pushed } });
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
+
+    // Header now shows 22w projected (8w + 12w + 2w gap).
+    expect(screen.getByText(/Composition · 2 entries · 22\/22w/)).toBeTruthy();
+    expect(screen.getByTestId("planner-composition-gap-summary").textContent)
+      .toMatch(/20w templates \+ 2w gap/);
+    // Entry 1 gets the gap banner.
+    expect(screen.getByTestId("planner-entry-1-gap-banner")).toBeTruthy();
+  });
+
+  it("changing the config start date re-projects gaps and re-anchors the race date", () => {
+    renderPlanner();
+    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
+    const dateInput = screen.getByTestId(
+      "planner-pending-apply-start-date",
+    ) as HTMLInputElement;
+    const cursorMs = Date.parse(`${dateInput.value}T00:00:00Z`);
+    const pushed = new Date(cursorMs + 14 * 24 * 3600 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    fireEvent.change(dateInput, { target: { value: pushed } });
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
+    expect(screen.getByText(/Composition · 2 entries · 22\/22w/)).toBeTruthy();
+    const raceBefore = (screen.getByTestId("planner-marathon-date") as HTMLInputElement).value;
+
+    // Push the config start date forward by 7 days (still a Monday).
+    const startInput = screen.getByTestId("planner-start-date") as HTMLInputElement;
+    const startMs = Date.parse(`${startInput.value}T00:00:00Z`);
+    const newStart = new Date(startMs + 7 * 24 * 3600 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    fireEvent.change(startInput, { target: { value: newStart } });
+
+    // Total projected weeks invariant + gap chip preserved.
+    expect(screen.getByText(/Composition · 2 entries · 22\/22w/)).toBeTruthy();
+    expect(screen.getByTestId("planner-composition-gap-summary")).toBeTruthy();
+    // Race date moved by exactly 7 days.
+    const raceAfter = (screen.getByTestId("planner-marathon-date") as HTMLInputElement).value;
+    expect(Date.parse(`${raceAfter}T00:00:00Z`) - Date.parse(`${raceBefore}T00:00:00Z`)).toBe(
+      7 * 24 * 3600 * 1000,
+    );
   });
 
   it("removing an entry re-projects blocks and re-anchors the race date so the sum invariant holds", () => {

@@ -6,7 +6,7 @@
 // directly without spinning up a CLI.
 
 import {
-  expandEntriesToBlocks,
+  expandEntriesToBlocksWithGaps,
   getTemplateById,
   type TemplateEntry,
 } from "./templates.js";
@@ -672,6 +672,7 @@ export function validatePlannerConfig(
       });
       return issues;
     }
+    // First pass: per-entry shape + template id + weeks-in-range.
     let entriesSum = 0;
     for (let i = 0; i < config.entries!.length; i++) {
       const e = config.entries![i]!;
@@ -688,8 +689,6 @@ export function validatePlannerConfig(
           message: "must be a positive integer",
         });
       } else {
-        // Enforce per-template min/max so the runner can't pick a
-        // duration outside the published range for that template.
         if (tpl && (e.weeks < tpl.minWeeks || e.weeks > tpl.maxWeeks)) {
           issues.push({
             field: `entries[${i}].weeks`,
@@ -699,10 +698,64 @@ export function validatePlannerConfig(
         entriesSum += e.weeks;
       }
     }
-    if (entriesSum !== totalWeeks) {
+    // Second pass: per-entry startDate must be a Monday, on or after
+    // the running cursor, and (for the first entry) equal to the
+    // config startDate. The cursor advances by the entry's weeks; if
+    // a later entry sets startDate beyond the cursor that gap is
+    // counted as filler weeks toward the totalWeeks invariant.
+    const startMs = Date.parse(`${config.startDate}T00:00:00Z`);
+    let cursorMs = startMs;
+    let gapWeeks = 0;
+    for (let i = 0; i < config.entries!.length; i++) {
+      const e = config.entries![i]!;
+      const overrideRaw = e.startDate;
+      if (overrideRaw != null && overrideRaw !== "") {
+        if (!ISO_DATE_RE.test(overrideRaw)) {
+          issues.push({
+            field: `entries[${i}].startDate`,
+            message: "must be a yyyy-mm-dd date",
+          });
+        } else if (!isMonday(overrideRaw)) {
+          issues.push({
+            field: `entries[${i}].startDate`,
+            message: "must be a Monday so the Mon..Sun week pattern lines up",
+          });
+        } else {
+          const eMs = Date.parse(`${overrideRaw}T00:00:00Z`);
+          const cursorISO = new Date(cursorMs).toISOString().slice(0, 10);
+          if (i === 0 && eMs !== startMs) {
+            issues.push({
+              field: `entries[0].startDate`,
+              message: `first entry's startDate must equal the config startDate (${config.startDate})`,
+            });
+          } else if (eMs < cursorMs) {
+            issues.push({
+              field: `entries[${i}].startDate`,
+              message: `must be on or after ${cursorISO} (the end of the previous entry); overlapping templates are not allowed`,
+            });
+          } else {
+            const days = Math.round((eMs - cursorMs) / 86400000);
+            if (days % 7 !== 0) {
+              issues.push({
+                field: `entries[${i}].startDate`,
+                message: `must be a whole number of weeks (got ${days} days) after ${cursorISO}`,
+              });
+            } else {
+              gapWeeks += days / 7;
+              cursorMs = eMs;
+            }
+          }
+        }
+      }
+      if (Number.isInteger(e.weeks) && e.weeks >= 1) {
+        cursorMs += e.weeks * 7 * 86400000;
+      }
+    }
+    const projectedWeeks = entriesSum + gapWeeks;
+    if (projectedWeeks !== totalWeeks) {
       issues.push({
         field: "entries",
-        message: `template entry weeks must sum to ${totalWeeks} (got ${entriesSum}); each template owns its own taper, so entries must cover the full plan span — no auto-pinned tail`,
+        message: `template entry weeks (${entriesSum}) plus ${gapWeeks} gap week(s) total ${projectedWeeks}, but need exactly ${totalWeeks}; each template owns its own taper, so entries (with any gaps) must cover the full plan span — no auto-pinned tail`,
       });
     }
     return issues;
@@ -763,7 +816,11 @@ export function validatePlannerConfig(
 // what the runner will end up with.
 export function expandPlannerBlocks(config: PlannerConfig): PhaseBlock[] {
   if (Array.isArray(config.entries)) {
-    return expandEntriesToBlocks(config.entries);
+    // Honor per-entry startDate gaps when projecting entries → blocks
+    // so the seeded plan_weeks/plan_days reflect the chosen filler
+    // rest weeks. Falls back to back-to-back stacking if startDate is
+    // malformed (the validator surfaces that error separately).
+    return expandEntriesToBlocksWithGaps(config.entries, config.startDate);
   }
   return [
     ...config.blocks,
@@ -1583,8 +1640,11 @@ export {
   STARTER_SHORTCUTS,
   getTemplateById,
   expandEntriesToBlocks,
+  expandEntriesToBlocksWithGaps,
+  projectEntries,
   type PlanTemplate,
   type PlanTemplateMetadata,
   type StarterShortcut,
   type TemplateEntry,
+  type EntryProjection,
 } from "./templates.js";

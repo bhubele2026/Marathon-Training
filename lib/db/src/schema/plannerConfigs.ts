@@ -68,6 +68,11 @@ export const plannerConfigsTable = pgTable("planner_configs", {
       weeks: number;
       customName?: string | null;
       customNotes?: string | null;
+      // Optional explicit Monday this entry begins on. When omitted/null
+      // the entry stacks back-to-back with the previous one. When set
+      // and later than the running cursor, a Recovery filler is inserted
+      // before this entry to bridge the chosen gap.
+      startDate?: string | null;
     }> | null
   >(),
   // Optional notes the runner wants to attach to this whole config
@@ -105,6 +110,7 @@ export const plannerConfigsTable = pgTable("planner_configs", {
       weeks: number;
       customName?: string | null;
       customNotes?: string | null;
+      startDate?: string | null;
     }> | null
   >(),
 });
