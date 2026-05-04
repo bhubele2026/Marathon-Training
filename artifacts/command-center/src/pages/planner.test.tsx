@@ -2412,6 +2412,55 @@ describe("Custom hybrid builder card (Task #136)", () => {
     ).toBeNull();
   });
 
+  // Task #203 — the builder card now mounts a SECOND preview tagged
+  // for race week (Mon..Fri taper, Sat Race Prep, Sun RACE DAY 26.2 mi)
+  // ONLY when the projected hybrid end lands on the configured
+  // marathonDate Sunday (or the runner's entries classify as a
+  // marathon). These tests pin the gating so a future refactor of
+  // `hybridIsRaceWeek` can't silently regress when the second preview
+  // appears.
+  it("does NOT mount the race-week preview when the hybrid block does not end on marathonDate", () => {
+    // SAMPLE_CONFIG: start 2026-05-04 Mon, marathon 2027-05-02 Sun.
+    // Default hybridBuilderWeeks is 8 → projected end is 2026-06-28,
+    // which is NOT marathonDate → race-week preview must be absent.
+    renderPlanner();
+    expect(screen.getByTestId("planner-hybrid-preview")).toBeTruthy();
+    expect(
+      screen.queryByTestId("planner-hybrid-preview-race-week"),
+    ).toBeNull();
+    expect(
+      screen.queryByTestId("planner-hybrid-preview-race-week-badge"),
+    ).toBeNull();
+  });
+
+  it("mounts the race-week preview when the projected hybrid end lands exactly on marathonDate", () => {
+    // Force the date-match branch: startDate Mon + 8 weeks (default
+    // custom_hybrid block length) = 2026-06-28 Sun. Setting marathonDate
+    // to 2026-06-28 makes `hybridIsRaceWeek` true via the end-date path
+    // (no entries-mode classification needed).
+    renderPlanner({
+      config: {
+        ...SAMPLE_CONFIG,
+        startDate: "2026-05-04",
+        marathonDate: "2026-06-28",
+      },
+    });
+    // Both previews must be present side-by-side.
+    expect(screen.getByTestId("planner-hybrid-preview")).toBeTruthy();
+    const raceWeek = screen.getByTestId("planner-hybrid-preview-race-week");
+    expect(raceWeek).toBeTruthy();
+    expect(raceWeek.getAttribute("data-race-week")).toBe("true");
+    // The race-week branch must surface the Trophy "Race Day" badge and
+    // a Sun cell flagged as race day with the 26.2 mi marathon distance.
+    expect(
+      screen.getByTestId("planner-hybrid-preview-race-week-badge").textContent,
+    ).toContain("Race Day");
+    const raceSun = screen.getByTestId("planner-hybrid-preview-race-week-sun");
+    expect(raceSun.getAttribute("data-race-day")).toBe("true");
+    expect(raceSun.textContent).toContain("RACE DAY");
+    expect(raceSun.textContent).toContain("26.2 mi");
+  });
+
   it("encodes slider/days/level into customNotes when the runner clicks Build", () => {
     // Start from a blank config so the new entry is the first one and
     // the Composition badge is unambiguous.

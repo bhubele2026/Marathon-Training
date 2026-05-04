@@ -1729,6 +1729,63 @@ export default function Planner() {
         : ("none" as const),
     [isEntriesMode, entries],
   );
+
+  // ---- Hybrid builder race-week preview gate (Task #203) -----------
+  // Decides whether the custom_hybrid builder card should surface the
+  // race-week shape (Mon-Fri taper + Sat Race Prep + Sun RACE DAY 26.2 mi)
+  // alongside the typical-week preview. The hybrid plan classifies as
+  // a marathon when EITHER:
+  //   1. The active entries already classify as marathon (e.g. the
+  //      runner has applied marathon_hybrid earlier in the sequence —
+  //      `entriesRaceKind === "marathon"`), OR
+  //   2. The hybrid block being configured would land its trailing
+  //      Sunday on the configured marathonDate. We compute the
+  //      hybrid's projected end as `cursor + weeks*7 - 1` where the
+  //      cursor sits after any existing entries — same math the
+  //      Apply path uses to set marathonDate. When this end matches
+  //      the runner's pinned marathonDate Sunday, the hybrid IS the
+  //      campaign-final block and the race-week preview applies.
+  // Marathon mode (legacy block-based) does NOT trigger race-week
+  // preview here — in that mode the auto-pinned 16w Marathon-Specific
+  // tail is the actual race-day finisher, not the hybrid block.
+  const hybridBuilderWeeks =
+    tplWeeks["custom_hybrid"] ??
+    getTemplateById("custom_hybrid")?.defaultWeeks ??
+    8;
+  const hybridIsRaceWeek = useMemo(() => {
+    if (
+      isEntriesMode &&
+      entries != null &&
+      entriesRaceKind(entries) === "marathon"
+    ) {
+      return true;
+    }
+    if (
+      !marathonDate ||
+      !startDate ||
+      dayOfWeekUTC(startDate) !== 1 ||
+      dayOfWeekUTC(marathonDate) !== 0
+    ) {
+      return false;
+    }
+    if (hybridBuilderWeeks < 1) return false;
+    let cursor = startDate;
+    if (isEntriesMode && entries && entries.length > 0) {
+      const projections = projectEntries(entries, startDate);
+      const last = projections[projections.length - 1];
+      if (last?.endDateISO) {
+        cursor = addDaysISO(last.endDateISO, 1);
+      }
+    }
+    const end = addDaysISO(cursor, hybridBuilderWeeks * 7 - 1);
+    return end === marathonDate;
+  }, [
+    isEntriesMode,
+    entries,
+    marathonDate,
+    startDate,
+    hybridBuilderWeeks,
+  ]);
   const mileagePreview = useMemo<WeekMileagePreview[]>(() => {
     try {
       // In entries-mode each template owns its own taper, so we MUST NOT
@@ -2788,6 +2845,29 @@ export default function Planner() {
                             tplWeeks["custom_hybrid"] ?? tpl.defaultWeeks
                           }
                         />
+                        {/*
+                          Race-week preview (Task #203). Mounted only
+                          when the hybrid plan classifies as a marathon
+                          (raceKind === "marathon" or the configured
+                          hybrid block ends on the marathonDate). Reuses
+                          the same component with `isRaceWeek`, which
+                          asks `previewHybridWeek` to swap the trailing
+                          Sat → Race Prep and Sun → 26.2 mi RACE DAY —
+                          mirroring `buildHybridWeekDays`'s race-week
+                          branch (Task #192) so the planning surface
+                          shows exactly what the runner will get.
+                        */}
+                        {hybridIsRaceWeek && (
+                          <HybridWeekPreview
+                            position={hybridPosition}
+                            daysPerWeek={hybridDaysPerWeek}
+                            level={hybridLevel}
+                            blockWeeks={
+                              tplWeeks["custom_hybrid"] ?? tpl.defaultWeeks
+                            }
+                            isRaceWeek
+                          />
+                        )}
                         <div className="grid grid-cols-2 gap-2">
                           <div className="space-y-1">
                             <Label

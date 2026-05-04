@@ -1640,6 +1640,12 @@ function countHybridRunsInSchedule(schedule: HybridSlot[]): {
 // generating + applying a full draft. Beyond the slider blurb (which
 // is qualitative), this gives a concrete "Mon: Rest, Tue: Upper Lift,
 // Wed: Easy Run 3.0 mi…" rundown that updates live as inputs change.
+//
+// Race-week (Task #203): when `previewHybridWeek` is called with
+// `isRaceWeek: true` (and the plan is marathon-classified), the
+// trailing Saturday becomes a `race-prep` slot and Sunday becomes a
+// `race` slot — mirroring what `buildHybridWeekDays` actually emits
+// for the campaign-final week of a hybrid marathon plan (Task #192).
 export type HybridPreviewSlot =
   | { day: string; kind: "rest"; label: string }
   | {
@@ -1655,7 +1661,9 @@ export type HybridPreviewSlot =
       label: string;
       intensity: "easy" | "quality" | "long";
       miles: number;
-    };
+    }
+  | { day: string; kind: "race-prep"; label: string }
+  | { day: string; kind: "race"; label: string; miles: number };
 
 export interface HybridPreviewWeek {
   position: HybridMixPosition;
@@ -1663,9 +1671,17 @@ export interface HybridPreviewWeek {
   level: HybridFitnessLevel;
   weekInBlock: number;
   blockWeeks: number;
+  // Race-week branch flag (Task #203). True iff the preview was
+  // generated with `isRaceWeek: true` AND a non-"none" raceKind, in
+  // which case the trailing Sat/Sun slots are the race-prep / race
+  // overrides instead of the schedule's normal slots.
+  isRaceWeek: boolean;
   slots: HybridPreviewSlot[];
   // Aggregated totals so the UI can show a "5 sessions · 2 lifts · 3
-  // runs · 11 mi" summary without re-walking the slots.
+  // runs · 11 mi" summary without re-walking the slots. Race-week
+  // previews include the race-day mileage (e.g. 26.2 mi for a
+  // marathon) in `miles` and count the race day as one of `runs`,
+  // so the totals line stays meaningful for the campaign-final week.
   totals: {
     sessions: number;
     lifts: number;
@@ -1690,12 +1706,33 @@ export function previewHybridWeek(
     // which is what the planner UI uses for its "typical week"
     // preview because it doesn't carry a phase indicator.
     phase?: HybridPhase | null;
+    // Race-week opt (Task #203). When true and `raceKind !== "none"`,
+    // the trailing Saturday is force-overridden to a `race-prep` slot
+    // (15-min mobility + 15-min easy spin) and the trailing Sunday is
+    // force-overridden to a `race` slot at the matching distance —
+    // mirroring `buildHybridWeekDays`'s race-week branch (Task #192).
+    // Mon-Fri keep the schedule's normal lift/run/rest layout (the
+    // trailing taper is owned by `phase`, not by this flag). When
+    // false (default) or when `raceKind === "none"`, the preview
+    // emits the canonical typical-week shape unchanged.
+    isRaceWeek?: boolean;
+    // Race-day kind (Task #203). Defaults to "marathon" so the planner
+    // builder card can flip on the race-week preview without juggling
+    // a separate raceKind input. When set to "none", `isRaceWeek` is
+    // ignored — mirrors `buildHybridWeekDays`'s race-week guard.
+    raceKind?: PlanRaceKind;
   },
 ): HybridPreviewWeek {
   const blockWeeks = Math.max(1, Math.floor(opts?.blockWeeks ?? 8));
+  const raceKind: PlanRaceKind = opts?.raceKind ?? "marathon";
+  const isRaceWeek = (opts?.isRaceWeek ?? false) && raceKind !== "none";
+  // Race-week defaults to the trailing week of the block so the runner
+  // sees the actual campaign-final week shape (taper + race-day Sun).
+  // For non-race weeks the v1 default is week 1 of the block.
+  const defaultWeek = isRaceWeek ? blockWeeks : 1;
   const weekInBlock = Math.max(
     1,
-    Math.min(blockWeeks, Math.floor(opts?.weekInBlock ?? 1)),
+    Math.min(blockWeeks, Math.floor(opts?.weekInBlock ?? defaultWeek)),
   );
   const schedule = pickHybridSchedule(spec.position, spec.daysPerWeek);
   // Cutbacks land every 4th week (matches buildHybridWeekDays).
@@ -1713,6 +1750,25 @@ export function previewHybridWeek(
   let miles = 0;
   const slots: HybridPreviewSlot[] = schedule.map((slot, idx) => {
     const day = HYBRID_DAY_LABELS[idx]!;
+    // ---------- RACE WEEK OVERRIDES (Task #203) ----------
+    // Force trailing Sat → race-prep and trailing Sun → race day.
+    // Mirrors `buildHybridWeekDays`'s race-week branch so the preview
+    // can never drift from what the runtime generator emits for the
+    // campaign-final week of a hybrid marathon plan (Task #192).
+    if (isRaceWeek && idx === 5) {
+      return { day, kind: "race-prep", label: "Race Prep" };
+    }
+    if (isRaceWeek && idx === 6) {
+      const raceSpec = RACE_DAY_SPECS[raceKind];
+      runs += 1;
+      miles += raceSpec.distanceMi;
+      return {
+        day,
+        kind: "race",
+        miles: raceSpec.distanceMi,
+        label: `RACE DAY ${raceSpec.distanceMi.toFixed(1)} mi`,
+      };
+    }
     if (slot.kind === "rest") {
       return { day, kind: "rest", label: "Rest" };
     }
@@ -1750,6 +1806,7 @@ export function previewHybridWeek(
     level: spec.level,
     weekInBlock,
     blockWeeks,
+    isRaceWeek,
     slots,
     totals: {
       sessions: lifts + runs,
