@@ -50,6 +50,7 @@ import {
   ArrowLeftRight,
   Undo2,
   Sparkles,
+  Trophy,
 } from "lucide-react";
 import { useMissionActions } from "@/hooks/use-mission-actions";
 import { cn } from "@/lib/utils";
@@ -678,6 +679,13 @@ export default function WeekDetail() {
 
           const hasSessions = sessions.length > 0;
           const missed = isMissedDay(day, sessions);
+          // Task #199: race-day badge + amber accent on the trailing
+          // marathon Sunday. Both hybrid (Task #192) and non-hybrid
+          // marathon plans emit `session_type: "Race"` on the campaign-
+          // final Sunday — keying the visual treatment off that string
+          // means the badge fires uniformly for Pfitz / Higdon / hybrid
+          // plans without any plan-shape branching here.
+          const isRaceDay = day.sessionType === "Race";
 
           return (
             <Card
@@ -686,16 +694,23 @@ export default function WeekDetail() {
                 "transition-colors",
                 missed
                   ? "border-destructive/40 bg-destructive/5 hover:border-destructive/60"
-                  : "border-border hover:border-primary/30",
+                  : isRaceDay
+                    ? "border-amber-500/60 bg-amber-500/5 hover:border-amber-500/80 ring-1 ring-amber-500/30"
+                    : "border-border hover:border-primary/30",
               )}
               data-testid={cardTestId}
+              data-race-day={isRaceDay ? "true" : undefined}
             >
               <CardContent className="p-0">
                 <div className="flex flex-col md:flex-row">
                   <div
                     className={cn(
                       "w-full md:w-48 p-4 border-b md:border-b-0 md:border-r flex flex-col justify-center",
-                      missed ? "bg-destructive/10 border-destructive/30" : "bg-muted/30 border-border",
+                      missed
+                        ? "bg-destructive/10 border-destructive/30"
+                        : isRaceDay
+                          ? "bg-amber-500/10 border-amber-500/30"
+                          : "bg-muted/30 border-border",
                     )}
                   >
                     <div className="text-sm font-black uppercase tracking-wider">{day.day}</div>
@@ -711,6 +726,19 @@ export default function WeekDetail() {
                           disclosure to keep the rail at title + status. */}
                       {programBadge}
                       <CustomizedBadge day={day} />
+                      {/* Task #199: explicit RACE DAY pill on the
+                          campaign-final marathon Sunday. Triggered by
+                          session_type === "Race" so it lights up the
+                          same way for hybrid (Task #192) and for
+                          non-hybrid (Pfitz / Higdon) marathon plans. */}
+                      {isRaceDay && (
+                        <span
+                          className="text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-300 px-2 py-1 rounded font-bold uppercase tracking-wider flex items-center gap-1"
+                          data-testid={`badge-race-day-${day.date}`}
+                        >
+                          <Trophy className="h-3 w-3" /> Race Day
+                        </span>
+                      )}
                       {hasSessions && (
                         <span className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider flex items-center gap-1">
                           <CheckCircle2 className="h-3 w-3" />

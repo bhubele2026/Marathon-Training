@@ -456,3 +456,123 @@ describe("Week detail — every HR zone bucket renders the matching swatch (task
     },
   );
 });
+
+// Task #199: pin the race-day badge + amber accent on the Week Detail
+// day card whenever a day's `sessionType` is "Race". Both hybrid
+// (Task #192) and non-hybrid (Pfitz / Higdon) marathon plans emit
+// `session_type: "Race"` on the campaign-final Sunday, so a single
+// rendered scenario covers both plan shapes uniformly. A negative case
+// on a Long Run day in the same payload guards against the badge
+// leaking onto non-race days.
+describe("Week detail — race-day badge on the marathon Sunday (task #199)", () => {
+  function makeRaceWeekPayload() {
+    const base = {
+      week: 18,
+      phase: "Marathon-Specific",
+      startDate: "2026-06-22",
+      endDate: "2026-06-28",
+      plannedStrength: 30,
+      plannedCardio: 15,
+      plannedTotalLoad: 60,
+      plannedMiles: 30,
+      longRunMi: 26.2,
+      actualMiles: 0,
+      actualCardio: 0,
+      completedSessions: 0,
+      totalSessions: 3,
+      missedSessions: 0,
+      dominantCardioEquipment: null,
+      wedSteady: false,
+    };
+    const longRunSat = {
+      id: 100,
+      week: 18,
+      phase: "Marathon-Specific",
+      date: "2026-06-27",
+      day: "Sat",
+      sessionType: "Long Run",
+      description: "Final taper long run",
+      equipment: "Outdoor",
+      equipmentList: ["Outdoor"],
+      isRest: false,
+      isCustomized: false,
+      customizedFields: [],
+      customizedDiff: [],
+      strengthLoad: 0,
+      strengthMin: 0,
+      cardioMin: 0,
+      runMin: 60,
+      distanceMi: 6,
+      pace: "10:00",
+      totalMin: 60,
+      totalLoad: 60,
+      sourceEntryIndex: 0,
+      sourceEntryLabel: null,
+      suggestions: null,
+    };
+    const raceSun = {
+      id: 101,
+      week: 18,
+      phase: "Marathon-Specific",
+      date: "2026-06-28",
+      day: "Sun",
+      sessionType: "Race",
+      description:
+        "RACE DAY — Marathon (26.2 mi). Execute race plan, fuel every 4 mi, finish strong.",
+      equipment: "Outdoor",
+      equipmentList: ["Outdoor"],
+      isRest: false,
+      isCustomized: false,
+      customizedFields: [],
+      customizedDiff: [],
+      strengthLoad: 0,
+      strengthMin: 0,
+      cardioMin: 0,
+      runMin: 314,
+      distanceMi: 26.2,
+      pace: "12:00",
+      totalMin: 314,
+      totalLoad: 314,
+      sourceEntryIndex: 0,
+      sourceEntryLabel: null,
+      suggestions: null,
+    };
+    return { ...base, days: [longRunSat, raceSun] };
+  }
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("renders the RACE DAY badge and amber accent on the Sunday with sessionType=Race", () => {
+    renderWith(makeRaceWeekPayload());
+
+    // The pill itself: testid keyed on the day date so the assertion
+    // pins the exact day card that should carry the marker.
+    const badge = screen.getByTestId("badge-race-day-2026-06-28");
+    expect(badge).toBeTruthy();
+    expect(badge.textContent).toContain("Race Day");
+
+    // The Card's amber accent — pinned via the data-race-day hook so
+    // the test stays robust to Tailwind class re-shuffles, with a
+    // belt-and-braces check on the amber border class so a regression
+    // that drops the visual treatment but keeps the data attr is also
+    // caught.
+    const card = screen.getByTestId("day-card-2026-06-28");
+    expect(card.getAttribute("data-race-day")).toBe("true");
+    expect(card.className).toContain("amber");
+  });
+
+  it("does NOT render the RACE DAY badge on non-race days in the same week", () => {
+    renderWith(makeRaceWeekPayload());
+
+    // The Saturday Long Run shares the same week payload but must not
+    // pick up the race-day treatment — the badge is keyed strictly on
+    // sessionType === "Race", not on long-run distance or proximity to
+    // the marathon Sunday.
+    expect(screen.queryByTestId("badge-race-day-2026-06-27")).toBeNull();
+    const satCard = screen.getByTestId("day-card-2026-06-27");
+    expect(satCard.getAttribute("data-race-day")).toBeNull();
+  });
+});
