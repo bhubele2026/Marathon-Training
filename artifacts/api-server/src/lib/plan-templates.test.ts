@@ -741,3 +741,156 @@ describe("Marathon-Specific recipe — Wed Steady Run (Task #172)", () => {
     expect(steadyWeds.length).toBeGreaterThan(0);
   });
 });
+
+// Task #185 — the `Marathon-Specific` recipe used to short-circuit the
+// LAST week of the block to MARATHON_DISTANCE_MI (26.2 mi) on the
+// theory that the MS block was always the trailing block (true in
+// blocks-mode where the auto-pinned 16-week tail closes the campaign).
+// In entries-mode the marathon templates expand to
+// Base → Time on Feet → Marathon-Specific → Taper, so the MS block's
+// final week is NOT race week — and the recipe was emitting a phantom
+// 26.2 mi long run mid-plan, three weeks before race day. The fix
+// drops that branch so the MS block's final week reads as a normal
+// late-MS long run instead.
+describe("Marathon-Specific recipe — no phantom 26.2 mi long run mid-plan (Task #185)", () => {
+  function entriesMarathon(templateId: string, weeks: number): PlannerConfig {
+    // Mon 2026-05-04 → Sun (weeks*7 - 1) days later.
+    const startMs = Date.parse("2026-05-04T00:00:00Z");
+    const endMs = startMs + (weeks * 7 - 1) * 86400000;
+    const marathonDate = new Date(endMs).toISOString().slice(0, 10);
+    return {
+      startDate: "2026-05-04",
+      marathonDate,
+      blocks: [],
+      entries: [
+        {
+          templateId,
+          weeks,
+          startDate: "2026-05-04",
+        },
+      ],
+    } as unknown as PlannerConfig;
+  }
+
+  it("18w entries-mode 'marathon' plan has no 26.2 mi long run anywhere (race-day mileage owned by template Taper)", () => {
+    const cfg = entriesMarathon("marathon", 18);
+    const { daily, weekly } = generatePlanFromConfig(cfg);
+    const raceWeek = weekly.length; // Final generated week.
+    expect(raceWeek).toBe(18);
+
+    // Pin per-week long-run mileage so a future regression here is
+    // visible at a glance.
+    const longRunByWeek = new Map<number, number>();
+    for (const d of daily) {
+      if (d.day === "Sun") {
+        longRunByWeek.set(d.week, d.distance_mi || 0);
+      }
+    }
+
+    // Entries-mode marathon templates own their own Taper — the
+    // race-day override in `buildWeekDays` is gated on
+    // `isMarathonCampaign` (blocks-mode only, Task #182), so NO
+    // generated Sunday should report a 26.2 mi long run. The pre-fix
+    // bug surfaced as 26.2 on week 15 (last week of the 7-week MS
+    // block in an 18-week 4+4+7+3 plan), three weeks before race day.
+    for (let w = 1; w <= raceWeek; w += 1) {
+      const mi = longRunByWeek.get(w);
+      expect(mi, `week ${w} long run mi`).toBeDefined();
+      expect(mi, `week ${w} long run mi`).toBeLessThan(26.2);
+    }
+
+    // Pin the full late-MS long-run sequence (weeks 12-15, the last
+    // four Marathon-Specific weeks) to the tapered ramp the recipe
+    // is supposed to produce. This guards against BOTH:
+    //   (a) the phantom 26.2 mi spike on week 15 (the original bug),
+    //       and
+    //   (b) a regression that drops the `tail === 0` short-circuit
+    //       entirely and lets week 15 fall through to the ramp peak
+    //       (~20 mi), which would also be wrong since week 15 sits
+    //       directly before the Taper block.
+    // Expected values come from the Marathon-Specific recipe with the
+    // Task #185 fix:
+    //   tail=3 (w=12) → 16 mi
+    //   tail=2 (w=13) → 13 mi
+    //   tail=1 (w=14) → 8 mi
+    //   tail=0 (w=15) → 13 mi (tapered late-MS, ~12-14 mi range)
+    expect(longRunByWeek.get(12), "week 12 long run mi").toBe(16);
+    expect(longRunByWeek.get(13), "week 13 long run mi").toBe(13);
+    expect(longRunByWeek.get(14), "week 14 long run mi").toBe(8);
+    expect(longRunByWeek.get(15), "week 15 long run mi").toBe(13);
+    // Belt-and-suspenders: week 15 must be in the "normal late-MS"
+    // band — comfortably under the peak (≤16) and over the deep
+    // race-eve trough (>8).
+    expect(longRunByWeek.get(15)!).toBeGreaterThanOrEqual(12);
+    expect(longRunByWeek.get(15)!).toBeLessThanOrEqual(14);
+  });
+
+  it("18w entries-mode 'marathon_pfitz_18_70' plan has no 26.2 mi long run anywhere", () => {
+    const cfg = entriesMarathon("marathon_pfitz_18_70", 18);
+    const { daily, weekly } = generatePlanFromConfig(cfg);
+    const raceWeek = weekly.length;
+    expect(raceWeek).toBe(18);
+
+    const longRunByWeek = new Map<number, number>();
+    for (const d of daily) {
+      if (d.day === "Sun") {
+        longRunByWeek.set(d.week, d.distance_mi || 0);
+      }
+    }
+
+    for (let w = 1; w <= raceWeek; w += 1) {
+      const mi = longRunByWeek.get(w);
+      expect(mi, `week ${w} long run mi`).toBeDefined();
+      expect(mi, `week ${w} long run mi`).toBeLessThan(26.2);
+    }
+  });
+
+  it("blocks-mode marathon plans still emit a 26.2 mi marathon on the final Sunday", () => {
+    // Auto-pinned 16-week Marathon-Specific tail. With blocks=[] and a
+    // 16-week window the entire plan IS the trailing tail, so the
+    // final Sun must be race day.
+    const cfg: PlannerConfig = {
+      startDate: "2026-05-04",
+      marathonDate: "2026-08-23", // 16 weeks later.
+      blocks: [],
+    };
+    const { daily, weekly } = generatePlanFromConfig(cfg);
+    const raceWeek = weekly.length;
+    expect(raceWeek).toBe(16);
+
+    const longRunByWeek = new Map<number, number>();
+    for (const d of daily) {
+      if (d.day === "Sun") {
+        longRunByWeek.set(d.week, d.distance_mi || 0);
+      }
+    }
+
+    // Race day still reads 26.2 mi (race-day branch in
+    // `buildWeekDays` overrides the recipe value).
+    expect(longRunByWeek.get(raceWeek)).toBe(26.2);
+    // And no week before race day is 26.2 mi either.
+    for (let w = 1; w < raceWeek; w += 1) {
+      const mi = longRunByWeek.get(w);
+      expect(mi, `week ${w} long run mi`).toBeLessThan(26.2);
+    }
+  });
+
+  it("previewWeeklyMileage agrees with the generator: no 26.2 mi pre-race-week in entries-mode", () => {
+    // The Phase Planner sparkline calls `previewWeeklyMileage` directly
+    // (not the full generator). Mirror the same plan shape and assert
+    // the preview also no longer leaks a phantom 26.2 mi mid-plan.
+    const blocks = expandEntriesToBlocks([
+      { templateId: "marathon", weeks: 18 },
+    ]);
+    const preview = previewWeeklyMileage(blocks, {
+      appendMarathonTail: false,
+    });
+    expect(preview.length).toBe(18);
+    for (let i = 0; i < preview.length - 1; i += 1) {
+      expect(
+        preview[i]!.longRunMi,
+        `preview week ${preview[i]!.week} long run mi`,
+      ).toBeLessThan(26.2);
+    }
+  });
+});

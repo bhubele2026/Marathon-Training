@@ -1021,12 +1021,21 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
   "Marathon-Specific": {
     phaseLabel: () => "Marathon-Specific",
     longRunMi: (w, blockWeeks, isCutback) => {
-      // Ramp 12 -> 20+ across the block, with cutbacks every 4th week and a
-      // 3-week taper at the end (volume drops sharply in the final 3
-      // weeks). Last week of the block is race week (handled by caller as
-      // 26.2 mi marathon — this fn is not called for the race week).
-      const tail = blockWeeks - w; // 0 = race week, 1 = race-eve week, etc.
-      if (tail === 0) return MARATHON_DISTANCE_MI;
+      // Ramp 12 -> 20+ across the block, with cutbacks every 4th week
+      // and a 3-week taper at the end (volume drops sharply in the
+      // final 3 weeks). The block's LAST week is race week ONLY in
+      // blocks-mode where the auto-pinned 16-week Marathon-Specific
+      // tail closes the campaign — `buildWeekDays` and
+      // `previewWeeklyMileage` both swap that Sunday for the canonical
+      // 26.2 mi marathon via their own race-day branches, so the value
+      // returned here is overridden anyway. In entries-mode the MS
+      // block is followed by a Taper, so its last week is NOT race
+      // week (Task #185); we emit a tapered late-MS value (~13 mi)
+      // here so the curve continues to ramp down with neighboring
+      // late-MS weeks instead of phantom-spiking to 26.2 mi or to the
+      // ramp peak (~20 mi) right before the Taper kicks in.
+      const tail = blockWeeks - w; // 0 = block-final week, 1 = block-eve week, etc.
+      if (tail === 0) return r1(13);
       if (tail === 1) return r1(8);
       if (tail === 2) return r1(13);
       if (tail === 3) return r1(16);
