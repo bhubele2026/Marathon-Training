@@ -80,4 +80,43 @@ describe("previewWeeklyMileage matches generatePlanFromConfig", () => {
     // Race week long-run == 26.2 mi marathon.
     expect(preview[preview.length - 1]!.longRunMi).toBe(26.2);
   });
+
+  // Task #176: the user-block parity loop above explicitly skips
+  // Marathon-Specific (it's the auto-pinned tail, not a user-pickable
+  // focus). Task #172 changed Wed pace + session_type inside the tail
+  // without touching distance, but a future regression that *does* tweak
+  // the Wed mileage formula in the generator without mirroring it in the
+  // preview helper would silently desync the Phase Planner sparkline /
+  // mileage curve from what Apply produces. Pin parity for the
+  // auto-pinned tail directly with an empty-blocks 16-week config so any
+  // such drift fails loudly.
+  it("agrees on planned_miles + long_run_mi for the auto-pinned Marathon-Specific tail", () => {
+    // Mon 2026-05-04 → Sun 2026-08-23 is exactly 16 weeks: the entire
+    // span is the auto-pinned Marathon-Specific tail (sum of user
+    // blocks must equal totalWeeks - 16 = 0).
+    const config = {
+      blocks: [] as PhaseBlock[],
+      startDate: "2026-05-04",
+      marathonDate: "2026-08-23",
+    };
+    const preview = previewWeeklyMileage(config.blocks, {
+      appendMarathonTail: true,
+    });
+    const generated = generatePlanFromConfig(config);
+    expect(preview.length).toBe(16);
+    expect(generated.weekly.length).toBe(16);
+    for (let i = 0; i < preview.length; i++) {
+      const p = preview[i]!;
+      const g = generated.weekly[i]!;
+      expect(p.week).toBe(g.week);
+      // Every week in this config is the auto-pinned tail.
+      expect(p.focusType).toBe("Marathon-Specific");
+      expect(g.phase).toBe("Marathon-Specific");
+      expect(p.totalMi).toBe(g.planned_miles);
+      expect(p.longRunMi).toBe(g.long_run_mi);
+    }
+    // Sanity: the final week is the race week with the 26.2 mi marathon.
+    expect(preview[preview.length - 1]!.isRaceWeek).toBe(true);
+    expect(preview[preview.length - 1]!.longRunMi).toBe(26.2);
+  });
 });
