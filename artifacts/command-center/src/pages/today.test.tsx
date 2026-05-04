@@ -539,3 +539,169 @@ describe("Today page — HR zone swatch coverage (task #166)", () => {
     ).toBeNull();
   });
 });
+
+// Task #167: extend the swatch coverage from the Mission Brief card to
+// the other two RunTargetLine surfaces on the Today page so a future
+// refactor of `RunTargetLine` (or any of its callers) can't silently
+// drop the HR-zone swatch on these surfaces:
+//   * the pre-launch "First Scheduled Session" preview
+//     (testId: `first-session-run-target`)
+//   * the logged "Mission Accomplished" card
+//     (testId: `session-today-{id}-run-target`)
+// As with the Mission Brief tests we reach for the public
+// `${testId}-zone-swatch` testId hook instead of scraping classnames so
+// the assertion stays robust to Tailwind / styling changes.
+describe("Today page — HR zone swatch coverage on first-session and logged-session surfaces (task #167)", () => {
+  // Run-shaped firstSession used by the pre-launch preview tests. Long
+  // Run on week 4 maps to intensityBucket=2 → hr_zones renders
+  // "Zone 2 · 120-140 bpm" with the bg-emerald-500 swatch (matches the
+  // Mission Brief / week-detail swatch tests above).
+  const firstSessionRun = {
+    ...firstSession,
+    week: 4,
+    sessionType: "Long Run",
+    runMin: 60,
+    distanceMi: 6,
+    pace: "10:00",
+  };
+
+  const preLaunchPayload = {
+    date: "2026-05-02",
+    hasPlan: false,
+    plan: null,
+    loggedWorkouts: [],
+    suggestions: null,
+    daysUntilStart: 3,
+    firstSession: firstSessionRun,
+  };
+
+  // Run-shaped plan + matching logged session for the Mission
+  // Accomplished card tests. Same intensityBucket=2 as above so the
+  // swatch is once again the emerald token.
+  const runPlan = {
+    ...firstSession,
+    week: 4,
+    sessionType: "Long Run",
+    runMin: 60,
+    distanceMi: 6,
+    pace: "10:00",
+  };
+  const loggedRunSession = {
+    id: 555,
+    date: "2026-05-05",
+    sessionType: "Long Run",
+    equipment: "Outdoor",
+    durationMin: 58,
+    strengthMin: 0,
+    cardioMin: 0,
+    runMin: 58,
+    distanceMi: 5.9,
+    pace: "10:05",
+    avgHr: null,
+    rpe: 7,
+    strengthLoad: 0,
+    totalLoad: 60,
+    notes: null,
+    timeOfDay: null,
+    modality: null,
+    planDayId: 1,
+  };
+  const loggedPayload = {
+    date: "2026-05-05",
+    hasPlan: true,
+    plan: runPlan,
+    loggedWorkouts: [loggedRunSession],
+    suggestions: null,
+    daysUntilStart: null,
+    firstSession: null,
+  };
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    runTargetingModeRef.current = "effort";
+  });
+
+  // -----------------------------------------------------------------
+  // Pre-launch First Scheduled Session preview
+  // -----------------------------------------------------------------
+  it("renders the colored zone swatch on the pre-launch First Scheduled Session preview when mode is hr_zones", () => {
+    runTargetingModeRef.current = "hr_zones";
+    renderWithData(preLaunchPayload);
+
+    const target = screen.getByTestId("first-session-run-target");
+    expect(target.getAttribute("data-run-targeting-mode")).toBe("hr_zones");
+    // maxHr=200 + bucket=2 → "Zone 2 · 120-140 bpm"
+    expect(target.textContent).toContain("Zone 2");
+    expect(target.textContent).toContain("120-140 bpm");
+
+    const swatch = screen.getByTestId("first-session-run-target-zone-swatch");
+    expect(swatch).toBeTruthy();
+    // Decorative — a screen reader shouldn't announce the swatch.
+    expect(swatch.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it.each([
+    ["effort"],
+    ["intervals"],
+    ["pace"],
+  ])(
+    "does NOT render the zone swatch on the pre-launch First Scheduled Session preview in %s mode",
+    (mode) => {
+      runTargetingModeRef.current = mode as
+        | "effort"
+        | "intervals"
+        | "pace"
+        | "hr_zones";
+      renderWithData(preLaunchPayload);
+
+      const target = screen.getByTestId("first-session-run-target");
+      expect(target.getAttribute("data-run-targeting-mode")).toBe(mode);
+      expect(
+        screen.queryByTestId("first-session-run-target-zone-swatch"),
+      ).toBeNull();
+    },
+  );
+
+  // -----------------------------------------------------------------
+  // Logged "Mission Accomplished" card
+  // -----------------------------------------------------------------
+  it("renders the colored zone swatch on the logged Mission Accomplished card when mode is hr_zones", () => {
+    runTargetingModeRef.current = "hr_zones";
+    renderWithData(loggedPayload);
+
+    const target = screen.getByTestId("session-today-555-run-target");
+    expect(target.getAttribute("data-run-targeting-mode")).toBe("hr_zones");
+    expect(target.textContent).toContain("Zone 2");
+    expect(target.textContent).toContain("120-140 bpm");
+
+    const swatch = screen.getByTestId(
+      "session-today-555-run-target-zone-swatch",
+    );
+    expect(swatch).toBeTruthy();
+    // Decorative — a screen reader shouldn't announce the swatch.
+    expect(swatch.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it.each([
+    ["effort"],
+    ["intervals"],
+    ["pace"],
+  ])(
+    "does NOT render the zone swatch on the logged Mission Accomplished card in %s mode",
+    (mode) => {
+      runTargetingModeRef.current = mode as
+        | "effort"
+        | "intervals"
+        | "pace"
+        | "hr_zones";
+      renderWithData(loggedPayload);
+
+      const target = screen.getByTestId("session-today-555-run-target");
+      expect(target.getAttribute("data-run-targeting-mode")).toBe(mode);
+      expect(
+        screen.queryByTestId("session-today-555-run-target-zone-swatch"),
+      ).toBeNull();
+    },
+  );
+});

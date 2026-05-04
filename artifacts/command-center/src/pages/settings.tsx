@@ -306,11 +306,22 @@ export default function Settings() {
                           data-testid={`zone-preview-row-${bucket}`}
                         >
                           <span className="flex items-center gap-2">
-                            <span
-                              aria-hidden="true"
-                              className={`inline-block h-3 w-3 rounded-sm ring-1 ring-inset ring-black/10 dark:ring-white/15 ${HR_ZONE_COLORS[bucket].swatchClass}`}
-                              data-testid={`zone-preview-swatch-${bucket}`}
-                            />
+                            {/* Task #167: gate the colored swatch on
+                                the active mode being hr_zones so the
+                                Settings preview matches RunTargetLine's
+                                behaviour — the swatch is only
+                                meaningful when the user has actually
+                                opted into HR-zone targeting. The BPM
+                                range column stays visible in every
+                                mode so the preview table is still
+                                informative when picking modes. */}
+                            {value === "hr_zones" && (
+                              <span
+                                aria-hidden="true"
+                                className={`inline-block h-3 w-3 rounded-sm ring-1 ring-inset ring-black/10 dark:ring-white/15 ${HR_ZONE_COLORS[bucket].swatchClass}`}
+                                data-testid={`zone-preview-swatch-${bucket}`}
+                              />
+                            )}
                             <span className="font-bold uppercase tracking-wider">
                               Zone {bucket}
                             </span>
