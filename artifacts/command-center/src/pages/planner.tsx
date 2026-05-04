@@ -4336,6 +4336,15 @@ function MileageCurve({
   // Y-axis ticks at 0 / 50% / peak.
   const yTicks = [0, ceiling / 2, ceiling];
 
+  // Task #181: surface the same amber Z3 marker the per-block sparklines
+  // and the plan calendar week strip already use (HR_ZONE_COLORS[3]
+  // swatch via fill-amber-400). The dot rides the total-mileage
+  // polyline at every week whose `wedSteady` is true so a runner can
+  // scan the entire 52-week build at a glance and see which weeks
+  // earn the Z3 stimulus. Gating is fully driven by `wedSteady` from
+  // `previewWeeklyMileage`, mirroring `buildWeekDays`.
+  const steadyWeeks = weeks.filter((w) => w.wedSteady);
+
   return (
     <div data-testid={testId}>
       <div className="flex items-center justify-between mb-2">
@@ -4440,7 +4449,36 @@ function MileageCurve({
           className="text-muted-foreground"
           vectorEffect="non-scaling-stroke"
         />
+        {/* Steady-Wed Z3 markers (Task #181) — rides the total polyline. */}
+        {steadyWeeks.map((w) => (
+          <circle
+            key={`steady-${w.week}`}
+            cx={x(w.week).toFixed(1)}
+            cy={y(w.totalMi).toFixed(1)}
+            r={2.25}
+            className="fill-amber-400"
+            data-testid={`${testId}-steady-w${w.week}`}
+          />
+        ))}
       </svg>
+      {steadyWeeks.length > 0 && (
+        <div
+          className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground mt-1"
+          data-testid={`${testId}-steady-legend`}
+        >
+          <span
+            className="h-1.5 w-1.5 rounded-full bg-amber-400"
+            aria-hidden
+          />
+          <span>
+            Steady Wed ·{" "}
+            <span className="font-semibold tabular-nums">
+              {steadyWeeks.length}
+            </span>{" "}
+            wk{steadyWeeks.length === 1 ? "" : "s"}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

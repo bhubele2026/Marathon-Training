@@ -2268,6 +2268,50 @@ describe("Block sparkline Steady-Wed marker (Task #175)", () => {
   });
 });
 
+// Task #181 — the plan-wide MileageCurve in the Plan Preview card now
+// surfaces the same amber-400 Steady-Wed marker the per-block sparklines
+// (Task #175) and the plan calendar week strip already use, so a runner
+// can scan the entire 52-week build at a glance and immediately see
+// which weeks earn the Z3 stimulus. Marker placement is fully driven by
+// the `wedSteady` flag on `previewWeeklyMileage` output, so the same
+// gating that drives the sparkline tail (Marathon-Specific recipe,
+// non-cutback, non-race-week) applies here too. SAMPLE_CONFIG has Base
+// 18 + Time on Feet 18 (neither emits Steady Wed) followed by the
+// auto-pinned 16-week Marathon-Specific tail (weeks 37..52), so only
+// weeks 37,38,39,41,42,43,45,46,47,49,50,51 should carry an amber dot.
+describe("Plan-wide mileage curve Steady-Wed marker (Task #181)", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("places one amber dot on every Steady-Wed week of the full plan curve", () => {
+    renderPlanner();
+    const expected = [37, 38, 39, 41, 42, 43, 45, 46, 47, 49, 50, 51];
+    for (const w of expected) {
+      expect(
+        screen.getByTestId(`planner-mileage-curve-steady-w${w}`),
+      ).toBeTruthy();
+    }
+    // Cutbacks 40/44/48 and race week 52 must NOT carry a marker, and
+    // neither should any week from the user-authored Base / Time on
+    // Feet blocks (1..36) which use recipes that don't emit Steady Wed.
+    for (const w of [40, 44, 48, 52, 1, 18, 19, 36]) {
+      expect(
+        screen.queryByTestId(`planner-mileage-curve-steady-w${w}`),
+      ).toBeNull();
+    }
+  });
+
+  it("renders the steady legend with the correct count and pluralization", () => {
+    renderPlanner();
+    const legend = screen.getByTestId("planner-mileage-curve-steady-legend");
+    expect(legend.textContent).toContain("Steady Wed");
+    expect(legend.textContent).toContain("12");
+    expect(legend.textContent).toContain("wks");
+  });
+});
+
 describe("Custom hybrid builder card (Task #136)", () => {
   afterEach(() => {
     cleanup();
