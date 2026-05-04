@@ -1868,12 +1868,167 @@ function buildHybridWeekDays(opts: {
     const day = HYBRID_DAY_LABELS[dayOffset]!;
     const date = fmt(addDays(wkStart, dayOffset));
 
-    // ---------- RACE WEEK OVERRIDES (Task #192) ----------
-    // Force the trailing Saturday and Sunday into the canonical
+    // ---------- RACE WEEK OVERRIDES (Task #192 / #198 / #200) ----------
+    // Force the campaign-final week's days into the canonical
     // race-eve / race-day pattern regardless of what the schedule
-    // would have emitted (lift, run, or rest). Mon-Fri stay on the
-    // schedule's normal layout — the trailing taper is handled by
-    // the hybrid phase scalar (build → taper drops loads ~30%).
+    // would have emitted (lift, run, or rest).
+    //
+    // - Mon-Fri overrides (Task #198) are MARATHON-ONLY: pre-#198,
+    //   the hybrid race week left Mon-Fri to the schedule's normal
+    //   lift/run/rest layout scaled by the hybrid phase scalar
+    //   (taper = 0.7x). That still left a typical hybrid marathon
+    //   race week with two heavy lift days plus full-distance
+    //   Wed/Fri runs — noticeably heavier than the Pfitz/Higdon
+    //   marathon race week. Task #198 overrides Mon-Fri to a fixed
+    //   light taper that mirrors non-hybrid marathon plans:
+    //     Mon: full rest
+    //     Tue: light Tonal mobility (25 min, load 25) + 15 min easy
+    //          Bike spin — keep joints loose without fatiguing legs
+    //     Wed: short easy aerobic run (3 mi) — no accessory work
+    //     Thu: full rest (drop the heavy lift entirely)
+    //     Fri: short tune-up Tread run (2 mi at quality pace + 4 x
+    //          30s strides) — wake the legs up
+    //   Gated on `raceKind === "marathon"` so the 5K / 10K hybrid
+    //   race weeks added by Task #200 keep their existing shape
+    //   (those races have their own short-distance taper logic in
+    //   their schedules and don't need the marathon-style override).
+    //
+    // - Sat/Sun overrides (Task #192 / #200) fire for any non-"none"
+    //   raceKind: Sat = "Race Prep" shake-out, Sun = race-day at the
+    //   matching `RACE_DAY_SPECS[raceKind].distanceMi`.
+    //
+    // The Mon-Fri pattern is fixed regardless of slider position so
+    // every hybrid marathon plan (lift_primary through run_primary)
+    // lands on the same race week shape; the parity contract with
+    // `previewWeeklyMileage` (mileage-only) holds because the preview
+    // hard-codes the same Mon-Fri totals on marathon race week.
+    if (isRaceWeek && dayOffset === 0 && raceKind === "marathon") {
+      // Mon: full rest day. Race-week taper begins.
+      return {
+        week: weekNumber,
+        phase,
+        date,
+        day,
+        strength_load: 0,
+        equipment: "Off / Rest",
+        equipment_list: ["Off / Rest"],
+        description:
+          "Rest day. Light walk (20-30 min), foam roll, hydrate. Race-week taper begins." +
+          customSuffix,
+        strength_min: 0,
+        cardio_min: 0,
+        run_min: 0,
+        distance_mi: null,
+        pace: null,
+        session_type: "Rest",
+        is_rest: true,
+        total_load: 0,
+      };
+    }
+    if (isRaceWeek && dayOffset === 1 && raceKind === "marathon") {
+      // Tue: light Tonal mobility (25 min, load 25) + 15 min easy
+      // Peloton Bike spin. Maintenance-style pairing — keep joints
+      // loose without taxing the legs four days out from race day.
+      return {
+        week: weekNumber,
+        phase,
+        date,
+        day,
+        strength_load: 25,
+        equipment: "Tonal",
+        equipment_list: ["Tonal", "Peloton Bike"],
+        description:
+          "Race-week mobility: light Tonal upper (25 min, leave 4-5 reps in reserve), then 15 min easy Peloton Bike spin. Stay loose, legs fresh." +
+          customSuffix,
+        strength_min: 25,
+        cardio_min: 15,
+        run_min: 0,
+        distance_mi: null,
+        pace: null,
+        session_type: "Strength + Cardio",
+        is_rest: false,
+        total_load: 40,
+      };
+    }
+    if (isRaceWeek && dayOffset === 2 && raceKind === "marathon") {
+      // Wed: short easy aerobic run (3 mi at easy pace, ~39 min). No
+      // Tonal accessory — race week is for freshness, not stimulus.
+      const wedDist = 3.0;
+      const wedMin = Math.max(20, Math.round(wedDist * easyMinPerMi));
+      return {
+        week: weekNumber,
+        phase,
+        date,
+        day,
+        strength_load: 0,
+        equipment: "Peloton Tread",
+        equipment_list: ["Peloton Tread"],
+        description:
+          `Easy aerobic Tread run (${wedDist} mi, conversational pace). Keep it short — the race is Sunday.` +
+          customSuffix,
+        strength_min: 0,
+        cardio_min: 0,
+        run_min: wedMin,
+        distance_mi: wedDist,
+        pace: easyPace,
+        session_type: "Aerobic Base",
+        is_rest: false,
+        total_load: wedMin,
+      };
+    }
+    if (isRaceWeek && dayOffset === 3 && raceKind === "marathon") {
+      // Thu: full rest day. Drops the heavy lift to prioritize
+      // freshness — three days out from race day is for recovery,
+      // not stimulus.
+      return {
+        week: weekNumber,
+        phase,
+        date,
+        day,
+        strength_load: 0,
+        equipment: "Off / Rest",
+        equipment_list: ["Off / Rest"],
+        description:
+          "Rest day. No lift, no run — full recovery for race day. Mobility + hydration only." +
+          customSuffix,
+        strength_min: 0,
+        cardio_min: 0,
+        run_min: 0,
+        distance_mi: null,
+        pace: null,
+        session_type: "Rest",
+        is_rest: true,
+        total_load: 0,
+      };
+    }
+    if (isRaceWeek && dayOffset === 4 && raceKind === "marathon") {
+      // Fri: short tune-up Tread run (2 mi at quality pace, ~22 min)
+      // with 4 x 30s strides in the final mile. Mirrors the
+      // non-hybrid `Sharpener` Friday — wake the legs up without
+      // taxing them.
+      const friDist = 2.0;
+      const friMin = Math.max(20, Math.round(friDist * qualityMinPerMi));
+      return {
+        week: weekNumber,
+        phase,
+        date,
+        day,
+        strength_load: 0,
+        equipment: "Peloton Tread",
+        equipment_list: ["Peloton Tread"],
+        description:
+          `Tune-up Tread run (${friDist} mi at marathon pace) with 4 x 30s strides in the final mile. Wake the legs up, fuel + sleep tonight.` +
+          customSuffix,
+        strength_min: 0,
+        cardio_min: 0,
+        run_min: friMin,
+        distance_mi: friDist,
+        pace: qualityPace,
+        session_type: "Sharpener",
+        is_rest: false,
+        total_load: friMin,
+      };
+    }
     if (isRaceWeek && dayOffset === 5 && raceKind !== "none") {
       // Race-eve Saturday: 15-min Tonal mobility flush + 15-min easy
       // bike/row spin. Mirrors the non-hybrid `buildWeekDays` race-week
@@ -2729,34 +2884,45 @@ export function previewWeeklyMileage(
           hybridPhaseForPreview,
         );
         if (isRaceWeek) {
-          // Race-week override (Task #192 / #200): the hybrid week
-          // builder force-overrides the trailing Saturday to Race
-          // Prep (no run miles) and the trailing Sunday to a RACE
-          // DAY at the matching `raceKind` distance regardless of
-          // what the schedule slots for those days. Mirror that here
-          // so the Phase Planner sparkline matches what the generator
-          // emits on the campaign-final week of a hybrid race plan:
-          // drop any Sat run miles, ignore the schedule's Sun slot,
-          // and add a flat per-kind race distance (26.2 / 13.1 / 6.2
-          // / 3.1 mi). Falls back to MARATHON_DISTANCE_MI for the
-          // legacy blocks-mode appended tail.
-          const schedule = pickHybridSchedule(
-            hybridSpecForPreview.position,
-            hybridSpecForPreview.daysPerWeek,
-          );
-          let e = 0;
-          let q = 0;
-          let l = 0;
-          schedule.forEach((slot, idx) => {
-            if (slot.kind !== "run") return;
-            if (idx === 5 || idx === 6) return; // Sat/Sun overridden
-            if (slot.intensity === "easy") e += mi.easy;
-            else if (slot.intensity === "quality") q += mi.quality;
-            else l += mi.long;
-          });
-          easyMi = e;
-          qualityMi = q;
-          longMi = l + entriesRaceDistanceMi;
+          // Race-week override (Task #192 / #198 / #200). The hybrid
+          // week builder force-overrides Sat = "Race Prep" + Sun =
+          // race-day at `entriesRaceDistanceMi` for any non-"none"
+          // raceKind. For MARATHON race weeks specifically (Task
+          // #198), Mon-Fri are ALSO force-overridden to a fixed
+          // light taper (Mon rest, light Tue mobility + 15 min bike,
+          // 3 mi Wed easy, Thu rest, 2 mi Fri tune-up). Mirror that
+          // split here so the Phase Planner sparkline matches what
+          // the generator emits on the campaign-final week:
+          //   - marathon → easy=3, quality=2, long=26.2 (fixed,
+          //     independent of slider position / days/week / level)
+          //   - 5K / 10K / half (Task #200) → walk the schedule for
+          //     Mon-Fri, drop Sat/Sun, then add the per-kind race
+          //     distance (3.1 / 6.2 / 13.1 mi) as the Sun race.
+          //   - blocks-mode legacy fallback (raceKind="none") →
+          //     entriesRaceDistanceMi defaults to MARATHON_DISTANCE_MI.
+          if (resolvedEntriesRaceKind === "marathon") {
+            easyMi = 3.0;
+            qualityMi = 2.0;
+            longMi = entriesRaceDistanceMi;
+          } else {
+            const schedule = pickHybridSchedule(
+              hybridSpecForPreview.position,
+              hybridSpecForPreview.daysPerWeek,
+            );
+            let e = 0;
+            let q = 0;
+            let l = 0;
+            schedule.forEach((slot, idx) => {
+              if (slot.kind !== "run") return;
+              if (idx === 5 || idx === 6) return; // Sat/Sun overridden
+              if (slot.intensity === "easy") e += mi.easy;
+              else if (slot.intensity === "quality") q += mi.quality;
+              else l += mi.long;
+            });
+            easyMi = e;
+            qualityMi = q;
+            longMi = l + entriesRaceDistanceMi;
+          }
         } else {
           easyMi = mi.easy * hybridScheduleCounts.easy;
           qualityMi = mi.quality * hybridScheduleCounts.quality;

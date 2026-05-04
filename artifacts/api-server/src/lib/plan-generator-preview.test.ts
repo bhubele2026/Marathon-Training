@@ -387,6 +387,135 @@ describe("previewWeeklyMileage matches generatePlanFromConfig", () => {
     expect(sat!.run_min).toBe(0);
   });
 
+  // Task #198: the hybrid marathon race week (Mon-Fri) used to come
+  // from the schedule's normal lift/run/rest layout, scaled only by
+  // the hybrid phase taper scalar (0.7x). That left runners with a
+  // heavier race week than non-hybrid marathon plans, which taper
+  // Tue/Thu lifts down (or drop one entirely) and shrink the Wed/Fri
+  // runs to a short easy + tune-up. The fix force-overrides Mon-Fri
+  // to a fixed light taper pattern (Mon rest, light Tue mobility +
+  // bike, 3 mi Wed easy, Thu rest, 2 mi Fri tune-up) so a hybrid
+  // marathon plan's race week feels comparable to Pfitz's race week
+  // in load + minutes. Sat/Sun overrides from #192 stay intact.
+  //
+  // Strict per-week parity (preview vs generator) covers the entire
+  // span — including the race week — and the per-day session_type +
+  // load/distance pins below lock the new race-week shape. A future
+  // regression that re-introduces a heavy lift on Tue/Thu, lengthens
+  // the Wed/Fri runs, or drops the Mon/Thu rest fails loudly here.
+  it("auto-shortens the trailing taper on a hybrid marathon race week (Task #198)", () => {
+    // Mon 2026-05-04 → Sun 2026-09-06 is exactly 18 weeks: a vanilla
+    // marathon_hybrid template at its `defaultWeeks` of 18.
+    const entries: TemplateEntry[] = [
+      {
+        templateId: "marathon_hybrid",
+        weeks: 18,
+        customName: null,
+        customNotes: null,
+      },
+    ];
+    const expandedBlocks = expandEntriesToBlocksWithGaps(
+      entries,
+      "2026-05-04",
+    );
+    const config = {
+      startDate: "2026-05-04",
+      marathonDate: "2026-09-06",
+      blocks: expandedBlocks,
+      entries,
+    };
+    const preview = previewWeeklyMileage(expandedBlocks, {
+      appendMarathonTail: false,
+      entriesEndOnMarathonRace: true,
+    });
+    const generated = generatePlanFromConfig(config);
+    expect(preview.length).toBe(18);
+    expect(generated.weekly.length).toBe(18);
+    // Strict per-week parity for EVERY week, race week included. The
+    // preview helper's hybrid mileage MUST match what the generator's
+    // `buildHybridWeekDays` pipeline emits via the same schedule.
+    // After #198 the preview hard-codes race-week mileage to 3 + 2 +
+    // 26.2 (Wed easy + Fri tune-up + Sun marathon) so any drift in
+    // either direction is caught here.
+    for (let i = 0; i < preview.length; i++) {
+      const p = preview[i]!;
+      const g = generated.weekly[i]!;
+      expect(p.week).toBe(g.week);
+      expect(p.totalMi).toBe(g.planned_miles);
+      expect(p.longRunMi).toBe(g.long_run_mi);
+    }
+    // Pin the campaign-final week's race-week mileage directly so a
+    // future regression that drifts BOTH preview and generator in
+    // lock-step (e.g. swapping back to schedule-driven Mon-Fri runs)
+    // is still caught.
+    const lastPreview = preview[preview.length - 1]!;
+    expect(lastPreview.isRaceWeek).toBe(true);
+    // Wed (3 mi easy) + Fri (2 mi tune-up) + Sun (26.2 mi) = 31.2 mi.
+    expect(lastPreview.totalMi).toBe(31.2);
+    expect(lastPreview.longRunMi).toBe(26.2);
+
+    // Per-day race-week shape pins: Mon + Thu must both be Rest, Tue
+    // must be a light maintenance Strength + Cardio (load 40), Wed
+    // must be a 3 mi Aerobic Base run, Fri must be a 2 mi Sharpener
+    // tune-up. Sat = Race Prep, Sun = 26.2 mi Race (preserved from
+    // #192).
+    const lastWeekDays = generated.daily.filter((d) => d.week === 18);
+    const byDay = (day: string) =>
+      lastWeekDays.find((d) => d.day === day)!;
+
+    const mon = byDay("Mon");
+    expect(mon.is_rest).toBe(true);
+    expect(mon.session_type).toBe("Rest");
+    expect(mon.total_load).toBe(0);
+
+    const tue = byDay("Tue");
+    expect(tue.session_type).toBe("Strength + Cardio");
+    expect(tue.is_rest).toBe(false);
+    expect(tue.run_min).toBe(0);
+    // Light maintenance — total_load is fixed at 40 (load 25 + 15
+    // min cardio), substantially below the hybrid block's typical
+    // heavy lift day (60+ load even with the taper-phase scalar).
+    expect(tue.total_load).toBe(40);
+    expect(tue.strength_load).toBe(25);
+    expect(tue.cardio_min).toBe(15);
+
+    const wed = byDay("Wed");
+    expect(wed.session_type).toBe("Aerobic Base");
+    expect(wed.distance_mi).toBe(3.0);
+    expect(wed.strength_load).toBe(0);
+    expect(wed.run_min).toBeGreaterThan(0);
+
+    const thu = byDay("Thu");
+    expect(thu.is_rest).toBe(true);
+    expect(thu.session_type).toBe("Rest");
+    expect(thu.total_load).toBe(0);
+
+    const fri = byDay("Fri");
+    expect(fri.session_type).toBe("Sharpener");
+    expect(fri.distance_mi).toBe(2.0);
+    expect(fri.strength_load).toBe(0);
+    expect(fri.run_min).toBeGreaterThan(0);
+
+    // Sat = Race Prep, Sun = Race (preserved from #192). Re-assert
+    // here so a future regression that breaks ANY of the seven
+    // race-week day overrides — Mon-Fri (this task) or Sat/Sun
+    // (Task #192) — fails loudly in the same test.
+    expect(byDay("Sat").session_type).toBe("Race Prep");
+    expect(byDay("Sun").session_type).toBe("Race");
+    expect(byDay("Sun").distance_mi).toBe(26.2);
+
+    // Race-week Mon-Fri total_load must stay well below the
+    // pre-#198 typical hybrid race week (which ran ~140-240 in load
+    // depending on slider position). Pin a comfortable upper bound
+    // (150) so any future tweak that re-introduces a heavy lift on
+    // Tue/Thu or fattens the Wed/Fri runs fails loudly.
+    const monFriLoad = ["Mon", "Tue", "Wed", "Thu", "Fri"].reduce(
+      (s, d) => s + (byDay(d).total_load || 0),
+      0,
+    );
+    expect(monFriLoad).toBeLessThanOrEqual(150);
+  });
+
   // Task #184 regression: a multi-entry campaign whose marathon entry
   // is NOT the trailing entry (e.g. a marathon followed by a recovery
   // 5K) must NOT inject a stray 26.2 mi RACE DAY Sunday at the

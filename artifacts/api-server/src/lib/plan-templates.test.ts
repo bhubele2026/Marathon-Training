@@ -1178,18 +1178,36 @@ describe("Race-day marking on entries-mode marathon plans (Task #195)", () => {
     expect(sun.description).not.toContain("RACE DAY — Marathon");
   });
 
-  it("18w entries-mode 'marathon_hybrid' — final Sunday is a 26.2 mi RACE DAY (Task #192)", () => {
-    // Task #192 flipped marathon_hybrid raceKind from "none" to
-    // "marathon" AND wired the race-week override into
-    // `buildHybridWeekDays`, so a hybrid marathon plan now ends on
-    // the SAME 26.2 mi RACE DAY Sunday as a recipe-driven marathon
-    // plan. Task #200 then extended that per-kind so 5K / 10K
+  it("18w entries-mode 'marathon_hybrid' — final Sunday reads \"RACE DAY — Marathon (26.2 mi)\" (Task #192 / #198)", () => {
+    // Task #192 flipped marathon_hybrid's raceKind from "none" to
+    // "marathon" and taught `buildHybridWeekDays` to honor isRaceWeek
+    // by force-overriding the trailing Sat (Race Prep) and Sun
+    // (26.2 mi marathon). Task #198 extended the override to Mon-Fri
+    // with a fixed light taper pattern (Mon rest, light Tue mobility
+    // + bike, 3 mi Wed easy, Thu rest, 2 mi Fri tune-up). Task #200
+    // then generalized the Sun race-day to per-kind so 5K / 10K
     // hybrid plans end on the matching distance — see the dedicated
     // hybrid race-kind cases in plan-generator-preview.test.ts.
+    //
+    // The campaign-final Sunday therefore mirrors what every other
+    // marathon-classified template (Pfitz, Higdon, etc.) emits —
+    // same RACE DAY copy, 26.2 mi distance, and "Race" session_type
+    // — regardless of what the hybrid schedule's natural Sun slot
+    // would have been.
     const { sun, sat } = finalSunAndSat(entriesPlan("marathon_hybrid", 18));
     expect(sun.distance_mi).toBe(26.2);
-    expect(sun.description).toContain("RACE DAY — Marathon (26.2 mi)");
+    expect(sun.description).toBe(
+      "RACE DAY — Marathon (26.2 mi). Execute race plan, fuel every 4 mi, finish strong.",
+    );
     expect(sun.session_type).toBe("Race");
+    expect(sun.equipment).toBe("Outdoor");
+    expect(sun.equipment_list).toEqual(["Outdoor"]);
+    expect(sun.is_rest).toBe(false);
+    // Race-eve Sat must be the canonical mobility flush + spin
+    // pattern, not the hybrid schedule's natural Sat slot (which
+    // would be a heavy lift for the balanced position).
     expect(sat.session_type).toBe("Race Prep");
+    expect(sat.strength_load).toBe(0);
+    expect(sat.description).toContain("Race-eve");
   });
 });
