@@ -48,6 +48,7 @@ vi.mock("@/components/workout-form", () => ({
 }));
 
 import { useListWorkouts } from "@workspace/api-client-react";
+import { HR_ZONE_COLORS } from "@/lib/run-target";
 import Log from "./log";
 
 const mockedUseListWorkouts = vi.mocked(useListWorkouts);
@@ -253,4 +254,80 @@ describe("Training Log — HR zone swatch coverage (task #168)", () => {
       screen.queryByTestId("log-row-202-run-target-zone-swatch"),
     ).toBeNull();
   });
+});
+
+// Task #171: lock the full HR zone color ramp on the Log page's
+// workout-history row chip. The bucket-2 swatch test above only
+// exercises Long Run / week 4 → bucket 2 → bg-emerald-500, so the
+// other four entries in HR_ZONE_COLORS (slate-400 / amber-400 /
+// orange-500 / red-500 for buckets 1, 3, 4, 5) were only locked in by
+// the unit test on the color map itself. A regression that wired the
+// wrong bucket to the wrong swatch on a Recovery / Steady / Tempo /
+// Interval session would slip through on this surface. This
+// parametrized suite picks one representative sessionType per
+// intensityBucket value, flips the active mode to hr_zones, asserts
+// the row's "Zone N" prefix is present so the swatch we grab is
+// unambiguously for the bucket under test, and pulls the expected
+// swatch class directly from HR_ZONE_COLORS so the assertion follows
+// any future re-mapping of buckets → tokens without a test edit.
+describe("Training Log — every HR zone bucket renders the matching swatch (task #171)", () => {
+  // sessionType → bucket pairs covering all five HR_ZONE_COLORS entries.
+  // Mirrors the equivalent suite in today.test.tsx so the two surfaces
+  // stay in lockstep on bucket coverage. The bucket column is the value
+  // intensityBucket() should return for each sessionType; documenting
+  // it here keeps the test self-checking if intensityBucket ever drifts.
+  const cases: Array<{
+    sessionType: string;
+    bucket: 1 | 2 | 3 | 4 | 5;
+  }> = [
+    { sessionType: "Recovery Run", bucket: 1 },
+    { sessionType: "Long Run", bucket: 2 },
+    { sessionType: "Steady Run", bucket: 3 },
+    { sessionType: "Tempo Run", bucket: 4 },
+    { sessionType: "VO2 Intervals", bucket: 5 },
+  ];
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    runTargetingModeRef.current = "effort";
+  });
+
+  it.each(cases)(
+    "$sessionType (bucket $bucket) paints the matching HR_ZONE_COLORS swatch on the workout history row in hr_zones mode",
+    ({ sessionType, bucket }) => {
+      runTargetingModeRef.current = "hr_zones";
+      // Unique row id per case so cleanup-between-cases isn't load-
+      // bearing on the testId selectors below.
+      const rowId = 300 + bucket;
+      renderWithWorkouts([
+        makeWorkout({
+          id: rowId,
+          sessionType,
+          prescribedRunTarget: {
+            sessionType,
+            week: 4,
+            runMin: 60,
+            distanceMi: 6,
+            pace: "10:00",
+          },
+        }),
+      ]);
+
+      const target = screen.getByTestId(`log-row-${rowId}-run-target`);
+      expect(target.getAttribute("data-run-targeting-mode")).toBe("hr_zones");
+      // The "Zone N" prefix proves this swatch belongs to the zone
+      // we're asserting on, not some other run-target chip on the page.
+      expect(target.textContent).toContain(`Zone ${bucket}`);
+
+      const swatch = screen.getByTestId(
+        `log-row-${rowId}-run-target-zone-swatch`,
+      );
+      // Pulled from HR_ZONE_COLORS so the assertion follows any future
+      // re-mapping of buckets → tokens without needing a test edit.
+      const expectedSwatchClass = HR_ZONE_COLORS[bucket].swatchClass;
+      expect(swatch.className).toContain(expectedSwatchClass);
+      expect(swatch.getAttribute("aria-hidden")).toBe("true");
+    },
+  );
 });

@@ -54,6 +54,7 @@ vi.mock("@/hooks/use-toast", () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
+import { HR_ZONE_COLORS } from "@/lib/run-target";
 import Settings from "./settings";
 
 describe("Settings — HR zone swatch coverage on the Run Targeting preview (task #167)", () => {
@@ -125,4 +126,49 @@ describe("Settings — HR zone swatch coverage on the Run Targeting preview (tas
       ).toBeNull();
     }
   });
+});
+
+// Task #171: lock the full HR zone color ramp on the Settings preview
+// chips. The bucket-loop test above only proves a swatch *exists* on
+// every row in hr_zones mode — it never asserts that bucket N actually
+// renders the HR_ZONE_COLORS[N] token. A regression that wired the
+// wrong bucket to the wrong swatch on a Recovery / Steady / Tempo /
+// Interval row (e.g. swapped Zone 3 amber and Zone 5 red) would still
+// slip through. This parametrized suite re-renders Settings once per
+// bucket, asserts the row's "Zone N" prefix is present so the swatch
+// we grab is unambiguously for that bucket, and pulls the expected
+// swatch class directly from HR_ZONE_COLORS so the assertion follows
+// any future re-mapping of buckets → tokens without a test edit.
+describe("Settings — every HR zone bucket renders the matching preview swatch (task #171)", () => {
+  const buckets = [1, 2, 3, 4, 5] as const;
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    runTargetingModeRef.current = "effort";
+    maxHrRef.current = 200;
+  });
+
+  it.each(buckets.map((bucket) => ({ bucket })))(
+    "Zone $bucket preview row paints the matching HR_ZONE_COLORS swatch in hr_zones mode",
+    ({ bucket }) => {
+      runTargetingModeRef.current = "hr_zones";
+      maxHrRef.current = 200;
+      render(<Settings />);
+
+      // Grab the row first so the "Zone N" prefix and the swatch we
+      // assert on are unambiguously the ones for this bucket — not
+      // some other row's swatch that happened to render with a
+      // matching class.
+      const row = screen.getByTestId(`zone-preview-row-${bucket}`);
+      expect(row.textContent).toContain(`Zone ${bucket}`);
+
+      const swatch = screen.getByTestId(`zone-preview-swatch-${bucket}`);
+      // Pulled from HR_ZONE_COLORS so the assertion follows any future
+      // re-mapping of buckets → tokens without needing a test edit.
+      const expectedSwatchClass = HR_ZONE_COLORS[bucket].swatchClass;
+      expect(swatch.className).toContain(expectedSwatchClass);
+      expect(swatch.getAttribute("aria-hidden")).toBe("true");
+    },
+  );
 });
