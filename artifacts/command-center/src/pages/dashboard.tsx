@@ -14,6 +14,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Legend, AreaChart, Area, Cell, ReferenceLine, ReferenceDot
 } from "recharts";
+import type { TooltipProps } from "recharts";
 import { formatDistance, formatLoad, formatWeight, formatDate, formatDuration } from "@/lib/format";
 import { PrimaryMetricDisplay } from "@/components/primary-metric-display";
 import { SessionDetailDisclosure } from "@/components/session-detail-disclosure";
@@ -32,6 +33,112 @@ import { QuickLogActivity } from "@/components/quick-log-activity";
 import { RaceWeekBanner } from "@/components/race-week-banner";
 import { TimeOfDayBadge } from "@/components/time-of-day-badge";
 import { phaseColor } from "@/lib/phase-colors";
+
+type MileageTooltipRow = {
+  phase?: string;
+  dominantCardioEquipment?: string | null;
+  plannedMiles?: number;
+  plannedCardioMin?: number;
+  wedSteady?: boolean | null;
+  programs?: Array<{
+    sourceEntryIndex: number;
+    label: string;
+    plannedMiles: number;
+    plannedCardioMin: number;
+  }>;
+};
+
+export function MileageTooltipContent({
+  active,
+  payload,
+  label,
+}: TooltipProps<number, string>) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload as MileageTooltipRow | undefined;
+  const base = row?.phase ? `Week ${label} · ${row.phase}` : `Week ${label}`;
+  const cardioOnly =
+    (row?.plannedMiles ?? 0) === 0 && (row?.plannedCardioMin ?? 0) > 0;
+  const heading = cardioOnly && row?.dominantCardioEquipment
+    ? `${base} · ${row.dominantCardioEquipment}`
+    : base;
+  // Task #144: render per-program planned breakdown when 2+ programs
+  // contribute to this week. The existing Planned/Actual rows still show
+  // the combined headline values; the breakdown clarifies which program
+  // drove the combined number.
+  const programs = row?.programs ?? [];
+  const showPrograms = programs.length > 1;
+  return (
+    <div
+      className="rounded border bg-card text-card-foreground text-xs shadow-md p-2 space-y-1"
+      style={{ borderColor: "hsl(var(--border))" }}
+      data-testid="mileage-tooltip"
+    >
+      <div className="font-bold uppercase tracking-wider">{heading}</div>
+      {payload.map((entry, idx) => {
+        const value = Number(entry.value ?? 0);
+        const isCardio =
+          entry.name === "Planned cardio" || entry.name === "Actual cardio";
+        return (
+          <div key={`tt-${idx}`} className="flex items-center gap-2">
+            <span
+              className="h-2 w-2 rounded-sm"
+              style={{ backgroundColor: entry.color }}
+              aria-hidden
+            />
+            <span className="text-muted-foreground">{entry.name}</span>
+            <span className="ml-auto font-mono">
+              {isCardio
+                ? `${value.toFixed(0)} min`
+                : `${value.toFixed(1)} mi`}
+            </span>
+          </div>
+        );
+      })}
+      {showPrograms && (
+        <div
+          className="border-t pt-1 mt-1 space-y-0.5"
+          style={{ borderColor: "hsl(var(--border))" }}
+          data-testid="mileage-tooltip-programs"
+        >
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
+            Per Program
+          </div>
+          {programs.map((p) => (
+            <div
+              key={`tt-prog-${p.sourceEntryIndex}`}
+              className="flex items-center gap-2"
+              data-testid={`mileage-tooltip-program-${p.sourceEntryIndex}`}
+            >
+              <span className="text-muted-foreground">{p.label}</span>
+              <span className="ml-auto font-mono">
+                {p.plannedMiles.toFixed(1)} mi
+                {p.plannedCardioMin > 0 && (
+                  <> · {p.plannedCardioMin.toFixed(0)} min</>
+                )}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {/* Task #187: amber-400 "Steady Wed (Z3)" callout that mirrors the
+          legend swatch so a runner hovering a marked week can confirm the
+          Z3 stimulus without scanning back to the legend. Omitted on
+          non-steady weeks to keep the tooltip compact. */}
+      {row?.wedSteady === true && (
+        <div
+          className="flex items-center gap-1.5"
+          data-testid="mileage-tooltip-steady"
+        >
+          <span
+            className="h-2 w-2 rounded-full bg-amber-400"
+            aria-hidden
+          />
+          <span className="text-muted-foreground">Steady Wed (Z3)</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const { data: summary, isLoading: loadingSummary } = useGetDashboardSummary();
@@ -550,98 +657,7 @@ export default function Dashboard() {
                         />
                         <Tooltip
                           contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
-                          content={({ active, payload, label }) => {
-                            if (!active || !payload?.length) return null;
-                            const row = payload[0]?.payload as
-                              | {
-                                  phase?: string;
-                                  dominantCardioEquipment?: string | null;
-                                  plannedMiles?: number;
-                                  plannedCardioMin?: number;
-                                  programs?: Array<{
-                                    sourceEntryIndex: number;
-                                    label: string;
-                                    plannedMiles: number;
-                                    plannedCardioMin: number;
-                                  }>;
-                                }
-                              | undefined;
-                            const base = row?.phase ? `Week ${label} · ${row.phase}` : `Week ${label}`;
-                            const cardioOnly =
-                              (row?.plannedMiles ?? 0) === 0 &&
-                              (row?.plannedCardioMin ?? 0) > 0;
-                            const heading = cardioOnly && row?.dominantCardioEquipment
-                              ? `${base} · ${row.dominantCardioEquipment}`
-                              : base;
-                            // Task #144: render per-program planned breakdown
-                            // when 2+ programs contribute to this week. The
-                            // existing Planned/Actual rows still show the
-                            // combined headline values; the breakdown clarifies
-                            // which program drove the combined number.
-                            const programs = row?.programs ?? [];
-                            const showPrograms = programs.length > 1;
-                            return (
-                              <div
-                                className="rounded border bg-card text-card-foreground text-xs shadow-md p-2 space-y-1"
-                                style={{ borderColor: "hsl(var(--border))" }}
-                                data-testid="mileage-tooltip"
-                              >
-                                <div className="font-bold uppercase tracking-wider">{heading}</div>
-                                {payload.map((entry, idx) => {
-                                  const value = Number(entry.value ?? 0);
-                                  const isCardio =
-                                    entry.name === "Planned cardio" ||
-                                    entry.name === "Actual cardio";
-                                  return (
-                                    <div
-                                      key={`tt-${idx}`}
-                                      className="flex items-center gap-2"
-                                    >
-                                      <span
-                                        className="h-2 w-2 rounded-sm"
-                                        style={{ backgroundColor: entry.color }}
-                                        aria-hidden
-                                      />
-                                      <span className="text-muted-foreground">
-                                        {entry.name}
-                                      </span>
-                                      <span className="ml-auto font-mono">
-                                        {isCardio
-                                          ? `${value.toFixed(0)} min`
-                                          : `${value.toFixed(1)} mi`}
-                                      </span>
-                                    </div>
-                                  );
-                                })}
-                                {showPrograms && (
-                                  <div
-                                    className="border-t pt-1 mt-1 space-y-0.5"
-                                    style={{ borderColor: "hsl(var(--border))" }}
-                                    data-testid="mileage-tooltip-programs"
-                                  >
-                                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
-                                      Per Program
-                                    </div>
-                                    {programs.map((p) => (
-                                      <div
-                                        key={`tt-prog-${p.sourceEntryIndex}`}
-                                        className="flex items-center gap-2"
-                                        data-testid={`mileage-tooltip-program-${p.sourceEntryIndex}`}
-                                      >
-                                        <span className="text-muted-foreground">{p.label}</span>
-                                        <span className="ml-auto font-mono">
-                                          {p.plannedMiles.toFixed(1)} mi
-                                          {p.plannedCardioMin > 0 && (
-                                            <> · {p.plannedCardioMin.toFixed(0)} min</>
-                                          )}
-                                        </span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          }}
+                          content={MileageTooltipContent}
                         />
                         <Legend />
                         {summary && (

@@ -75,7 +75,7 @@ import {
   useGetRecentActivity,
   useGetTodayPlan,
 } from "@workspace/api-client-react";
-import Dashboard from "./dashboard";
+import Dashboard, { MileageTooltipContent } from "./dashboard";
 
 const mockSummary = vi.mocked(useGetDashboardSummary);
 const mockWeight = vi.mocked(useGetWeightTrend);
@@ -231,6 +231,63 @@ describe("Dashboard mileage chart — Steady Wed marker (Task #183)", () => {
     expect(screen.queryByTestId("mileage-chart-steady-legend")).toBeNull();
     expect(screen.queryByTestId("mileage-chart-steady-w1")).toBeNull();
     expect(screen.queryByTestId("mileage-chart-steady-w2")).toBeNull();
+  });
+
+  it("shows a 'Steady Wed (Z3)' tooltip callout on a steady week and omits it on a non-steady week (Task #187)", () => {
+    const steadyRow = {
+      week: 33,
+      phase: "Marathon-Specific",
+      plannedMiles: 28,
+      plannedCardioMin: 60,
+      dominantCardioEquipment: null,
+      programs: [],
+      wedSteady: true,
+    };
+    const nonSteadyRow = {
+      week: 34,
+      phase: "Marathon-Specific",
+      plannedMiles: 22,
+      plannedCardioMin: 60,
+      dominantCardioEquipment: null,
+      programs: [],
+      wedSteady: false,
+    };
+
+    const { rerender } = render(
+      <MileageTooltipContent
+        active
+        label={steadyRow.week}
+        payload={[
+          {
+            name: "Planned",
+            value: steadyRow.plannedMiles,
+            color: "#888",
+            payload: steadyRow,
+          },
+        ] as never}
+      />,
+    );
+
+    const callout = screen.getByTestId("mileage-tooltip-steady");
+    expect(callout.textContent).toMatch(/Steady Wed \(Z3\)/);
+    expect(callout.querySelector(".bg-amber-400")).toBeTruthy();
+
+    rerender(
+      <MileageTooltipContent
+        active
+        label={nonSteadyRow.week}
+        payload={[
+          {
+            name: "Planned",
+            value: nonSteadyRow.plannedMiles,
+            color: "#888",
+            payload: nonSteadyRow,
+          },
+        ] as never}
+      />,
+    );
+
+    expect(screen.queryByTestId("mileage-tooltip-steady")).toBeNull();
   });
 
   it("renders a singular 'wk' label when only one week is steady", () => {
