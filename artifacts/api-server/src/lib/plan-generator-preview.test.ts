@@ -10,7 +10,10 @@ import {
   expandEntriesToBlocksWithGaps,
   FOCUS_TYPES,
   generatePlanFromConfig,
+  PLAN_TEMPLATES,
   previewWeeklyMileage,
+  RACE_DAY_SPECS,
+  templateRaceKindById,
   type FocusType,
   type PhaseBlock,
   type TemplateEntry,
@@ -696,6 +699,205 @@ describe("previewWeeklyMileage matches generatePlanFromConfig", () => {
       });
     },
   );
+
+  // Task #216: race-day Sunday's distance, description, run minutes,
+  // pace, session_type, equipment_list, and total_load all read from a
+  // single shared `RACE_DAY_SPECS[raceKind]` table in
+  // `lib/plan-generator/src/templates.ts`. The race-week Sun row is
+  // built in two different branches inside `lib/plan-generator/src/index.ts`:
+  // recipe-driven `buildWeekDays` (used by marathon Pfitz, half-marathon,
+  // etc.) and hybrid `buildHybridWeekDays` (used by `marathon_hybrid` and
+  // any other hybrid race templates). Each branch consumes the shared
+  // table independently. Without a direct parity test, a future tweak
+  // that goes around `RACE_DAY_SPECS` in just one branch (e.g. inlining
+  // a different "RACE DAY — Marathon ..." string in the hybrid branch
+  // only) would silently re-introduce the same kind of cross-branch
+  // drift `RACE_DAY_SPECS` was added to prevent — the parallel of what
+  // Task #214 locked down for race-eve Sat via `RACE_EVE_SAT_SPEC`.
+  //
+  // Pin parity by generating the campaign-final week from a marathon
+  // (recipe-driven `marathon_pfitz_18_70`) and a marathon-hybrid
+  // (`marathon_hybrid`) plan that BOTH start on the SAME Monday. The
+  // Sun row's `distance_mi`, `run_min`, `pace`, `description`,
+  // `session_type`, `equipment_list`, and `total_load` must all be
+  // identical across the two branches because both pull from
+  // `RACE_DAY_SPECS.marathon`. The same parity assertion is repeated
+  // for the half-marathon recipe (`half_marathon`) — and for any
+  // hybrid template currently classified at `"half"` race kind, if one
+  // exists — so non-marathon race kinds are also locked. Even when no
+  // hybrid half template exists today, the recipe-driven half branch
+  // is pinned directly against `RACE_DAY_SPECS.half` so a future tweak
+  // that drifts `buildWeekDays`'s Sun branch off the shared spec for
+  // half-marathons (e.g. hardcoding a pre-`RACE_DAY_SPECS` "Half
+  // Marathon (13.1 mi)" string with a different load / pace, mirroring
+  // the legacy `generatePlan` Sun) fails loudly here too.
+  describe("race-day Sun parity across recipe + hybrid branches (Task #216)", () => {
+    const start = "2026-05-04";
+
+    // Build the campaign-final week's Sun row for a single-entry plan
+    // and assert the row is the race-day override (session_type = "Race").
+    function buildRaceSun(
+      templateId: string,
+      weeks: number,
+      raceDate: string,
+    ) {
+      const entries: TemplateEntry[] = [
+        { templateId, weeks, customName: null, customNotes: null },
+      ];
+      const blocks = expandEntriesToBlocksWithGaps(entries, start);
+      const generated = generatePlanFromConfig({
+        startDate: start,
+        marathonDate: raceDate,
+        blocks,
+        entries,
+      });
+      const sun = generated.daily.find(
+        (d) => d.week === weeks && d.day === "Sun",
+      );
+      expect(sun, `${templateId} w${weeks} Sun row`).toBeDefined();
+      // Sanity: the trailing Sun must have flipped to the race-day
+      // override (session_type = "Race"). If the `isRaceWeek` flag
+      // somehow lost its trigger, the parity check below would still
+      // pass on identical non-race long-run rows — pin the override
+      // here so that failure mode is caught explicitly.
+      expect(sun!.session_type, `${templateId} session_type`).toBe("Race");
+      return sun!;
+    }
+
+    // Discover any hybrid template currently classified at the given
+    // race kind. A "hybrid" template is any whose first expand block
+    // carries the `[hybrid-mix:` sentinel in its customNotes — that's
+    // the same routing key `buildWeekDays` uses to dispatch to
+    // `buildHybridWeekDays`. Returns null when no template matches so
+    // the half-kind parity test can fall back to a spec-direct check
+    // and document the absence.
+    function findHybridTemplateAtRaceKind(
+      raceKind: "marathon" | "half" | "10k" | "5k",
+    ): { id: string; defaultWeeks: number } | null {
+      for (const tpl of PLAN_TEMPLATES) {
+        if (templateRaceKindById(tpl.id) !== raceKind) continue;
+        const blocks = tpl.expand(tpl.defaultWeeks);
+        const isHybrid = blocks.some(
+          (b) =>
+            b.focusType === "Custom" &&
+            typeof b.customNotes === "string" &&
+            /\[hybrid-mix:/.test(b.customNotes),
+        );
+        if (isHybrid) return { id: tpl.id, defaultWeeks: tpl.defaultWeeks };
+      }
+      return null;
+    }
+
+    // Field set covered by the parity assertion. Mirrors what
+    // `RACE_DAY_SPECS[raceKind]` flows into both branches: distance,
+    // run minutes, pace, description, session_type, total_load, and
+    // the equipment chip rail (always `["Outdoor"]` for race day).
+    const RACE_SUN_PARITY_FIELDS = [
+      "distance_mi",
+      "run_min",
+      "pace",
+      "description",
+      "session_type",
+      "total_load",
+    ] as const;
+
+    it("marathon recipe (marathon_pfitz_18_70) and marathon-hybrid (marathon_hybrid) emit identical Sun race-day rows", () => {
+      // Mon 2026-05-04 + 18 wk = Sun 2026-09-06. Both templates default
+      // to 18 weeks so they line up on the same campaign-final Sunday.
+      const marathonSun = buildRaceSun(
+        "marathon_pfitz_18_70",
+        18,
+        "2026-09-06",
+      );
+      const hybridSun = buildRaceSun("marathon_hybrid", 18, "2026-09-06");
+
+      // Strict per-field parity for everything that flows through the
+      // shared `RACE_DAY_SPECS.marathon` constant. A future tweak that
+      // bumps distance from 26.2 → 26.3 (or run_min, total_load, pace,
+      // description, session_type) in just one branch desyncs the two
+      // rows and fails loudly here.
+      for (const field of RACE_SUN_PARITY_FIELDS) {
+        expect(
+          hybridSun[field],
+          `marathon-hybrid vs marathon recipe: ${field}`,
+        ).toEqual(marathonSun[field]);
+      }
+      // equipment_list is an array — pinned separately so deep-equality
+      // is asserted. Race day is always Outdoor for both branches.
+      expect(hybridSun.equipment_list).toEqual(marathonSun.equipment_list);
+      expect(marathonSun.equipment_list).toEqual(["Outdoor"]);
+
+      // Sanity: lock the recipe-driven Sun directly to
+      // `RACE_DAY_SPECS.marathon` so a future regression that drifts
+      // BOTH branches in lock-step (defeating the cross-branch parity
+      // check above) is still caught.
+      const spec = RACE_DAY_SPECS.marathon;
+      expect(marathonSun.distance_mi).toBe(spec.distanceMi);
+      expect(marathonSun.distance_mi).toBe(26.2);
+      expect(marathonSun.description).toBe(spec.description);
+      expect(marathonSun.run_min).toBe(
+        Math.round(spec.distanceMi * spec.runMinPerMi),
+      );
+      expect(marathonSun.total_load).toBe(spec.totalLoad);
+    });
+
+    it("half-marathon recipe (half_marathon) Sun matches RACE_DAY_SPECS.half (and any hybrid half template emits an identical Sun row)", () => {
+      // Higdon Intermediate-1 half-marathon at its `defaultWeeks` of
+      // 12. Mon 2026-05-04 → Sun 2026-07-26 spans 12 weeks.
+      const halfRecipeSun = buildRaceSun("half_marathon", 12, "2026-07-26");
+
+      // Lock the recipe-driven half branch directly to
+      // `RACE_DAY_SPECS.half`. Even when no hybrid half template
+      // currently exists, this pins the Sun row to the shared spec so
+      // a future regression that re-inlines a hardcoded
+      // "Half Marathon (13.1 mi)" string + alternate pace / load
+      // (mirroring the legacy `generatePlan` Sun branch) fails here.
+      const spec = RACE_DAY_SPECS.half;
+      expect(halfRecipeSun.distance_mi).toBe(spec.distanceMi);
+      expect(halfRecipeSun.distance_mi).toBe(13.1);
+      expect(halfRecipeSun.description).toBe(spec.description);
+      expect(halfRecipeSun.run_min).toBe(
+        Math.round(spec.distanceMi * spec.runMinPerMi),
+      );
+      expect(halfRecipeSun.total_load).toBe(spec.totalLoad);
+      expect(halfRecipeSun.session_type).toBe("Race");
+      expect(halfRecipeSun.equipment_list).toEqual(["Outdoor"]);
+
+      // Cross-branch parity: if any hybrid template is currently
+      // classified at "half" race kind (i.e. routes through
+      // `buildHybridWeekDays`), generate its campaign-final Sun row on
+      // the SAME Monday the recipe used and assert byte-identical
+      // parity across all RACE_DAY_SPECS-driven fields. When no hybrid
+      // half template exists, this branch is a no-op — the recipe-vs-
+      // spec pin above still locks `buildWeekDays`'s half branch on
+      // its own.
+      const hybridHalf = findHybridTemplateAtRaceKind("half");
+      if (hybridHalf) {
+        // Use the discovered hybrid template's `defaultWeeks` and
+        // align the marathonDate so the trailing Sun lands on the
+        // same calendar week as the recipe's. Mon 2026-05-04 +
+        // `defaultWeeks` weeks = the matching Sun race date.
+        const hybridRaceDate = (() => {
+          const startMs = Date.UTC(2026, 4, 4); // 2026-05-04
+          const sunMs =
+            startMs + (hybridHalf.defaultWeeks * 7 - 1) * 24 * 60 * 60 * 1000;
+          return new Date(sunMs).toISOString().slice(0, 10);
+        })();
+        const hybridSun = buildRaceSun(
+          hybridHalf.id,
+          hybridHalf.defaultWeeks,
+          hybridRaceDate,
+        );
+        for (const field of RACE_SUN_PARITY_FIELDS) {
+          expect(
+            hybridSun[field],
+            `hybrid half (${hybridHalf.id}) vs half_marathon recipe: ${field}`,
+          ).toEqual(halfRecipeSun[field]);
+        }
+        expect(hybridSun.equipment_list).toEqual(halfRecipeSun.equipment_list);
+      }
+    });
+  });
 
   // Task #184 regression: a multi-entry campaign whose marathon entry
   // is NOT the trailing entry (e.g. a marathon followed by a recovery
