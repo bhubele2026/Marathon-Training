@@ -8,9 +8,13 @@
 import {
   expandEntriesToBlocksWithGaps,
   getTemplateById,
+  hybridMixSpec,
   liftPrimaryKind,
   primaryMachineKind,
   projectEntries,
+  type HybridFitnessLevel,
+  type HybridMixPosition,
+  type HybridMixSpec,
   type PrimaryMachineKind,
   type TemplateEntry,
 } from "./templates.js";
@@ -1313,6 +1317,543 @@ function buildLiftPrimaryWeekDays(opts: {
   ];
 }
 
+// ---------------------------------------------------------------------------
+// CUSTOM HYBRID WEEK BUILDER (Task #136). Routes Custom blocks carrying
+// `[hybrid-mix:<position>]` sentinels through a slot-based scheduler
+// that distributes lifts and runs across Mon..Sun based on the slider
+// position (Lift-Primary → Run-Primary), days/week, and fitness level.
+// Out of scope for v1: nutrition annotations, AI variation, multi-
+// mesocycle periodization. Preserves the standard DailyRow shape so
+// pacing-mode preference and slim card UI come for free.
+// ---------------------------------------------------------------------------
+
+type HybridLiftFocus =
+  | "upper"
+  | "lower"
+  | "full"
+  | "push"
+  | "pull"
+  | "legs";
+
+type HybridSlot =
+  | { kind: "rest" }
+  | {
+      kind: "lift";
+      // Movement focus stamped into the per-day description.
+      focus: HybridLiftFocus;
+      // Heavy = primary lift day at 80-85% effort; non-heavy = accessory
+      // / maintenance lift at moderate effort with smaller load + min.
+      heavy: boolean;
+    }
+  | {
+      kind: "run";
+      intensity: "easy" | "quality" | "long";
+    };
+
+const HYBRID_DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+
+// Canonical 7-day schedules per slider stop. Day 0 = Mon, day 6 = Sun.
+// Each schedule is tuned so the canonical session count lands close to
+// the runner's typical days/week (5-6); pickHybridSchedule trims or
+// pads to the runner's exact pick. The Sun slot is reserved for the
+// long run on positions that have one (balanced / run_leaning /
+// run_primary) so the long run is never accidentally trimmed.
+const HYBRID_BASE_SCHEDULES: Record<HybridMixPosition, HybridSlot[]> = {
+  lift_primary: [
+    { kind: "lift", focus: "upper", heavy: true },     // Mon
+    { kind: "rest" },                                   // Tue
+    { kind: "lift", focus: "lower", heavy: true },     // Wed
+    { kind: "run", intensity: "easy" },                 // Thu
+    { kind: "lift", focus: "push", heavy: true },      // Fri
+    { kind: "lift", focus: "pull", heavy: false },     // Sat (accessory)
+    { kind: "rest" },                                   // Sun
+  ],
+  lift_leaning: [
+    { kind: "lift", focus: "upper", heavy: true },     // Mon
+    { kind: "run", intensity: "easy" },                 // Tue
+    { kind: "rest" },                                   // Wed
+    { kind: "lift", focus: "lower", heavy: true },     // Thu
+    { kind: "lift", focus: "full", heavy: true },      // Fri
+    { kind: "run", intensity: "quality" },              // Sat
+    { kind: "rest" },                                   // Sun
+  ],
+  balanced: [
+    { kind: "rest" },                                   // Mon
+    { kind: "lift", focus: "upper", heavy: true },     // Tue
+    { kind: "run", intensity: "easy" },                 // Wed
+    { kind: "lift", focus: "lower", heavy: true },     // Thu
+    { kind: "run", intensity: "quality" },              // Fri
+    { kind: "lift", focus: "full", heavy: true },      // Sat
+    { kind: "run", intensity: "long" },                 // Sun
+  ],
+  run_leaning: [
+    { kind: "rest" },                                   // Mon
+    { kind: "lift", focus: "upper", heavy: true },     // Tue
+    { kind: "run", intensity: "easy" },                 // Wed
+    { kind: "run", intensity: "quality" },              // Thu
+    { kind: "lift", focus: "lower", heavy: true },     // Fri
+    { kind: "run", intensity: "easy" },                 // Sat
+    { kind: "run", intensity: "long" },                 // Sun
+  ],
+  run_primary: [
+    { kind: "lift", focus: "upper", heavy: false },    // Mon (maintenance)
+    { kind: "run", intensity: "quality" },              // Tue
+    { kind: "run", intensity: "easy" },                 // Wed
+    { kind: "rest" },                                   // Thu
+    { kind: "lift", focus: "lower", heavy: false },    // Fri (maintenance)
+    { kind: "run", intensity: "easy" },                 // Sat
+    { kind: "run", intensity: "long" },                 // Sun
+  ],
+};
+
+// Drop-priority order used to trim sessions when the runner picks
+// fewer days/week than the canonical schedule. Iterates the day
+// indices LEAST important to most important: Sat, Thu, Tue, Wed,
+// Mon, Fri, Sun. The long run (Sun for balanced/run_leaning/run_primary)
+// is explicitly preserved in code below.
+const HYBRID_DROP_PRIORITY = [5, 3, 1, 2, 0, 4, 6] as const;
+
+// Add-priority order used to fill in extra easy runs when the runner
+// picks more days/week than the canonical schedule. Prefers spreading
+// into Mon → Wed → Sun so the runner gets recovery between sessions.
+const HYBRID_ADD_PRIORITY = [0, 2, 6, 3, 1, 4, 5] as const;
+
+function pickHybridSchedule(
+  position: HybridMixPosition,
+  daysPerWeek: number,
+): HybridSlot[] {
+  const base = HYBRID_BASE_SCHEDULES[position].map((s) => ({ ...s })) as HybridSlot[];
+  const target = Math.min(
+    7,
+    Math.max(3, Number.isFinite(daysPerWeek) ? Math.floor(daysPerWeek) : 5),
+  );
+  const currentSessions = base.filter((s) => s.kind !== "rest").length;
+
+  if (currentSessions === target) return base;
+
+  if (currentSessions > target) {
+    // Trim: drop sessions in priority order, but always keep the long
+    // run on positions that have one so the aerobic peak is preserved.
+    const keepLong =
+      position === "balanced" ||
+      position === "run_leaning" ||
+      position === "run_primary";
+    let drop = currentSessions - target;
+    for (const i of HYBRID_DROP_PRIORITY) {
+      if (drop <= 0) break;
+      const slot = base[i]!;
+      if (slot.kind === "rest") continue;
+      if (slot.kind === "run" && slot.intensity === "long" && keepLong) continue;
+      base[i] = { kind: "rest" };
+      drop -= 1;
+    }
+    return base;
+  }
+
+  // Pad: convert rest days to easy runs in add-priority order. Caps at
+  // 7 days/week (every day has a session).
+  let add = target - currentSessions;
+  for (const i of HYBRID_ADD_PRIORITY) {
+    if (add <= 0) break;
+    if (base[i]!.kind !== "rest") continue;
+    base[i] = { kind: "run", intensity: "easy" };
+    add -= 1;
+  }
+  return base;
+}
+
+function levelScalar(level: HybridFitnessLevel): number {
+  if (level === "beginner") return 0.85;
+  if (level === "advanced") return 1.15;
+  return 1.0;
+}
+
+interface HybridMileage {
+  easy: number;
+  quality: number;
+  long: number;
+}
+
+// Mileage progression per slider position. Returns the three planned
+// run distances for a given week-in-block. Ramps from week 1 to the
+// last week of the block; cutback weeks shave 30%. Lift-primary keeps
+// runs short and aerobic (cap ~3mi); run-primary peaks ~12 mi.
+function hybridMileage(
+  position: HybridMixPosition,
+  level: HybridFitnessLevel,
+  weekInBlock: number,
+  blockWeeks: number,
+  isCutback: boolean,
+): HybridMileage {
+  const t = blockWeeks > 1 ? (weekInBlock - 1) / (blockWeeks - 1) : 0;
+  const cutFactor = isCutback ? 0.7 : 1.0;
+  const lvl = levelScalar(level);
+
+  const peakEasy: Record<HybridMixPosition, number> = {
+    lift_primary: 2.5,
+    lift_leaning: 3.0,
+    balanced: 3.5,
+    run_leaning: 4.0,
+    run_primary: 5.0,
+  };
+  const peakQuality: Record<HybridMixPosition, number> = {
+    lift_primary: 2.0,
+    lift_leaning: 3.0,
+    balanced: 3.5,
+    run_leaning: 4.0,
+    run_primary: 5.0,
+  };
+  const peakLong: Record<HybridMixPosition, number> = {
+    lift_primary: 3.0,
+    lift_leaning: 5.0,
+    balanced: 8.0,
+    run_leaning: 10.0,
+    run_primary: 12.0,
+  };
+
+  const ramp = (start: number, peak: number) =>
+    r1((start + t * (peak - start)) * lvl * cutFactor);
+
+  return {
+    easy: ramp(1.5, peakEasy[position]),
+    quality: ramp(1.5, peakQuality[position]),
+    long: ramp(3.0, peakLong[position]),
+  };
+}
+
+// Counts how many easy / quality / long run sessions live in a
+// hybrid weekly schedule. Used by `previewWeeklyMileage` to scale the
+// per-week-per-intensity mileage by the slot count so the Phase
+// Planner curve matches what the generator emits when the runner
+// trims days/week (e.g. lift_primary at 4 days/week has only one
+// short easy run, not two).
+function countHybridRunsInSchedule(schedule: HybridSlot[]): {
+  easy: number;
+  quality: number;
+  long: number;
+} {
+  let easy = 0;
+  let quality = 0;
+  let long = 0;
+  for (const slot of schedule) {
+    if (slot.kind !== "run") continue;
+    if (slot.intensity === "easy") easy += 1;
+    else if (slot.intensity === "quality") quality += 1;
+    else if (slot.intensity === "long") long += 1;
+  }
+  return { easy, quality, long };
+}
+
+// One row of the structured weekly preview surfaced in the planner UI.
+// Mirrors what `buildHybridWeekDays` emits at the slot level — a
+// short label per day plus optional miles for run slots — so the
+// builder card can show the runner exactly what they'll get without
+// generating + applying a full draft. Beyond the slider blurb (which
+// is qualitative), this gives a concrete "Mon: Rest, Tue: Upper Lift,
+// Wed: Easy Run 3.0 mi…" rundown that updates live as inputs change.
+export type HybridPreviewSlot =
+  | { day: string; kind: "rest"; label: string }
+  | {
+      day: string;
+      kind: "lift";
+      label: string;
+      focus: HybridLiftFocus;
+      heavy: boolean;
+    }
+  | {
+      day: string;
+      kind: "run";
+      label: string;
+      intensity: "easy" | "quality" | "long";
+      miles: number;
+    };
+
+export interface HybridPreviewWeek {
+  position: HybridMixPosition;
+  daysPerWeek: number;
+  level: HybridFitnessLevel;
+  weekInBlock: number;
+  blockWeeks: number;
+  slots: HybridPreviewSlot[];
+  // Aggregated totals so the UI can show a "5 sessions · 2 lifts · 3
+  // runs · 11 mi" summary without re-walking the slots.
+  totals: {
+    sessions: number;
+    lifts: number;
+    runs: number;
+    miles: number;
+  };
+}
+
+// Pure read-only preview of a single hybrid week. Defaults to week 1
+// of an 8-week block so the UI can call it without context. Reuses
+// `pickHybridSchedule` and `hybridMileage` so the preview can never
+// drift from what the generator actually emits at runtime.
+export function previewHybridWeek(
+  spec: HybridMixSpec,
+  opts?: { weekInBlock?: number; blockWeeks?: number },
+): HybridPreviewWeek {
+  const blockWeeks = Math.max(1, Math.floor(opts?.blockWeeks ?? 8));
+  const weekInBlock = Math.max(
+    1,
+    Math.min(blockWeeks, Math.floor(opts?.weekInBlock ?? 1)),
+  );
+  const schedule = pickHybridSchedule(spec.position, spec.daysPerWeek);
+  // Cutbacks land every 4th week (matches buildHybridWeekDays).
+  const isCutback = weekInBlock > 0 && weekInBlock % 4 === 0;
+  const mi = hybridMileage(
+    spec.position,
+    spec.level,
+    weekInBlock,
+    blockWeeks,
+    isCutback,
+  );
+  let lifts = 0;
+  let runs = 0;
+  let miles = 0;
+  const slots: HybridPreviewSlot[] = schedule.map((slot, idx) => {
+    const day = HYBRID_DAY_LABELS[idx]!;
+    if (slot.kind === "rest") {
+      return { day, kind: "rest", label: "Rest" };
+    }
+    if (slot.kind === "lift") {
+      lifts += 1;
+      const focusCopy = HYBRID_LIFT_LABELS[slot.focus] ?? slot.focus;
+      const headline = focusCopy.split(" Tonal")[0] ?? focusCopy;
+      return {
+        day,
+        kind: "lift",
+        focus: slot.focus,
+        heavy: slot.heavy,
+        label: `${headline}${slot.heavy ? "" : " (acc.)"}`,
+      };
+    }
+    runs += 1;
+    const m =
+      slot.intensity === "easy"
+        ? mi.easy
+        : slot.intensity === "quality"
+          ? mi.quality
+          : mi.long;
+    miles += m;
+    const label =
+      slot.intensity === "easy"
+        ? `Easy Run ${m.toFixed(1)} mi`
+        : slot.intensity === "quality"
+          ? `Tempo Run ${m.toFixed(1)} mi`
+          : `Long Run ${m.toFixed(1)} mi`;
+    return { day, kind: "run", intensity: slot.intensity, miles: m, label };
+  });
+  return {
+    position: spec.position,
+    daysPerWeek: spec.daysPerWeek,
+    level: spec.level,
+    weekInBlock,
+    blockWeeks,
+    slots,
+    totals: {
+      sessions: lifts + runs,
+      lifts,
+      runs,
+      miles: Math.round(miles * 10) / 10,
+    },
+  };
+}
+
+// Per-focus lift copy for description prose. Hybrid lift days pair the
+// slot's focus tag with a short Tonal session description.
+const HYBRID_LIFT_LABELS: Record<HybridLiftFocus, string> = {
+  upper: "Upper-body Tonal (push, pull, core)",
+  lower: "Lower-body Tonal (squat, hinge, lunge)",
+  full: "Full-body Tonal (compound lifts, mixed plane)",
+  push: "Push-focused Tonal (bench, overhead press, triceps)",
+  pull: "Pull-focused Tonal (row, pull-ups, biceps)",
+  legs: "Legs-focused Tonal (squat, RDL, lunge, calf)",
+};
+
+function buildHybridWeekDays(opts: {
+  weekNumber: number;
+  weekInBlock: number;
+  blockWeeks: number;
+  spec: HybridMixSpec;
+  phase: string;
+  isCutback: boolean;
+  wkStart: Date;
+  customSuffix: string;
+}): DailyRow[] {
+  const {
+    weekNumber,
+    weekInBlock,
+    blockWeeks,
+    spec,
+    phase,
+    isCutback,
+    wkStart,
+    customSuffix,
+  } = opts;
+
+  const schedule = pickHybridSchedule(spec.position, spec.daysPerWeek);
+  const lvl = levelScalar(spec.level);
+  const cutFactor = isCutback ? 0.8 : 1.0;
+
+  // Lift sizing — heavy vs accessory. Loads / mins scale with fitness
+  // level and ease off on cutback weeks.
+  const heavyLoad = Math.round(60 * lvl * cutFactor);
+  const heavyMin = Math.round(45 * lvl * cutFactor);
+  const accessoryLoad = Math.round(40 * lvl * cutFactor);
+  const accessoryMin = Math.round(30 * lvl * cutFactor);
+
+  // Run sizing — distance per intensity, plus a default min/mile pace.
+  // Pacing-mode preference is a downstream display concern (the
+  // dashboard maps `pace` + the runner's preference to the surfaced
+  // value); we emit the canonical mm:ss/mi numbers here.
+  const mi = hybridMileage(
+    spec.position,
+    spec.level,
+    weekInBlock,
+    blockWeeks,
+    isCutback,
+  );
+  const easyPace = "13:00";
+  const qualityPace = "11:30";
+  const longPace = "13:30";
+  const easyMinPerMi = 13;
+  const qualityMinPerMi = 11;
+  const longMinPerMi = 14;
+
+  return schedule.map((slot, dayOffset) => {
+    const day = HYBRID_DAY_LABELS[dayOffset]!;
+    const date = fmt(addDays(wkStart, dayOffset));
+
+    if (slot.kind === "rest") {
+      return {
+        week: weekNumber,
+        phase,
+        date,
+        day,
+        strength_load: 0,
+        equipment: "Off / Rest",
+        equipment_list: ["Off / Rest"],
+        description:
+          `Rest day. Mobility, hydration, and easy walking. Hybrid block week ${weekInBlock}.` +
+          customSuffix,
+        strength_min: 0,
+        cardio_min: 0,
+        run_min: 0,
+        distance_mi: null,
+        pace: null,
+        session_type: "Rest",
+        is_rest: true,
+        total_load: 0,
+      };
+    }
+
+    if (slot.kind === "lift") {
+      const load = slot.heavy ? heavyLoad : accessoryLoad;
+      const min = slot.heavy ? heavyMin : accessoryMin;
+      const intensity = isCutback
+        ? "deload week — keep effort to ~70%"
+        : slot.heavy
+          ? "80-85% effort, leave 1-2 reps in reserve"
+          : "moderate effort, focus on quality reps";
+      const focusLabel = HYBRID_LIFT_LABELS[slot.focus] ?? "Tonal session";
+      return {
+        week: weekNumber,
+        phase,
+        date,
+        day,
+        strength_load: load,
+        equipment: "Tonal",
+        equipment_list: ["Tonal"],
+        description:
+          `${focusLabel} on Tonal (${min} min, ${intensity})` + customSuffix,
+        strength_min: min,
+        cardio_min: 0,
+        run_min: 0,
+        distance_mi: null,
+        pace: null,
+        session_type: slot.heavy ? "Strength" : "Strength (Accessory)",
+        is_rest: false,
+        total_load: load,
+      };
+    }
+
+    // run slot
+    if (slot.intensity === "long") {
+      const distance = mi.long;
+      const min = Math.max(20, Math.round(distance * longMinPerMi));
+      const equipment = weekNumber % 2 === 0 ? "Outdoor" : "Peloton Tread";
+      return {
+        week: weekNumber,
+        phase,
+        date,
+        day,
+        strength_load: 0,
+        equipment,
+        equipment_list: [equipment],
+        description:
+          `Long aerobic run (${distance} mi): conversational unless noted, dial in fueling. NO lift today.` +
+          customSuffix,
+        strength_min: 0,
+        cardio_min: 0,
+        run_min: min,
+        distance_mi: distance,
+        pace: longPace,
+        session_type: "Long Run",
+        is_rest: false,
+        total_load: min + 10,
+      };
+    }
+    if (slot.intensity === "quality") {
+      const distance = mi.quality;
+      const min = Math.max(20, Math.round(distance * qualityMinPerMi));
+      return {
+        week: weekNumber,
+        phase,
+        date,
+        day,
+        strength_load: 0,
+        equipment: "Peloton Tread",
+        equipment_list: ["Peloton Tread"],
+        description:
+          `Tread tempo run (${distance} mi: warm-up, then ${Math.max(10, Math.round(distance * 4))} min at steady tempo, cool-down)` +
+          customSuffix,
+        strength_min: 0,
+        cardio_min: 0,
+        run_min: min,
+        distance_mi: distance,
+        pace: qualityPace,
+        session_type: "Tempo Run",
+        is_rest: false,
+        total_load: min,
+      };
+    }
+    // easy run
+    const distance = mi.easy;
+    const min = Math.max(20, Math.round(distance * easyMinPerMi));
+    return {
+      week: weekNumber,
+      phase,
+      date,
+      day,
+      strength_load: 0,
+      equipment: "Peloton Tread",
+      equipment_list: ["Peloton Tread"],
+      description:
+        `Easy aerobic Tread run (${distance} mi, conversational, build durability)` +
+        customSuffix,
+      strength_min: 0,
+      cardio_min: 0,
+      run_min: min,
+      distance_mi: distance,
+      pace: easyPace,
+      session_type: "Aerobic Base",
+      is_rest: false,
+      total_load: min,
+    };
+  });
+}
+
 // Build the seven days of one week.
 function buildWeekDays(opts: {
   weekNumber: number;
@@ -1357,6 +1898,30 @@ function buildWeekDays(opts: {
         ? ` [${customName}: ${customNotes}]`
         : ` [${customName}]`
       : "";
+
+  // ---------- CUSTOM HYBRID (slider-controlled lift+run mix) ----------
+  // Custom blocks whose merged customNotes carry the `[hybrid-mix:...]`
+  // sentinel are routed to the hybrid week builder, which lays out the
+  // week's lifts and runs by slider position (lift_primary →
+  // run_primary), days/week, and fitness level encoded in the same
+  // sentinel string. Checked BEFORE the lift-primary branch because
+  // lift_primary's sentinel never overlaps `[lift-primary:` (different
+  // prefix) but checking hybrid first keeps the routing local to one
+  // surface for v1.
+  const hybridSpec =
+    block.focusType === "Custom" ? hybridMixSpec(block.customNotes) : null;
+  if (hybridSpec) {
+    return buildHybridWeekDays({
+      weekNumber,
+      weekInBlock,
+      blockWeeks,
+      spec: hybridSpec,
+      phase,
+      isCutback,
+      wkStart,
+      customSuffix,
+    });
+  }
 
   // ---------- LIFT-PRIMARY (Tonal-only / non-running) ----------
   // Custom blocks whose customNotes carry the `[lift-primary:<kind>]`
@@ -1790,27 +2355,62 @@ export function previewWeeklyMileage(
     // row sessions in `buildWeekDays`, so the mileage preview must zero
     // out every run bucket to match `planned_miles`.
     const isPrimaryMachine = primaryMachineKind(b.customNotes) !== null;
+    // Custom hybrid blocks compute their own per-week mileage from the
+    // slider position so the Phase Planner preview matches what the
+    // generator emits (lift_primary → near-zero run miles; run_primary
+    // → ramping easy + quality + long mileage). Falls back to the
+    // Custom recipe defaults when the sentinel isn't present.
+    const hybridSpecForPreview =
+      b.focusType === "Custom" ? hybridMixSpec(b.customNotes) : null;
     const zeroRuns = isLiftPrimary || isPrimaryMachine;
+    // Number of slot-based easy/quality/long runs the schedule will
+    // actually emit for the runner-picked (position, daysPerWeek). Used
+    // to scale preview mileage so the runner's days/week trade-off is
+    // reflected in the Phase Planner curve.
+    const hybridScheduleCounts = hybridSpecForPreview
+      ? countHybridRunsInSchedule(
+          pickHybridSchedule(
+            hybridSpecForPreview.position,
+            hybridSpecForPreview.daysPerWeek,
+          ),
+        )
+      : null;
     for (let weekInBlock = 1; weekInBlock <= w; weekInBlock++) {
       week += 1;
       const isRaceWeek = week === totalWeeks && appendTail;
       const isCutback = recipe.useCutbacks
         ? w >= 4 && weekInBlock % 4 === 0 && weekInBlock !== w
         : false;
-      const easyMi = zeroRuns ? 0 : recipe.easyRunMi(weekInBlock, w, isCutback);
-      // Recovery blocks turn Friday into a rest day in `buildWeekDays`, so
-      // the actual generated weekly mileage is easy + long only. Mirror
-      // that here so the preview matches `planned_miles` exactly.
-      const qualityMi = zeroRuns
-        ? 0
-        : recipe.isRecovery
+      let easyMi: number;
+      let qualityMi: number;
+      let longMi: number;
+      if (hybridSpecForPreview && hybridScheduleCounts) {
+        const mi = hybridMileage(
+          hybridSpecForPreview.position,
+          hybridSpecForPreview.level,
+          weekInBlock,
+          w,
+          isCutback,
+        );
+        easyMi = mi.easy * hybridScheduleCounts.easy;
+        qualityMi = mi.quality * hybridScheduleCounts.quality;
+        longMi = mi.long * hybridScheduleCounts.long;
+      } else {
+        easyMi = zeroRuns ? 0 : recipe.easyRunMi(weekInBlock, w, isCutback);
+        // Recovery blocks turn Friday into a rest day in `buildWeekDays`, so
+        // the actual generated weekly mileage is easy + long only. Mirror
+        // that here so the preview matches `planned_miles` exactly.
+        qualityMi = zeroRuns
           ? 0
-          : recipe.qualityRunMi(weekInBlock, w, isCutback);
-      const longMi = zeroRuns
-        ? 0
-        : isRaceWeek
-          ? MARATHON_DISTANCE_MI
-          : recipe.longRunMi(weekInBlock, w, isCutback);
+          : recipe.isRecovery
+            ? 0
+            : recipe.qualityRunMi(weekInBlock, w, isCutback);
+        longMi = zeroRuns
+          ? 0
+          : isRaceWeek
+            ? MARATHON_DISTANCE_MI
+            : recipe.longRunMi(weekInBlock, w, isCutback);
+      }
       const totalMi = r1(easyMi + qualityMi + longMi);
       out.push({
         week,
@@ -2114,6 +2714,13 @@ export {
   projectEntries,
   liftPrimaryKind,
   primaryMachineKind,
+  hybridMixSpec,
+  HYBRID_POSITION_LABEL,
+  HYBRID_POSITION_BLURB,
+  HYBRID_POSITIONS_ORDERED,
+  HYBRID_DEFAULT_DAYS_PER_WEEK,
+  HYBRID_MIN_DAYS_PER_WEEK,
+  HYBRID_MAX_DAYS_PER_WEEK,
   type PlanTemplate,
   type PlanTemplateLevel,
   type PlanTemplateMetadata,
@@ -2121,4 +2728,11 @@ export {
   type TemplateEntry,
   type EntryProjection,
   type PrimaryMachineKind,
+  type HybridMixPosition,
+  type HybridMixSpec,
+  type HybridFitnessLevel,
 } from "./templates.js";
+// Note: previewHybridWeek + HybridPreview* types are exported inline
+// at their declaration site above (line ~1557). They live here in
+// index.ts (not templates.ts) because they reuse pickHybridSchedule
+// and hybridMileage which depend on the full DailyRow build pipeline.

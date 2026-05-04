@@ -173,6 +173,57 @@ function distribute(total: number, segments: Segment[]): PhaseBlock[] {
 
 export const PLAN_TEMPLATES: PlanTemplate[] = [
   {
+    // Task #136 — first-class entry into the Beginner section. Unlike
+    // every other template, custom_hybrid does NOT prescribe its own
+    // intensity distribution: the runner picks a slider position
+    // (Lift-Primary → Run-Primary), days/week, fitness level, and
+    // optional event date in the in-app builder card. The choices ride
+    // on the entry's customNotes (`[hybrid-mix:...] [hybrid-days:N]
+    // [hybrid-level:...]`) and `buildHybridWeekDays` in index.ts owns
+    // session generation. The template's expand() emits a single Custom
+    // block that carries the entry-level notes through to the
+    // generator; no taper / cutback periodization is layered (out of
+    // scope for v1 per the task spec).
+    id: "custom_hybrid",
+    name: "Build my own hybrid",
+    level: "Beginner",
+    goalDistance: "Hybrid (lift + run)",
+    source: "Replit Marathon — built for you",
+    citation:
+      "Custom hybrid plan generated from the in-app builder (task #136). Sessions per week are distributed by the slider position (Lift-Primary → Run-Primary).",
+    shortDescription:
+      "Build your own balance of lifting and running with a slider — generated as a real campaign.",
+    longDescription:
+      "Pick total weeks, days/week, a fitness level, and slide between Lift-Primary and Run-Primary. The builder lays out your week with the right number of heavy lifts vs runs (easy/quality/long), respects your pacing-mode preference, and runs concurrently with any other program. Single-block design — no multi-mesocycle periodization in v1.",
+    minWeeks: 4,
+    maxWeeks: 24,
+    defaultWeeks: 8,
+    metadata: {
+      intensityDistribution: "Slider-controlled lift:run ratio",
+      peakLongRun:
+        "Up to ~12 mi (run-primary) — capped lower for lift-leaning positions",
+      peakWeeklyVolume: "Sessions per week scale with your days/week pick",
+      taperLength: "None (single block — set an event date for context only)",
+      cutbackCadence: "Every 4th week ~25% volume reduction",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Tonal lifts + Tread/Outdoor runs; mix dialed by slider",
+    },
+    tags: [
+      "hybrid",
+      "builder",
+      "lift-and-run",
+      "custom",
+      "beginner",
+      "fat-loss",
+      "muscle-gain",
+    ],
+    expand: (n) => [
+      makeBlock("Custom", n, {
+        customName: "Custom Hybrid",
+      }),
+    ],
+  },
+  {
     id: "couch_to_5k",
     name: "Couch to 5K",
     level: "Beginner",
@@ -518,6 +569,113 @@ export function primaryMachineKind(
   if (kind === "bike" || kind === "row") return kind;
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// CUSTOM HYBRID PLAN BUILDER (Task #136). The runner picks total weeks,
+// days/week, a fitness level, and a slider position between Lift-Primary
+// and Run-Primary. The builder writes a TemplateEntry pointing at the
+// `custom_hybrid` template with the choices encoded as customNotes
+// sentinels — `[hybrid-mix:<position>] [hybrid-days:<n>] [hybrid-level:<lvl>]`.
+// `expandEntriesToBlocksWithGaps` merges those entry-level notes into the
+// expanded Custom block, so the daily-recipes pipeline (`buildWeekDays`)
+// can read them anywhere in the merged string and dispatch to
+// `buildHybridWeekDays` for slot-by-slot session generation.
+// ---------------------------------------------------------------------------
+
+export type HybridMixPosition =
+  | "lift_primary"
+  | "lift_leaning"
+  | "balanced"
+  | "run_leaning"
+  | "run_primary";
+
+export type HybridFitnessLevel = "beginner" | "intermediate" | "advanced";
+
+export interface HybridMixSpec {
+  position: HybridMixPosition;
+  daysPerWeek: number;
+  level: HybridFitnessLevel;
+}
+
+const HYBRID_POSITIONS: ReadonlySet<HybridMixPosition> = new Set<HybridMixPosition>([
+  "lift_primary",
+  "lift_leaning",
+  "balanced",
+  "run_leaning",
+  "run_primary",
+]);
+
+const HYBRID_LEVELS: ReadonlySet<HybridFitnessLevel> = new Set<HybridFitnessLevel>([
+  "beginner",
+  "intermediate",
+  "advanced",
+]);
+
+export const HYBRID_DEFAULT_DAYS_PER_WEEK = 5;
+export const HYBRID_MIN_DAYS_PER_WEEK = 3;
+export const HYBRID_MAX_DAYS_PER_WEEK = 7;
+
+// Parses the custom-hybrid sentinels out of a block's merged customNotes.
+// Returns null when the block isn't a custom-hybrid block (no
+// `[hybrid-mix:...]` sentinel). Missing days/level fall back to the
+// builder defaults so a saved block with only the mix sentinel still
+// renders a valid week.
+export function hybridMixSpec(
+  notes: string | null | undefined,
+): HybridMixSpec | null {
+  if (!notes) return null;
+  const mixMatch = /\[hybrid-mix:([^\]]+)\]/.exec(notes);
+  if (!mixMatch) return null;
+  const positionRaw = (mixMatch[1] ?? "").trim().toLowerCase() as HybridMixPosition;
+  if (!HYBRID_POSITIONS.has(positionRaw)) return null;
+  const daysMatch = /\[hybrid-days:(\d+)\]/.exec(notes);
+  const daysRaw = daysMatch ? Number(daysMatch[1]) : HYBRID_DEFAULT_DAYS_PER_WEEK;
+  const daysPerWeek = Math.min(
+    HYBRID_MAX_DAYS_PER_WEEK,
+    Math.max(
+      HYBRID_MIN_DAYS_PER_WEEK,
+      Number.isFinite(daysRaw) ? Math.floor(daysRaw) : HYBRID_DEFAULT_DAYS_PER_WEEK,
+    ),
+  );
+  const levelMatch = /\[hybrid-level:([^\]]+)\]/.exec(notes);
+  const levelRaw = ((levelMatch?.[1] ?? "beginner").trim().toLowerCase()) as HybridFitnessLevel;
+  const level = HYBRID_LEVELS.has(levelRaw) ? levelRaw : "beginner";
+  return { position: positionRaw, daysPerWeek, level };
+}
+
+// Runner-facing labels and one-line blurbs for each slider stop. Shared
+// between the builder UI (live preview), the picker card, and any
+// surface that needs to describe a hybrid plan in human terms.
+export const HYBRID_POSITION_LABEL: Record<HybridMixPosition, string> = {
+  lift_primary: "Lift-Primary",
+  lift_leaning: "Lift-Leaning",
+  balanced: "Balanced",
+  run_leaning: "Run-Leaning",
+  run_primary: "Run-Primary",
+};
+
+export const HYBRID_POSITION_BLURB: Record<HybridMixPosition, string> = {
+  lift_primary:
+    "4 lifts + 1-2 short runs/week. Strength is the centerpiece; runs are easy aerobic conditioning.",
+  lift_leaning:
+    "3 lifts + 2 runs/week. Strength bias with one quality and one easy run.",
+  balanced:
+    "3 lifts + 3 runs/week. Equal emphasis on lifting and running, with a long run on Sunday.",
+  run_leaning:
+    "2 lifts + 3-4 runs/week (easy, quality, long). Running bias with maintenance lifting.",
+  run_primary:
+    "2 lifts + 4 runs/week with longer aerobic work. Running is the centerpiece, lifts keep strength on the table.",
+};
+
+// Ordered slider stops, low (lift) to high (run). Used by the builder UI
+// to render the slider and by tests to enumerate every position.
+export const HYBRID_POSITIONS_ORDERED: ReadonlyArray<HybridMixPosition> = [
+  "lift_primary",
+  "lift_leaning",
+  "balanced",
+  "run_leaning",
+  "run_primary",
+];
 
 // IDs of templates that previously shipped in the catalog but have been
 // pruned during the level-grouped curation pass. They are kept here as

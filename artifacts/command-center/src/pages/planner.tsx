@@ -24,7 +24,16 @@ import {
   getTemplateById,
   isArchivedTemplateId,
   previewWeeklyMileage,
+  HYBRID_POSITIONS_ORDERED,
+  HYBRID_POSITION_LABEL,
+  HYBRID_POSITION_BLURB,
+  HYBRID_DEFAULT_DAYS_PER_WEEK,
+  HYBRID_MIN_DAYS_PER_WEEK,
+  HYBRID_MAX_DAYS_PER_WEEK,
+  previewHybridWeek,
   type FocusType,
+  type HybridFitnessLevel,
+  type HybridMixPosition,
   type PlanTemplate,
   type StarterShortcut,
   type TemplateEntry,
@@ -36,6 +45,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -646,6 +656,24 @@ export default function Planner() {
   // the runner picks a template.
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [quickAddSearch, setQuickAddSearch] = useState("");
+  // ---- Custom hybrid builder state (Task #136) ----
+  // Locally-staged inputs for the "Build my own hybrid" Beginner card.
+  // Stored as a separate slice so the form state survives template
+  // search / collapse without being entangled with `tplWeeks` (which
+  // is keyed by template id and used for the standard apply flow).
+  // Default to a 5-day Balanced beginner plan with no event date —
+  // matches the most common runner asking for "a bit of both".
+  const [hybridPosition, setHybridPosition] =
+    useState<HybridMixPosition>("balanced");
+  const [hybridDaysPerWeek, setHybridDaysPerWeek] = useState<number>(
+    HYBRID_DEFAULT_DAYS_PER_WEEK,
+  );
+  const [hybridLevel, setHybridLevel] =
+    useState<HybridFitnessLevel>("beginner");
+  // Optional event date — when set, we trim the block weeks so the
+  // hybrid block ends exactly the Sunday before the event Monday.
+  // Empty string = no event, runner picks weeks directly via Weeks input.
+  const [hybridEventDate, setHybridEventDate] = useState<string>("");
   // Reset the "show hidden" toggles whenever the runner clears their
   // filters so the next filter session starts from the
   // collapsed-by-default state instead of remembering a stale
@@ -1389,6 +1417,97 @@ export default function Planner() {
       return out;
     });
   }
+  // Build the canonical sentinel string the generator parses to render
+  // a hybrid week. Mirrors the `[hybrid-mix:<pos>] [hybrid-days:<N>]
+  // [hybrid-level:<lvl>]` format expected by hybridMixSpec().
+  function encodeHybridNotes(
+    position: HybridMixPosition,
+    daysPerWeek: number,
+    level: HybridFitnessLevel,
+  ): string {
+    return `[hybrid-mix:${position}] [hybrid-days:${daysPerWeek}] [hybrid-level:${level}]`;
+  }
+
+  // Apply the custom_hybrid template as a TemplateEntry. Encodes the
+  // slider position, days/week, and fitness level into customNotes so
+  // the generator's hybrid week builder picks them up. If the runner
+  // entered an event date (must be a Monday), trims the entry's weeks
+  // so the block ends on the Sunday before the event Monday — that
+  // way race-week falls just before the event without overshooting.
+  // Falls back to the configured Weeks input when no event date is set.
+  function applyHybridTemplate() {
+    const tpl = getTemplateById("custom_hybrid");
+    if (!tpl) return;
+    const start =
+      startDate && dayOfWeekUTC(startDate) === 1 ? startDate : nextMondayISO();
+    let weeks = tplWeeks["custom_hybrid"] ?? tpl.defaultWeeks;
+    // When the runner pinned an event date, derive weeks from
+    // start..eventDate so the hybrid block ends right before it.
+    // Event date must be a future Monday; if not, we ignore the value
+    // and fall back to the Weeks input rather than guess at the date.
+    if (
+      hybridEventDate &&
+      ISO_DATE_RE.test(hybridEventDate) &&
+      dayOfWeekUTC(hybridEventDate) === 1
+    ) {
+      const days = Math.round(
+        (Date.parse(`${hybridEventDate}T00:00:00Z`) -
+          Date.parse(`${start}T00:00:00Z`)) /
+          86400000,
+      );
+      const derived = Math.floor(days / 7);
+      if (derived >= tpl.minWeeks && derived <= tpl.maxWeeks) {
+        weeks = derived;
+      }
+    }
+    if (weeks < tpl.minWeeks) weeks = tpl.minWeeks;
+    if (weeks > tpl.maxWeeks) weeks = tpl.maxWeeks;
+    const customName = `Custom Hybrid (${HYBRID_POSITION_LABEL[hybridPosition]})`;
+    const customNotes = encodeHybridNotes(
+      hybridPosition,
+      hybridDaysPerWeek,
+      hybridLevel,
+    );
+    const existing = entries ?? [];
+    const isFirst = existing.length === 0;
+    // For the first entry, the chosen start IS the new config start
+    // (entry #0's startDate must equal config start, so we anchor the
+    // config to the runner's pick instead of storing it on the entry).
+    const startDateField = isFirst
+      ? null
+      : (() => {
+          const projections = projectEntries(existing, start);
+          const last = projections[projections.length - 1];
+          const cursor =
+            last && last.endDateISO ? addDaysISO(last.endDateISO, 1) : start;
+          return cursor;
+        })();
+    const nextEntries: TemplateEntry[] = [
+      ...existing,
+      {
+        templateId: "custom_hybrid",
+        weeks,
+        customName,
+        customNotes,
+        startDate: startDateField,
+      },
+    ];
+    const projections = projectEntries(nextEntries, start);
+    const projected =
+      nextEntries.reduce((s, e) => s + (e.weeks || 0), 0) +
+      projections.reduce((s, p) => s + p.gapWeeksBefore, 0);
+    const race = computeRaceDateForTotalWeeks(start, projected);
+    setEntries(nextEntries);
+    setStartDate(start);
+    setMarathonDate(race);
+    setDraft(blocksToDraft(expandEntriesToBlocksWithGaps(nextEntries, start)));
+    setLastAppliedTemplate("custom_hybrid");
+    toast({
+      title: `${customName} added`,
+      description: `${weeks}-week hybrid (${hybridDaysPerWeek} days/week, ${hybridLevel}). Total span ${projected}w → race ${race}.`,
+    });
+  }
+
   function addEntry(templateId: string) {
     const tpl = getTemplateById(templateId);
     if (!tpl) return;
@@ -2544,15 +2663,225 @@ export default function Planner() {
                         Outside the published {tpl.minWeeks}–{tpl.maxWeeks}w range — server will reject save. Adjust weeks before applying.
                       </p>
                     )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => applyTemplate(tpl, weeks)}
-                      data-testid={`planner-template-apply-${tpl.id}`}
-                      disabled={outOfRange}
-                    >
-                      Apply template
-                    </Button>
+                    {tpl.id === "custom_hybrid" ? (
+                      <div
+                        className="space-y-3 border-t pt-3 mt-1"
+                        data-testid="planner-hybrid-builder"
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs">Lift / Run mix</Label>
+                            <span
+                              className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground"
+                              data-testid="planner-hybrid-position-label"
+                            >
+                              {HYBRID_POSITION_LABEL[hybridPosition]}
+                            </span>
+                          </div>
+                          <Slider
+                            min={0}
+                            max={HYBRID_POSITIONS_ORDERED.length - 1}
+                            step={1}
+                            value={[
+                              HYBRID_POSITIONS_ORDERED.indexOf(hybridPosition),
+                            ]}
+                            onValueChange={(v) => {
+                              const idx = v[0] ?? 0;
+                              const next = HYBRID_POSITIONS_ORDERED[idx];
+                              if (next) setHybridPosition(next);
+                            }}
+                            data-testid="planner-hybrid-slider"
+                          />
+                          <div className="flex justify-between text-[10px] text-muted-foreground">
+                            <span>Lift</span>
+                            <span>Balanced</span>
+                            <span>Run</span>
+                          </div>
+                          <p
+                            className="text-[11px] text-muted-foreground italic"
+                            data-testid="planner-hybrid-blurb"
+                          >
+                            {HYBRID_POSITION_BLURB[hybridPosition]}
+                          </p>
+                        </div>
+                        {/*
+                          Live structured preview of week 1 — re-rendered
+                          on every slider / days-per-week / level change.
+                          Driven by `previewHybridWeek` in the generator
+                          so it can never drift from what the runner
+                          will actually get when they hit "Build". Shows
+                          a Mon..Sun strip with each day's session label
+                          (and miles for runs), plus a totals line.
+                        */}
+                        {(() => {
+                          const blockWeeks =
+                            tplWeeks["custom_hybrid"] ?? tpl.defaultWeeks;
+                          const preview = previewHybridWeek(
+                            {
+                              position: hybridPosition,
+                              daysPerWeek: hybridDaysPerWeek,
+                              level: hybridLevel,
+                            },
+                            { weekInBlock: 1, blockWeeks },
+                          );
+                          return (
+                            <div
+                              className="space-y-1.5 rounded-md border bg-muted/20 p-2"
+                              data-testid="planner-hybrid-preview"
+                            >
+                              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                                Typical week (week 1 of {blockWeeks})
+                              </div>
+                              <div className="grid grid-cols-7 gap-1">
+                                {preview.slots.map((s) => (
+                                  <div
+                                    key={s.day}
+                                    className="rounded border bg-background p-1 text-center"
+                                    data-testid={`planner-hybrid-preview-${s.day.toLowerCase()}`}
+                                  >
+                                    <div className="text-[9px] font-mono uppercase text-muted-foreground">
+                                      {s.day}
+                                    </div>
+                                    <div
+                                      className={
+                                        "mt-0.5 text-[10px] font-medium leading-tight " +
+                                        (s.kind === "rest"
+                                          ? "text-muted-foreground"
+                                          : s.kind === "lift"
+                                            ? "text-amber-600 dark:text-amber-400"
+                                            : "text-sky-600 dark:text-sky-400")
+                                      }
+                                    >
+                                      {s.label}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              <div
+                                className="text-[10px] text-muted-foreground"
+                                data-testid="planner-hybrid-preview-totals"
+                              >
+                                {preview.totals.sessions} sessions ·{" "}
+                                {preview.totals.lifts} lift
+                                {preview.totals.lifts === 1 ? "" : "s"} ·{" "}
+                                {preview.totals.runs} run
+                                {preview.totals.runs === 1 ? "" : "s"} ·{" "}
+                                {preview.totals.miles.toFixed(1)} mi
+                              </div>
+                            </div>
+                          );
+                        })()}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label
+                              htmlFor="planner-hybrid-days"
+                              className="text-xs"
+                            >
+                              Days / week ({HYBRID_MIN_DAYS_PER_WEEK}–
+                              {HYBRID_MAX_DAYS_PER_WEEK})
+                            </Label>
+                            <Input
+                              id="planner-hybrid-days"
+                              type="number"
+                              min={HYBRID_MIN_DAYS_PER_WEEK}
+                              max={HYBRID_MAX_DAYS_PER_WEEK}
+                              value={hybridDaysPerWeek}
+                              onChange={(e) => {
+                                const n = parseInt(e.target.value, 10);
+                                if (!Number.isFinite(n)) return;
+                                setHybridDaysPerWeek(
+                                  Math.max(
+                                    HYBRID_MIN_DAYS_PER_WEEK,
+                                    Math.min(HYBRID_MAX_DAYS_PER_WEEK, n),
+                                  ),
+                                );
+                              }}
+                              className="h-8"
+                              data-testid="planner-hybrid-days-input"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label
+                              htmlFor="planner-hybrid-level"
+                              className="text-xs"
+                            >
+                              Fitness level
+                            </Label>
+                            <Select
+                              value={hybridLevel}
+                              onValueChange={(v) =>
+                                setHybridLevel(v as HybridFitnessLevel)
+                              }
+                            >
+                              <SelectTrigger
+                                id="planner-hybrid-level"
+                                className="h-8"
+                                data-testid="planner-hybrid-level-select"
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="beginner">
+                                  Beginner
+                                </SelectItem>
+                                <SelectItem value="intermediate">
+                                  Intermediate
+                                </SelectItem>
+                                <SelectItem value="advanced">
+                                  Advanced
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <Label
+                            htmlFor="planner-hybrid-event-date"
+                            className="text-xs"
+                          >
+                            Optional event date (Monday)
+                          </Label>
+                          <Input
+                            id="planner-hybrid-event-date"
+                            type="date"
+                            value={hybridEventDate}
+                            onChange={(e) =>
+                              setHybridEventDate(e.target.value)
+                            }
+                            className="h-8"
+                            data-testid="planner-hybrid-event-date-input"
+                          />
+                          {hybridEventDate &&
+                            (!ISO_DATE_RE.test(hybridEventDate) ||
+                              dayOfWeekUTC(hybridEventDate) !== 1) && (
+                              <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                                Event date must be a Monday — falling back to
+                                the Weeks input above.
+                              </p>
+                            )}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => applyHybridTemplate()}
+                          data-testid="planner-hybrid-build"
+                          disabled={outOfRange}
+                          className="w-full"
+                        >
+                          Build my hybrid plan
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => applyTemplate(tpl, weeks)}
+                        data-testid={`planner-template-apply-${tpl.id}`}
+                        disabled={outOfRange}
+                      >
+                        Apply template
+                      </Button>
+                    )}
                   </div>
                 );
               })}

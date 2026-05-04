@@ -21,6 +21,7 @@ describe("PLAN_TEMPLATES", () => {
     expect(ids).toEqual(
       [
         // Beginner
+        "custom_hybrid",
         "couch_to_5k",
         "higdon_5k_novice",
         "aerobic_base",
@@ -65,6 +66,7 @@ describe("PLAN_TEMPLATES", () => {
     const expected: Record<string, [number, number, number]> = {
       // [min, default, max]
       // Beginner
+      custom_hybrid: [4, 8, 24],
       couch_to_5k: [6, 9, 12],
       higdon_5k_novice: [6, 8, 10],
       aerobic_base: [4, 8, 16],
