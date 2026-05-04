@@ -781,3 +781,140 @@ describe("Today page — every HR zone bucket renders the matching swatch (task 
     },
   );
 });
+
+// Task #174: extend the per-bucket swatch coverage from the Mission
+// Brief (task #170) to the other two RunTargetLine surfaces on the
+// Today page that previously only had single-bucket coverage:
+//   * the pre-launch "First Scheduled Session" preview
+//     (testId: `first-session-run-target`)
+//   * the logged "Mission Accomplished" card
+//     (testId: `session-today-{id}-run-target`)
+// A regression that wired the wrong bucket to the wrong swatch on a
+// Recovery / Steady / Tempo / Interval session would still slip through
+// on those two surfaces without these parametrized suites. As with the
+// task #170 suite above, the expected swatch class is pulled directly
+// from `HR_ZONE_COLORS[bucket].swatchClass` so the assertion follows
+// any future re-mapping without a test edit.
+describe("Today page — every HR zone bucket renders the matching swatch on the pre-launch preview and logged card (task #174)", () => {
+  // Same sessionType → bucket pairs as the task #170 Mission Brief
+  // suite. Documenting the bucket column inline keeps the test
+  // self-checking if intensityBucket ever drifts.
+  const cases: Array<{
+    sessionType: string;
+    bucket: 1 | 2 | 3 | 4 | 5;
+  }> = [
+    { sessionType: "Recovery Run", bucket: 1 },
+    { sessionType: "Long Run", bucket: 2 },
+    { sessionType: "Steady Run", bucket: 3 },
+    { sessionType: "Tempo Run", bucket: 4 },
+    { sessionType: "VO2 Intervals", bucket: 5 },
+  ];
+
+  // Reused logged session shape — only the plan's sessionType drives
+  // the prescribed run-target bucket, so the logged actuals stay the
+  // same across cases.
+  const loggedRunSession = {
+    id: 555,
+    date: "2026-05-05",
+    sessionType: "Long Run",
+    equipment: "Outdoor",
+    durationMin: 58,
+    strengthMin: 0,
+    cardioMin: 0,
+    runMin: 58,
+    distanceMi: 5.9,
+    pace: "10:05",
+    avgHr: null,
+    rpe: 7,
+    strengthLoad: 0,
+    totalLoad: 60,
+    notes: null,
+    timeOfDay: null,
+    modality: null,
+    planDayId: 1,
+  };
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    runTargetingModeRef.current = "effort";
+  });
+
+  it.each(cases)(
+    "$sessionType (bucket $bucket) paints the matching HR_ZONE_COLORS swatch on the pre-launch First Scheduled Session preview in hr_zones mode",
+    ({ sessionType, bucket }) => {
+      runTargetingModeRef.current = "hr_zones";
+      const firstSessionRun = {
+        ...firstSession,
+        week: 4,
+        sessionType,
+        runMin: 60,
+        distanceMi: 6,
+        pace: "10:00",
+      };
+      renderWithData({
+        date: "2026-05-02",
+        hasPlan: false,
+        plan: null,
+        loggedWorkouts: [],
+        suggestions: null,
+        daysUntilStart: 3,
+        firstSession: firstSessionRun,
+      });
+
+      const target = screen.getByTestId("first-session-run-target");
+      expect(target.getAttribute("data-run-targeting-mode")).toBe("hr_zones");
+      // The "Zone N" prefix proves this swatch belongs to the zone
+      // we're asserting on, not some other run-target chip on the page.
+      expect(target.textContent).toContain(`Zone ${bucket}`);
+
+      const swatch = screen.getByTestId(
+        "first-session-run-target-zone-swatch",
+      );
+      // Pulled from HR_ZONE_COLORS so the assertion follows any future
+      // re-mapping of buckets → tokens without needing a test edit.
+      const expectedSwatchClass = HR_ZONE_COLORS[bucket].swatchClass;
+      expect(swatch.className).toContain(expectedSwatchClass);
+      expect(swatch.getAttribute("aria-hidden")).toBe("true");
+    },
+  );
+
+  it.each(cases)(
+    "$sessionType (bucket $bucket) paints the matching HR_ZONE_COLORS swatch on the logged Mission Accomplished card in hr_zones mode",
+    ({ sessionType, bucket }) => {
+      runTargetingModeRef.current = "hr_zones";
+      const runPlan = {
+        ...firstSession,
+        week: 4,
+        sessionType,
+        runMin: 60,
+        distanceMi: 6,
+        pace: "10:00",
+      };
+      renderWithData({
+        date: "2026-05-05",
+        hasPlan: true,
+        plan: runPlan,
+        loggedWorkouts: [loggedRunSession],
+        suggestions: null,
+        daysUntilStart: null,
+        firstSession: null,
+      });
+
+      const target = screen.getByTestId("session-today-555-run-target");
+      expect(target.getAttribute("data-run-targeting-mode")).toBe("hr_zones");
+      // The "Zone N" prefix proves this swatch belongs to the zone
+      // we're asserting on, not some other run-target chip on the page.
+      expect(target.textContent).toContain(`Zone ${bucket}`);
+
+      const swatch = screen.getByTestId(
+        "session-today-555-run-target-zone-swatch",
+      );
+      // Pulled from HR_ZONE_COLORS so the assertion follows any future
+      // re-mapping of buckets → tokens without needing a test edit.
+      const expectedSwatchClass = HR_ZONE_COLORS[bucket].swatchClass;
+      expect(swatch.className).toContain(expectedSwatchClass);
+      expect(swatch.getAttribute("aria-hidden")).toBe("true");
+    },
+  );
+});
