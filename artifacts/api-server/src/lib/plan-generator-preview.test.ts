@@ -6,11 +6,13 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  expandEntriesToBlocksWithGaps,
   FOCUS_TYPES,
   generatePlanFromConfig,
   previewWeeklyMileage,
   type FocusType,
   type PhaseBlock,
+  type TemplateEntry,
 } from "@workspace/plan-generator";
 
 // 36 user-block weeks + 16-week Marathon-Specific tail = 52 weeks total.
@@ -118,6 +120,100 @@ describe("previewWeeklyMileage matches generatePlanFromConfig", () => {
     // Sanity: the final week is the race week with the 26.2 mi marathon.
     expect(preview[preview.length - 1]!.isRaceWeek).toBe(true);
     expect(preview[preview.length - 1]!.longRunMi).toBe(26.2);
+  });
+
+  // Task #179: entries-mode (templates own their own taper / race week —
+  // NO auto-pinned 16w Marathon-Specific tail) is the second planner
+  // mode and has its own preview path. The Phase Planner sparkline
+  // renders `previewWeeklyMileage(expandedBlocks, { appendMarathonTail:
+  // false })`, while Apply runs `generatePlanFromConfig(config)` with
+  // `entries: [...]`. Task #176 pinned parity for the legacy
+  // blocks-only path; this case mirrors that defense for entries-mode
+  // so a future tweak to a template recipe (or to
+  // `expandEntriesToBlocksWithGaps`) can't silently drift the
+  // sparkline from what Apply produces.
+  //
+  // Race-week note: in entries-mode `previewWeeklyMileage` is called
+  // with `appendMarathonTail: false` (templates own their own taper),
+  // so the preview never substitutes the 26.2 mi marathon long run on
+  // the campaign-final week — it just runs the trailing block's
+  // recipe through to the end. `generatePlanFromConfig` still treats
+  // `weekNumber === totalWeeks` as race day and overrides Sun's long
+  // run with `MARATHON_DISTANCE_MI`. That campaign-final override is a
+  // generator-side contract for marathon-mode entries plans (which
+  // always END on a marathon Sunday), so we assert strict per-week
+  // parity for weeks 1..N-1 and document the race-week override
+  // separately. Future drift in any other week — or a change to the
+  // race-week override itself — will fail loudly here.
+  it("agrees on planned_miles + long_run_mi for an entries-mode template plan", () => {
+    // Mon 2026-05-04 → Sun 2026-06-28 is exactly 8 weeks: a vanilla
+    // Higdon Novice 5K run at its `defaultWeeks` of 8. The template
+    // owns its own taper (Base + Taper expansion) — NO auto-pinned
+    // 16w Marathon-Specific tail is appended in entries-mode.
+    const entries: TemplateEntry[] = [
+      {
+        templateId: "higdon_5k_novice",
+        weeks: 8,
+        customName: null,
+        customNotes: null,
+      },
+    ];
+    const expandedBlocks = expandEntriesToBlocksWithGaps(
+      entries,
+      "2026-05-04",
+    );
+    const config = {
+      startDate: "2026-05-04",
+      marathonDate: "2026-06-28",
+      blocks: expandedBlocks,
+      entries,
+    };
+    const preview = previewWeeklyMileage(expandedBlocks, {
+      appendMarathonTail: false,
+    });
+    const generated = generatePlanFromConfig(config);
+    expect(preview.length).toBe(8);
+    expect(generated.weekly.length).toBe(8);
+    // Sanity: the template's tail block actually rolled through (drives
+    // the Taper recipe on the final week, not the auto-pinned
+    // Marathon-Specific tail).
+    expect(preview[preview.length - 1]!.focusType).toBe("Taper");
+    expect(generated.weekly[generated.weekly.length - 1]!.phase).toBe(
+      "Taper",
+    );
+    // Strict per-week parity for every non-race week. The preview
+    // helper's recipe-driven mileage MUST match exactly what the
+    // generator's `buildWeekDays` pipeline emits via the same recipe.
+    // Any future tweak to a template recipe (or to
+    // `expandEntriesToBlocksWithGaps`) that changes one but not the
+    // other will fail this assertion.
+    for (let i = 0; i < preview.length - 1; i++) {
+      const p = preview[i]!;
+      const g = generated.weekly[i]!;
+      expect(p.week).toBe(g.week);
+      expect(p.totalMi).toBe(g.planned_miles);
+      expect(p.longRunMi).toBe(g.long_run_mi);
+    }
+    // Campaign-final race-week override: pin BOTH sides so a future
+    // change to either the preview's race-week handling or the
+    // generator's `isRaceWeek` substitution surfaces here. Today the
+    // preview runs the trailing block's recipe straight through (no
+    // marathon substitution because `appendMarathonTail: false`) while
+    // the generator overrides Sun's long run with the 26.2 mi marathon
+    // and rolls Wed/Fri easy + sharpener miles in alongside it.
+    const lastPreview = preview[preview.length - 1]!;
+    const lastGenerated = generated.weekly[generated.weekly.length - 1]!;
+    expect(lastPreview.week).toBe(lastGenerated.week);
+    // Preview side: trailing Taper block, week 1 of 1 → recipe formulas
+    // give long=10, easy=3, quality=3 (totalMi 16). NO marathon
+    // substitution.
+    expect(lastPreview.longRunMi).toBe(10);
+    expect(lastPreview.totalMi).toBe(16);
+    // Generator side: race-week override pins Sun to the 26.2 mi
+    // marathon and Wed/Fri keep their Taper-recipe easy + sharpener
+    // miles (3 + 3) → 32.2 mi planned, long_run 26.2.
+    expect(lastGenerated.long_run_mi).toBe(26.2);
+    expect(lastGenerated.planned_miles).toBe(32.2);
   });
 });
 
