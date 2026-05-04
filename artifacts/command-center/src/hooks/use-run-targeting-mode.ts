@@ -21,3 +21,12 @@ export function useMaxHr(): number | null {
   const { data } = useGetUserPreferences();
   return data?.maxHr ?? null;
 }
+
+// Companion hook (Task #146) returning the user's configured resting
+// heart rate, or null when unset / still loading. When non-null and
+// paired with a configured maxHr, hrZoneBpmRange switches to the
+// Karvonen / heart-rate-reserve formula for more accurate zones.
+export function useRestingHr(): number | null {
+  const { data } = useGetUserPreferences();
+  return data?.restingHr ?? null;
+}

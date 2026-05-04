@@ -2346,12 +2346,15 @@ export const ApplyPlannerConfigResponse = zod
 export const getUserPreferencesResponseMaxHrMin = 80;
 export const getUserPreferencesResponseMaxHrMax = 230;
 
+export const getUserPreferencesResponseRestingHrMin = 30;
+export const getUserPreferencesResponseRestingHrMax = 110;
+
 export const GetUserPreferencesResponse = zod
   .object({
     runTargetingMode: zod
       .enum(["effort", "intervals", "hr_zones", "pace"])
       .describe(
-        'How prescribed runs are displayed.\n  - effort     : RPE-style label like \"Easy conversational\" or \"Hard but sustainable\".\n  - intervals  : walk\/run recipe like \"5 min run \/ 1 min walk × 5\", scaled to the planned duration with a beginner ratio that eases over the campaign.\n  - hr_zones   : heart-rate zone label like \"Zone 2\" (with personalized \"· 134-148 bpm\" range when maxHr is configured).\n  - pace       : the legacy explicit \"9:30\/mi\" pace string.\nDefault for new accounts is \"effort\".\n',
+        'How prescribed runs are displayed.\n  - effort     : RPE-style label like \"Easy conversational\" or \"Hard but sustainable\".\n  - intervals  : walk\/run recipe like \"5 min run \/ 1 min walk × 5\", scaled to the planned duration with a beginner ratio that eases over the campaign.\n  - hr_zones   : heart-rate zone label like \"Zone 2\" (with personalized \"· 134-148 bpm\" range when maxHr is configured; uses Karvonen \/ HR-reserve when restingHr is also set).\n  - pace       : the legacy explicit \"9:30\/mi\" pace string.\nDefault for new accounts is \"effort\".\n',
       ),
     maxHr: zod
       .number()
@@ -2360,6 +2363,14 @@ export const GetUserPreferencesResponse = zod
       .nullable()
       .describe(
         'User\'s maximum heart rate in BPM. When set, the HR Zone targeting mode\nrenders BPM ranges next to each zone label (e.g. \"Zone 2 · 134-148 bpm\")\nusing the standard % of max model. When null, the HR Zone mode falls\nback to the generic \"Zone N\" label. Defaults to null on new accounts.\n',
+      ),
+    restingHr: zod
+      .number()
+      .min(getUserPreferencesResponseRestingHrMin)
+      .max(getUserPreferencesResponseRestingHrMax)
+      .nullable()
+      .describe(
+        "User's resting heart rate in BPM (optional). When both maxHr and\nrestingHr are set, the HR Zone targeting mode switches to the\nKarvonen \/ heart-rate-reserve formula\n(((maxHr - restingHr) \* pct) + restingHr), which is meaningfully\nmore accurate for fitter athletes whose resting HR is well below\naverage. When null, the HR Zone math falls back to the simple\n% of max model. Defaults to null on new accounts.\n",
       ),
     updatedAt: zod.coerce.date(),
   })
@@ -2373,6 +2384,9 @@ export const GetUserPreferencesResponse = zod
 export const updateUserPreferencesBodyMaxHrMin = 80;
 export const updateUserPreferencesBodyMaxHrMax = 230;
 
+export const updateUserPreferencesBodyRestingHrMin = 30;
+export const updateUserPreferencesBodyRestingHrMax = 110;
+
 export const UpdateUserPreferencesBody = zod
   .object({
     runTargetingMode: zod
@@ -2383,20 +2397,28 @@ export const UpdateUserPreferencesBody = zod
       .min(updateUserPreferencesBodyMaxHrMin)
       .max(updateUserPreferencesBodyMaxHrMax)
       .nullish(),
+    restingHr: zod
+      .number()
+      .min(updateUserPreferencesBodyRestingHrMin)
+      .max(updateUserPreferencesBodyRestingHrMax)
+      .nullish(),
   })
   .describe(
-    "Partial update of UserPreferences. Omitted fields are left untouched.\nSend maxHr=null to explicitly clear the configured max heart rate.\n",
+    "Partial update of UserPreferences. Omitted fields are left untouched.\nSend maxHr=null or restingHr=null to explicitly clear the configured\nvalue.\n",
   );
 
 export const updateUserPreferencesResponseMaxHrMin = 80;
 export const updateUserPreferencesResponseMaxHrMax = 230;
+
+export const updateUserPreferencesResponseRestingHrMin = 30;
+export const updateUserPreferencesResponseRestingHrMax = 110;
 
 export const UpdateUserPreferencesResponse = zod
   .object({
     runTargetingMode: zod
       .enum(["effort", "intervals", "hr_zones", "pace"])
       .describe(
-        'How prescribed runs are displayed.\n  - effort     : RPE-style label like \"Easy conversational\" or \"Hard but sustainable\".\n  - intervals  : walk\/run recipe like \"5 min run \/ 1 min walk × 5\", scaled to the planned duration with a beginner ratio that eases over the campaign.\n  - hr_zones   : heart-rate zone label like \"Zone 2\" (with personalized \"· 134-148 bpm\" range when maxHr is configured).\n  - pace       : the legacy explicit \"9:30\/mi\" pace string.\nDefault for new accounts is \"effort\".\n',
+        'How prescribed runs are displayed.\n  - effort     : RPE-style label like \"Easy conversational\" or \"Hard but sustainable\".\n  - intervals  : walk\/run recipe like \"5 min run \/ 1 min walk × 5\", scaled to the planned duration with a beginner ratio that eases over the campaign.\n  - hr_zones   : heart-rate zone label like \"Zone 2\" (with personalized \"· 134-148 bpm\" range when maxHr is configured; uses Karvonen \/ HR-reserve when restingHr is also set).\n  - pace       : the legacy explicit \"9:30\/mi\" pace string.\nDefault for new accounts is \"effort\".\n',
       ),
     maxHr: zod
       .number()
@@ -2405,6 +2427,14 @@ export const UpdateUserPreferencesResponse = zod
       .nullable()
       .describe(
         'User\'s maximum heart rate in BPM. When set, the HR Zone targeting mode\nrenders BPM ranges next to each zone label (e.g. \"Zone 2 · 134-148 bpm\")\nusing the standard % of max model. When null, the HR Zone mode falls\nback to the generic \"Zone N\" label. Defaults to null on new accounts.\n',
+      ),
+    restingHr: zod
+      .number()
+      .min(updateUserPreferencesResponseRestingHrMin)
+      .max(updateUserPreferencesResponseRestingHrMax)
+      .nullable()
+      .describe(
+        "User's resting heart rate in BPM (optional). When both maxHr and\nrestingHr are set, the HR Zone targeting mode switches to the\nKarvonen \/ heart-rate-reserve formula\n(((maxHr - restingHr) \* pct) + restingHr), which is meaningfully\nmore accurate for fitter athletes whose resting HR is well below\naverage. When null, the HR Zone math falls back to the simple\n% of max model. Defaults to null on new accounts.\n",
       ),
     updatedAt: zod.coerce.date(),
   })

@@ -57,6 +57,8 @@ const MODE_OPTIONS: ModeOption[] = [
 
 const MIN_MAX_HR = 80;
 const MAX_MAX_HR = 230;
+const MIN_RESTING_HR = 30;
+const MAX_RESTING_HR = 110;
 
 // Fox formula: 220 − age. Good enough as a starting point for runners
 // who don't have a measured max HR. We round and clamp to the same
@@ -90,13 +92,20 @@ export default function Settings() {
   // and re-synced whenever the prefs query returns fresh data so the
   // input stays in step with optimistic / multi-tab edits.
   const savedMaxHr = data?.maxHr ?? null;
+  const savedRestingHr = data?.restingHr ?? null;
   const [maxHrInput, setMaxHrInput] = useState<string>(
     savedMaxHr != null ? String(savedMaxHr) : "",
+  );
+  const [restingHrInput, setRestingHrInput] = useState<string>(
+    savedRestingHr != null ? String(savedRestingHr) : "",
   );
   const [ageInput, setAgeInput] = useState<string>("");
   useEffect(() => {
     setMaxHrInput(savedMaxHr != null ? String(savedMaxHr) : "");
   }, [savedMaxHr]);
+  useEffect(() => {
+    setRestingHrInput(savedRestingHr != null ? String(savedRestingHr) : "");
+  }, [savedRestingHr]);
 
   const parsedMaxHr =
     maxHrInput.trim() === "" ? null : Number.parseInt(maxHrInput, 10);
@@ -107,18 +116,44 @@ export default function Settings() {
       parsedMaxHr <= MAX_MAX_HR);
   const hasMaxHrChanged = parsedMaxHr !== savedMaxHr;
 
+  const parsedRestingHr =
+    restingHrInput.trim() === "" ? null : Number.parseInt(restingHrInput, 10);
+  const isRestingHrValid =
+    parsedRestingHr === null ||
+    (Number.isFinite(parsedRestingHr) &&
+      parsedRestingHr >= MIN_RESTING_HR &&
+      parsedRestingHr <= MAX_RESTING_HR);
+  const hasRestingHrChanged = parsedRestingHr !== savedRestingHr;
+
+  // When both maxHr and restingHr are set (and the resting value is in
+  // range and strictly below max), the preview ranges switch to the
+  // Karvonen / heart-rate-reserve formula. Otherwise we fall back to
+  // the % of max model. Either way the table below renders all 5 zones.
+  const previewUsesKarvonen =
+    parsedMaxHr != null &&
+    isMaxHrValid &&
+    parsedRestingHr != null &&
+    isRestingHrValid &&
+    parsedRestingHr < parsedMaxHr;
+  const previewRestingHr = previewUsesKarvonen ? parsedRestingHr : null;
+
   const zoneBuckets = [1, 2, 3, 4, 5] as const;
   const zonePreviews =
     parsedMaxHr != null && isMaxHrValid
       ? zoneBuckets.map((bucket) => ({
           bucket,
-          range: hrZoneBpmRange(bucket, parsedMaxHr),
+          range: hrZoneBpmRange(bucket, parsedMaxHr, previewRestingHr),
         }))
       : null;
 
   function handleSaveMaxHr() {
     if (!isMaxHrValid || !hasMaxHrChanged) return;
     update.mutate({ data: { maxHr: parsedMaxHr } });
+  }
+
+  function handleSaveRestingHr() {
+    if (!isRestingHrValid || !hasRestingHrChanged) return;
+    update.mutate({ data: { restingHr: parsedRestingHr } });
   }
 
   function handleApplyAge() {
@@ -209,6 +244,8 @@ export default function Settings() {
             each "Zone N" label when the HR Zone targeting mode is active. We use the
             standard % of max model: Zone 1 50-60%, Zone 2 60-70%, Zone 3 70-80%, Zone 4
             80-90%, Zone 5 90-100%. Leave blank to fall back to generic zone labels.
+            Add your resting HR too and the zones switch to the more accurate Karvonen
+            (heart-rate-reserve) formula.
           </p>
 
           {isLoading ? (
@@ -256,9 +293,10 @@ export default function Settings() {
                   <div
                     className="rounded-md border border-border bg-muted/30 p-3"
                     data-testid="zone-preview-table"
+                    data-preview-model={previewUsesKarvonen ? "karvonen" : "pct-of-max"}
                   >
                     <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground mb-2">
-                      Preview
+                      Preview{previewUsesKarvonen ? " · Karvonen" : ""}
                     </p>
                     <ul className="space-y-1">
                       {zonePreviews.map(({ bucket, range }) => (
@@ -281,6 +319,68 @@ export default function Settings() {
                     </ul>
                   </div>
                 )}
+              </div>
+
+              <div className="space-y-2 pt-2 border-t border-border">
+                <Label
+                  htmlFor="resting-hr-input"
+                  className="text-xs uppercase tracking-wider font-bold"
+                >
+                  Resting heart rate (bpm) — optional
+                </Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="resting-hr-input"
+                    type="number"
+                    inputMode="numeric"
+                    min={MIN_RESTING_HR}
+                    max={MAX_RESTING_HR}
+                    placeholder="e.g. 52"
+                    value={restingHrInput}
+                    onChange={(e) => setRestingHrInput(e.target.value)}
+                    className="max-w-[160px]"
+                    data-testid="input-resting-hr"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleSaveRestingHr}
+                    disabled={
+                      !isRestingHrValid ||
+                      !hasRestingHrChanged ||
+                      update.isPending
+                    }
+                    data-testid="button-save-resting-hr"
+                  >
+                    Save
+                  </Button>
+                </div>
+                {!isRestingHrValid && (
+                  <p
+                    className="text-xs text-destructive"
+                    data-testid="text-resting-hr-error"
+                  >
+                    Enter a value between {MIN_RESTING_HR} and {MAX_RESTING_HR} bpm,
+                    or leave blank.
+                  </p>
+                )}
+                {parsedRestingHr != null &&
+                  parsedMaxHr != null &&
+                  isRestingHrValid &&
+                  isMaxHrValid &&
+                  parsedRestingHr >= parsedMaxHr && (
+                    <p
+                      className="text-xs text-destructive"
+                      data-testid="text-resting-hr-vs-max-error"
+                    >
+                      Resting HR must be below your max HR. Zones will use the
+                      % of max model until this is fixed.
+                    </p>
+                  )}
+                <p className="text-xs text-muted-foreground italic">
+                  When set alongside max HR, zones use the Karvonen / heart-rate-
+                  reserve formula — more accurate, especially for fitter runners
+                  with a low resting HR.
+                </p>
               </div>
 
               <div className="space-y-2 pt-2 border-t border-border">

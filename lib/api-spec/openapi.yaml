@@ -2032,8 +2032,8 @@ components:
 
     UserPreferences:
       type: object
-      required: [runTargetingMode, maxHr, updatedAt]
-      description: Single-user preferences applied across the app. Exposes the run targeting mode (Task #134) which drives how every prescribed run is displayed on Today, Week Detail, and the expanded card detail, plus the user's max heart rate (Task #141) used to compute personalized BPM ranges for the HR Zone targeting mode.
+      required: [runTargetingMode, maxHr, restingHr, updatedAt]
+      description: Single-user preferences applied across the app. Exposes the run targeting mode (Task #134) which drives how every prescribed run is displayed on Today, Week Detail, and the expanded card detail, plus the user's max heart rate (Task #141) and optional resting heart rate (Task #146) used to compute personalized BPM ranges for the HR Zone targeting mode.
       properties:
         runTargetingMode:
           type: string
@@ -2042,7 +2042,7 @@ components:
             How prescribed runs are displayed.
               - effort     : RPE-style label like "Easy conversational" or "Hard but sustainable".
               - intervals  : walk/run recipe like "5 min run / 1 min walk × 5", scaled to the planned duration with a beginner ratio that eases over the campaign.
-              - hr_zones   : heart-rate zone label like "Zone 2" (with personalized "· 134-148 bpm" range when maxHr is configured).
+              - hr_zones   : heart-rate zone label like "Zone 2" (with personalized "· 134-148 bpm" range when maxHr is configured; uses Karvonen / HR-reserve when restingHr is also set).
               - pace       : the legacy explicit "9:30/mi" pace string.
             Default for new accounts is "effort".
         maxHr:
@@ -2055,6 +2055,19 @@ components:
             renders BPM ranges next to each zone label (e.g. "Zone 2 · 134-148 bpm")
             using the standard % of max model. When null, the HR Zone mode falls
             back to the generic "Zone N" label. Defaults to null on new accounts.
+        restingHr:
+          type: integer
+          nullable: true
+          minimum: 30
+          maximum: 110
+          description: |
+            User's resting heart rate in BPM (optional). When both maxHr and
+            restingHr are set, the HR Zone targeting mode switches to the
+            Karvonen / heart-rate-reserve formula
+            (((maxHr - restingHr) * pct) + restingHr), which is meaningfully
+            more accurate for fitter athletes whose resting HR is well below
+            average. When null, the HR Zone math falls back to the simple
+            % of max model. Defaults to null on new accounts.
         updatedAt:
           type: string
           format: date-time
@@ -2063,7 +2076,8 @@ components:
       type: object
       description: |
         Partial update of UserPreferences. Omitted fields are left untouched.
-        Send maxHr=null to explicitly clear the configured max heart rate.
+        Send maxHr=null or restingHr=null to explicitly clear the configured
+        value.
       properties:
         runTargetingMode:
           type: string
@@ -2073,6 +2087,11 @@ components:
           nullable: true
           minimum: 80
           maximum: 230
+        restingHr:
+          type: integer
+          nullable: true
+          minimum: 30
+          maximum: 110
 
     ApplyPlannerConfigResponse:
       type: object

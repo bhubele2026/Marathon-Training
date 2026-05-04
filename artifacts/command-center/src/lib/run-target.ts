@@ -34,6 +34,12 @@ export interface RunTargetInput {
   // mode's BPM range suffix (e.g. "Zone 2 · 134-148 bpm"). When null
   // or undefined we fall back to the generic "Zone N" label.
   maxHr?: number | null;
+  // User's resting heart rate in BPM (Task #146). When provided alongside
+  // maxHr, the HR Zone BPM range is computed via the Karvonen / heart-
+  // rate-reserve formula instead of the simple % of max model. When null
+  // or out-of-range, we fall back to % of max so the existing behavior
+  // is unchanged.
+  restingHr?: number | null;
 }
 
 export interface RunTargetOutput {
@@ -99,12 +105,26 @@ const HR_ZONE_PCT: Record<1 | 2 | 3 | 4 | 5, [number, number]> = {
 const MIN_MAX_HR = 80;
 const MAX_MAX_HR = 230;
 
+// Realistic resting HR range (Task #146). Mirrors the OpenAPI bounds.
+// Athletes can dip into the 30s; sedentary adults trend high. Values
+// outside the window — or any restingHr that isn't strictly less than
+// the configured maxHr — are ignored so we silently fall back to the
+// % of max model rather than rendering a nonsense Karvonen range.
+const MIN_RESTING_HR = 30;
+const MAX_RESTING_HR = 110;
+
 // Compute the BPM low/high range for a given zone bucket and the
-// user's max HR. Returns null when maxHr is missing or out of range so
-// the caller can fall back to the unsuffixed "Zone N" label.
+// user's heart-rate inputs (Task #141 / #146). When restingHr is
+// provided alongside maxHr, the range is computed via the Karvonen
+// (heart-rate-reserve) formula `((maxHr - restingHr) * pct) + restingHr`
+// — meaningfully more accurate for fitter runners. Otherwise we use
+// the simple % of max model. Returns null when maxHr is missing or
+// out of range so the caller can fall back to the unsuffixed
+// "Zone N" label.
 export function hrZoneBpmRange(
   bucket: 1 | 2 | 3 | 4 | 5,
   maxHr: number | null | undefined,
+  restingHr?: number | null | undefined,
 ): { low: number; high: number } | null {
   if (
     maxHr == null ||
@@ -115,6 +135,19 @@ export function hrZoneBpmRange(
     return null;
   }
   const [lowPct, highPct] = HR_ZONE_PCT[bucket];
+  const restingValid =
+    restingHr != null &&
+    Number.isFinite(restingHr) &&
+    restingHr >= MIN_RESTING_HR &&
+    restingHr <= MAX_RESTING_HR &&
+    restingHr < maxHr;
+  if (restingValid) {
+    const reserve = maxHr - (restingHr as number);
+    return {
+      low: Math.round(reserve * lowPct + (restingHr as number)),
+      high: Math.round(reserve * highPct + (restingHr as number)),
+    };
+  }
   return {
     low: Math.round(maxHr * lowPct),
     high: Math.round(maxHr * highPct),
@@ -187,7 +220,7 @@ export function formatRunTarget(
     case "effort":
       return { primary: EFFORT_LABELS[bucket], modeLabel };
     case "hr_zones": {
-      const range = hrZoneBpmRange(bucket, input.maxHr);
+      const range = hrZoneBpmRange(bucket, input.maxHr, input.restingHr);
       const label = HR_ZONE_LABELS[bucket];
       if (range) {
         return {

@@ -834,7 +834,7 @@ export interface DeletePlannerConfigResponse {
  * How prescribed runs are displayed.
   - effort     : RPE-style label like "Easy conversational" or "Hard but sustainable".
   - intervals  : walk/run recipe like "5 min run / 1 min walk × 5", scaled to the planned duration with a beginner ratio that eases over the campaign.
-  - hr_zones   : heart-rate zone label like "Zone 2" (with personalized "· 134-148 bpm" range when maxHr is configured).
+  - hr_zones   : heart-rate zone label like "Zone 2" (with personalized "· 134-148 bpm" range when maxHr is configured; uses Karvonen / HR-reserve when restingHr is also set).
   - pace       : the legacy explicit "9:30/mi" pace string.
 Default for new accounts is "effort".
 
@@ -856,7 +856,7 @@ export interface UserPreferences {
   /** How prescribed runs are displayed.
   - effort     : RPE-style label like "Easy conversational" or "Hard but sustainable".
   - intervals  : walk/run recipe like "5 min run / 1 min walk × 5", scaled to the planned duration with a beginner ratio that eases over the campaign.
-  - hr_zones   : heart-rate zone label like "Zone 2" (with personalized "· 134-148 bpm" range when maxHr is configured).
+  - hr_zones   : heart-rate zone label like "Zone 2" (with personalized "· 134-148 bpm" range when maxHr is configured; uses Karvonen / HR-reserve when restingHr is also set).
   - pace       : the legacy explicit "9:30/mi" pace string.
 Default for new accounts is "effort".
  */
@@ -871,6 +871,19 @@ back to the generic "Zone N" label. Defaults to null on new accounts.
    * @maximum 230
    */
   maxHr: number | null;
+  /**
+   * User's resting heart rate in BPM (optional). When both maxHr and
+restingHr are set, the HR Zone targeting mode switches to the
+Karvonen / heart-rate-reserve formula
+(((maxHr - restingHr) * pct) + restingHr), which is meaningfully
+more accurate for fitter athletes whose resting HR is well below
+average. When null, the HR Zone math falls back to the simple
+% of max model. Defaults to null on new accounts.
+
+   * @minimum 30
+   * @maximum 110
+   */
+  restingHr: number | null;
   updatedAt: string;
 }
 
@@ -886,7 +899,8 @@ export const UpdateUserPreferencesBodyRunTargetingMode = {
 
 /**
  * Partial update of UserPreferences. Omitted fields are left untouched.
-Send maxHr=null to explicitly clear the configured max heart rate.
+Send maxHr=null or restingHr=null to explicitly clear the configured
+value.
 
  */
 export interface UpdateUserPreferencesBody {
@@ -896,6 +910,11 @@ export interface UpdateUserPreferencesBody {
    * @maximum 230
    */
   maxHr?: number | null;
+  /**
+   * @minimum 30
+   * @maximum 110
+   */
+  restingHr?: number | null;
 }
 
 /**

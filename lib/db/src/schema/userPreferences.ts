@@ -21,6 +21,16 @@ export const userPreferencesTable = pgTable("user_preferences", {
   // generic "Zone N" string in that case. Stored as a small integer in
   // the realistic adult range (80-230).
   maxHr: integer("max_hr"),
+  // User's resting heart rate in BPM (Task #146). When set alongside
+  // maxHr, the HR Zone targeting mode switches from the simple "% of
+  // max" model to the Karvonen / heart-rate-reserve formula
+  // (((maxHr - restingHr) * pct) + restingHr), which is meaningfully
+  // more accurate for fitter athletes whose resting HR sits well
+  // below average. Null when the user hasn't measured / configured
+  // theirs — the HR Zone math falls back to % of max in that case.
+  // Stored as a small integer in a realistic range (30-110); the API
+  // and UI both clamp to the same window.
+  restingHr: integer("resting_hr"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

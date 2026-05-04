@@ -1,4 +1,8 @@
-import { useMaxHr, useRunTargetingMode } from "@/hooks/use-run-targeting-mode";
+import {
+  useMaxHr,
+  useRestingHr,
+  useRunTargetingMode,
+} from "@/hooks/use-run-targeting-mode";
 import { formatRunTarget, isRunSession } from "@/lib/run-target";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +32,7 @@ export function RunTargetLine({
 }: RunTargetLineProps) {
   const mode = useRunTargetingMode();
   const maxHr = useMaxHr();
+  const restingHr = useRestingHr();
   if (!isRunSession({ sessionType, runMin, distanceMi })) return null;
   const { primary, modeLabel } = formatRunTarget(mode, {
     sessionType,
@@ -36,6 +41,7 @@ export function RunTargetLine({
     distanceMi,
     pace,
     maxHr,
+    restingHr,
   });
 
   if (variant === "compact") {

@@ -14,6 +14,7 @@ const SINGLETON_ID = 1;
 type ApiUserPreferences = {
   runTargetingMode: string;
   maxHr: number | null;
+  restingHr: number | null;
   updatedAt: string;
 };
 
@@ -21,6 +22,7 @@ function toApi(row: UserPreferencesRow): ApiUserPreferences {
   return {
     runTargetingMode: row.runTargetingMode,
     maxHr: row.maxHr,
+    restingHr: row.restingHr,
     updatedAt: row.updatedAt.toISOString(),
   };
 }
@@ -69,6 +71,10 @@ router.put("/preferences", async (req, res) => {
   // Send maxHr=null to explicitly clear the value, omit to leave alone.
   if (parsed.data.maxHr !== undefined) {
     updates.maxHr = parsed.data.maxHr;
+  }
+  // Same convention for restingHr (Task #146): null clears, omit leaves alone.
+  if (parsed.data.restingHr !== undefined) {
+    updates.restingHr = parsed.data.restingHr;
   }
   if (Object.keys(updates).length === 0) {
     const row = await readOrSeed();
