@@ -64,6 +64,7 @@ vi.mock("@/lib/invalidate-mission-queries", () => ({
 }));
 
 import { useGetPlanWeek } from "@workspace/api-client-react";
+import { HR_ZONE_COLORS } from "@/lib/run-target";
 import WeekDetail from "./week-detail";
 
 const mockWeek = vi.mocked(useGetPlanWeek);
@@ -339,4 +340,119 @@ describe("Week detail — HR zone swatch coverage (task #166)", () => {
       screen.queryByTestId("day-2026-05-05-run-target-zone-swatch"),
     ).toBeNull();
   });
+});
+
+// Task #173: lock the full HR zone color ramp on the Week Detail
+// expanded plan card's run-target chip. The bucket-2 swatch test above
+// only exercises Long Run / week 4 → bucket 2 → bg-emerald-500, so the
+// other four entries in HR_ZONE_COLORS (slate-400 / amber-400 /
+// orange-500 / red-500 for buckets 1, 3, 4, 5) were only locked in by
+// the unit test on the color map itself. A regression that wired the
+// wrong bucket to the wrong swatch on a Recovery / Steady / Tempo /
+// Interval session would slip through on this surface. This
+// parametrized suite picks one representative sessionType per
+// intensityBucket value, flips the active mode to hr_zones, asserts
+// the chip's "Zone N" prefix is present so the swatch we grab is
+// unambiguously for the bucket under test, and pulls the expected
+// swatch class directly from HR_ZONE_COLORS so the assertion follows
+// any future re-mapping of buckets → tokens without a test edit.
+// Mirrors the equivalent suites in today.test.tsx (task #170) and
+// log.test.tsx (task #171).
+describe("Week detail — every HR zone bucket renders the matching swatch (task #173)", () => {
+  // sessionType → bucket pairs covering all five HR_ZONE_COLORS entries.
+  // The bucket column is the value intensityBucket() should return for
+  // each sessionType; documenting it here keeps the test self-checking
+  // if intensityBucket ever drifts.
+  const cases: Array<{
+    sessionType: string;
+    bucket: 1 | 2 | 3 | 4 | 5;
+  }> = [
+    { sessionType: "Recovery Run", bucket: 1 },
+    { sessionType: "Long Run", bucket: 2 },
+    { sessionType: "Steady Run", bucket: 3 },
+    { sessionType: "Tempo Run", bucket: 4 },
+    { sessionType: "VO2 Intervals", bucket: 5 },
+  ];
+
+  // Same shape as the runDay used by the bucket-2 suite above, but
+  // declared here so each case can swap in its own sessionType without
+  // mutating shared state across iterations.
+  function makeRunDay(sessionType: string) {
+    return {
+      id: 1,
+      week: 4,
+      phase: "Foundation Build",
+      date: "2026-05-05",
+      day: "Tue",
+      sessionType,
+      description: "Run prescription",
+      equipment: "Outdoor",
+      equipmentList: ["Outdoor"],
+      isRest: false,
+      isCustomized: false,
+      customizedFields: [],
+      customizedDiff: [],
+      strengthLoad: 0,
+      strengthMin: 0,
+      cardioMin: 0,
+      runMin: 60,
+      distanceMi: 6,
+      pace: "10:00",
+      totalMin: 60,
+      totalLoad: 60,
+      sourceEntryIndex: 0,
+      sourceEntryLabel: null,
+      suggestions: null,
+    };
+  }
+
+  function makeWeekPayload(sessionType: string) {
+    return {
+      week: 4,
+      phase: "Foundation Build",
+      startDate: "2026-05-04",
+      endDate: "2026-05-10",
+      plannedStrength: 0,
+      plannedCardio: 0,
+      plannedTotalLoad: 60,
+      plannedMiles: 6,
+      longRunMi: 6,
+      actualMiles: 0,
+      actualCardio: 0,
+      completedSessions: 0,
+      totalSessions: 1,
+      missedSessions: 0,
+      dominantCardioEquipment: null,
+      days: [makeRunDay(sessionType)],
+    };
+  }
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    runTargetingModeRef.current = "effort";
+  });
+
+  it.each(cases)(
+    "$sessionType (bucket $bucket) paints the matching HR_ZONE_COLORS swatch on the expanded plan card in hr_zones mode",
+    ({ sessionType, bucket }) => {
+      runTargetingModeRef.current = "hr_zones";
+      renderWith(makeWeekPayload(sessionType));
+
+      const target = screen.getByTestId("day-2026-05-05-run-target");
+      expect(target.getAttribute("data-run-targeting-mode")).toBe("hr_zones");
+      // The "Zone N" prefix proves this swatch belongs to the zone
+      // we're asserting on, not some other run-target chip on the page.
+      expect(target.textContent).toContain(`Zone ${bucket}`);
+
+      const swatch = screen.getByTestId(
+        "day-2026-05-05-run-target-zone-swatch",
+      );
+      // Pulled from HR_ZONE_COLORS so the assertion follows any future
+      // re-mapping of buckets → tokens without needing a test edit.
+      const expectedSwatchClass = HR_ZONE_COLORS[bucket].swatchClass;
+      expect(swatch.className).toContain(expectedSwatchClass);
+      expect(swatch.getAttribute("aria-hidden")).toBe("true");
+    },
+  );
 });
