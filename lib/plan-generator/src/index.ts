@@ -885,7 +885,19 @@ interface FocusRecipe {
   // surfaces (which key on phase) keep working without per-focus mapping.
   phaseLabel(block: PhaseBlock): string;
   // Mileage progressions. weekInBlock starts at 1.
-  longRunMi(weekInBlock: number, blockWeeks: number, isCutback: boolean): number;
+  // `isTrailingBlock` is true when this block is the last block in the
+  // campaign — it's used by the Marathon-Specific recipe to decide
+  // whether the final 3 weeks should run the blocks-mode tail-taper
+  // short-circuits (true) or a clean monotonic ramp into peak mileage
+  // because a Taper block follows in entries-mode (false). All other
+  // recipes ignore it; TypeScript contravariance permits arrow
+  // functions with fewer parameters to satisfy the wider signature.
+  longRunMi(
+    weekInBlock: number,
+    blockWeeks: number,
+    isCutback: boolean,
+    isTrailingBlock: boolean,
+  ): number;
   easyRunMi(weekInBlock: number, blockWeeks: number, isCutback: boolean): number;
   qualityRunMi(weekInBlock: number, blockWeeks: number, isCutback: boolean): number;
   // Pace targets (mm:ss / mi).
@@ -1021,25 +1033,33 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
   },
   "Marathon-Specific": {
     phaseLabel: () => "Marathon-Specific",
-    longRunMi: (w, blockWeeks, isCutback) => {
-      // Ramp 12 -> 20+ across the block, with cutbacks every 4th week
-      // and a 3-week taper at the end (volume drops sharply in the
-      // final 3 weeks). The block's LAST week is race week ONLY in
-      // blocks-mode where the auto-pinned 16-week Marathon-Specific
-      // tail closes the campaign — `buildWeekDays` and
-      // `previewWeeklyMileage` both swap that Sunday for the canonical
-      // 26.2 mi marathon via their own race-day branches, so the value
-      // returned here is overridden anyway. In entries-mode the MS
-      // block is followed by a Taper, so its last week is NOT race
-      // week (Task #185); we emit a tapered late-MS value (~13 mi)
-      // here so the curve continues to ramp down with neighboring
-      // late-MS weeks instead of phantom-spiking to 26.2 mi or to the
-      // ramp peak (~20 mi) right before the Taper kicks in.
-      const tail = blockWeeks - w; // 0 = block-final week, 1 = block-eve week, etc.
-      if (tail === 0) return r1(13);
-      if (tail === 1) return r1(8);
-      if (tail === 2) return r1(13);
-      if (tail === 3) return r1(16);
+    longRunMi: (w, blockWeeks, isCutback, isTrailingBlock) => {
+      // Ramp 12 -> 20+ across the block, with cutbacks every 4th week.
+      //
+      // BLOCKS-MODE (isTrailingBlock = true): the auto-pinned 16-week
+      // Marathon-Specific tail closes the campaign and owns the race-eve
+      // taper itself, so the final 3 weeks short-circuit to a
+      // 16/13/8 ramp-down and the block-final week to 13 (overridden to
+      // 26.2 mi by the race-day branch in `buildWeekDays` /
+      // `previewWeeklyMileage` — the value returned here is dead but
+      // kept symmetric).
+      //
+      // ENTRIES-MODE (isTrailingBlock = false): the marathon templates
+      // expand to Base → Time on Feet → Marathon-Specific → Taper, so
+      // the MS block is followed by a dedicated Taper block that owns
+      // ALL tapering. Running the blocks-mode tail short-circuits
+      // there produces a confusing non-monotonic curve right before
+      // the Taper kicks in (e.g. 16 → 13 → 8 → 20 across the last 4
+      // MS weeks of an 18w plan). Skip the short-circuits and let the
+      // monotonic ramp run all the way to peak so the Taper block
+      // owns the actual ramp-down (Task #190, building on Task #185).
+      if (isTrailingBlock) {
+        const tail = blockWeeks - w; // 0 = block-final week, 1 = block-eve week, etc.
+        if (tail === 0) return r1(13);
+        if (tail === 1) return r1(8);
+        if (tail === 2) return r1(13);
+        if (tail === 3) return r1(16);
+      }
       const peak = 20;
       const base = Math.min(peak, 12 + (w - 1) * ((peak - 12) / Math.max(1, blockWeeks - 4)));
       return r1(isCutback ? Math.max(8, base * 0.75) : base);
@@ -1954,8 +1974,14 @@ function buildWeekDays(opts: {
   recipe: FocusRecipe;
   wkStart: Date;
   isRaceWeek: boolean;
+  // True when this block is the campaign-final block. The
+  // Marathon-Specific recipe uses this to choose between the
+  // blocks-mode tail-taper short-circuits (true) and a clean
+  // monotonic ramp into peak mileage when a Taper block follows
+  // in entries-mode (false). See `RECIPES["Marathon-Specific"]`.
+  isTrailingBlock: boolean;
 }): DailyRow[] {
-  const { weekNumber, weekInBlock, blockWeeks, block, recipe, wkStart, isRaceWeek } = opts;
+  const { weekNumber, weekInBlock, blockWeeks, block, recipe, wkStart, isRaceWeek, isTrailingBlock } = opts;
   const phase = recipe.phaseLabel(block);
   const isCutback = recipe.useCutbacks
     ? blockWeeks >= 4 && weekInBlock % 4 === 0 && weekInBlock !== blockWeeks
@@ -2245,7 +2271,7 @@ function buildWeekDays(opts: {
       total_load: 350,
     };
   } else {
-    const longRun = recipe.longRunMi(weekInBlock, blockWeeks, isCutback);
+    const longRun = recipe.longRunMi(weekInBlock, blockWeeks, isCutback, isTrailingBlock);
     const longEquipment = weekNumber % 2 === 0 ? "Outdoor" : "Peloton Tread";
     const longMin = Math.max(20, Math.round(longRun * recipe.longRunMinPerMi));
     sunDay = {
@@ -2329,7 +2355,7 @@ function buildWeekDays(opts: {
 
     // Sun: long run → long bike/row endurance session. Match the long
     // run's planned minutes so weekly cardio volume tracks the recipe.
-    const longRunMi = recipe.longRunMi(weekInBlock, blockWeeks, isCutback);
+    const longRunMi = recipe.longRunMi(weekInBlock, blockWeeks, isCutback, isTrailingBlock);
     const longMin = Math.max(20, Math.round(longRunMi * recipe.longRunMinPerMi));
     resolvedSunDay = {
       ...sunDay,
@@ -2561,7 +2587,12 @@ export function previewWeeklyMileage(
           ? 0
           : isRaceWeek
             ? MARATHON_DISTANCE_MI
-            : recipe.longRunMi(weekInBlock, w, isCutback);
+            : recipe.longRunMi(
+                weekInBlock,
+                w,
+                isCutback,
+                blockIndex === blocks.length - 1,
+              );
       }
       const totalMi = r1(easyMi + qualityMi + longMi);
       // Wed steady-run gating mirrors `buildWeekDays`: the recipe must
@@ -2689,6 +2720,7 @@ export function generatePlanFromConfig(
         recipe,
         wkStart,
         isRaceWeek,
+        isTrailingBlock: block === expandedBlocks[expandedBlocks.length - 1],
       });
       daily.push(...days);
 

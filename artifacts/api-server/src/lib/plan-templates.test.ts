@@ -814,29 +814,33 @@ describe("Marathon-Specific recipe — no phantom 26.2 mi long run mid-plan (Tas
       .toBe(26.2);
 
     // Pin the full late-MS long-run sequence (weeks 12-15, the last
-    // four Marathon-Specific weeks) to the tapered ramp the recipe
-    // is supposed to produce. This guards against BOTH:
-    //   (a) the phantom 26.2 mi spike on week 15 (the original bug),
-    //       and
-    //   (b) a regression that drops the `tail === 0` short-circuit
-    //       entirely and lets week 15 fall through to the ramp peak
-    //       (~20 mi), which would also be wrong since week 15 sits
-    //       directly before the Taper block.
-    // Expected values come from the Marathon-Specific recipe with the
-    // Task #185 fix:
-    //   tail=3 (w=12) → 16 mi
-    //   tail=2 (w=13) → 13 mi
-    //   tail=1 (w=14) → 8 mi
-    //   tail=0 (w=15) → 13 mi (tapered late-MS, ~12-14 mi range)
-    expect(longRunByWeek.get(12), "week 12 long run mi").toBe(16);
-    expect(longRunByWeek.get(13), "week 13 long run mi").toBe(13);
-    expect(longRunByWeek.get(14), "week 14 long run mi").toBe(8);
-    expect(longRunByWeek.get(15), "week 15 long run mi").toBe(13);
-    // Belt-and-suspenders: week 15 must be in the "normal late-MS"
-    // band — comfortably under the peak (≤16) and over the deep
-    // race-eve trough (>8).
-    expect(longRunByWeek.get(15)!).toBeGreaterThanOrEqual(12);
-    expect(longRunByWeek.get(15)!).toBeLessThanOrEqual(14);
+    // four Marathon-Specific weeks) to the smoothed monotonic ramp the
+    // entries-mode recipe is supposed to produce after Task #190.
+    // Task #185 added tail-taper short-circuits (16/13/8/13) for the
+    // last 4 weeks; Task #190 gates those on `isTrailingBlock` so they
+    // only fire in blocks-mode (where the auto-pinned 16-week MS tail
+    // owns the race-eve taper). In entries-mode the dedicated Taper
+    // block that follows the MS block now owns ALL tapering, so the
+    // MS block ramps cleanly to peak.
+    //
+    // Block layout for 18w "marathon": 4 Base + 5 ToF + 6 MS + 3 Taper.
+    // MS weeks are plan weeks 10-15 with blockWeeks=6.
+    // Recipe ramp: base = min(20, 12 + (w-1) * (8/2)); cutback every 4w.
+    //   plan w12 = MS w3:           20 mi (peak)
+    //   plan w13 = MS w4 (cutback): max(8, 20*0.75) = 15 mi
+    //   plan w14 = MS w5:           20 mi (peak)
+    //   plan w15 = MS w6:           20 mi (peak — Taper block follows)
+    // Pre-Task #190 these read 16 → 13 → 8 → 13 mi (the blocks-mode
+    // tail-taper short-circuits firing in entries-mode).
+    expect(longRunByWeek.get(12), "week 12 long run mi").toBe(20);
+    expect(longRunByWeek.get(13), "week 13 long run mi").toBe(15);
+    expect(longRunByWeek.get(14), "week 14 long run mi").toBe(20);
+    expect(longRunByWeek.get(15), "week 15 long run mi").toBe(20);
+    // Belt-and-suspenders: week 15 (the block-final week) must be at
+    // or near peak (the Taper block owns ramp-down), NOT a tapered
+    // value in the 8-13 mi range that the pre-Task #190 short-circuits
+    // would have produced.
+    expect(longRunByWeek.get(15)!).toBeGreaterThanOrEqual(18);
   });
 
   it("18w entries-mode 'marathon_pfitz_18_70' plan only emits 26.2 mi on the campaign-final Sunday (Task #184)", () => {
@@ -911,5 +915,163 @@ describe("Marathon-Specific recipe — no phantom 26.2 mi long run mid-plan (Tas
         `preview week ${preview[i]!.week} long run mi`,
       ).toBeLessThan(26.2);
     }
+  });
+});
+
+// Task #190 — the Marathon-Specific recipe used to short-circuit the
+// last 4 weeks of any MS block to a 16/13/8/13 ramp-down on the
+// theory that the MS block always owns the race-eve taper. That's
+// only true in blocks-mode (the auto-pinned 16-week MS tail closes
+// the campaign). In entries-mode the marathon templates expand to
+// Base → Time on Feet → Marathon-Specific → Taper, so the MS block
+// is followed by a dedicated Taper that owns ALL tapering. Running
+// the blocks-mode short-circuits there produces a confusing
+// non-monotonic curve right before the Taper kicks in (e.g. plan
+// weeks 12-15 of an 18w `marathon` plan read 15 → 20 → 20 → 20 with
+// the fix; pre-fix they read 16 → 13 → 8 → 13 mi).
+//
+// The fix gates the tail short-circuits on whether the MS block is
+// the trailing block of the campaign — blocks-mode keeps the
+// taper-eve ramp-down; entries-mode runs a clean monotonic ramp to
+// peak and lets the Taper block own the ramp-down.
+describe("Marathon-Specific recipe — entries-mode smoothed late-MS ramp (Task #190)", () => {
+  function entriesMarathon(templateId: string, weeks: number): PlannerConfig {
+    const startMs = Date.parse("2026-05-04T00:00:00Z");
+    const endMs = startMs + (weeks * 7 - 1) * 86400000;
+    const marathonDate = new Date(endMs).toISOString().slice(0, 10);
+    return {
+      startDate: "2026-05-04",
+      marathonDate,
+      blocks: [],
+      entries: [
+        {
+          templateId,
+          weeks,
+          startDate: "2026-05-04",
+        },
+      ],
+    } as unknown as PlannerConfig;
+  }
+
+  it("18w entries-mode 'marathon' — late-MS Sundays are a clean monotonic ramp to peak (no taper-eve trough)", () => {
+    // distribute(18, [Base w3 min4, ToF w4 min4, MS w4 min5, Taper w2 min3])
+    // → 4 Base + 5 ToF + 6 Marathon-Specific + 3 Taper.
+    // MS weeks are plan weeks 10-15 (blockWeeks=6). Pin the WHOLE MS
+    // Sunday sequence so a future regression that re-enables the
+    // blocks-mode tail short-circuits anywhere in entries-mode is
+    // caught loudly.
+    const cfg = entriesMarathon("marathon", 18);
+    const { daily } = generatePlanFromConfig(cfg);
+    const longRunByWeek = new Map<number, number>();
+    for (const d of daily) {
+      if (d.day === "Sun") {
+        longRunByWeek.set(d.week, d.distance_mi || 0);
+      }
+    }
+
+    // Recipe ramp: base = min(20, 12 + (w-1) * (8/2)); cutback every
+    // 4w. blockWeeks=6 so MS w4 is a cutback (15 mi after 0.75
+    // multiplier on the 20 mi peak).
+    //   MS w1 (plan w10): 12 mi
+    //   MS w2 (plan w11): 16 mi
+    //   MS w3 (plan w12): 20 mi (peak)
+    //   MS w4 (plan w13): cutback → 15 mi
+    //   MS w5 (plan w14): 20 mi
+    //   MS w6 (plan w15): 20 mi (block-final, Taper follows)
+    expect(longRunByWeek.get(10), "MS w1 (plan w10)").toBe(12);
+    expect(longRunByWeek.get(11), "MS w2 (plan w11)").toBe(16);
+    expect(longRunByWeek.get(12), "MS w3 (plan w12)").toBe(20);
+    expect(longRunByWeek.get(13), "MS w4 cutback (plan w13)").toBe(15);
+    expect(longRunByWeek.get(14), "MS w5 (plan w14)").toBe(20);
+    expect(longRunByWeek.get(15), "MS w6 block-final (plan w15)").toBe(20);
+
+    // Across non-cutback MS weeks the long run must monotonically
+    // ramp (or hold at peak); no late-MS week may dip below the
+    // previous non-cutback week.
+    const nonCutbackMs = [10, 11, 12, 14, 15];
+    for (let i = 1; i < nonCutbackMs.length; i += 1) {
+      const cur = longRunByWeek.get(nonCutbackMs[i]!)!;
+      const prev = longRunByWeek.get(nonCutbackMs[i - 1]!)!;
+      expect(
+        cur,
+        `non-cutback MS week ${nonCutbackMs[i]} (${cur} mi) must be >= week ${nonCutbackMs[i - 1]} (${prev} mi)`,
+      ).toBeGreaterThanOrEqual(prev);
+    }
+  });
+
+  it("18w entries-mode 'marathon_pfitz_18_70' — late-MS Sundays are a clean monotonic ramp to peak", () => {
+    // Same expand shape as 'marathon': 4 Base + 5 ToF + 6 MS + 3 Taper.
+    // MS weeks are plan weeks 10-15.
+    const cfg = entriesMarathon("marathon_pfitz_18_70", 18);
+    const { daily } = generatePlanFromConfig(cfg);
+    const longRunByWeek = new Map<number, number>();
+    for (const d of daily) {
+      if (d.day === "Sun") {
+        longRunByWeek.set(d.week, d.distance_mi || 0);
+      }
+    }
+
+    // The block-final MS Sunday MUST be at peak (20 mi), NOT the
+    // pre-fix 13 mi tapered value. This is the canary for the bug.
+    expect(longRunByWeek.get(15), "MS block-final (plan w15)").toBe(20);
+    // And the three weeks immediately before the Taper must NOT dip
+    // into the 8 mi taper-eve trough that the pre-fix short-circuits
+    // would have produced.
+    expect(longRunByWeek.get(13)!).toBeGreaterThanOrEqual(15);
+    expect(longRunByWeek.get(14)!).toBeGreaterThanOrEqual(15);
+    expect(longRunByWeek.get(15)!).toBeGreaterThanOrEqual(15);
+  });
+
+  it("blocks-mode marathon plans still get the auto-pinned 16-week tail's race-eve taper (16/13/8 in last 3 weeks)", () => {
+    // Auto-pinned 16-week Marathon-Specific tail. With blocks=[] and
+    // a 16-week window the entire plan IS the trailing tail, so the
+    // recipe's tail short-circuits MUST still fire on weeks 13-15 of
+    // the tail (tail===3/2/1) — proving Task #190 didn't accidentally
+    // disable the blocks-mode behavior.
+    const cfg: PlannerConfig = {
+      startDate: "2026-05-04",
+      marathonDate: "2026-08-23", // 16 weeks later.
+      blocks: [],
+    };
+    const { daily, weekly } = generatePlanFromConfig(cfg);
+    const raceWeek = weekly.length;
+    expect(raceWeek).toBe(16);
+
+    const longRunByWeek = new Map<number, number>();
+    for (const d of daily) {
+      if (d.day === "Sun") {
+        longRunByWeek.set(d.week, d.distance_mi || 0);
+      }
+    }
+
+    // tail===3 (plan w13): 16 mi
+    // tail===2 (plan w14): 13 mi
+    // tail===1 (plan w15): 8 mi
+    // tail===0 (plan w16): 26.2 mi (race-day branch override)
+    expect(longRunByWeek.get(13), "tail-3 week").toBe(16);
+    expect(longRunByWeek.get(14), "tail-2 week").toBe(13);
+    expect(longRunByWeek.get(15), "tail-1 week").toBe(8);
+    expect(longRunByWeek.get(16), "race day").toBe(26.2);
+  });
+
+  it("previewWeeklyMileage matches the generator: entries-mode MS block ramps to peak in the preview too", () => {
+    // The Phase Planner sparkline reads `previewWeeklyMileage` for
+    // its mileage curve — mirror the same shape and verify the
+    // preview also no longer drops into the 8 mi taper-eve trough on
+    // late-MS weeks of an entries-mode plan.
+    const blocks = expandEntriesToBlocks([
+      { templateId: "marathon", weeks: 18 },
+    ]);
+    const preview = previewWeeklyMileage(blocks, {
+      appendMarathonTail: false,
+    });
+    expect(preview.length).toBe(18);
+    // MS plan weeks 10-15 — same pinning as the generator test above.
+    expect(preview[9]!.longRunMi, "preview MS w1 (plan w10)").toBe(12);
+    expect(preview[10]!.longRunMi, "preview MS w2 (plan w11)").toBe(16);
+    expect(preview[11]!.longRunMi, "preview MS w3 (plan w12)").toBe(20);
+    expect(preview[12]!.longRunMi, "preview MS w4 cutback (plan w13)").toBe(15);
+    expect(preview[13]!.longRunMi, "preview MS w5 (plan w14)").toBe(20);
+    expect(preview[14]!.longRunMi, "preview MS w6 block-final (plan w15)").toBe(20);
   });
 });
