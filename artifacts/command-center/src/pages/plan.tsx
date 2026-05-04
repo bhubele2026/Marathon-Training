@@ -177,12 +177,32 @@ export default function Plan() {
     return acc;
   }, {} as Record<string, typeof weeks>);
 
-  // Heuristic: a "race" plan is one whose phase ladder includes the
-  // auto-pinned Marathon-Specific tail. Tonal-first / non-race plans
-  // (lift_primary blocks, ad-hoc Custom blocks, etc.) never produce that
-  // phase, so headers and copy fall back to a generic "workout plan"
-  // framing instead of presupposing a race.
-  const hasRace = weeks.some((w) => w.phase === "Marathon-Specific");
+  // Task #204: a "race" plan is any campaign whose trailing plan_day
+  // Sunday is a recognised race row — surfaced server-side as
+  // overview.raceKind ("marathon" | "half" | "10k" | "5k") so half /
+  // 10K / 5K entries-mode plans get the same race-campaign framing
+  // marathon plans do. The legacy phase-based fallback (presence of
+  // the auto-pinned "Marathon-Specific" tail) keeps marathon plans
+  // labelled correctly on a stale cached overview that pre-dates the
+  // raceKind field. Tonal-first / non-race plans (lift_primary blocks,
+  // ad-hoc Custom blocks, etc.) produce neither signal so headers and
+  // copy fall back to the generic "workout plan" framing instead of
+  // presupposing a race.
+  const raceKind = overview.raceKind ?? null;
+  const hasRace = raceKind !== null || weeks.some((w) => w.phase === "Marathon-Specific");
+  // Per-kind campaign label (Task #204) for symmetry with the new
+  // dashboard / week-detail per-kind badges from task #201. The
+  // marathon variant intentionally collapses to plain "Race Campaign"
+  // so the header copy stays unchanged on the existing flagship
+  // marathon plan; the shorter races each get their own headline so
+  // a 5K block doesn't read as a marathon by accident.
+  const RACE_CAMPAIGN_LABELS: Record<NonNullable<typeof raceKind>, string> = {
+    marathon: "Race Campaign",
+    half: "Half Marathon Campaign",
+    "10k": "10K Campaign",
+    "5k": "5K Campaign",
+  };
+  const raceCampaignLabel = raceKind ? RACE_CAMPAIGN_LABELS[raceKind] : "Race Campaign";
   const totalMissed = weeks.reduce((sum, w) => sum + (w.missedSessions ?? 0), 0);
   const totalCustomized = weeks.reduce((sum, w) => sum + (w.customizedDays ?? 0), 0);
   const nextMissedWeek = weeks.find((w) => (w.missedSessions ?? 0) > 0);
@@ -191,10 +211,17 @@ export default function Plan() {
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-black uppercase tracking-tight text-primary">
-            {hasRace ? "Race Campaign" : "Workout Plan"}
+          <h2
+            className="text-3xl font-black uppercase tracking-tight text-primary"
+            data-testid="plan-header-title"
+            data-race-kind={raceKind ?? ""}
+          >
+            {hasRace ? raceCampaignLabel : "Workout Plan"}
           </h2>
-          <p className="text-muted-foreground uppercase font-medium tracking-widest mt-1">
+          <p
+            className="text-muted-foreground uppercase font-medium tracking-widest mt-1"
+            data-testid="plan-header-subtitle"
+          >
             {hasRace
               ? `${overview.weeksRemaining} Weeks to Race Day · ${formatDate(overview.raceDate)}`
               : `${overview.weeksRemaining} Weeks Remaining · Ends ${formatDate(overview.raceDate)}`}

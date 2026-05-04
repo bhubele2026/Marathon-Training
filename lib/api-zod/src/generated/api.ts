@@ -37,6 +37,12 @@ export const GetPlanOverviewResponse = zod.object({
     .describe(
       'Task #135. Every program (TemplateEntry) currently contributing rows to plan_days, ordered by sourceEntryIndex. The \/plan overview renders this as a parallel-tracks panel so a runner can see at a glance which concurrent programs are stacked. Aggregated from plan_days so the panel always reflects the applied state. For legacy single-program campaigns this is a one-element array labelled \"Marathon Plan\".\n',
     ),
+  raceKind: zod
+    .enum(["marathon", "half", "10k", "5k"])
+    .nullish()
+    .describe(
+      'Task #204. Kind of race the campaign is anchored on, derived\nfrom the trailing plan_day Sunday. Populated when that final\nrow is a recognised race day (sessionType `Race` or the\ngenerator\'s \"RACE DAY — <Marathon|Half|10K|5K>\" description\nprefix); resolved from the description first so a runner who\nedits the distance still gets the right kind, then falls\nback to `distance_mi`. Null on tonal-first \/ non-race plans\n(lift_primary blocks, ad-hoc Custom blocks) and on legacy \/\nfreshly seeded campaigns with no plan_days yet. Drives the\n\"Race Campaign\" \/ per-kind (\"5K Campaign\", \"10K Campaign\",\n\"Half Marathon Campaign\", \"Marathon Campaign\") framing on\nthe \/plan header so half \/ 10K \/ 5K entries-mode plans get\nthe same \"Weeks to Race Day\" copy marathon plans do, instead\nof falling back to a generic \"Workout Plan · Weeks Remaining\".\n',
+    ),
 });
 
 export const ListPlanWeeksResponseItem = zod.object({

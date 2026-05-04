@@ -15,6 +15,7 @@ import {
   E_GYM,
   E_OUTDOOR,
   T_BIKE,
+  T_LONG_RUN,
   T_REST,
   T_RUN,
   T_STRENGTH,
@@ -70,6 +71,133 @@ describe("GET /api/plan/overview", () => {
     // Our test week id (8101) is well above the real plan length, so the
     // weeksRemaining clamp pins the value to 0.
     expect(res.body.weeksRemaining).toBe(0);
+  });
+
+  // Task #204: server-side detection of the campaign's race kind from
+  // the trailing plan_day Sunday so the /plan header on the client can
+  // switch to "Race Campaign · Weeks to Race Day" framing for half /
+  // 10K / 5K plans, not just marathons. The four cases below pin the
+  // happy path for each canonical race kind plus the negative cases
+  // (no plan days at all, and a non-race trailing Sunday) so the
+  // header doesn't presuppose a race on a tonal-first / lift-only
+  // block. Description-prefix resolution is exercised directly so a
+  // runner who edits distance_mi away from the canonical value still
+  // gets the right kind.
+  it.each([
+    {
+      kind: "5k",
+      distanceMi: 3.1,
+      description:
+        "RACE DAY — 5K (3.1 mi). Execute race plan at VO2 effort, go hard from the gun, finish strong.",
+    },
+    {
+      kind: "10k",
+      distanceMi: 6.2,
+      description:
+        "RACE DAY — 10K (6.2 mi). Execute race plan at threshold effort, hold form, finish strong.",
+    },
+    {
+      kind: "half",
+      distanceMi: 13.1,
+      description:
+        "RACE DAY — Half (13.1 mi). Execute race plan, fuel every 4 mi, finish strong.",
+    },
+    {
+      kind: "marathon",
+      distanceMi: 26.2,
+      description:
+        "RACE DAY — Marathon (26.2 mi). Execute race plan, fuel every 4 mi, finish strong.",
+    },
+  ])(
+    "reports raceKind=$kind when the trailing plan_day is the matching race row",
+    async ({ kind, distanceMi, description }) => {
+      const week = 8410;
+      const phase = "Race Tail";
+      await insertWeek(week, {
+        startDate: "2099-10-04",
+        endDate: "2099-10-10",
+        phase,
+      });
+      // A non-race lead-in day on Saturday plus the race-day Sunday
+      // sharing the week. The query orders by date DESC so the
+      // Sunday wins regardless of insertion order.
+      await insertPlanDay(week, phase, {
+        date: "2099-10-09",
+        day: "Sat",
+        sessionType: T_RUN,
+        equipment: E_OUTDOOR,
+        distanceMi: 2,
+      });
+      await insertPlanDay(week, phase, {
+        date: "2099-10-10",
+        day: "Sun",
+        sessionType: "Race",
+        equipment: E_OUTDOOR,
+        distanceMi,
+        description,
+      });
+
+      const res = await request(app).get("/api/plan/overview");
+      expect(res.status).toBe(200);
+      expectMatchesSchema(GetPlanOverviewResponse, res.body);
+      expect(res.body.raceKind).toBe(kind);
+    },
+  );
+
+  it("returns raceKind=null when the trailing plan_day is a non-race row at a canonical race distance", async () => {
+    // A 13.1 mi long run on Sunday must NOT be classified as a half
+    // marathon race day from distance alone. Without an explicit
+    // race signal (sessionType === "Race" or the "RACE DAY — "
+    // description prefix) the row is just a long run, and the
+    // header should keep the generic "Workout Plan" framing.
+    const week = 8420;
+    const phase = "Long Run Tail";
+    await insertWeek(week, {
+      startDate: "2099-11-01",
+      endDate: "2099-11-07",
+      phase,
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-11-07",
+      day: "Sun",
+      sessionType: T_LONG_RUN,
+      equipment: E_OUTDOOR,
+      distanceMi: 13.1,
+      description: "Long run, easy effort.",
+    });
+    const res = await request(app).get("/api/plan/overview");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetPlanOverviewResponse, res.body);
+    expect(res.body.raceKind).toBeNull();
+  });
+
+  it("resolves raceKind from the description prefix when distance_mi was edited away from the canonical value", async () => {
+    // A runner editing the Sunday distance_mi (e.g. nudging it to a
+    // measured 5.05 mi 5K course) must not lose the race-campaign
+    // framing — the description prefix takes precedence over the
+    // distance fallback.
+    const week = 8430;
+    const phase = "5K Tail";
+    await insertWeek(week, {
+      startDate: "2099-12-06",
+      endDate: "2099-12-12",
+      phase,
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-12-12",
+      day: "Sun",
+      sessionType: "Race",
+      equipment: E_OUTDOOR,
+      // Non-canonical distance after a runner edit; description
+      // still carries the generator's "RACE DAY — 5K" prefix.
+      distanceMi: 5.05,
+      description:
+        "RACE DAY — 5K (3.1 mi). Execute race plan at VO2 effort, go hard from the gun, finish strong.",
+    });
+    const res = await request(app).get("/api/plan/overview");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetPlanOverviewResponse, res.body);
+    expect(res.body.raceKind).toBe("5k");
   });
 });
 

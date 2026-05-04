@@ -34,7 +34,23 @@ import Plan from "./plan";
 const mockOverview = vi.mocked(useGetPlanOverview);
 const mockWeeks = vi.mocked(useListPlanWeeks);
 
-const OVERVIEW = {
+// `raceKind` is widened explicitly so per-test overrides can pin it to
+// any of the four canonical race kinds (or null) without the inferred
+// type narrowing it to just `null`.
+const OVERVIEW: {
+  currentWeek: number;
+  currentPhase: string;
+  totalWeeks: number;
+  weeksRemaining: number;
+  raceDate: string;
+  startDate: string;
+  startWeight: number;
+  currentWeight: number;
+  goalWeight: number;
+  weeklyMilesTarget: number;
+  longRunTarget: number;
+  raceKind: "marathon" | "half" | "10k" | "5k" | null;
+} = {
   currentWeek: 1,
   currentPhase: "Bike Block",
   totalWeeks: 2,
@@ -46,11 +62,15 @@ const OVERVIEW = {
   goalWeight: 210,
   weeklyMilesTarget: 0,
   longRunTarget: 0,
+  raceKind: null,
 };
 
-function renderWith(weeks: unknown) {
+function renderWith(
+  weeks: unknown,
+  overviewOverrides: Partial<typeof OVERVIEW> = {},
+) {
   mockOverview.mockReturnValue({
-    data: OVERVIEW,
+    data: { ...OVERVIEW, ...overviewOverrides },
     isLoading: false,
   } as unknown as ReturnType<typeof useGetPlanOverview>);
   mockWeeks.mockReturnValue({
@@ -350,5 +370,123 @@ describe("Plan page — bike/row cardio summary (task #109)", () => {
     const headline = screen.getByTestId("week-volume-miles-2");
     expect(headline.getAttribute("data-adherence")).toBe("met");
     expect(headline.className).toContain("emerald");
+  });
+});
+
+describe("Plan page — race-campaign framing (task #204)", () => {
+  // The plan-page header used to switch on the presence of the
+  // auto-pinned "Marathon-Specific" phase, so half / 10K / 5K
+  // entries-mode plans that end on a real race-day Sunday but never
+  // earn that phase fell back to a generic "Workout Plan · Weeks
+  // Remaining ... Ends <date>" framing that hid the race anchor.
+  // Task #204 broadens the detection to any campaign whose trailing
+  // plan_day Sunday is a recognised race row, surfaced via the new
+  // `overview.raceKind` field, with optional per-kind labels for
+  // symmetry with the dashboard / week-detail per-kind badges from
+  // task #201.
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  // Minimal week fixture so we can focus on the header copy. The list
+  // body cards aren't relevant to this feature — we only assert on the
+  // page-level header derived from `overview.raceKind`.
+  const stubWeek = {
+    week: 1,
+    phase: "Aerobic Base",
+    startDate: "2026-05-04",
+    endDate: "2026-05-10",
+    plannedStrength: 0,
+    plannedCardio: 0,
+    plannedTotalLoad: 0,
+    plannedMiles: 20,
+    longRunMi: 6,
+    actualMiles: 0,
+    actualCardio: 0,
+    completedSessions: 0,
+    totalSessions: 4,
+    missedSessions: 0,
+    dominantCardioEquipment: null,
+  };
+
+  it("uses '5K Campaign · Weeks to Race Day' on a 5K entries-mode plan with no Marathon-Specific phase", () => {
+    // The decisive part of the contract: a 5K campaign reports
+    // raceKind="5k" from the server (no Marathon-Specific phase in
+    // sight) and the header MUST switch to race-day framing instead
+    // of the generic "Workout Plan · Weeks Remaining" copy.
+    renderWith([stubWeek], { raceKind: "5k" });
+    const title = screen.getByTestId("plan-header-title");
+    expect(title.textContent).toBe("5K Campaign");
+    expect(title.getAttribute("data-race-kind")).toBe("5k");
+    const subtitle = screen.getByTestId("plan-header-subtitle");
+    expect(subtitle.textContent).toContain("Weeks to Race Day");
+    expect(subtitle.textContent).not.toContain("Weeks Remaining");
+  });
+
+  it("uses 'Half Marathon Campaign · Weeks to Race Day' on a half plan with no Marathon-Specific phase", () => {
+    renderWith([stubWeek], { raceKind: "half" });
+    const title = screen.getByTestId("plan-header-title");
+    expect(title.textContent).toBe("Half Marathon Campaign");
+    expect(title.getAttribute("data-race-kind")).toBe("half");
+    expect(screen.getByTestId("plan-header-subtitle").textContent).toContain(
+      "Weeks to Race Day",
+    );
+  });
+
+  it("uses '10K Campaign · Weeks to Race Day' on a 10K plan with no Marathon-Specific phase", () => {
+    renderWith([stubWeek], { raceKind: "10k" });
+    const title = screen.getByTestId("plan-header-title");
+    expect(title.textContent).toBe("10K Campaign");
+    expect(title.getAttribute("data-race-kind")).toBe("10k");
+    expect(screen.getByTestId("plan-header-subtitle").textContent).toContain(
+      "Weeks to Race Day",
+    );
+  });
+
+  it("keeps the marathon header reading 'Race Campaign' so existing copy is unchanged", () => {
+    // Marathon plans intentionally collapse to plain "Race Campaign"
+    // (not "Marathon Campaign") so the header copy on the existing
+    // flagship marathon plan stays unchanged after this task —
+    // no spurious "Marathon Campaign" rebrand on the long-running
+    // mission users already know.
+    renderWith([{ ...stubWeek, phase: "Marathon-Specific" }], {
+      raceKind: "marathon",
+    });
+    const title = screen.getByTestId("plan-header-title");
+    expect(title.textContent).toBe("Race Campaign");
+    expect(title.getAttribute("data-race-kind")).toBe("marathon");
+    expect(screen.getByTestId("plan-header-subtitle").textContent).toContain(
+      "Weeks to Race Day",
+    );
+  });
+
+  it("falls back to the legacy Marathon-Specific phase signal when raceKind is missing on cached overviews", () => {
+    // A stale cached /plan/overview response that pre-dates the new
+    // raceKind field must not regress marathon plans to "Workout
+    // Plan". The phase-ladder fallback keeps the race-campaign
+    // framing alive until the cache refreshes.
+    renderWith([{ ...stubWeek, phase: "Marathon-Specific" }], {
+      raceKind: null,
+    });
+    const title = screen.getByTestId("plan-header-title");
+    expect(title.textContent).toBe("Race Campaign");
+    expect(screen.getByTestId("plan-header-subtitle").textContent).toContain(
+      "Weeks to Race Day",
+    );
+  });
+
+  it("keeps the generic 'Workout Plan · Weeks Remaining' framing on tonal-first / non-race plans", () => {
+    // No race signal anywhere — raceKind is null and no phase ladder
+    // includes Marathon-Specific. The header MUST stay on the
+    // generic "Workout Plan" copy so we don't presuppose a race day
+    // on a lift_primary block / ad-hoc Custom block.
+    renderWith([stubWeek], { raceKind: null });
+    const title = screen.getByTestId("plan-header-title");
+    expect(title.textContent).toBe("Workout Plan");
+    expect(title.getAttribute("data-race-kind")).toBe("");
+    const subtitle = screen.getByTestId("plan-header-subtitle");
+    expect(subtitle.textContent).toContain("Weeks Remaining");
+    expect(subtitle.textContent).toContain("Ends");
   });
 });

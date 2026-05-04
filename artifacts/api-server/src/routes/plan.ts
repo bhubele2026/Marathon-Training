@@ -67,6 +67,36 @@ router.get("/plan/overview", async (_req, res) => {
   );
   const currentWeight = lastMeasurement.rows[0]?.weight ?? null;
 
+  // Task #204: detect the campaign's race kind from the trailing
+  // plan_day so the /plan header can switch to "Race Campaign" /
+  // per-kind framing for half / 10K / 5K plans, not just marathons.
+  // The marathon-only heuristic in the client (presence of the
+  // "Marathon-Specific" phase) misses entries-mode half / 10K / 5K
+  // plans that end on a real race-day Sunday but never produce that
+  // phase. Using the LAST plan_day (max date) keeps this in sync with
+  // whichever program ends the campaign — including multi-program
+  // configs (Task #135) where a Tonal lift block runs alongside a 5K
+  // race block. Resolution mirrors the client `raceDayLabel` helper:
+  //   * gate on an explicit race signal (sessionType === "Race" OR
+  //     description starts with "RACE DAY — ") so a stray 13.1 mi
+  //     long run / 3.1 mi shakeout / 26.2 mi anything cannot be
+  //     mis-classified from distance alone.
+  //   * resolve kind from the description prefix first (survives a
+  //     runner editing the distance), fall back to `distance_mi` for
+  //     hand-edited rows that lost the prefix.
+  const lastDayRows = await db.execute<{
+    distance_mi: number | null;
+    description: string | null;
+    session_type: string | null;
+  }>(
+    sql`SELECT distance_mi, description, session_type
+        FROM plan_days
+        ORDER BY date DESC, source_entry_index ASC
+        LIMIT 1`,
+  );
+  const lastDay = lastDayRows.rows[0];
+  const raceKind = lastDay ? detectRaceKind(lastDay) : null;
+
   // Task #135: surface every program (TemplateEntry) currently
   // contributing rows to plan_days so the /plan overview can render a
   // "Programs" panel as parallel tracks. Aggregated directly from
@@ -111,8 +141,63 @@ router.get("/plan/overview", async (_req, res) => {
     weeklyMilesTarget: weekRow?.plannedMiles ?? 0,
     longRunTarget: weekRow?.longRunMi ?? 0,
     programs,
+    raceKind,
   });
 });
+
+// Task #204: server-side race-kind detection for /plan/overview.
+// Mirrors the client-side `raceDayLabel` helper at
+// artifacts/command-center/src/lib/race-day-label.ts so the two surfaces
+// agree on which trailing Sundays count as a race day. Returns one of
+// the four canonical race kinds, or null when the row is not a
+// recognised race day (tonal-first / lift-only / ad-hoc Custom blocks
+// never produce a race-day row).
+type DetectableRaceKind = "marathon" | "half" | "10k" | "5k";
+
+const RACE_DAY_PREFIX_RE = /^RACE DAY\s*[—-]\s*/i;
+const RACE_DAY_KIND_RE = /^RACE DAY\s*[—-]\s*(Marathon|Half|10K|5K)\b/i;
+
+function detectRaceKind(row: {
+  distance_mi: number | null;
+  description: string | null;
+  session_type: string | null;
+}): DetectableRaceKind | null {
+  // Gate on an explicit race signal so non-race rows at canonical race
+  // distances (13.1 mi long runs, 3.1 mi shakeouts, 6.2 mi taper runs,
+  // 26.2 mi anything) cannot be mis-labeled as race days from the
+  // distance fallback. Either the row IS a Race session, OR the
+  // description carries the generator's "RACE DAY — " prefix.
+  const description = row.description ?? "";
+  const hasRacePrefix = RACE_DAY_PREFIX_RE.test(description);
+  const isRaceSession =
+    typeof row.session_type === "string" &&
+    row.session_type.trim().toLowerCase() === "race";
+  if (!hasRacePrefix && !isRaceSession) return null;
+
+  // Resolve from the description prefix first — survives a runner
+  // editing distance_mi away from the canonical value.
+  const m = description.match(RACE_DAY_KIND_RE);
+  if (m) {
+    const tag = m[1]!.toLowerCase();
+    if (tag === "marathon") return "marathon";
+    if (tag === "half") return "half";
+    if (tag === "10k") return "10k";
+    if (tag === "5k") return "5k";
+  }
+
+  // Distance fallback for legacy / hand-edited rows that lost the
+  // prefix. The four canonical distances are far enough apart (≥3.1 mi
+  // gap) that 0.05 mi tolerance can never collide.
+  const d = row.distance_mi;
+  if (d != null) {
+    const eq = (a: number, b: number) => Math.abs(a - b) <= 0.05;
+    if (eq(d, 26.2)) return "marathon";
+    if (eq(d, 13.1)) return "half";
+    if (eq(d, 6.2)) return "10k";
+    if (eq(d, 3.1)) return "5k";
+  }
+  return null;
+}
 
 router.get("/plan/weeks", async (_req, res) => {
   const today = todayISO();

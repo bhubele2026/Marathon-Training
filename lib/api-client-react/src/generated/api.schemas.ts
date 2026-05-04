@@ -247,6 +247,34 @@ export type PlanOverviewProgramsItem = {
   weeks: number;
 };
 
+/**
+ * Task #204. Kind of race the campaign is anchored on, derived
+from the trailing plan_day Sunday. Populated when that final
+row is a recognised race day (sessionType `Race` or the
+generator's "RACE DAY — <Marathon|Half|10K|5K>" description
+prefix); resolved from the description first so a runner who
+edits the distance still gets the right kind, then falls
+back to `distance_mi`. Null on tonal-first / non-race plans
+(lift_primary blocks, ad-hoc Custom blocks) and on legacy /
+freshly seeded campaigns with no plan_days yet. Drives the
+"Race Campaign" / per-kind ("5K Campaign", "10K Campaign",
+"Half Marathon Campaign", "Marathon Campaign") framing on
+the /plan header so half / 10K / 5K entries-mode plans get
+the same "Weeks to Race Day" copy marathon plans do, instead
+of falling back to a generic "Workout Plan · Weeks Remaining".
+
+ */
+export type PlanOverviewRaceKind =
+  | (typeof PlanOverviewRaceKind)[keyof typeof PlanOverviewRaceKind]
+  | null;
+
+export const PlanOverviewRaceKind = {
+  marathon: "marathon",
+  half: "half",
+  "10k": "10k",
+  "5k": "5k",
+} as const;
+
 export interface PlanOverview {
   currentWeek: number;
   currentPhase: string;
@@ -262,6 +290,22 @@ export interface PlanOverview {
   /** Task #135. Every program (TemplateEntry) currently contributing rows to plan_days, ordered by sourceEntryIndex. The /plan overview renders this as a parallel-tracks panel so a runner can see at a glance which concurrent programs are stacked. Aggregated from plan_days so the panel always reflects the applied state. For legacy single-program campaigns this is a one-element array labelled "Marathon Plan".
    */
   programs?: PlanOverviewProgramsItem[];
+  /** Task #204. Kind of race the campaign is anchored on, derived
+from the trailing plan_day Sunday. Populated when that final
+row is a recognised race day (sessionType `Race` or the
+generator's "RACE DAY — <Marathon|Half|10K|5K>" description
+prefix); resolved from the description first so a runner who
+edits the distance still gets the right kind, then falls
+back to `distance_mi`. Null on tonal-first / non-race plans
+(lift_primary blocks, ad-hoc Custom blocks) and on legacy /
+freshly seeded campaigns with no plan_days yet. Drives the
+"Race Campaign" / per-kind ("5K Campaign", "10K Campaign",
+"Half Marathon Campaign", "Marathon Campaign") framing on
+the /plan header so half / 10K / 5K entries-mode plans get
+the same "Weeks to Race Day" copy marathon plans do, instead
+of falling back to a generic "Workout Plan · Weeks Remaining".
+ */
+  raceKind?: PlanOverviewRaceKind;
 }
 
 /**
