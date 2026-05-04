@@ -107,9 +107,14 @@ export default function Settings() {
       parsedMaxHr <= MAX_MAX_HR);
   const hasMaxHrChanged = parsedMaxHr !== savedMaxHr;
 
-  const previewRange = parsedMaxHr != null && isMaxHrValid
-    ? hrZoneBpmRange(2, parsedMaxHr)
-    : null;
+  const zoneBuckets = [1, 2, 3, 4, 5] as const;
+  const zonePreviews =
+    parsedMaxHr != null && isMaxHrValid
+      ? zoneBuckets.map((bucket) => ({
+          bucket,
+          range: hrZoneBpmRange(bucket, parsedMaxHr),
+        }))
+      : null;
 
   function handleSaveMaxHr() {
     if (!isMaxHrValid || !hasMaxHrChanged) return;
@@ -247,13 +252,34 @@ export default function Settings() {
                     blank.
                   </p>
                 )}
-                {previewRange && (
-                  <p
-                    className="text-xs text-muted-foreground"
-                    data-testid="text-max-hr-preview"
+                {zonePreviews && (
+                  <div
+                    className="rounded-md border border-border bg-muted/30 p-3"
+                    data-testid="zone-preview-table"
                   >
-                    Preview: Zone 2 · {previewRange.low}-{previewRange.high} bpm
-                  </p>
+                    <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground mb-2">
+                      Preview
+                    </p>
+                    <ul className="space-y-1">
+                      {zonePreviews.map(({ bucket, range }) => (
+                        <li
+                          key={bucket}
+                          className="flex items-center justify-between gap-4 text-xs"
+                          data-testid={`zone-preview-row-${bucket}`}
+                        >
+                          <span className="font-bold uppercase tracking-wider">
+                            Zone {bucket}
+                          </span>
+                          <span
+                            className="font-mono tabular-nums text-muted-foreground"
+                            data-testid={`zone-preview-range-${bucket}`}
+                          >
+                            {range ? `${range.low}-${range.high} bpm` : "—"}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
               </div>
 
