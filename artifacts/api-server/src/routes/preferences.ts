@@ -13,12 +13,14 @@ const SINGLETON_ID = 1;
 
 type ApiUserPreferences = {
   runTargetingMode: string;
+  maxHr: number | null;
   updatedAt: string;
 };
 
 function toApi(row: UserPreferencesRow): ApiUserPreferences {
   return {
     runTargetingMode: row.runTargetingMode,
+    maxHr: row.maxHr,
     updatedAt: row.updatedAt.toISOString(),
   };
 }
@@ -63,6 +65,10 @@ router.put("/preferences", async (req, res) => {
   const updates: Partial<UserPreferencesRow> = {};
   if (parsed.data.runTargetingMode !== undefined) {
     updates.runTargetingMode = parsed.data.runTargetingMode;
+  }
+  // Send maxHr=null to explicitly clear the value, omit to leave alone.
+  if (parsed.data.maxHr !== undefined) {
+    updates.maxHr = parsed.data.maxHr;
   }
   if (Object.keys(updates).length === 0) {
     const row = await readOrSeed();

@@ -30,6 +30,10 @@ export interface RunTargetInput {
   distanceMi?: number | null;
   // Prescribed pace string (e.g. "9:30") if the plan day has one.
   pace?: string | null;
+  // User's maximum heart rate in BPM (Task #141). Drives the HR Zone
+  // mode's BPM range suffix (e.g. "Zone 2 · 134-148 bpm"). When null
+  // or undefined we fall back to the generic "Zone N" label.
+  maxHr?: number | null;
 }
 
 export interface RunTargetOutput {
@@ -76,6 +80,46 @@ const HR_ZONE_LABELS: Record<1 | 2 | 3 | 4 | 5, string> = {
   4: "Zone 4",
   5: "Zone 5",
 };
+
+// Standard 5-zone "% of max heart rate" model (Task #141). Each zone is
+// a [low, high] fraction of the user's max HR. Zone 1 starts at 50% so
+// that a fully personalized "Zone 1 · 100-120 bpm" line still
+// represents purposeful aerobic recovery rather than walking.
+const HR_ZONE_PCT: Record<1 | 2 | 3 | 4 | 5, [number, number]> = {
+  1: [0.5, 0.6],
+  2: [0.6, 0.7],
+  3: [0.7, 0.8],
+  4: [0.8, 0.9],
+  5: [0.9, 1.0],
+};
+
+// Realistic adult max HR range. Mirrors the OpenAPI bounds; values
+// outside the window are treated as "not configured" so we fall back
+// to the generic Zone N label rather than rendering a nonsense range.
+const MIN_MAX_HR = 80;
+const MAX_MAX_HR = 230;
+
+// Compute the BPM low/high range for a given zone bucket and the
+// user's max HR. Returns null when maxHr is missing or out of range so
+// the caller can fall back to the unsuffixed "Zone N" label.
+export function hrZoneBpmRange(
+  bucket: 1 | 2 | 3 | 4 | 5,
+  maxHr: number | null | undefined,
+): { low: number; high: number } | null {
+  if (
+    maxHr == null ||
+    !Number.isFinite(maxHr) ||
+    maxHr < MIN_MAX_HR ||
+    maxHr > MAX_MAX_HR
+  ) {
+    return null;
+  }
+  const [lowPct, highPct] = HR_ZONE_PCT[bucket];
+  return {
+    low: Math.round(maxHr * lowPct),
+    high: Math.round(maxHr * highPct),
+  };
+}
 
 // Pick a beginner-friendly run/walk recipe that covers approximately
 // `runMin` minutes of total work and eases the walk portion as the
@@ -142,8 +186,17 @@ export function formatRunTarget(
   switch (mode) {
     case "effort":
       return { primary: EFFORT_LABELS[bucket], modeLabel };
-    case "hr_zones":
-      return { primary: HR_ZONE_LABELS[bucket], modeLabel };
+    case "hr_zones": {
+      const range = hrZoneBpmRange(bucket, input.maxHr);
+      const label = HR_ZONE_LABELS[bucket];
+      if (range) {
+        return {
+          primary: `${label} · ${range.low}-${range.high} bpm`,
+          modeLabel,
+        };
+      }
+      return { primary: label, modeLabel };
+    }
     case "intervals": {
       const runMin = input.runMin ?? 0;
       const recipe = intervalRecipe(runMin, input.week);

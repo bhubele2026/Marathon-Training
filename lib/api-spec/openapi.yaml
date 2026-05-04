@@ -1920,8 +1920,8 @@ components:
 
     UserPreferences:
       type: object
-      required: [runTargetingMode, updatedAt]
-      description: Single-user preferences applied across the app. Currently exposes the run targeting mode (Task #134) which drives how every prescribed run is displayed on Today, Week Detail, and the expanded card detail.
+      required: [runTargetingMode, maxHr, updatedAt]
+      description: Single-user preferences applied across the app. Exposes the run targeting mode (Task #134) which drives how every prescribed run is displayed on Today, Week Detail, and the expanded card detail, plus the user's max heart rate (Task #141) used to compute personalized BPM ranges for the HR Zone targeting mode.
       properties:
         runTargetingMode:
           type: string
@@ -1930,20 +1930,37 @@ components:
             How prescribed runs are displayed.
               - effort     : RPE-style label like "Easy conversational" or "Hard but sustainable".
               - intervals  : walk/run recipe like "5 min run / 1 min walk × 5", scaled to the planned duration with a beginner ratio that eases over the campaign.
-              - hr_zones   : heart-rate zone label like "Zone 2".
+              - hr_zones   : heart-rate zone label like "Zone 2" (with personalized "· 134-148 bpm" range when maxHr is configured).
               - pace       : the legacy explicit "9:30/mi" pace string.
             Default for new accounts is "effort".
+        maxHr:
+          type: integer
+          nullable: true
+          minimum: 80
+          maximum: 230
+          description: |
+            User's maximum heart rate in BPM. When set, the HR Zone targeting mode
+            renders BPM ranges next to each zone label (e.g. "Zone 2 · 134-148 bpm")
+            using the standard % of max model. When null, the HR Zone mode falls
+            back to the generic "Zone N" label. Defaults to null on new accounts.
         updatedAt:
           type: string
           format: date-time
 
     UpdateUserPreferencesBody:
       type: object
-      description: Partial update of UserPreferences. Omitted fields are left untouched.
+      description: |
+        Partial update of UserPreferences. Omitted fields are left untouched.
+        Send maxHr=null to explicitly clear the configured max heart rate.
       properties:
         runTargetingMode:
           type: string
           enum: [effort, intervals, hr_zones, pace]
+        maxHr:
+          type: integer
+          nullable: true
+          minimum: 80
+          maximum: 230
 
     ApplyPlannerConfigResponse:
       type: object

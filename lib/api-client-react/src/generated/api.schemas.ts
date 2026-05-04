@@ -789,7 +789,7 @@ export interface DeletePlannerConfigResponse {
  * How prescribed runs are displayed.
   - effort     : RPE-style label like "Easy conversational" or "Hard but sustainable".
   - intervals  : walk/run recipe like "5 min run / 1 min walk × 5", scaled to the planned duration with a beginner ratio that eases over the campaign.
-  - hr_zones   : heart-rate zone label like "Zone 2".
+  - hr_zones   : heart-rate zone label like "Zone 2" (with personalized "· 134-148 bpm" range when maxHr is configured).
   - pace       : the legacy explicit "9:30/mi" pace string.
 Default for new accounts is "effort".
 
@@ -805,17 +805,27 @@ export const UserPreferencesRunTargetingMode = {
 } as const;
 
 /**
- * Single-user preferences applied across the app. Currently exposes the run targeting mode (Task
+ * Single-user preferences applied across the app. Exposes the run targeting mode (Task
  */
 export interface UserPreferences {
   /** How prescribed runs are displayed.
   - effort     : RPE-style label like "Easy conversational" or "Hard but sustainable".
   - intervals  : walk/run recipe like "5 min run / 1 min walk × 5", scaled to the planned duration with a beginner ratio that eases over the campaign.
-  - hr_zones   : heart-rate zone label like "Zone 2".
+  - hr_zones   : heart-rate zone label like "Zone 2" (with personalized "· 134-148 bpm" range when maxHr is configured).
   - pace       : the legacy explicit "9:30/mi" pace string.
 Default for new accounts is "effort".
  */
   runTargetingMode: UserPreferencesRunTargetingMode;
+  /**
+   * User's maximum heart rate in BPM. When set, the HR Zone targeting mode
+renders BPM ranges next to each zone label (e.g. "Zone 2 · 134-148 bpm")
+using the standard % of max model. When null, the HR Zone mode falls
+back to the generic "Zone N" label. Defaults to null on new accounts.
+
+   * @minimum 80
+   * @maximum 230
+   */
+  maxHr: number | null;
   updatedAt: string;
 }
 
@@ -831,9 +841,16 @@ export const UpdateUserPreferencesBodyRunTargetingMode = {
 
 /**
  * Partial update of UserPreferences. Omitted fields are left untouched.
+Send maxHr=null to explicitly clear the configured max heart rate.
+
  */
 export interface UpdateUserPreferencesBody {
   runTargetingMode?: UpdateUserPreferencesBodyRunTargetingMode;
+  /**
+   * @minimum 80
+   * @maximum 230
+   */
+  maxHr?: number | null;
 }
 
 /**

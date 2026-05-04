@@ -2276,43 +2276,73 @@ export const ApplyPlannerConfigResponse = zod
 /**
  * Read the singleton user preferences row. Lazily seeded with defaults on first read so the client never has to handle a missing-prefs case.
  */
+export const getUserPreferencesResponseMaxHrMin = 80;
+export const getUserPreferencesResponseMaxHrMax = 230;
+
 export const GetUserPreferencesResponse = zod
   .object({
     runTargetingMode: zod
       .enum(["effort", "intervals", "hr_zones", "pace"])
       .describe(
-        'How prescribed runs are displayed.\n  - effort     : RPE-style label like \"Easy conversational\" or \"Hard but sustainable\".\n  - intervals  : walk\/run recipe like \"5 min run \/ 1 min walk × 5\", scaled to the planned duration with a beginner ratio that eases over the campaign.\n  - hr_zones   : heart-rate zone label like \"Zone 2\".\n  - pace       : the legacy explicit \"9:30\/mi\" pace string.\nDefault for new accounts is \"effort\".\n',
+        'How prescribed runs are displayed.\n  - effort     : RPE-style label like \"Easy conversational\" or \"Hard but sustainable\".\n  - intervals  : walk\/run recipe like \"5 min run \/ 1 min walk × 5\", scaled to the planned duration with a beginner ratio that eases over the campaign.\n  - hr_zones   : heart-rate zone label like \"Zone 2\" (with personalized \"· 134-148 bpm\" range when maxHr is configured).\n  - pace       : the legacy explicit \"9:30\/mi\" pace string.\nDefault for new accounts is \"effort\".\n',
+      ),
+    maxHr: zod
+      .number()
+      .min(getUserPreferencesResponseMaxHrMin)
+      .max(getUserPreferencesResponseMaxHrMax)
+      .nullable()
+      .describe(
+        'User\'s maximum heart rate in BPM. When set, the HR Zone targeting mode\nrenders BPM ranges next to each zone label (e.g. \"Zone 2 · 134-148 bpm\")\nusing the standard % of max model. When null, the HR Zone mode falls\nback to the generic \"Zone N\" label. Defaults to null on new accounts.\n',
       ),
     updatedAt: zod.coerce.date(),
   })
   .describe(
-    "Single-user preferences applied across the app. Currently exposes the run targeting mode (Task",
+    "Single-user preferences applied across the app. Exposes the run targeting mode (Task",
   );
 
 /**
  * Update one or more preference fields. Partial PATCH-style — fields omitted from the body are left untouched.
  */
+export const updateUserPreferencesBodyMaxHrMin = 80;
+export const updateUserPreferencesBodyMaxHrMax = 230;
+
 export const UpdateUserPreferencesBody = zod
   .object({
     runTargetingMode: zod
       .enum(["effort", "intervals", "hr_zones", "pace"])
       .optional(),
+    maxHr: zod
+      .number()
+      .min(updateUserPreferencesBodyMaxHrMin)
+      .max(updateUserPreferencesBodyMaxHrMax)
+      .nullish(),
   })
   .describe(
-    "Partial update of UserPreferences. Omitted fields are left untouched.",
+    "Partial update of UserPreferences. Omitted fields are left untouched.\nSend maxHr=null to explicitly clear the configured max heart rate.\n",
   );
+
+export const updateUserPreferencesResponseMaxHrMin = 80;
+export const updateUserPreferencesResponseMaxHrMax = 230;
 
 export const UpdateUserPreferencesResponse = zod
   .object({
     runTargetingMode: zod
       .enum(["effort", "intervals", "hr_zones", "pace"])
       .describe(
-        'How prescribed runs are displayed.\n  - effort     : RPE-style label like \"Easy conversational\" or \"Hard but sustainable\".\n  - intervals  : walk\/run recipe like \"5 min run \/ 1 min walk × 5\", scaled to the planned duration with a beginner ratio that eases over the campaign.\n  - hr_zones   : heart-rate zone label like \"Zone 2\".\n  - pace       : the legacy explicit \"9:30\/mi\" pace string.\nDefault for new accounts is \"effort\".\n',
+        'How prescribed runs are displayed.\n  - effort     : RPE-style label like \"Easy conversational\" or \"Hard but sustainable\".\n  - intervals  : walk\/run recipe like \"5 min run \/ 1 min walk × 5\", scaled to the planned duration with a beginner ratio that eases over the campaign.\n  - hr_zones   : heart-rate zone label like \"Zone 2\" (with personalized \"· 134-148 bpm\" range when maxHr is configured).\n  - pace       : the legacy explicit \"9:30\/mi\" pace string.\nDefault for new accounts is \"effort\".\n',
+      ),
+    maxHr: zod
+      .number()
+      .min(updateUserPreferencesResponseMaxHrMin)
+      .max(updateUserPreferencesResponseMaxHrMax)
+      .nullable()
+      .describe(
+        'User\'s maximum heart rate in BPM. When set, the HR Zone targeting mode\nrenders BPM ranges next to each zone label (e.g. \"Zone 2 · 134-148 bpm\")\nusing the standard % of max model. When null, the HR Zone mode falls\nback to the generic \"Zone N\" label. Defaults to null on new accounts.\n',
       ),
     updatedAt: zod.coerce.date(),
   })
   .describe(
-    "Single-user preferences applied across the app. Currently exposes the run targeting mode (Task",
+    "Single-user preferences applied across the app. Exposes the run targeting mode (Task",
   );
 
 export const GetRaceWeekResponse = zod.object({

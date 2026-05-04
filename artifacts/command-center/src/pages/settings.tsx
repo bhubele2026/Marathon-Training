@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   useGetUserPreferences,
   useUpdateUserPreferences,
@@ -6,11 +7,14 @@ import {
   type UserPreferencesRunTargetingMode as RunTargetingMode,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { hrZoneBpmRange } from "@/lib/run-target";
 
 interface ModeOption {
   value: RunTargetingMode;
@@ -38,8 +42,9 @@ const MODE_OPTIONS: ModeOption[] = [
     value: UserPreferencesRunTargetingMode.hr_zones,
     title: "Heart-rate zones",
     description:
-      "Show runs as HR zones (1–5). Targets only — we don't pull live data from your watch.",
-    example: 'A 30-min easy run shows up as "Zone 2".',
+      "Show runs as HR zones (1–5). Set your max heart rate below to see personalized BPM ranges next to each zone label.",
+    example:
+      'A 30-min easy run shows up as "Zone 2" (or "Zone 2 · 134-148 bpm" once max HR is set).',
   },
   {
     value: UserPreferencesRunTargetingMode.pace,
@@ -49,6 +54,19 @@ const MODE_OPTIONS: ModeOption[] = [
     example: 'A 30-min easy run shows up as "9:30/mi".',
   },
 ];
+
+const MIN_MAX_HR = 80;
+const MAX_MAX_HR = 230;
+
+// Fox formula: 220 − age. Good enough as a starting point for runners
+// who don't have a measured max HR. We round and clamp to the same
+// realistic range the API enforces.
+function maxHrFromAge(age: number): number | null {
+  if (!Number.isFinite(age) || age < 10 || age > 100) return null;
+  const value = 220 - Math.round(age);
+  if (value < MIN_MAX_HR || value > MAX_MAX_HR) return null;
+  return value;
+}
 
 export default function Settings() {
   const { data, isLoading } = useGetUserPreferences();
@@ -67,6 +85,49 @@ export default function Settings() {
   });
 
   const value: RunTargetingMode = data?.runTargetingMode ?? "effort";
+
+  // Local form state for the max HR input. Seeded from the saved value
+  // and re-synced whenever the prefs query returns fresh data so the
+  // input stays in step with optimistic / multi-tab edits.
+  const savedMaxHr = data?.maxHr ?? null;
+  const [maxHrInput, setMaxHrInput] = useState<string>(
+    savedMaxHr != null ? String(savedMaxHr) : "",
+  );
+  const [ageInput, setAgeInput] = useState<string>("");
+  useEffect(() => {
+    setMaxHrInput(savedMaxHr != null ? String(savedMaxHr) : "");
+  }, [savedMaxHr]);
+
+  const parsedMaxHr =
+    maxHrInput.trim() === "" ? null : Number.parseInt(maxHrInput, 10);
+  const isMaxHrValid =
+    parsedMaxHr === null ||
+    (Number.isFinite(parsedMaxHr) &&
+      parsedMaxHr >= MIN_MAX_HR &&
+      parsedMaxHr <= MAX_MAX_HR);
+  const hasMaxHrChanged = parsedMaxHr !== savedMaxHr;
+
+  const previewRange = parsedMaxHr != null && isMaxHrValid
+    ? hrZoneBpmRange(2, parsedMaxHr)
+    : null;
+
+  function handleSaveMaxHr() {
+    if (!isMaxHrValid || !hasMaxHrChanged) return;
+    update.mutate({ data: { maxHr: parsedMaxHr } });
+  }
+
+  function handleApplyAge() {
+    const age = Number.parseInt(ageInput, 10);
+    const derived = maxHrFromAge(age);
+    if (derived == null) {
+      toast({
+        title: "Enter an age between 10 and 100",
+        variant: "destructive",
+      });
+      return;
+    }
+    setMaxHrInput(String(derived));
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-3xl mx-auto">
@@ -127,6 +188,107 @@ export default function Settings() {
                 );
               })}
             </RadioGroup>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg uppercase tracking-wider">
+            Heart-rate zones
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Set your maximum heart rate to personalize the BPM ranges shown alongside
+            each "Zone N" label when the HR Zone targeting mode is active. We use the
+            standard % of max model: Zone 1 50-60%, Zone 2 60-70%, Zone 3 70-80%, Zone 4
+            80-90%, Zone 5 90-100%. Leave blank to fall back to generic zone labels.
+          </p>
+
+          {isLoading ? (
+            <Skeleton className="h-32 w-full" />
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="max-hr-input" className="text-xs uppercase tracking-wider font-bold">
+                  Max heart rate (bpm)
+                </Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="max-hr-input"
+                    type="number"
+                    inputMode="numeric"
+                    min={MIN_MAX_HR}
+                    max={MAX_MAX_HR}
+                    placeholder="e.g. 185"
+                    value={maxHrInput}
+                    onChange={(e) => setMaxHrInput(e.target.value)}
+                    className="max-w-[160px]"
+                    data-testid="input-max-hr"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleSaveMaxHr}
+                    disabled={
+                      !isMaxHrValid || !hasMaxHrChanged || update.isPending
+                    }
+                    data-testid="button-save-max-hr"
+                  >
+                    Save
+                  </Button>
+                </div>
+                {!isMaxHrValid && (
+                  <p
+                    className="text-xs text-destructive"
+                    data-testid="text-max-hr-error"
+                  >
+                    Enter a value between {MIN_MAX_HR} and {MAX_MAX_HR} bpm, or leave
+                    blank.
+                  </p>
+                )}
+                {previewRange && (
+                  <p
+                    className="text-xs text-muted-foreground"
+                    data-testid="text-max-hr-preview"
+                  >
+                    Preview: Zone 2 · {previewRange.low}-{previewRange.high} bpm
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2 pt-2 border-t border-border">
+                <Label htmlFor="age-input" className="text-xs uppercase tracking-wider font-bold">
+                  Don't know it? Estimate from age (220 − age)
+                </Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="age-input"
+                    type="number"
+                    inputMode="numeric"
+                    min={10}
+                    max={100}
+                    placeholder="Age"
+                    value={ageInput}
+                    onChange={(e) => setAgeInput(e.target.value)}
+                    className="max-w-[120px]"
+                    data-testid="input-age"
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={handleApplyAge}
+                    disabled={ageInput.trim() === ""}
+                    data-testid="button-apply-age"
+                  >
+                    Fill from age
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground italic">
+                  Fills the input above. Press Save to apply.
+                </p>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>

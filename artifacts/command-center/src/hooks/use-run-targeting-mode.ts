@@ -11,3 +11,13 @@ export function useRunTargetingMode(): UserPreferencesRunTargetingMode {
   const { data } = useGetUserPreferences();
   return data?.runTargetingMode ?? "effort";
 }
+
+// Companion hook (Task #141) returning the user's configured max heart
+// rate, or null when unset / still loading. Drives the personalized
+// BPM range suffix the HR Zone targeting mode renders next to each
+// "Zone N" label. Returning null is the explicit "fall back to the
+// generic label" signal — formatRunTarget handles it.
+export function useMaxHr(): number | null {
+  const { data } = useGetUserPreferences();
+  return data?.maxHr ?? null;
+}

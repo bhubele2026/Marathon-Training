@@ -14,6 +14,13 @@ export const userPreferencesTable = pgTable("user_preferences", {
   //   - pace       : "9:30/mi" (the legacy display)
   // Default for new accounts is "effort" per the task spec.
   runTargetingMode: text("run_targeting_mode").notNull().default("effort"),
+  // User's maximum heart rate in BPM (Task #141). Drives the BPM ranges
+  // shown alongside HR Zone labels (e.g. "Zone 2 · 134-148 bpm") via the
+  // % of max model in formatRunTarget(). Null when the user hasn't
+  // configured a max HR yet — the HR Zone label falls back to the
+  // generic "Zone N" string in that case. Stored as a small integer in
+  // the realistic adult range (80-230).
+  maxHr: integer("max_hr"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
