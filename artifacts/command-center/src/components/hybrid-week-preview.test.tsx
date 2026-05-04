@@ -139,6 +139,51 @@ describe("HybridWeekPreview — race week (Task #203)", () => {
     expect(totals.textContent).toMatch(/\d+ runs?/);
   });
 
+  // Task #207 — race-week previews now also fire for hybrid plans
+  // that end on a half / 10K / 5K race (not just marathon). The
+  // trailing Sunday must surface the matching distance string
+  // (13.1 / 6.2 / 3.1 mi) instead of always defaulting to 26.2 mi.
+  // This pin lives at the component level so a future caller that
+  // forgets to plumb `raceKind` through (or `previewHybridWeek`
+  // regressing back to marathon-only) trips the assertion.
+  it.each([
+    ["half", "13.1 mi"],
+    ["10k", "6.2 mi"],
+    ["5k", "3.1 mi"],
+  ] as const)(
+    "renders the race-week Sunday at the matching distance for raceKind=%s",
+    (raceKind, expectedDistance) => {
+      render(
+        <HybridWeekPreview
+          position="balanced"
+          daysPerWeek={5}
+          level="advanced"
+          blockWeeks={12}
+          isRaceWeek
+          raceKind={raceKind}
+        />,
+      );
+      // The race-week container still mounts under the same testid —
+      // raceKind only changes the distance shown on the Sunday cell,
+      // not the surrounding shape (Sat → Race Prep, header pill, etc.).
+      const root = screen.getByTestId("planner-hybrid-preview-race-week");
+      expect(root.getAttribute("data-race-week")).toBe("true");
+      const sun = screen.getByTestId("planner-hybrid-preview-race-week-sun");
+      expect(sun.getAttribute("data-race-day")).toBe("true");
+      expect(sun.textContent).toContain("RACE DAY");
+      expect(sun.textContent).toContain(expectedDistance);
+      // And the marathon distance must NOT bleed through on a non-
+      // marathon race kind — guards against accidentally hard-coding
+      // 26.2 anywhere in the Sunday cell.
+      expect(sun.textContent).not.toContain("26.2 mi");
+      // Saturday Race Prep override applies regardless of raceKind.
+      expect(
+        screen.getByTestId("planner-hybrid-preview-race-week-sat-tag")
+          .textContent,
+      ).toBe("PREP");
+    },
+  );
+
   it("does NOT show the Cutback badge on the race week even if it lands on a 4th-week cadence", () => {
     // blockWeeks=8 → race week defaults to week 8 (8 % 4 === 0). The
     // race-week branch must suppress the Cutback badge regardless,

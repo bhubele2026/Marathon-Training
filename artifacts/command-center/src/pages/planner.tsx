@@ -34,6 +34,7 @@ import {
   type FocusType,
   type HybridFitnessLevel,
   type HybridMixPosition,
+  type PlanRaceKind,
   type PlanTemplate,
   type StarterShortcut,
   type TemplateEntry,
@@ -1730,21 +1731,30 @@ export default function Planner() {
     [isEntriesMode, entries],
   );
 
-  // ---- Hybrid builder race-week preview gate (Task #203) -----------
+  // ---- Hybrid builder race-week preview gate (Task #203 / #207) ----
   // Decides whether the custom_hybrid builder card should surface the
-  // race-week shape (Mon-Fri taper + Sat Race Prep + Sun RACE DAY 26.2 mi)
-  // alongside the typical-week preview. The hybrid plan classifies as
-  // a marathon when EITHER:
-  //   1. The active entries already classify as marathon (e.g. the
-  //      runner has applied marathon_hybrid earlier in the sequence —
-  //      `entriesRaceKind === "marathon"`), OR
+  // race-week shape (Mon-Fri taper + Sat Race Prep + Sun RACE DAY at
+  // the matching distance — 26.2 / 13.1 / 6.2 / 3.1 mi) alongside the
+  // typical-week preview, AND which raceKind the trailing Sunday
+  // pulls its distance from. The hybrid plan classifies as a race
+  // week when EITHER:
+  //   1. The active entries already classify as a race (the runner
+  //      has applied marathon_hybrid / half_hybrid_* / 10k_hybrid_* /
+  //      5k_hybrid_* earlier in the sequence — `entriesRaceKind` is
+  //      anything other than "none"). The trailing Sunday inherits
+  //      that same raceKind so a hybrid 10K plan previews "RACE DAY
+  //      6.2 mi", a hybrid half plan previews "RACE DAY 13.1 mi", etc.
+  //      Task #207 generalized this from marathon-only (Task #203)
+  //      to all race kinds.
   //   2. The hybrid block being configured would land its trailing
   //      Sunday on the configured marathonDate. We compute the
   //      hybrid's projected end as `cursor + weeks*7 - 1` where the
   //      cursor sits after any existing entries — same math the
   //      Apply path uses to set marathonDate. When this end matches
   //      the runner's pinned marathonDate Sunday, the hybrid IS the
-  //      campaign-final block and the race-week preview applies.
+  //      campaign-final block and the race-week preview applies. In
+  //      this branch the raceKind defaults to "marathon" since
+  //      marathonDate is, by name, the marathon Sunday.
   // Marathon mode (legacy block-based) does NOT trigger race-week
   // preview here — in that mode the auto-pinned 16w Marathon-Specific
   // tail is the actual race-day finisher, not the hybrid block.
@@ -1752,13 +1762,10 @@ export default function Planner() {
     tplWeeks["custom_hybrid"] ??
     getTemplateById("custom_hybrid")?.defaultWeeks ??
     8;
-  const hybridIsRaceWeek = useMemo(() => {
-    if (
-      isEntriesMode &&
-      entries != null &&
-      entriesRaceKind(entries) === "marathon"
-    ) {
-      return true;
+  const hybridRaceKind = useMemo<PlanRaceKind>(() => {
+    if (isEntriesMode && entries != null) {
+      const kind = entriesRaceKind(entries);
+      if (kind !== "none") return kind;
     }
     if (
       !marathonDate ||
@@ -1766,9 +1773,9 @@ export default function Planner() {
       dayOfWeekUTC(startDate) !== 1 ||
       dayOfWeekUTC(marathonDate) !== 0
     ) {
-      return false;
+      return "none";
     }
-    if (hybridBuilderWeeks < 1) return false;
+    if (hybridBuilderWeeks < 1) return "none";
     let cursor = startDate;
     if (isEntriesMode && entries && entries.length > 0) {
       const projections = projectEntries(entries, startDate);
@@ -1778,7 +1785,7 @@ export default function Planner() {
       }
     }
     const end = addDaysISO(cursor, hybridBuilderWeeks * 7 - 1);
-    return end === marathonDate;
+    return end === marathonDate ? "marathon" : "none";
   }, [
     isEntriesMode,
     entries,
@@ -1786,6 +1793,7 @@ export default function Planner() {
     startDate,
     hybridBuilderWeeks,
   ]);
+  const hybridIsRaceWeek = hybridRaceKind !== "none";
   const mileagePreview = useMemo<WeekMileagePreview[]>(() => {
     try {
       // In entries-mode each template owns its own taper, so we MUST NOT
@@ -2846,16 +2854,20 @@ export default function Planner() {
                           }
                         />
                         {/*
-                          Race-week preview (Task #203). Mounted only
-                          when the hybrid plan classifies as a marathon
-                          (raceKind === "marathon" or the configured
-                          hybrid block ends on the marathonDate). Reuses
-                          the same component with `isRaceWeek`, which
-                          asks `previewHybridWeek` to swap the trailing
-                          Sat → Race Prep and Sun → 26.2 mi RACE DAY —
-                          mirroring `buildHybridWeekDays`'s race-week
-                          branch (Task #192) so the planning surface
-                          shows exactly what the runner will get.
+                          Race-week preview (Task #203 / #207). Mounted
+                          only when the hybrid plan classifies as a race
+                          (entries already classify as marathon / half /
+                          10K / 5K, OR the configured hybrid block ends
+                          on the runner's marathonDate). Reuses the same
+                          component with `isRaceWeek` + the matching
+                          `raceKind`, which asks `previewHybridWeek` to
+                          swap the trailing Sat → Race Prep and Sun →
+                          RACE DAY at the matching distance (26.2 /
+                          13.1 / 6.2 / 3.1 mi) — mirroring
+                          `buildHybridWeekDays`'s race-week branch
+                          (Task #192) so the planning surface shows
+                          exactly what the runner will get for whatever
+                          race their hybrid block ends on.
                         */}
                         {hybridIsRaceWeek && (
                           <HybridWeekPreview
@@ -2866,6 +2878,7 @@ export default function Planner() {
                               tplWeeks["custom_hybrid"] ?? tpl.defaultWeeks
                             }
                             isRaceWeek
+                            raceKind={hybridRaceKind}
                           />
                         )}
                         <div className="grid grid-cols-2 gap-2">

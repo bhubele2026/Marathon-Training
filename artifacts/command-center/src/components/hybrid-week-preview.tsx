@@ -4,6 +4,7 @@ import {
   previewHybridWeek,
   type HybridFitnessLevel,
   type HybridMixPosition,
+  type PlanRaceKind,
 } from "@workspace/plan-generator";
 
 export interface HybridWeekPreviewProps {
@@ -14,11 +15,19 @@ export interface HybridWeekPreviewProps {
   weekInBlock?: number;
   // Race-week branch (Task #203). When true, asks `previewHybridWeek`
   // for the campaign-final week shape (trailing Sat → Race Prep,
-  // trailing Sun → 26.2 mi RACE DAY) and renders the Sunday cell
-  // with the same amber Trophy treatment Week Detail uses for the
-  // marathon Sunday (Task #199). Defaults false → typical-week
+  // trailing Sun → RACE DAY at the matching distance) and renders the
+  // Sunday cell with the same amber Trophy treatment Week Detail uses
+  // for the marathon Sunday (Task #199). Defaults false → typical-week
   // preview (week 1 of the block).
   isRaceWeek?: boolean;
+  // Race-day kind (Task #207). Drives which RACE_DAY_SPECS distance the
+  // trailing Sunday is overridden to when `isRaceWeek` is set —
+  // marathon (26.2) / half (13.1) / 10K (6.2) / 5K (3.1). Defaults to
+  // "marathon" so existing callers (and the Task #203 marathon-only
+  // branch) keep their behavior unchanged. When set to "none",
+  // `previewHybridWeek` ignores `isRaceWeek` and emits the typical-week
+  // shape — mirrors `buildHybridWeekDays`'s race-week guard.
+  raceKind?: PlanRaceKind;
 }
 
 const SLOT_TONE = {
@@ -42,14 +51,23 @@ export function HybridWeekPreview({
   blockWeeks,
   weekInBlock,
   isRaceWeek = false,
+  raceKind = "marathon",
 }: HybridWeekPreviewProps) {
   const preview = useMemo(
     () =>
       previewHybridWeek(
         { position, daysPerWeek, level },
-        { weekInBlock, blockWeeks, isRaceWeek },
+        { weekInBlock, blockWeeks, isRaceWeek, raceKind },
       ),
-    [position, daysPerWeek, level, weekInBlock, blockWeeks, isRaceWeek],
+    [
+      position,
+      daysPerWeek,
+      level,
+      weekInBlock,
+      blockWeeks,
+      isRaceWeek,
+      raceKind,
+    ],
   );
 
   const isCutback = preview.weekInBlock > 0 && preview.weekInBlock % 4 === 0;
