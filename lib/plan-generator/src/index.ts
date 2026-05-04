@@ -215,10 +215,19 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
       total_load: heavyStrengthLoad + shortCardioMin,
     };
 
-    // ---------- WED: EASY RUN + LIGHT TONAL ACCESSORY ----------
+    // ---------- WED: EASY (or STEADY) RUN + LIGHT TONAL ACCESSORY ----------
+    // Race-Specific phase weeks (33-46) upgrade the Wed mid-week aerobic
+    // run to a steady-state ("Z3 effort") session on non-cutback weeks
+    // so the Run Target chip surfaces the amber-400 Zone 3 swatch on a
+    // real prescribed day rather than only being reachable from a
+    // unit-test fixture (Task #172). Cutback weeks (34/38/42/45) stay
+    // easy — the deload is recovery for Sun's long run, not another
+    // quality day. The Tonal accessory block is unchanged so weekly load
+    // math is unaffected.
     const wedDist = easyRunDist(w, isCutback);
     const wedRunMin = Math.max(20, Math.round(wedDist * (w <= 6 ? 16 : w <= 18 ? 13 : 12)));
     const wedAccessoryLoad = isCutback ? 20 : 25;
+    const wedSteady = w >= 33 && w <= 46 && !isCutback;
     const wedDay: DailyRow = {
       week: w,
       phase,
@@ -231,15 +240,17 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
       // suggestions / /equipment agree with the chip rail's lead chip.
       equipment: "Tonal",
       equipment_list: ["Tonal", "Peloton Tread"],
-      description: isCutback
+      description: wedSteady
+        ? `Steady-state Tread run (${wedDist} mi, Z3 controlled effort — comfortably hard but conversational in short sentences), then ${accessoryTonalMin} min Tonal core + accessory work (no heavy lifting)`
+        : isCutback
         ? `Easy aerobic Tread run (${wedDist} mi, conversational), then ${accessoryTonalMin} min light Tonal core + mobility`
         : `Easy aerobic Tread run (${wedDist} mi, fully conversational pace), then ${accessoryTonalMin} min Tonal core + accessory work (no heavy lifting)`,
       strength_min: accessoryTonalMin,
       cardio_min: 0,
       run_min: wedRunMin,
       distance_mi: wedDist,
-      pace: easyPace,
-      session_type: "Run + Accessory",
+      pace: wedSteady ? tempoPace : easyPace,
+      session_type: wedSteady ? "Steady Run + Accessory" : "Run + Accessory",
       is_rest: false,
       total_load: wedRunMin + wedAccessoryLoad,
     };
@@ -891,6 +902,15 @@ interface FocusRecipe {
   accessoryTonalMin: number; // base
   // Friday quality recipe.
   fridayKind: "AerobicBase" | "Tempo" | "Threshold" | "RacePace" | "Sharpener";
+  // Mid-week (Wed) run kind. "Easy" (default) emits the canonical
+  // conversational easy aerobic run paired with the Tonal accessory
+  // block. "Steady" upgrades the same slot to a steady-state aerobic
+  // ("Z3 effort") run on non-cutback weeks so the Run Target chip
+  // surfaces the amber-400 Zone 3 swatch on a real prescribed day
+  // rather than only being reachable from a unit-test fixture
+  // (Task #172). Cutback weeks always stay easy regardless so the
+  // deload still functions as recovery for the long run.
+  wedKind?: "Easy" | "Steady";
   // Whether this focus uses cutback weeks (every 4th week).
   useCutbacks: boolean;
   // Long-run description copy.
@@ -1027,6 +1047,7 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
     shortCardioMin: 25,
     accessoryTonalMin: 25,
     fridayKind: "RacePace",
+    wedKind: "Steady",
     useCutbacks: true,
     longRunVerb: "Marathon-pace long run",
   },
@@ -2061,10 +2082,21 @@ function buildWeekDays(opts: {
     total_load: heavyStrengthLoad + tueCardioMin,
   };
 
-  // ---------- WED: EASY RUN + ACCESSORY ----------
+  // ---------- WED: EASY (or STEADY) RUN + ACCESSORY ----------
+  // Recipes with `wedKind: "Steady"` (Marathon-Specific) upgrade the
+  // mid-week aerobic run to a steady-state ("Z3 effort") session on
+  // non-cutback weeks so the Run Target chip surfaces the amber-400
+  // Zone 3 swatch on a real prescribed day. Cutback weeks still emit
+  // the easy variant — the deload is recovery for Sun's long run, not
+  // another quality day. Race week is also forced easy: the Wed
+  // mid-week run 4 days out from the marathon is part of the taper, so
+  // a Z3 quality stimulus there would compromise race readiness. The
+  // Tonal accessory block is unchanged so weekly load math is
+  // unaffected (Task #172).
   const wedDist = recipe.easyRunMi(weekInBlock, blockWeeks, isCutback);
   const wedRunMin = Math.max(20, Math.round(wedDist * recipe.easyRunMinPerMi));
   const wedAccessoryLoad = isCutback ? 20 : 25;
+  const wedSteady = recipe.wedKind === "Steady" && !isCutback && !isRaceWeek;
   const wedDay: DailyRow = {
     week: weekNumber,
     phase,
@@ -2074,14 +2106,16 @@ function buildWeekDays(opts: {
     equipment: "Tonal",
     equipment_list: ["Tonal", "Peloton Tread"],
     description:
-      `Easy aerobic Tread run (${wedDist} mi, conversational), then ${accessoryTonalMin} min Tonal core + accessory work` +
+      (wedSteady
+        ? `Steady-state Tread run (${wedDist} mi, Z3 controlled effort — comfortably hard but conversational in short sentences), then ${accessoryTonalMin} min Tonal core + accessory work`
+        : `Easy aerobic Tread run (${wedDist} mi, conversational), then ${accessoryTonalMin} min Tonal core + accessory work`) +
       customSuffix,
     strength_min: accessoryTonalMin,
     cardio_min: 0,
     run_min: wedRunMin,
     distance_mi: wedDist,
-    pace: recipe.easyPace,
-    session_type: "Run + Accessory",
+    pace: wedSteady ? recipe.tempoPace : recipe.easyPace,
+    session_type: wedSteady ? "Steady Run + Accessory" : "Run + Accessory",
     is_rest: false,
     total_load: wedRunMin + wedAccessoryLoad,
   };

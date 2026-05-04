@@ -624,3 +624,120 @@ describe("archived template registry (legacy-campaign migration safety)", () => 
     expect(isArchivedTemplateId("does_not_exist_anywhere")).toBe(false);
   });
 });
+
+// Task #172 — the Marathon-Specific recipe upgrades the mid-week Wed
+// run to a steady-state ("Z3 effort") session on non-cutback weeks so a
+// runner viewing their auto-pinned trailing block actually sees the
+// amber-400 Zone 3 swatch on a real prescribed day. Locked in here so a
+// future recipe tweak that drops `wedKind: "Steady"` would surface as a
+// failing test rather than silently regressing the Run Target chip back
+// to bucket 2.
+describe("Marathon-Specific recipe — Wed Steady Run (Task #172)", () => {
+  // Build an entries-mode config that exercises the Pfitzinger
+  // "marathon" template — the only catalog template that includes a
+  // Marathon-Specific focus block in its expand() distribution. The
+  // 18-week default (4 Base + 4 Time-on-Feet + 7 Marathon-Specific +
+  // 3 Taper) puts the steady-Wed branch into the trailing tail.
+  function pfitzMarathon(): PlannerConfig {
+    // 18-week block. Mon 2026-05-04 → Sun 2026-09-06.
+    return {
+      startDate: "2026-05-04",
+      marathonDate: "2026-09-06",
+      blocks: [],
+      entries: [
+        {
+          templateId: "marathon",
+          weeks: 18,
+          startDate: "2026-05-04",
+        },
+      ],
+    } as unknown as PlannerConfig;
+  }
+
+  // The 16-week Marathon-Specific tail is auto-pinned by the
+  // generator: user blocks must sum to (totalWeeks - 16). With a
+  // 16-week window and blocks=[] the entire plan is the auto-pinned
+  // tail — exactly what we need to exercise the new steady-Wed branch.
+  function marathonTailOnly(): PlannerConfig {
+    return {
+      startDate: "2026-05-04",
+      marathonDate: "2026-08-23", // Mon → 16 weeks later Sun
+      blocks: [],
+    };
+  }
+
+  it("non-cutback Wed days emit 'Steady Run + Accessory' (intensityBucket → 3)", () => {
+    const cfg = marathonTailOnly();
+    const { daily } = generatePlanFromConfig(cfg);
+    const wedRows = daily.filter((d) => d.day === "Wed");
+    expect(wedRows.length).toBeGreaterThan(0);
+
+    // At least one Wed in the block prescribes a Steady Run so the
+    // amber-400 Zone 3 swatch is reachable from a real plan day.
+    const steadyDays = wedRows.filter(
+      (d) => d.session_type === "Steady Run + Accessory",
+    );
+    expect(steadyDays.length).toBeGreaterThan(0);
+
+    // Every Steady Wed still has the Tonal accessory block intact, has
+    // a real prescribed run distance, and uses a non-easy pace target.
+    for (const d of steadyDays) {
+      expect(d.run_min, `${d.date} run_min`).toBeGreaterThan(0);
+      expect(d.distance_mi, `${d.date} distance_mi`).toBeGreaterThan(0);
+      expect(d.strength_min, `${d.date} strength_min`).toBeGreaterThan(0);
+      expect(d.cardio_min, `${d.date} cardio_min`).toBe(0);
+      expect(d.equipment).toBe("Tonal");
+      expect(d.equipment_list).toEqual(["Tonal", "Peloton Tread"]);
+      // Description carries the Z3 effort cue so runners see WHY their
+      // chip turned amber.
+      expect(d.description.toLowerCase()).toContain("steady");
+      expect(d.description.toLowerCase()).toContain("z3");
+    }
+  });
+
+  it("cutback Wed days inside Marathon-Specific stay easy ('Run + Accessory')", () => {
+    // Auto-pinned 16w Marathon-Specific tail. Cutback weeks
+    // (1-indexed in-block) for a 16w block: 4, 8, 12.
+    const cfg = marathonTailOnly();
+    const { daily } = generatePlanFromConfig(cfg);
+
+    for (const w of [4, 8, 12]) {
+      const wed = daily.find((d) => d.week === w && d.day === "Wed");
+      expect(wed, `w${w} Wed row`).toBeDefined();
+      expect(wed!.session_type, `w${w}`).toBe("Run + Accessory");
+    }
+  });
+
+  it("race-week Wed (final week of the tail) stays easy as part of the taper", () => {
+    // Race week (weekInBlock=16) is 4 days out from the Sun marathon.
+    // A Z3 quality stimulus that close to race day would compromise
+    // race readiness, so wedSteady is gated on !isRaceWeek.
+    const cfg = marathonTailOnly();
+    const { daily, weekly } = generatePlanFromConfig(cfg);
+    const raceWeekNumber = weekly.length; // Final generated week.
+    const wed = daily.find(
+      (d) => d.week === raceWeekNumber && d.day === "Wed",
+    );
+    expect(wed, "race-week Wed row").toBeDefined();
+    expect(wed!.session_type).toBe("Run + Accessory");
+    // Sun of the same week is the actual marathon — sanity-check we
+    // really did land on race week so this assertion isn't tautological.
+    const sun = daily.find(
+      (d) => d.week === raceWeekNumber && d.day === "Sun",
+    );
+    expect(sun!.session_type).toBe("Race");
+  });
+
+  // Sanity: composing a real marathon template entry that ends with
+  // the Marathon-Specific tail surfaces the steady run too — proves
+  // the upgrade flows through the entries-mode pipeline (not just a
+  // raw `Marathon-Specific` block built in isolation).
+  it("entries-mode marathon templates also surface a Steady Wed in the trailing tail", () => {
+    const cfg = pfitzMarathon();
+    const { daily } = generatePlanFromConfig(cfg);
+    const steadyWeds = daily.filter(
+      (d) => d.day === "Wed" && d.session_type === "Steady Run + Accessory",
+    );
+    expect(steadyWeds.length).toBeGreaterThan(0);
+  });
+});

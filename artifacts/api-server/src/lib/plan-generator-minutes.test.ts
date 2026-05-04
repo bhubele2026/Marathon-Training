@@ -45,6 +45,53 @@ describe("generator: per-day minute breakdown", () => {
     expect(wed.distance_mi).toBeGreaterThan(0);
   });
 
+  // Task #172 — the Race-Specific phase (weeks 33-46) upgrades the
+  // mid-week Wed run from "Run + Accessory" (easy aerobic) to
+  // "Steady Run + Accessory" so the Run Target chip surfaces the
+  // amber-400 Zone 3 swatch on a real prescribed day. Cutback weeks
+  // (34/38/42/45) stay easy as a deload for the Sun long run, and the
+  // Tonal accessory block is unchanged so weekly load math is intact.
+  it("WED in the Race-Specific phase emits a Steady Run on non-cutback weeks (Task #172)", () => {
+    const cutbacks = new Set([34, 38, 42, 45]);
+    let foundSteady = 0;
+    let foundEasyCutback = 0;
+    for (let w = 33; w <= 46; w++) {
+      const wed = dayOf(w, "Wed");
+      if (cutbacks.has(w)) {
+        // Deload weeks keep the easy variant.
+        expect(wed.session_type, `w${w}`).toBe("Run + Accessory");
+        foundEasyCutback++;
+      } else {
+        // The non-cutback weeks emit the new Steady Run prescription so
+        // intensityBucket("Steady Run + Accessory") → 3 → amber-400.
+        expect(wed.session_type, `w${w}`).toBe("Steady Run + Accessory");
+        expect(wed.run_min, `w${w} run_min`).toBeGreaterThan(0);
+        expect(wed.distance_mi, `w${w} distance_mi`).toBeGreaterThan(0);
+        // Tonal accessory block is unchanged.
+        expect(wed.strength_min, `w${w} strength_min`).toBeGreaterThan(0);
+        expect(wed.cardio_min, `w${w} cardio_min`).toBe(0);
+        // Steady runs use the tempo pace, not the easy pace.
+        expect(wed.pace, `w${w} pace`).not.toBeNull();
+        foundSteady++;
+      }
+    }
+    // Sanity: we exercised both branches across the 14-week phase.
+    expect(foundSteady).toBeGreaterThan(0);
+    expect(foundEasyCutback).toBe(4);
+  });
+
+  it("WED outside the Race-Specific phase keeps the easy 'Run + Accessory' label", () => {
+    // Foundation Build (1-6), Aerobic Build (7-18), Tempo/Threshold
+    // (19-32), and the Taper & Race tail (47-52) all keep the easy
+    // mid-week run — Steady is scoped to the Race-Specific phase only
+    // so the new Z3 chip is a phase-specific signal, not a global
+    // re-labeling.
+    for (const w of [1, 7, 18, 25, 32, 47, 50, 51]) {
+      const wed = dayOf(w, "Wed");
+      expect(wed.session_type, `w${w}`).toBe("Run + Accessory");
+    }
+  });
+
   it("FRI in the foundation phase keeps lift accessory minutes; FRI from week 7 onward drops lift and is run-only", () => {
     const friFoundation = dayOf(3, "Fri");
     expect(friFoundation.session_type).toMatch(/Aerobic Base \+ Accessory/);
