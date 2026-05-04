@@ -1917,14 +1917,17 @@ export function generatePlanFromConfig(
 // ===========================================================================
 export {
   PLAN_TEMPLATES,
+  ARCHIVED_PLAN_TEMPLATES,
   STARTER_SHORTCUTS,
   getTemplateById,
+  isArchivedTemplateId,
   expandEntriesToBlocks,
   expandEntriesToBlocksWithGaps,
   projectEntries,
   liftPrimaryKind,
   primaryMachineKind,
   type PlanTemplate,
+  type PlanTemplateLevel,
   type PlanTemplateMetadata,
   type StarterShortcut,
   type TemplateEntry,

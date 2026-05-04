@@ -1733,6 +1733,7 @@ components:
           defaultWeeks,
           metadata,
           tags,
+          level,
         ]
       properties:
         id: { type: string }
@@ -1754,6 +1755,10 @@ components:
           type: array
           description: Lightweight, runner-facing topic tags surfaced as chips on the template card and matched by the planner's free-text filter (e.g. "polarized", "hill focus", "low-mileage", "first-timer").
           items: { type: string }
+        level:
+          type: string
+          enum: [Beginner, Intermediate, Advanced]
+          description: "Skill-level bucket used to group templates in the picker."
 
     StarterShortcut:
       type: object

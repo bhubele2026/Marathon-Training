@@ -64,7 +64,7 @@ vi.mock("@/lib/invalidate-mission-queries", () => ({
   invalidateMissionRelatedQueries: vi.fn(),
 }));
 
-import Planner, { categorizeTemplate, defaultBlankConfig } from "./planner";
+import Planner, { levelOfTemplate, defaultBlankConfig } from "./planner";
 import { PLAN_TEMPLATES, validatePlannerConfig } from "@workspace/plan-generator";
 
 const SAMPLE_CONFIG = {
@@ -1097,114 +1097,41 @@ describe("Planner Apply Template race-date overrun warning", () => {
   });
 });
 
-// Expected category bucket for every entry in PLAN_TEMPLATES. Kept as
-// an explicit table so a regression in `categorizeTemplate` (e.g. the
-// run/bike/row priority order, hyrox detection, mat-only conditioning)
-// fails this test instead of silently shuffling cards into the wrong
-// section of the picker.
-const EXPECTED_CATEGORIES: Record<string, string> = {
-  couch_to_5k: "Run",
-  "5k_improver": "Run",
-  "10k_builder": "Run",
-  half_marathon: "Run",
-  marathon: "Run",
-  ultramarathon_50k: "Run",
-  aerobic_base: "Run",
-  speed_block: "Run",
-  hybrid_strength: "Hybrid",
-  cardio_weight_loss: "Run",
-  recovery: "Conditioning",
-  maintenance: "Conditioning",
-  tonal_strength_upper: "Strength",
-  tonal_strength_lower: "Strength",
-  push_pull_legs: "Strength",
-  tonal_conditioning: "Strength",
-  couch_to_5k_alt: "Run",
-  higdon_5k_novice: "Run",
-  higdon_5k_intermediate: "Run",
-  higdon_5k_advanced: "Run",
-  higdon_10k_advanced: "Run",
-  hm_higdon_novice2: "Run",
-  hm_pfitz: "Run",
-  hm_hansons: "Run",
-  marathon_pfitz_12_55: "Run",
-  marathon_pfitz_18_70: "Run",
-  marathon_hansons: "Run",
-  marathon_8020: "Run",
-  marathon_higdon_novice: "Run",
-  marathon_higdon_advanced: "Run",
-  ultra_50_mile: "Run",
-  ultra_100k: "Run",
-  norwegian_singles: "Run",
-  pelo_bike_you_can_ride: "Bike",
-  pelo_bike_pz_beginner: "Bike",
-  pelo_bike_pz_intermediate: "Bike",
-  pelo_bike_pz_advanced: "Bike",
-  pelo_bike_strength_for_cyclists: "Hybrid",
-  pelo_row_dpz: "Row",
-  c2_row_30day: "Row",
-  c2_row_5k: "Row",
-  c2_row_2k: "Row",
-  tonal_full_body_5x: "Strength",
-  starting_strength: "Strength",
-  stronglifts_5x5: "Strength",
-  wendler_531_bbb: "Strength",
-  phul: "Strength",
-  ppl_6day: "Strength",
-  simple_and_sinister: "Strength",
-  nick_bare_1_0: "Hybrid",
-  pelo_x_hyrox: "Hybrid",
-  maf_180: "Run",
-  bike_bootcamp_builder: "Bike",
-  ywa_30day: "Conditioning",
-  run_custom: "Custom",
-  bike_custom: "Custom",
-  row_custom: "Custom",
-  strength_custom: "Custom",
-  hybrid_custom: "Custom",
-  // race_countdown's equipment hint is "Runner-defined", which the
-  // categorizer routes to Custom (runner-defined templates are always
-  // Custom scaffolds). Pinned here so classification is locked down.
-  race_countdown: "Custom",
+// Expected skill-level bucket for every entry in PLAN_TEMPLATES. Kept
+// as an explicit table so a regression in `levelOfTemplate` (e.g. an
+// id getting promoted from Beginner to Advanced by accident) fails
+// this test instead of silently shuffling cards into the wrong section
+// of the picker. After task #132 the catalog is curated to ~10
+// templates grouped by Beginner / Intermediate / Advanced.
+const EXPECTED_LEVELS: Record<string, "Beginner" | "Intermediate" | "Advanced"> = {
+  couch_to_5k: "Beginner",
+  higdon_5k_novice: "Beginner",
+  aerobic_base: "Beginner",
+  recovery: "Beginner",
+  "5k_improver": "Intermediate",
+  half_marathon: "Intermediate",
+  marathon_higdon_novice: "Intermediate",
+  marathon: "Advanced",
+  marathon_pfitz_18_70: "Advanced",
+  ultramarathon_50k: "Advanced",
 };
 
-describe("categorizeTemplate (table-driven)", () => {
+describe("levelOfTemplate (table-driven)", () => {
   it("has an expected entry for every PLAN_TEMPLATES id (no orphans)", () => {
     const ids = PLAN_TEMPLATES.map((t) => t.id).sort();
-    const expected = Object.keys(EXPECTED_CATEGORIES).sort();
+    const expected = Object.keys(EXPECTED_LEVELS).sort();
     expect(ids).toEqual(expected);
   });
 
   it.each(PLAN_TEMPLATES.map((t) => [t.id, t] as const))(
-    "%s lands in the expected category",
+    "%s lands in the expected level",
     (id, tpl) => {
-      expect(categorizeTemplate(tpl)).toBe(EXPECTED_CATEGORIES[id]);
+      expect(levelOfTemplate(tpl)).toBe(EXPECTED_LEVELS[id]);
     },
   );
-
-  it("any *_custom id is bucketed as Custom regardless of metadata", () => {
-    expect(
-      categorizeTemplate({
-        id: "anything_custom",
-        name: "Anything Custom",
-        source: "test",
-        goalDistance: "26.2 mi",
-        metadata: {
-          intensityDistribution: "",
-          peakLongRun: "",
-          peakWeeklyVolume: "",
-          taperLength: "",
-          cutbackCadence: "",
-          mandatoryRestDays: 1,
-          equipmentMixHint: "Run-only",
-        },
-        tags: [],
-      }),
-    ).toBe("Custom");
-  });
 });
 
-describe("Plan Template Library — search filter and category grouping", () => {
+describe("Plan Template Library — search filter and level grouping", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
@@ -1213,32 +1140,49 @@ describe("Plan Template Library — search filter and category grouping", () => 
     window.localStorage.clear();
   });
 
-  it("renders one section per non-empty category and places known templates in the right buckets", () => {
+  it("renders one section per non-empty level and places known templates in the right buckets", () => {
     renderPlanner();
-    // The Run section must contain marathon and the Bike section must
-    // contain a peloton bike template.
-    const runSection = screen.getByTestId("planner-template-category-run");
-    expect(within(runSection).getByTestId("planner-template-marathon")).toBeTruthy();
-    expect(
-      within(runSection).queryByTestId("planner-template-pelo_bike_pz_beginner"),
-    ).toBeNull();
-
-    const bikeSection = screen.getByTestId("planner-template-category-bike");
-    expect(
-      within(bikeSection).getByTestId("planner-template-pelo_bike_pz_beginner"),
-    ).toBeTruthy();
-
-    const strengthSection = screen.getByTestId(
-      "planner-template-category-strength",
+    // Beginner section contains couch_to_5k; Intermediate contains
+    // half_marathon; Advanced contains marathon and ultramarathon_50k.
+    const beginnerSection = screen.getByTestId(
+      "planner-template-level-beginner",
     );
     expect(
-      within(strengthSection).getByTestId("planner-template-tonal_full_body_5x"),
+      within(beginnerSection).getByTestId("planner-template-couch_to_5k"),
+    ).toBeTruthy();
+    expect(
+      within(beginnerSection).queryByTestId("planner-template-marathon"),
+    ).toBeNull();
+
+    const intermediateSection = screen.getByTestId(
+      "planner-template-level-intermediate",
+    );
+    expect(
+      within(intermediateSection).getByTestId("planner-template-half_marathon"),
     ).toBeTruthy();
 
-    const hybridSection = screen.getByTestId("planner-template-category-hybrid");
+    const advancedSection = screen.getByTestId(
+      "planner-template-level-advanced",
+    );
     expect(
-      within(hybridSection).getByTestId("planner-template-pelo_x_hyrox"),
+      within(advancedSection).getByTestId("planner-template-marathon"),
     ).toBeTruthy();
+    expect(
+      within(advancedSection).getByTestId("planner-template-ultramarathon_50k"),
+    ).toBeTruthy();
+  });
+
+  it("renders a level badge on every template card", () => {
+    renderPlanner();
+    expect(
+      screen.getByTestId("planner-template-couch_to_5k-level").textContent,
+    ).toBe("Beginner");
+    expect(
+      screen.getByTestId("planner-template-half_marathon-level").textContent,
+    ).toBe("Intermediate");
+    expect(
+      screen.getByTestId("planner-template-marathon-level").textContent,
+    ).toBe("Advanced");
   });
 
   it("typing into the search input narrows the visible cards to only matches", () => {
@@ -1247,53 +1191,104 @@ describe("Plan Template Library — search filter and category grouping", () => 
     expect(screen.getByTestId("planner-template-marathon")).toBeTruthy();
 
     fireEvent.change(screen.getByTestId("planner-template-search"), {
-      target: { value: "hansons" },
+      target: { value: "pfitz" },
     });
 
-    // Matching templates remain visible.
-    expect(screen.getByTestId("planner-template-hm_hansons")).toBeTruthy();
-    expect(screen.getByTestId("planner-template-marathon_hansons")).toBeTruthy();
+    // Matching templates remain visible (Pfitzinger source).
+    expect(screen.getByTestId("planner-template-marathon")).toBeTruthy();
+    expect(
+      screen.getByTestId("planner-template-marathon_pfitz_18_70"),
+    ).toBeTruthy();
     // Non-matching templates are removed from the DOM.
-    expect(screen.queryByTestId("planner-template-marathon")).toBeNull();
-    expect(screen.queryByTestId("planner-template-pelo_bike_pz_beginner")).toBeNull();
-    expect(screen.queryByTestId("planner-template-tonal_full_body_5x")).toBeNull();
+    expect(screen.queryByTestId("planner-template-couch_to_5k")).toBeNull();
+    expect(screen.queryByTestId("planner-template-half_marathon")).toBeNull();
 
     // Summary line reports the match count for the active query.
+    // Pfitzinger templates live in the Advanced level which is
+    // collapsed by default — search is scoped to visible levels, so
+    // the headline count is 0 and the matches surface as "+N in
+    // collapsed levels". Expanding Advanced flips them into the
+    // visible count.
     const summary = screen.getByTestId("planner-template-search-summary");
+    expect(summary.textContent).toContain("0 templates match");
+    expect(summary.textContent).toContain("pfitz");
+    expect(summary.textContent).toContain("+2 in collapsed levels");
+
+    fireEvent.click(
+      screen.getByTestId("planner-template-level-toggle-advanced"),
+    );
     expect(summary.textContent).toContain("2 templates match");
-    expect(summary.textContent).toContain("hansons");
+    expect(summary.textContent).not.toContain("collapsed levels");
   });
 
   it("filters by author/source and equipment hint, not just template name", () => {
     renderPlanner();
-    // 'pfitz' only appears in the source/author field of Pfitz templates.
+    // 'higdon' only appears in the source/author field of Higdon templates.
     fireEvent.change(screen.getByTestId("planner-template-search"), {
-      target: { value: "pfitz" },
+      target: { value: "higdon" },
     });
-    expect(screen.getByTestId("planner-template-hm_pfitz")).toBeTruthy();
-    expect(screen.getByTestId("planner-template-marathon_pfitz_12_55")).toBeTruthy();
-    expect(screen.queryByTestId("planner-template-marathon_hansons")).toBeNull();
+    expect(screen.getByTestId("planner-template-higdon_5k_novice")).toBeTruthy();
+    expect(
+      screen.getByTestId("planner-template-marathon_higdon_novice"),
+    ).toBeTruthy();
+    expect(screen.queryByTestId("planner-template-marathon")).toBeNull();
   });
 
-  it("auto-expands a category section that has matches even if it was collapsed by default", () => {
+  it("does NOT auto-expand a collapsed level section even when filters have matches inside it (search is scoped to visible levels)", () => {
     renderPlanner();
-    // Bike is collapsed by default (only Run starts expanded). With no
-    // search, the bike card is hidden from the layout via `hidden`.
-    const bikeBefore = screen.getByTestId("planner-template-category-bike");
-    expect(bikeBefore.querySelector("[hidden]")).not.toBeNull();
+    // Advanced is collapsed by default (only Beginner starts expanded). With
+    // no search, the marathon card is hidden from the layout via `hidden`.
+    const advancedBefore = screen.getByTestId(
+      "planner-template-level-advanced",
+    );
+    expect(advancedBefore.querySelector("[hidden]")).not.toBeNull();
 
     fireEvent.change(screen.getByTestId("planner-template-search"), {
-      target: { value: "peloton bike" },
+      target: { value: "pfitzinger" },
     });
 
-    // After search, the matching bike cards should be visible (the
-    // wrapping grid is not hidden).
-    const bikeAfter = screen.getByTestId("planner-template-category-bike");
-    const hiddenChildren = bikeAfter.querySelectorAll("[hidden]");
-    expect(hiddenChildren.length).toBe(0);
-    expect(
-      within(bikeAfter).getByTestId("planner-template-pelo_bike_pz_beginner"),
-    ).toBeTruthy();
+    // After search, the Advanced section MUST stay collapsed even
+    // though all the pfitzinger matches live inside it.
+    const advancedAfter = screen.getByTestId(
+      "planner-template-level-advanced",
+    );
+    expect(advancedAfter.querySelector("[hidden]")).not.toBeNull();
+    // The header still reports a positive match count for that level
+    // (so the runner can choose to expand it), but the visible-scoped
+    // summary above stays at 0 + a "+N in collapsed levels" suffix.
+    const summary = screen.getByTestId("planner-template-search-summary");
+    expect(summary.textContent).toContain("0 templates match");
+    expect(summary.textContent).toContain("+2 in collapsed levels");
+  });
+
+  it("scopes search results to currently-visible levels — Beginner-default view does not surface Intermediate/Advanced cards as visible matches", () => {
+    renderPlanner();
+    // Beginner is the only level expanded by default. Searching for a
+    // term that only matches templates in the collapsed Intermediate
+    // and Advanced levels must NOT promote those cards into the visible
+    // surface — both matching cards stay inside a [hidden] grid wrapper
+    // and the visible match count stays at 0.
+    fireEvent.change(screen.getByTestId("planner-template-search"), {
+      target: { value: "pfitzinger" },
+    });
+
+    const summary = screen.getByTestId("planner-template-search-summary");
+    expect(summary.textContent).toContain("0 templates match");
+    expect(summary.textContent).toContain("+2 in collapsed levels");
+
+    const advanced = screen.getByTestId("planner-template-level-advanced");
+    expect(advanced.querySelector("[hidden]")).not.toBeNull();
+    // Both matching pfitzinger cards live inside the Advanced section's
+    // hidden wrapper — they exist in the DOM (so the runner can opt in
+    // by expanding Advanced) but are not part of the visible result set.
+    const marathon = within(advanced).getByTestId(
+      "planner-template-marathon",
+    );
+    const pfitz70 = within(advanced).getByTestId(
+      "planner-template-marathon_pfitz_18_70",
+    );
+    expect(marathon.closest("[hidden]")).not.toBeNull();
+    expect(pfitz70.closest("[hidden]")).not.toBeNull();
   });
 
   it("shows the empty-state message when no templates match the query", () => {
@@ -1306,9 +1301,9 @@ describe("Plan Template Library — search filter and category grouping", () => 
 
     const empty = screen.getByTestId("planner-template-empty");
     expect(empty.textContent).toMatch(/No templates match/i);
-    // No category sections render when there are zero matches.
-    expect(screen.queryByTestId("planner-template-category-run")).toBeNull();
-    expect(screen.queryByTestId("planner-template-category-bike")).toBeNull();
+    // No level sections render when there are zero matches.
+    expect(screen.queryByTestId("planner-template-level-beginner")).toBeNull();
+    expect(screen.queryByTestId("planner-template-level-advanced")).toBeNull();
     // And the summary reports zero matches with the offending query.
     expect(
       screen.getByTestId("planner-template-search-summary").textContent,
@@ -1318,16 +1313,16 @@ describe("Plan Template Library — search filter and category grouping", () => 
   it("clearing the search restores the unfiltered grouped layout", () => {
     renderPlanner();
     fireEvent.change(screen.getByTestId("planner-template-search"), {
-      target: { value: "hansons" },
+      target: { value: "pfitz" },
     });
-    expect(screen.queryByTestId("planner-template-marathon")).toBeNull();
+    expect(screen.queryByTestId("planner-template-couch_to_5k")).toBeNull();
 
     fireEvent.click(screen.getByTestId("planner-template-search-clear"));
 
-    // Marathon (Run) is back, and the summary returns to the default copy.
-    expect(screen.getByTestId("planner-template-marathon")).toBeTruthy();
+    // Couch to 5K (Beginner) is back, and the summary returns to the default copy.
+    expect(screen.getByTestId("planner-template-couch_to_5k")).toBeTruthy();
     const summary = screen.getByTestId("planner-template-search-summary");
-    expect(summary.textContent).toMatch(/templates across .* categories/);
+    expect(summary.textContent).toMatch(/templates across .* levels/);
   });
 });
 
@@ -1341,17 +1336,18 @@ describe("Plan Template Library — tag-cloud filter", () => {
   it("toggling a chip narrows the visible templates to those carrying that tag", () => {
     renderPlanner();
     // Pre-filter sanity: a non-pfitzinger template is in the DOM.
-    expect(screen.getByTestId("planner-template-marathon_hansons")).toBeTruthy();
+    expect(screen.getByTestId("planner-template-couch_to_5k")).toBeTruthy();
 
     fireEvent.click(screen.getByTestId("planner-template-tag-chip-pfitzinger"));
 
     // Every pfitzinger template remains visible.
-    expect(screen.getByTestId("planner-template-hm_pfitz")).toBeTruthy();
-    expect(screen.getByTestId("planner-template-marathon_pfitz_12_55")).toBeTruthy();
-    expect(screen.getByTestId("planner-template-marathon_pfitz_18_70")).toBeTruthy();
+    expect(screen.getByTestId("planner-template-marathon")).toBeTruthy();
+    expect(
+      screen.getByTestId("planner-template-marathon_pfitz_18_70"),
+    ).toBeTruthy();
     // Non-matching templates are filtered out.
-    expect(screen.queryByTestId("planner-template-marathon_hansons")).toBeNull();
-    expect(screen.queryByTestId("planner-template-pelo_bike_pz_beginner")).toBeNull();
+    expect(screen.queryByTestId("planner-template-couch_to_5k")).toBeNull();
+    expect(screen.queryByTestId("planner-template-half_marathon")).toBeNull();
 
     // Summary line reflects the active tag filter.
     const summary = screen.getByTestId("planner-template-search-summary");
@@ -1364,16 +1360,17 @@ describe("Plan Template Library — tag-cloud filter", () => {
 
     fireEvent.click(screen.getByTestId("planner-template-tag-chip-pfitzinger"));
     fireEvent.click(
-      screen.getByTestId("planner-template-tag-chip-half-marathon"),
+      screen.getByTestId("planner-template-tag-chip-high-mileage"),
     );
 
-    // Only hm_pfitz carries BOTH tags.
-    expect(screen.getByTestId("planner-template-hm_pfitz")).toBeTruthy();
-    // Other pfitzinger templates (marathon distance) are filtered out.
-    expect(screen.queryByTestId("planner-template-marathon_pfitz_12_55")).toBeNull();
-    expect(screen.queryByTestId("planner-template-marathon_pfitz_18_70")).toBeNull();
-    // Other half-marathon templates (non-pfitzinger) are filtered out too.
-    expect(screen.queryByTestId("planner-template-hm_hansons")).toBeNull();
+    // Only marathon_pfitz_18_70 carries BOTH tags.
+    expect(
+      screen.getByTestId("planner-template-marathon_pfitz_18_70"),
+    ).toBeTruthy();
+    // The other pfitzinger template (no high-mileage tag) is filtered out.
+    expect(screen.queryByTestId("planner-template-marathon")).toBeNull();
+    // Other templates (non-pfitzinger) are filtered out too.
+    expect(screen.queryByTestId("planner-template-couch_to_5k")).toBeNull();
     expect(screen.queryByTestId("planner-template-half_marathon")).toBeNull();
   });
 
@@ -1382,29 +1379,29 @@ describe("Plan Template Library — tag-cloud filter", () => {
 
     fireEvent.click(screen.getByTestId("planner-template-tag-chip-pfitzinger"));
     fireEvent.change(screen.getByTestId("planner-template-search"), {
-      target: { value: "hansons" },
+      target: { value: "couch" },
     });
 
-    // No template carries both `pfitzinger` AND matches "hansons" text.
+    // No template carries both `pfitzinger` AND matches "couch" text.
     expect(screen.getByTestId("planner-template-empty")).toBeTruthy();
   });
 
   it("Clear restores the full unfiltered list", () => {
     renderPlanner();
     fireEvent.click(screen.getByTestId("planner-template-tag-chip-pfitzinger"));
-    expect(screen.queryByTestId("planner-template-marathon_hansons")).toBeNull();
+    expect(screen.queryByTestId("planner-template-couch_to_5k")).toBeNull();
 
     fireEvent.click(screen.getByTestId("planner-template-tag-cloud-clear"));
 
     // Previously-hidden templates return.
-    expect(screen.getByTestId("planner-template-marathon_hansons")).toBeTruthy();
-    expect(screen.getByTestId("planner-template-pelo_bike_pz_beginner")).toBeTruthy();
+    expect(screen.getByTestId("planner-template-couch_to_5k")).toBeTruthy();
+    expect(screen.getByTestId("planner-template-half_marathon")).toBeTruthy();
     // The Clear button itself disappears once nothing is selected.
     expect(screen.queryByTestId("planner-template-tag-cloud-clear")).toBeNull();
     // Summary returns to the default copy.
     expect(
       screen.getByTestId("planner-template-search-summary").textContent,
-    ).toMatch(/templates across .* categories/);
+    ).toMatch(/templates across .* levels/);
   });
 
   it("toggling the same chip twice deselects it (acts like Clear for a single tag)", () => {
@@ -1412,18 +1409,18 @@ describe("Plan Template Library — tag-cloud filter", () => {
     const chip = screen.getByTestId("planner-template-tag-chip-pfitzinger");
 
     fireEvent.click(chip);
-    expect(screen.queryByTestId("planner-template-marathon_hansons")).toBeNull();
+    expect(screen.queryByTestId("planner-template-couch_to_5k")).toBeNull();
 
     fireEvent.click(chip);
-    expect(screen.getByTestId("planner-template-marathon_hansons")).toBeTruthy();
+    expect(screen.getByTestId("planner-template-couch_to_5k")).toBeTruthy();
   });
 
   it("each chip carries a count badge of how many templates it would surface", () => {
     renderPlanner();
 
-    // pfitzinger appears on 4 templates (hm_pfitz, marathon_pfitz_12_55,
-    // marathon_pfitz_18_70, hm_pfitz advanced) — sanity-check it shows
-    // a positive count rather than the literal zero placeholder.
+    // pfitzinger appears on 2 templates (marathon, marathon_pfitz_18_70)
+    // — sanity-check it shows a positive count rather than the literal
+    // zero placeholder.
     const pfitzCount = screen.getByTestId(
       "planner-template-tag-chip-count-pfitzinger",
     );
@@ -1442,7 +1439,7 @@ describe("Plan Template Library — tag-cloud filter", () => {
     );
 
     fireEvent.change(screen.getByTestId("planner-template-search"), {
-      target: { value: "half" },
+      target: { value: "70" },
     });
 
     const after = Number(
@@ -1450,10 +1447,10 @@ describe("Plan Template Library — tag-cloud filter", () => {
         .getByTestId("planner-template-tag-chip-count-pfitzinger")
         .textContent?.match(/(\d+)/)?.[1],
     );
-    // Restricting the free-text query to "half" can only shrink (or
-    // preserve) the count of pfitzinger templates surfaced. Use <= so
-    // adding a half-marathon pfitzinger template later doesn't make
-    // this brittle; the >0 lower bound keeps the assertion meaningful.
+    // Restricting the free-text query to "70" should leave only the
+    // marathon_pfitz_18_70 template, narrowing the count. Use <= so
+    // adding more pfitzinger 70-mpw templates later doesn't make this
+    // brittle; the >0 lower bound keeps the assertion meaningful.
     expect(after).toBeLessThanOrEqual(before);
     expect(after).toBeGreaterThan(0);
   });
@@ -1483,24 +1480,22 @@ describe("Plan Template Library — tag-cloud filter", () => {
 
   it("hides zero-count chips behind a '+N hidden' toggle once a filter is active; expanded chips stay disabled", () => {
     renderPlanner();
-    // hansons is interactive on a fresh catalog and no toggle is
-    // shown because no filter is applied yet.
-    const hansons = screen.getByTestId(
-      "planner-template-tag-chip-hansons",
+    // 5k is interactive on a fresh catalog and no toggle is shown
+    // because no filter is applied yet.
+    const fivek = screen.getByTestId(
+      "planner-template-tag-chip-5k",
     ) as HTMLButtonElement;
-    expect(hansons.disabled).toBe(false);
+    expect(fivek.disabled).toBe(false);
     expect(
       screen.queryByTestId("planner-template-tag-cloud-toggle-hidden"),
     ).toBeNull();
 
-    // Selecting pfitzinger creates a dead-end for hansons (no template
-    // carries both tags), so the hansons chip is collapsed out of the
+    // Selecting pfitzinger creates a dead-end for 5k (no template
+    // carries both tags), so the 5k chip is collapsed out of the
     // cloud and hides behind the "+N hidden" toggle.
     fireEvent.click(screen.getByTestId("planner-template-tag-chip-pfitzinger"));
 
-    expect(
-      screen.queryByTestId("planner-template-tag-chip-hansons"),
-    ).toBeNull();
+    expect(screen.queryByTestId("planner-template-tag-chip-5k")).toBeNull();
     const toggle = screen.getByTestId(
       "planner-template-tag-cloud-toggle-hidden",
     );
@@ -1518,12 +1513,12 @@ describe("Plan Template Library — tag-cloud filter", () => {
     // so the dead-end signal is preserved) and switches the toggle
     // label to a collapse affordance.
     fireEvent.click(toggle);
-    const hansonsAfter = screen.getByTestId(
-      "planner-template-tag-chip-hansons",
+    const fivekAfter = screen.getByTestId(
+      "planner-template-tag-chip-5k",
     ) as HTMLButtonElement;
-    expect(hansonsAfter.disabled).toBe(true);
+    expect(fivekAfter.disabled).toBe(true);
     expect(
-      screen.getByTestId("planner-template-tag-chip-count-hansons").textContent,
+      screen.getByTestId("planner-template-tag-chip-count-5k").textContent,
     ).toContain("0");
     expect(
       screen.getByTestId("planner-template-tag-cloud-toggle-hidden").textContent,
@@ -1538,7 +1533,7 @@ describe("Plan Template Library — tag-cloud filter", () => {
     expect(
       (
         screen.getByTestId(
-          "planner-template-tag-chip-hansons",
+          "planner-template-tag-chip-5k",
         ) as HTMLButtonElement
       ).disabled,
     ).toBe(false);
@@ -1546,22 +1541,18 @@ describe("Plan Template Library — tag-cloud filter", () => {
 
   it("hides zero-count chips under a free-text-only filter and resets the toggle when the search clears", () => {
     renderPlanner();
-    // No filter: lift-only is visible and there is no toggle yet.
-    expect(
-      screen.getByTestId("planner-template-tag-chip-lift-only"),
-    ).toBeTruthy();
+    // No filter: 5k is visible and there is no toggle yet.
+    expect(screen.getByTestId("planner-template-tag-chip-5k")).toBeTruthy();
     expect(
       screen.queryByTestId("planner-template-tag-cloud-toggle-hidden"),
     ).toBeNull();
 
     // Free-text search alone (no chip selection) is enough to trigger
-    // the collapse — searching "marathon" zeroes out lift-only.
+    // the collapse — searching "pfitz" zeroes out the 5k tag.
     fireEvent.change(screen.getByTestId("planner-template-search"), {
-      target: { value: "marathon" },
+      target: { value: "pfitz" },
     });
-    expect(
-      screen.queryByTestId("planner-template-tag-chip-lift-only"),
-    ).toBeNull();
+    expect(screen.queryByTestId("planner-template-tag-chip-5k")).toBeNull();
     const toggle = screen.getByTestId(
       "planner-template-tag-cloud-toggle-hidden",
     );
@@ -1569,7 +1560,7 @@ describe("Plan Template Library — tag-cloud filter", () => {
     expect(
       (
         screen.getByTestId(
-          "planner-template-tag-chip-lift-only",
+          "planner-template-tag-chip-5k",
         ) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
@@ -1587,11 +1578,9 @@ describe("Plan Template Library — tag-cloud filter", () => {
     // Re-applying a filter yields the collapsed state again, not an
     // already-expanded one.
     fireEvent.change(screen.getByTestId("planner-template-search"), {
-      target: { value: "marathon" },
+      target: { value: "pfitz" },
     });
-    expect(
-      screen.queryByTestId("planner-template-tag-chip-lift-only"),
-    ).toBeNull();
+    expect(screen.queryByTestId("planner-template-tag-chip-5k")).toBeNull();
     expect(
       screen
         .getByTestId("planner-template-tag-cloud-toggle-hidden")
@@ -1620,7 +1609,7 @@ describe("Quick-add popover (entries-mode) — tag-cloud filter", () => {
 
     // Pre-filter sanity: a non-pfitzinger option is in the popover.
     expect(
-      screen.getByTestId("planner-entry-add-option-marathon_hansons"),
+      screen.getByTestId("planner-entry-add-option-half_marathon"),
     ).toBeTruthy();
 
     // Toggle the pfitzinger chip inside the popover.
@@ -1630,17 +1619,17 @@ describe("Quick-add popover (entries-mode) — tag-cloud filter", () => {
 
     // Pfitzinger options remain.
     expect(
-      screen.getByTestId("planner-entry-add-option-hm_pfitz"),
+      screen.getByTestId("planner-entry-add-option-marathon"),
     ).toBeTruthy();
     expect(
       screen.getByTestId("planner-entry-add-option-marathon_pfitz_18_70"),
     ).toBeTruthy();
     // Non-matching options are filtered out.
     expect(
-      screen.queryByTestId("planner-entry-add-option-marathon_hansons"),
+      screen.queryByTestId("planner-entry-add-option-half_marathon"),
     ).toBeNull();
     expect(
-      screen.queryByTestId("planner-entry-add-option-pelo_bike_pz_beginner"),
+      screen.queryByTestId("planner-entry-add-option-couch_to_5k"),
     ).toBeNull();
   });
 
@@ -1659,16 +1648,16 @@ describe("Quick-add popover (entries-mode) — tag-cloud filter", () => {
 
     // Free-text search inside the popover narrows the count.
     fireEvent.change(screen.getByTestId("planner-entry-add-search"), {
-      target: { value: "half" },
+      target: { value: "70" },
     });
     const afterSearch = Number(
       screen
         .getByTestId("planner-entry-add-tag-chip-count-pfitzinger")
         .textContent?.match(/(\d+)/)?.[1],
     );
-    // Use <= so adding more pfitzinger half-marathon templates later
-    // doesn't make this brittle; the >0 lower bound keeps the
-    // assertion meaningful.
+    // Use <= so adding more pfitzinger 70-mpw templates later doesn't
+    // make this brittle; the >0 lower bound keeps the assertion
+    // meaningful.
     expect(afterSearch).toBeLessThanOrEqual(initial);
     expect(afterSearch).toBeGreaterThan(0);
   });
@@ -1679,11 +1668,11 @@ describe("Quick-add popover (entries-mode) — tag-cloud filter", () => {
     fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
     fireEvent.click(screen.getByTestId("planner-entry-add-select"));
 
-    // hansons is interactive at first and no toggle is shown.
-    const hansons = screen.getByTestId(
-      "planner-entry-add-tag-chip-hansons",
+    // 5k is interactive at first and no toggle is shown.
+    const fivek = screen.getByTestId(
+      "planner-entry-add-tag-chip-5k",
     ) as HTMLButtonElement;
-    expect(hansons.disabled).toBe(false);
+    expect(fivek.disabled).toBe(false);
     expect(
       screen.queryByTestId("planner-entry-add-tag-cloud-toggle-hidden"),
     ).toBeNull();
@@ -1692,10 +1681,11 @@ describe("Quick-add popover (entries-mode) — tag-cloud filter", () => {
       screen.getByTestId("planner-entry-add-tag-chip-pfitzinger"),
     );
 
-    // hansons collapses out of the cloud, replaced by a "+N hidden"
-    // expander mirroring the Plan Template Library card.
+    // 5k collapses out of the cloud (no template carries both pfitzinger
+    // AND the 5k tag), replaced by a "+N hidden" expander mirroring the
+    // Plan Template Library card.
     expect(
-      screen.queryByTestId("planner-entry-add-tag-chip-hansons"),
+      screen.queryByTestId("planner-entry-add-tag-chip-5k"),
     ).toBeNull();
     const toggle = screen.getByTestId(
       "planner-entry-add-tag-cloud-toggle-hidden",
@@ -1705,13 +1695,12 @@ describe("Quick-add popover (entries-mode) — tag-cloud filter", () => {
     // Expanding shows the hidden chips, still disabled with their
     // zero count, and flips the toggle label.
     fireEvent.click(toggle);
-    const hansonsAfter = screen.getByTestId(
-      "planner-entry-add-tag-chip-hansons",
+    const fivekAfter = screen.getByTestId(
+      "planner-entry-add-tag-chip-5k",
     ) as HTMLButtonElement;
-    expect(hansonsAfter.disabled).toBe(true);
+    expect(fivekAfter.disabled).toBe(true);
     expect(
-      screen.getByTestId("planner-entry-add-tag-chip-count-hansons")
-        .textContent,
+      screen.getByTestId("planner-entry-add-tag-chip-count-5k").textContent,
     ).toContain("0");
     expect(
       screen.getByTestId("planner-entry-add-tag-cloud-toggle-hidden")
@@ -1726,19 +1715,19 @@ describe("Quick-add popover (entries-mode) — tag-cloud filter", () => {
     fireEvent.click(screen.getByTestId("planner-entry-add-select"));
 
     expect(
-      screen.getByTestId("planner-entry-add-tag-chip-lift-only"),
+      screen.getByTestId("planner-entry-add-tag-chip-5k"),
     ).toBeTruthy();
     expect(
       screen.queryByTestId("planner-entry-add-tag-cloud-toggle-hidden"),
     ).toBeNull();
 
     // Free-text typing in the popover (no chip selection) is enough
-    // to collapse zero-count chips.
+    // to collapse zero-count chips. "pfitz" zeroes out the 5k tag.
     fireEvent.change(screen.getByTestId("planner-entry-add-search"), {
-      target: { value: "marathon" },
+      target: { value: "pfitz" },
     });
     expect(
-      screen.queryByTestId("planner-entry-add-tag-chip-lift-only"),
+      screen.queryByTestId("planner-entry-add-tag-chip-5k"),
     ).toBeNull();
     const toggle = screen.getByTestId(
       "planner-entry-add-tag-cloud-toggle-hidden",
@@ -1747,7 +1736,7 @@ describe("Quick-add popover (entries-mode) — tag-cloud filter", () => {
     expect(
       (
         screen.getByTestId(
-          "planner-entry-add-tag-chip-lift-only",
+          "planner-entry-add-tag-chip-5k",
         ) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
@@ -1772,13 +1761,13 @@ describe("Quick-add popover (entries-mode) — tag-cloud filter", () => {
       screen.getByTestId("planner-entry-add-tag-chip-pfitzinger"),
     );
     expect(
-      screen.queryByTestId("planner-entry-add-option-marathon_hansons"),
+      screen.queryByTestId("planner-entry-add-option-half_marathon"),
     ).toBeNull();
 
     fireEvent.click(screen.getByTestId("planner-entry-add-tag-cloud-clear"));
 
     expect(
-      screen.getByTestId("planner-entry-add-option-marathon_hansons"),
+      screen.getByTestId("planner-entry-add-option-half_marathon"),
     ).toBeTruthy();
     expect(
       screen.queryByTestId("planner-entry-add-tag-cloud-clear"),
@@ -1799,15 +1788,15 @@ describe("Planner template tag-cloud chip counts", () => {
     renderPlanner();
 
     // The catalog has multiple "marathon" templates and multiple
-    // "lift-only" templates with no overlap (no marathon template
-    // is lift-only). So before any selection both chips show a
+    // "5k" templates with no overlap (no marathon template carries
+    // the 5k tag). So before any selection both chips show a
     // positive count and neither is disabled; after selecting
-    // "marathon" the lift-only chip drops to count 0.
+    // "marathon" the 5k chip drops to count 0.
     const marathonChip = screen.getByTestId(
       "planner-template-tag-chip-marathon",
     ) as HTMLButtonElement;
-    const liftOnlyChip = screen.getByTestId(
-      "planner-template-tag-chip-lift-only",
+    const fivekChip = screen.getByTestId(
+      "planner-template-tag-chip-5k",
     ) as HTMLButtonElement;
 
     function readCount(tag: string): number {
@@ -1818,21 +1807,21 @@ describe("Planner template tag-cloud chip counts", () => {
     }
 
     const marathonBefore = readCount("marathon");
-    const liftOnlyBefore = readCount("lift-only");
+    const fivekBefore = readCount("5k");
     // Both chips reflect a positive count rendered as "· N".
     expect(marathonBefore).toBeGreaterThan(0);
-    expect(liftOnlyBefore).toBeGreaterThan(0);
+    expect(fivekBefore).toBeGreaterThan(0);
     expect(
       screen.getByTestId("planner-template-tag-chip-count-marathon")
         .textContent,
     ).toBe(`· ${marathonBefore}`);
     expect(marathonChip.disabled).toBe(false);
-    expect(liftOnlyChip.disabled).toBe(false);
+    expect(fivekChip.disabled).toBe(false);
 
     // Selecting "marathon" should leave its own chip's count
     // unchanged (selecting an already-active tag is a no-op under
-    // AND-semantics) and zero out chips like "lift-only" that no
-    // marathon template carries.
+    // AND-semantics) and zero out chips like "5k" that no marathon
+    // template carries.
     fireEvent.click(marathonChip);
 
     expect(readCount("marathon")).toBe(marathonBefore);
@@ -1844,21 +1833,21 @@ describe("Planner template tag-cloud chip counts", () => {
         ) as HTMLButtonElement
       ).disabled,
     ).toBe(false);
-    // Zero-count chips like lift-only collapse behind the
+    // Zero-count chips like 5k collapse behind the
     // "+N hidden" toggle so the cloud stays scannable.
     expect(
-      screen.queryByTestId("planner-template-tag-chip-lift-only"),
+      screen.queryByTestId("planner-template-tag-chip-5k"),
     ).toBeNull();
     fireEvent.click(
       screen.getByTestId("planner-template-tag-cloud-toggle-hidden"),
     );
     // Once expanded the chip reappears with its zero count and stays
     // disabled so runners can't over-narrow into a dead end.
-    expect(readCount("lift-only")).toBe(0);
+    expect(readCount("5k")).toBe(0);
     expect(
       (
         screen.getByTestId(
-          "planner-template-tag-chip-lift-only",
+          "planner-template-tag-chip-5k",
         ) as HTMLButtonElement
       ).disabled,
     ).toBe(true);
@@ -1880,18 +1869,21 @@ describe("Plan Template Library — tag-cloud filter persistence", () => {
     // Select two chips. AND-semantics narrows to templates carrying both.
     fireEvent.click(screen.getByTestId("planner-template-tag-chip-pfitzinger"));
     fireEvent.click(
-      screen.getByTestId("planner-template-tag-chip-half-marathon"),
+      screen.getByTestId("planner-template-tag-chip-high-mileage"),
     );
 
-    // Sanity: the chip-driven filter is in effect (only hm_pfitz matches both).
-    expect(screen.getByTestId("planner-template-hm_pfitz")).toBeTruthy();
-    expect(screen.queryByTestId("planner-template-marathon_hansons")).toBeNull();
+    // Sanity: the chip-driven filter is in effect (only marathon_pfitz_18_70
+    // carries both pfitzinger AND high-mileage).
+    expect(
+      screen.getByTestId("planner-template-marathon_pfitz_18_70"),
+    ).toBeTruthy();
+    expect(screen.queryByTestId("planner-template-couch_to_5k")).toBeNull();
 
     // The persist effect must have written the selection to storage.
     const persisted = window.localStorage.getItem(STORAGE_KEY);
     expect(persisted).not.toBeNull();
     const parsed = JSON.parse(persisted!) as string[];
-    expect(new Set(parsed)).toEqual(new Set(["pfitzinger", "half-marathon"]));
+    expect(new Set(parsed)).toEqual(new Set(["pfitzinger", "high-mileage"]));
 
     // Simulate a reload: tear down the planner and mount it fresh. The
     // hydration path should rebuild the same filter from localStorage.
@@ -1907,12 +1899,14 @@ describe("Plan Template Library — tag-cloud filter persistence", () => {
     ).toBe("true");
     expect(
       screen
-        .getByTestId("planner-template-tag-chip-half-marathon")
+        .getByTestId("planner-template-tag-chip-high-mileage")
         .getAttribute("aria-pressed"),
     ).toBe("true");
-    // And the filter is genuinely re-applied: hm_pfitz is the lone match.
-    expect(screen.getByTestId("planner-template-hm_pfitz")).toBeTruthy();
-    expect(screen.queryByTestId("planner-template-marathon_hansons")).toBeNull();
+    // And the filter is genuinely re-applied: marathon_pfitz_18_70 is the lone match.
+    expect(
+      screen.getByTestId("planner-template-marathon_pfitz_18_70"),
+    ).toBeTruthy();
+    expect(screen.queryByTestId("planner-template-couch_to_5k")).toBeNull();
     // The Clear control is rendered with the restored count.
     expect(
       screen.getByTestId("planner-template-tag-cloud-clear").textContent,
@@ -1962,7 +1956,7 @@ describe("Plan Template Library — tag-cloud filter persistence", () => {
       ).toBeNull();
       // Filter is in the surviving single-tag state, not the empty
       // state — non-pfitzinger templates are filtered out.
-      expect(screen.queryByTestId("planner-template-marathon_hansons")).toBeNull();
+      expect(screen.queryByTestId("planner-template-couch_to_5k")).toBeNull();
       // The Clear control shows the pruned count of 1.
       expect(
         screen.getByTestId("planner-template-tag-cloud-clear").textContent,
@@ -2116,5 +2110,79 @@ describe("defaultBlankConfig", () => {
       blocks: blank.blocks,
     });
     expect(issues).toEqual([]);
+  });
+});
+
+describe("Planner archived-template migration safety", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  // A persisted config whose entries reference templates pruned from
+  // PLAN_TEMPLATES during the level-grouped curation pass. The catalog
+  // must not error on these IDs: the entry should render with an
+  // "Archived template" badge and the Save / Apply controls must remain
+  // operable so the runner can keep editing or regenerate the plan.
+  const ARCHIVED_ENTRIES_CONFIG = {
+    id: 7,
+    name: "Legacy plan",
+    isActive: true,
+    startDate: "2026-05-04", // Monday
+    marathonDate: "2026-06-28", // Sunday at the end of the 8th Mon..Sun week
+    blocks: [],
+    entries: [
+      {
+        templateId: "marathon_hansons",
+        weeks: 4,
+        startDate: "2026-05-04",
+        customName: null,
+        customNotes: null,
+      },
+      {
+        templateId: "hm_pfitz",
+        weeks: 4,
+        startDate: "2026-06-01",
+        customName: null,
+        customNotes: null,
+      },
+    ],
+    notes: null,
+    updatedAt: "2026-05-04T00:00:00.000Z",
+    lastAppliedAt: null,
+  };
+
+  it("renders the Archived template badge for entries pointing at pruned templates", () => {
+    renderPlanner({
+      config: ARCHIVED_ENTRIES_CONFIG as unknown as typeof SAMPLE_CONFIG,
+    });
+    expect(screen.getByTestId("planner-entry-0-archived")).toBeTruthy();
+    expect(screen.getByTestId("planner-entry-1-archived")).toBeTruthy();
+  });
+
+  it("keeps Save and Apply enabled when the only validation concern is archived template IDs", () => {
+    renderPlanner({
+      config: ARCHIVED_ENTRIES_CONFIG as unknown as typeof SAMPLE_CONFIG,
+    });
+    expect(
+      (screen.getByTestId("planner-save") as HTMLButtonElement).disabled,
+    ).toBe(false);
+    expect(
+      (screen.getByTestId("planner-apply") as HTMLButtonElement).disabled,
+    ).toBe(false);
+  });
+
+  it("does not surface the archived template IDs anywhere in the picker", () => {
+    renderPlanner({
+      config: ARCHIVED_ENTRIES_CONFIG as unknown as typeof SAMPLE_CONFIG,
+    });
+    // The picker renders one Apply button per LIVE catalog template. An
+    // archived ID must never get a card / Apply button there.
+    expect(
+      screen.queryByTestId("planner-template-apply-marathon_hansons"),
+    ).toBeNull();
+    expect(
+      screen.queryByTestId("planner-template-apply-hm_pfitz"),
+    ).toBeNull();
   });
 });

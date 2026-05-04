@@ -22,6 +22,7 @@ import {
   expandEntriesToBlocksWithGaps,
   projectEntries,
   getTemplateById,
+  isArchivedTemplateId,
   previewWeeklyMileage,
   type FocusType,
   type PlanTemplate,
@@ -220,29 +221,32 @@ export function defaultBlankConfig(): {
 // each template by its primary modality (cardio machine vs strength
 // vs custom slot) so the runner can collapse irrelevant sections.
 //
-// TEMPLATE_CATEGORIES, categorizeTemplate, filterTemplatesByQuery, and
-// groupTemplatesByCategory all live in src/lib/planner-templates.ts so
+// TEMPLATE_LEVELS, levelOfTemplate, filterTemplatesByQuery, and
+// groupTemplatesByLevel all live in src/lib/planner-templates.ts so
 // the Plan Template Library card and the entries-mode quick-add
 // combobox stay in lock-step when new searchable fields are added.
 import {
-  TEMPLATE_CATEGORIES,
-  type TemplateCategory,
-  categorizeTemplate,
+  TEMPLATE_LEVELS,
+  type TemplateLevel,
+  levelOfTemplate,
   filterTemplatesByQuery,
   filterTemplatesByTags,
   getAllTemplateTags,
   countTemplatesByTag,
   sortTags,
   type TagSortMode,
-  groupTemplatesByCategory,
+  groupTemplatesByLevel,
 } from "../lib/planner-templates";
-export { categorizeTemplate };
+export { levelOfTemplate };
 
-// localStorage key for the planner's per-category collapse state.
+// localStorage key for the planner's per-level collapse state.
 // Versioned so we can change the shape later without colliding with
-// stale entries.
+// stale entries. Bumped to v2 when the picker switched from
+// modality-based categories to skill-level groupings (task #132) so
+// stale "Bike"/"Strength" collapse state doesn't bleed into the new
+// Beginner/Intermediate/Advanced layout.
 const COLLAPSED_CATEGORIES_STORAGE_KEY =
-  "planner.collapsedTemplateCategories.v1";
+  "planner.collapsedTemplateLevels.v2";
 
 // localStorage key for the planner's per-template "Details" expansion
 // state in the Plan Template Library card. Versioned so we can change
@@ -525,14 +529,15 @@ export default function Planner() {
   // and keeps any selected-count badge visible at all times.
   const [templateTagCloudOpen, setTemplateTagCloudOpen] = useState(false);
   const [quickAddTagCloudOpen, setQuickAddTagCloudOpen] = useState(false);
-  // Per-category collapse state for the grouped template grid. Default
-  // is "Run" expanded (the most common path) and the rest collapsed so
-  // 50+ cards don't unfurl on first open. Toggled by the section
-  // header chevron. Persisted to localStorage so a returning cyclist or
-  // rower sees their preferred section already expanded (storage key
+  // Per-level collapse state for the grouped template grid. Default
+  // is "Beginner" expanded (the gentlest entry point) and Intermediate
+  // / Advanced collapsed so the picker doesn't overwhelm a first-time
+  // runner with high-mileage Pfitz plans. Toggled by the section
+  // header chevron. Persisted to localStorage so a returning advanced
+  // runner sees their preferred level already expanded (storage key
   // `COLLAPSED_CATEGORIES_STORAGE_KEY`, hoisted to module scope).
   const [collapsedCategories, setCollapsedCategories] = useState<
-    Set<TemplateCategory>
+    Set<TemplateLevel>
   >(() => {
     if (typeof window !== "undefined") {
       try {
@@ -542,20 +547,18 @@ export default function Planner() {
         if (raw) {
           const parsed: unknown = JSON.parse(raw);
           if (Array.isArray(parsed)) {
-            const valid = parsed.filter((c): c is TemplateCategory =>
-              (TEMPLATE_CATEGORIES as readonly string[]).includes(
-                c as string,
-              ),
+            const valid = parsed.filter((c): c is TemplateLevel =>
+              (TEMPLATE_LEVELS as readonly string[]).includes(c as string),
             );
-            return new Set<TemplateCategory>(valid);
+            return new Set<TemplateLevel>(valid);
           }
         }
       } catch {
         // Ignore corrupt storage and fall through to default.
       }
     }
-    return new Set<TemplateCategory>(
-      TEMPLATE_CATEGORIES.filter((c) => c !== "Run"),
+    return new Set<TemplateLevel>(
+      TEMPLATE_LEVELS.filter((c) => c !== "Beginner"),
     );
   });
   useEffect(() => {
@@ -569,7 +572,7 @@ export default function Planner() {
       // Storage may be full or disabled; ignore.
     }
   }, [collapsedCategories]);
-  function toggleCategory(cat: TemplateCategory) {
+  function toggleCategory(cat: TemplateLevel) {
     setCollapsedCategories((prev) => {
       const next = new Set(prev);
       if (next.has(cat)) next.delete(cat);
@@ -700,15 +703,24 @@ export default function Planner() {
   // Empty categories are dropped so the section list adapts to the
   // current filter.
   const groupedTemplates = useMemo(() => {
-    return groupTemplatesByCategory(
+    return groupTemplatesByLevel(
       filterTemplatesByTags(
         filterTemplatesByQuery(templates, templateSearch),
         selectedTemplateTags,
       ),
     );
   }, [templates, templateSearch, selectedTemplateTags]);
+  // Search/filter results are scoped to currently-VISIBLE level
+  // sections. A level the runner has collapsed is treated as "out of
+  // view" — its matches do NOT inflate the summary count and do NOT
+  // force-expand the section. Each level's own header still shows its
+  // local match count so the runner can opt in by clicking to expand.
   const totalMatchedTemplates = groupedTemplates.reduce(
-    (s, g) => s + g.list.length,
+    (s, g) => (collapsedCategories.has(g.level) ? s : s + g.list.length),
+    0,
+  );
+  const hiddenMatchedTemplates = groupedTemplates.reduce(
+    (s, g) => (collapsedCategories.has(g.level) ? s + g.list.length : s),
     0,
   );
   const hasActiveSearch = templateSearch.trim().length > 0;
@@ -976,7 +988,7 @@ export default function Planner() {
       if (!e.weeks || e.weeks < 1) {
         issues.push(`Entry ${i + 1} needs at least 1 week.`);
       }
-      if (!getTemplateById(e.templateId)) {
+      if (!getTemplateById(e.templateId) && !isArchivedTemplateId(e.templateId)) {
         issues.push(`Entry ${i + 1} references unknown template "${e.templateId}".`);
       }
       // Per-entry startDate sanity (Monday, on/after cursor, first
@@ -2259,15 +2271,21 @@ export default function Planner() {
                           .map((t) => `#${t}`)
                           .join(" ")}`
                       : ""
+                  }${
+                    hiddenMatchedTemplates > 0
+                      ? ` (+${hiddenMatchedTemplates} in collapsed level${
+                          hiddenMatchedTemplates === 1 ? "" : "s"
+                        })`
+                      : ""
                   }`
-                : `${templates.length} templates across ${TEMPLATE_CATEGORIES.length} categories`}
+                : `${templates.length} templates across ${TEMPLATE_LEVELS.length} levels`}
             </p>
           </div>
 
           {/* Grouped template grid */}
           <div className="space-y-3">
             <h3 className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-              <BookOpen className="h-3 w-3" /> Templates by category
+              <BookOpen className="h-3 w-3" /> Templates by level
             </h3>
             {totalMatchedTemplates === 0 && (
               <p
@@ -2278,29 +2296,28 @@ export default function Planner() {
                 tag, or piece of equipment.
               </p>
             )}
-            {groupedTemplates.map(({ cat, list }) => {
-              // Auto-expand any section with active matches when the runner
-              // is filtering (free-text search OR tag chips), even if they
-              // previously collapsed it.
-              const isCollapsed =
-                !hasActiveSearch &&
-                !hasActiveTags &&
-                collapsedCategories.has(cat);
+            {groupedTemplates.map(({ level, list }) => {
+              // Search results are scoped to visible levels only — a
+              // collapsed section stays collapsed even when filters
+              // have matches inside it. The header badge still shows
+              // the local match count so the runner can decide to
+              // expand it explicitly.
+              const isCollapsed = collapsedCategories.has(level);
               return (
                 <div
-                  key={cat}
+                  key={level}
                   className="border rounded-md"
-                  data-testid={`planner-template-category-${cat.toLowerCase()}`}
+                  data-testid={`planner-template-level-${level.toLowerCase()}`}
                 >
                   <button
                     type="button"
-                    onClick={() => toggleCategory(cat)}
+                    onClick={() => toggleCategory(level)}
                     className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-muted/40"
                     aria-expanded={!isCollapsed}
-                    data-testid={`planner-template-category-toggle-${cat.toLowerCase()}`}
+                    data-testid={`planner-template-level-toggle-${level.toLowerCase()}`}
                   >
                     <span className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{cat}</span>
+                      <span className="text-sm font-medium">{level}</span>
                       <Badge variant="secondary" className="text-[10px]">
                         {list.length}
                       </Badge>
@@ -2334,11 +2351,20 @@ export default function Planner() {
                           {tpl.goalDistance} · {tpl.source}
                         </div>
                       </div>
-                      {isLastApplied && (
-                        <Badge variant="secondary" className="text-[10px]">
-                          Applied
+                      <div className="flex items-center gap-1">
+                        <Badge
+                          variant="outline"
+                          className="text-[10px]"
+                          data-testid={`planner-template-${tpl.id}-level`}
+                        >
+                          {tpl.level}
                         </Badge>
-                      )}
+                        {isLastApplied && (
+                          <Badge variant="secondary" className="text-[10px]">
+                            Applied
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                     <div className="text-xs text-muted-foreground flex-1">
                       {tpl.shortDescription}
@@ -2665,6 +2691,7 @@ export default function Planner() {
               >
                 {entries!.map((e, i) => {
                   const tpl = getTemplateById(e.templateId);
+                  const isArchived = isArchivedTemplateId(e.templateId);
                   const proj = entryProjections.find((p) => p.entryIndex === i);
                   const isHighlighted = hoveredEntry === i;
                   return (
@@ -2695,8 +2722,18 @@ export default function Planner() {
                           #{i + 1}
                         </span>
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm">
-                            {tpl?.name ?? e.templateId}
+                          <div className="font-medium text-sm flex items-center gap-2 flex-wrap">
+                            <span>{tpl?.name ?? e.templateId}</span>
+                            {isArchived && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] border-amber-500 text-amber-700 dark:text-amber-400"
+                                data-testid={`planner-entry-${i}-archived`}
+                                title="This template is no longer in the catalog. Existing entries still expand for compatibility, but you can't add new entries from it."
+                              >
+                                Archived template
+                              </Badge>
+                            )}
                           </div>
                           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
                             {tpl?.goalDistance ?? "—"} · {tpl?.source ?? "unknown source"}
@@ -3271,19 +3308,19 @@ export default function Planner() {
                     <CommandList>
                       <CommandEmpty>No templates match.</CommandEmpty>
                       {(() => {
-                        // Custom-slot templates stay pinned to the
-                        // bottom of the popover because TEMPLATE_CATEGORIES
-                        // (used inside groupTemplatesByCategory) lists
-                        // Custom last.
-                        const groups = groupTemplatesByCategory(
+                        // Templates are grouped by skill level so the
+                        // Beginner picks come first (matching the order
+                        // of TEMPLATE_LEVELS used in
+                        // groupTemplatesByLevel).
+                        const groups = groupTemplatesByLevel(
                           filterTemplatesByTags(
                             filterTemplatesByQuery(templates, quickAddSearch),
                             quickAddSelectedTags,
                           ),
                         );
-                        return groups.map(({ cat, list }) => {
+                        return groups.map(({ level, list }) => {
                           return (
-                            <CommandGroup key={cat} heading={cat}>
+                            <CommandGroup key={level} heading={level}>
                               {list.map((t) => (
                                 <CommandItem
                                   key={t.id}

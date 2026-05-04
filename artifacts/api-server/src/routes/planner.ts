@@ -255,6 +255,7 @@ router.get("/planner/templates", async (_req, res): Promise<void> => {
     templates: PLAN_TEMPLATES.map((t) => ({
       id: t.id,
       name: t.name,
+      level: t.level,
       goalDistance: t.goalDistance,
       source: t.source,
       citation: t.citation,

@@ -1,9 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
   PLAN_TEMPLATES,
+  ARCHIVED_PLAN_TEMPLATES,
   STARTER_SHORTCUTS,
   generatePlanFromConfig,
   getTemplateById,
+  isArchivedTemplateId,
+  validatePlannerConfig,
   expandEntriesToBlocks,
   expandEntriesToBlocksWithGaps,
   previewWeeklyMileage,
@@ -13,78 +16,23 @@ import {
 } from "@workspace/plan-generator";
 
 describe("PLAN_TEMPLATES", () => {
-  it("registers the full launch catalog (originals + Task #97 picks)", () => {
+  it("registers the curated skill-level catalog (Task #132)", () => {
     const ids = PLAN_TEMPLATES.map((t) => t.id).sort();
     expect(ids).toEqual(
       [
-        // Originals
-        "5k_improver",
-        "10k_builder",
-        "aerobic_base",
-        "cardio_weight_loss",
+        // Beginner
         "couch_to_5k",
-        "half_marathon",
-        "hybrid_strength",
-        "maintenance",
-        "marathon",
-        "push_pull_legs",
-        "recovery",
-        "speed_block",
-        "tonal_conditioning",
-        "tonal_strength_lower",
-        "tonal_strength_upper",
-        "ultramarathon_50k",
-        // Task #97 picks — running
-        "couch_to_5k_alt",
         "higdon_5k_novice",
-        "higdon_5k_intermediate",
-        "higdon_5k_advanced",
-        "higdon_10k_advanced",
-        "hm_higdon_novice2",
-        "hm_pfitz",
-        "hm_hansons",
-        "marathon_pfitz_12_55",
-        "marathon_pfitz_18_70",
-        "marathon_hansons",
-        "marathon_8020",
+        "aerobic_base",
+        "recovery",
+        // Intermediate
+        "5k_improver",
+        "half_marathon",
         "marathon_higdon_novice",
-        "marathon_higdon_advanced",
-        "ultra_50_mile",
-        "ultra_100k",
-        "norwegian_singles",
-        // Bike
-        "pelo_bike_you_can_ride",
-        "pelo_bike_pz_beginner",
-        "pelo_bike_pz_intermediate",
-        "pelo_bike_pz_advanced",
-        "pelo_bike_strength_for_cyclists",
-        // Row
-        "pelo_row_dpz",
-        "c2_row_30day",
-        "c2_row_5k",
-        "c2_row_2k",
-        // Strength
-        "tonal_full_body_5x",
-        "starting_strength",
-        "stronglifts_5x5",
-        "wendler_531_bbb",
-        "phul",
-        "ppl_6day",
-        "simple_and_sinister",
-        // Hybrid + cross-modal
-        "nick_bare_1_0",
-        "pelo_x_hyrox",
-        // Conditioning
-        "maf_180",
-        "bike_bootcamp_builder",
-        "ywa_30day",
-        // Customizable scaffolds
-        "run_custom",
-        "bike_custom",
-        "row_custom",
-        "strength_custom",
-        "hybrid_custom",
-        "race_countdown",
+        // Advanced
+        "marathon",
+        "marathon_pfitz_18_70",
+        "ultramarathon_50k",
       ].sort(),
     );
   });
@@ -116,67 +64,19 @@ describe("PLAN_TEMPLATES", () => {
   it("ships exact launch-catalog week ranges per template", () => {
     const expected: Record<string, [number, number, number]> = {
       // [min, default, max]
+      // Beginner
       couch_to_5k: [6, 9, 12],
-      "5k_improver": [6, 8, 12],
-      "10k_builder": [8, 10, 14],
-      half_marathon: [10, 12, 16],
-      marathon: [16, 18, 24],
-      ultramarathon_50k: [16, 20, 24],
-      aerobic_base: [4, 8, 16],
-      speed_block: [4, 6, 8],
-      hybrid_strength: [6, 8, 12],
-      cardio_weight_loss: [6, 10, 16],
-      recovery: [2, 4, 6],
-      maintenance: [4, 6, 12],
-      tonal_strength_upper: [4, 8, 16],
-      tonal_strength_lower: [4, 8, 16],
-      push_pull_legs: [4, 8, 16],
-      tonal_conditioning: [4, 8, 16],
-      // Task #97 picks
-      couch_to_5k_alt: [8, 8, 12],
       higdon_5k_novice: [6, 8, 10],
-      higdon_5k_intermediate: [6, 8, 10],
-      higdon_5k_advanced: [6, 8, 10],
-      higdon_10k_advanced: [8, 10, 14],
-      hm_higdon_novice2: [12, 12, 16],
-      hm_pfitz: [12, 12, 16],
-      hm_hansons: [14, 14, 16],
-      marathon_pfitz_12_55: [12, 12, 14],
-      marathon_pfitz_18_70: [18, 18, 24],
-      marathon_hansons: [16, 18, 20],
-      marathon_8020: [16, 18, 24],
+      aerobic_base: [4, 8, 16],
+      recovery: [2, 4, 6],
+      // Intermediate
+      "5k_improver": [6, 8, 12],
+      half_marathon: [10, 12, 16],
       marathon_higdon_novice: [16, 18, 22],
-      marathon_higdon_advanced: [18, 18, 24],
-      ultra_50_mile: [20, 24, 30],
-      ultra_100k: [20, 24, 32],
-      norwegian_singles: [12, 16, 24],
-      pelo_bike_you_can_ride: [4, 4, 6],
-      pelo_bike_pz_beginner: [6, 8, 12],
-      pelo_bike_pz_intermediate: [6, 8, 12],
-      pelo_bike_pz_advanced: [8, 10, 12],
-      pelo_bike_strength_for_cyclists: [4, 6, 8],
-      pelo_row_dpz: [6, 8, 12],
-      c2_row_30day: [4, 4, 6],
-      c2_row_5k: [6, 8, 10],
-      c2_row_2k: [6, 8, 12],
-      tonal_full_body_5x: [4, 8, 16],
-      starting_strength: [8, 12, 24],
-      stronglifts_5x5: [8, 12, 24],
-      wendler_531_bbb: [12, 12, 16],
-      phul: [8, 12, 16],
-      ppl_6day: [6, 8, 12],
-      simple_and_sinister: [8, 12, 24],
-      nick_bare_1_0: [8, 12, 16],
-      pelo_x_hyrox: [8, 12, 16],
-      maf_180: [8, 12, 16],
-      bike_bootcamp_builder: [4, 6, 8],
-      ywa_30day: [4, 4, 6],
-      run_custom: [1, 8, 52],
-      bike_custom: [1, 8, 52],
-      row_custom: [1, 8, 52],
-      strength_custom: [1, 8, 52],
-      hybrid_custom: [1, 8, 52],
-      race_countdown: [4, 8, 52],
+      // Advanced
+      marathon: [16, 18, 24],
+      marathon_pfitz_18_70: [18, 18, 24],
+      ultramarathon_50k: [16, 20, 24],
     };
     for (const t of PLAN_TEMPLATES) {
       const want = expected[t.id];
@@ -261,23 +161,13 @@ describe("getTemplateById", () => {
 });
 
 describe("STARTER_SHORTCUTS", () => {
-  it("registers the originals + Task #97 picked starter shortcuts", () => {
+  it("registers the curated 4 starter shortcuts (Task #132)", () => {
     expect(STARTER_SHORTCUTS.map((s) => s.id).sort()).toEqual(
       [
-        // Originals
+        "couch_to_hm_24w",
         "get_faster_5k_14w",
         "hm_beginner_16w",
         "marathon_first_timer_24w",
-        // Task #97 picks
-        "marathon_pfitz_70_24w",
-        "marathon_hansons_22w",
-        "ultra_50m_30w",
-        "bike_pz_ladder_24w",
-        "tonal_recomp_16w",
-        "strength_then_hm_20w",
-        "hyrox_prep_20w",
-        "couch_to_hm_24w",
-        "nick_bare_hybrid_16w",
       ].sort(),
     );
   });
@@ -358,25 +248,6 @@ describe("primaryMachineKind sentinel parser", () => {
     expect(primaryMachineKind("")).toBeNull();
     expect(primaryMachineKind("[lift-primary:upper] foo")).toBeNull();
     expect(primaryMachineKind("[primary-machine:tread] foo")).toBeNull();
-  });
-  it("every Peloton Bike / Concept2 Row / Peloton Row template tags every block with the sentinel", () => {
-    const machineTemplateIds = [
-      ["pelo_bike_you_can_ride", "bike"],
-      ["pelo_bike_pz_beginner", "bike"],
-      ["pelo_bike_pz_intermediate", "bike"],
-      ["pelo_bike_pz_advanced", "bike"],
-      ["pelo_row_dpz", "row"],
-      ["c2_row_30day", "row"],
-      ["c2_row_5k", "row"],
-      ["c2_row_2k", "row"],
-    ] as const;
-    for (const [id, expected] of machineTemplateIds) {
-      const tpl = getTemplateById(id)!;
-      const blocks = tpl.expand(tpl.defaultWeeks);
-      for (const b of blocks) {
-        expect(primaryMachineKind(b.customNotes), `${id} block`).toBe(expected);
-      }
-    }
   });
 });
 
@@ -659,5 +530,69 @@ describe("expandEntriesToBlocksWithGaps", () => {
     const sumB = b.reduce((s, x) => s + x.weeks, 0);
     expect(sumB).toBe(sumA);
     expect(b.some((x) => x.customNotes === "Gap between templates")).toBe(false);
+  });
+});
+
+describe("archived template registry (legacy-campaign migration safety)", () => {
+  it("registers archived stub IDs that never appear in PLAN_TEMPLATES", () => {
+    expect(ARCHIVED_PLAN_TEMPLATES.length).toBeGreaterThan(0);
+    const liveIds = new Set(PLAN_TEMPLATES.map((t) => t.id));
+    for (const a of ARCHIVED_PLAN_TEMPLATES) {
+      expect(liveIds.has(a.id)).toBe(false);
+      expect(isArchivedTemplateId(a.id)).toBe(true);
+    }
+  });
+
+  it("getTemplateById resolves archived IDs so legacy entries don't appear unknown", () => {
+    // hm_pfitz, marathon_hansons, race_countdown were all in the
+    // pre-curation catalog — they must still resolve.
+    for (const id of ["hm_pfitz", "marathon_hansons", "race_countdown"]) {
+      const tpl = getTemplateById(id);
+      expect(tpl).not.toBeNull();
+      expect(tpl!.id).toBe(id);
+    }
+  });
+
+  it("validatePlannerConfig accepts a config containing archived template IDs", () => {
+    const cfg = {
+      startDate: "2026-01-05", // Monday
+      marathonDate: "2026-03-01", // Sunday at end of 8th Mon..Sun week
+      blocks: [],
+      entries: [
+        {
+          templateId: "marathon_hansons",
+          weeks: 8,
+          startDate: "2026-01-05",
+        },
+      ],
+    } as unknown as PlannerConfig;
+    const issues = validatePlannerConfig(cfg);
+    const unknown = issues.find((i) => /unknown template id/.test(i.message));
+    expect(unknown).toBeUndefined();
+  });
+
+  it("generatePlanFromConfig regenerates a plan whose only entry is archived", () => {
+    const cfg = {
+      startDate: "2026-01-05",
+      marathonDate: "2026-03-01", // Sunday at end of 8th Mon..Sun week
+      blocks: [],
+      entries: [
+        {
+          templateId: "hm_pfitz",
+          weeks: 8,
+          startDate: "2026-01-05",
+        },
+      ],
+    } as unknown as PlannerConfig;
+    const { weekly, daily } = generatePlanFromConfig(cfg);
+    expect(weekly.length).toBe(8);
+    expect(daily.length).toBe(8 * 7);
+  });
+
+  it("isArchivedTemplateId returns false for live catalog IDs and unknown IDs", () => {
+    for (const t of PLAN_TEMPLATES) {
+      expect(isArchivedTemplateId(t.id)).toBe(false);
+    }
+    expect(isArchivedTemplateId("does_not_exist_anywhere")).toBe(false);
   });
 });

@@ -1,73 +1,48 @@
 // Shared helpers for the planner's searchable template pickers.
 //
 // Two surfaces in the planner filter the same template catalog by the
-// same fields and bucket the matches into the same categories:
+// same fields and bucket the matches into the same level groups:
 //   1. The Plan Template Library card (free-text search + grouped grid).
 //   2. The entries-mode "Quick-add template" combobox (task #106).
 //
 // Both call into the helpers below so adding a new searchable field or
-// changing the category-grouping rule is a single edit that updates
+// changing the level-grouping rule is a single edit that updates
 // both surfaces in lock-step.
 
-import { type PlanTemplate } from "@workspace/plan-generator";
+import {
+  type PlanTemplate,
+  type PlanTemplateLevel,
+} from "@workspace/plan-generator";
 
-export const TEMPLATE_CATEGORIES = [
-  "Run",
-  "Bike",
-  "Row",
-  "Strength",
-  "Hybrid",
-  "Conditioning",
-  "Custom",
-] as const;
-export type TemplateCategory = (typeof TEMPLATE_CATEGORIES)[number];
+export const TEMPLATE_LEVELS = [
+  "Beginner",
+  "Intermediate",
+  "Advanced",
+] as const satisfies readonly PlanTemplateLevel[];
+export type TemplateLevel = PlanTemplateLevel;
 
 // Accepts both the in-process PlanTemplate (which carries an expand fn)
 // and the API-shaped PlanTemplate (no expand) so the picker can
-// categorize whichever the templatesQuery returns.
+// classify whichever the templatesQuery returns.
 export type CategorizableTemplate = Pick<
   PlanTemplate,
-  "id" | "name" | "source" | "goalDistance" | "metadata" | "tags"
+  | "id"
+  | "name"
+  | "source"
+  | "goalDistance"
+  | "metadata"
+  | "tags"
+  | "level"
+  | "minWeeks"
+  | "maxWeeks"
+  | "defaultWeeks"
+  | "shortDescription"
+  | "longDescription"
+  | "citation"
 >;
 
-export function categorizeTemplate(
-  tpl: CategorizableTemplate,
-): TemplateCategory {
-  if (tpl.id.endsWith("_custom")) return "Custom";
-  const eq = tpl.metadata.equipmentMixHint.toLowerCase();
-  const goal = tpl.goalDistance.toLowerCase();
-  if (
-    eq.includes("runner-defined") ||
-    tpl.tags.includes("scaffold")
-  ) {
-    return "Custom";
-  }
-  if (eq.includes("hyrox") || goal.includes("hyrox")) return "Hybrid";
-  if (
-    goal.includes("recovery") ||
-    goal.includes("mobility") ||
-    goal.includes("hold fitness") ||
-    eq.startsWith("mat-only")
-  ) {
-    return "Conditioning";
-  }
-  const hasStrength =
-    eq.includes("tonal") ||
-    eq.includes("kettlebell") ||
-    eq.includes("barbell");
-  const hasBike = eq.includes("bike");
-  const hasRow = eq.includes("row") || eq.includes("concept2");
-  const hasRun =
-    eq.includes("run") ||
-    eq.includes("walk") ||
-    eq.includes("hike") ||
-    eq.includes("tread");
-  if (hasStrength && (hasBike || hasRow || hasRun)) return "Hybrid";
-  if (hasStrength) return "Strength";
-  if (hasBike && !hasRun && !hasRow) return "Bike";
-  if (hasRow && !hasRun && !hasBike) return "Row";
-  if (hasRun) return "Run";
-  return "Conditioning";
+export function levelOfTemplate(tpl: CategorizableTemplate): TemplateLevel {
+  return tpl.level;
 }
 
 // Fields the picker matches the free-text query against, in order.
@@ -208,23 +183,23 @@ export function filterTemplatesByTags<T extends CategorizableTemplate>(
 }
 
 export interface TemplateGroup<T> {
-  cat: TemplateCategory;
+  level: TemplateLevel;
   list: T[];
 }
 
-// Bucket templates into the canonical category order, dropping empty
-// buckets so the section list adapts to the current filter. Custom
-// stays last because TEMPLATE_CATEGORIES lists it last.
-export function groupTemplatesByCategory<T extends CategorizableTemplate>(
+// Bucket templates into the canonical level order (Beginner →
+// Intermediate → Advanced), dropping empty buckets so the section
+// list adapts to the current filter.
+export function groupTemplatesByLevel<T extends CategorizableTemplate>(
   templates: readonly T[],
 ): TemplateGroup<T>[] {
-  const buckets = new Map<TemplateCategory, T[]>();
-  for (const cat of TEMPLATE_CATEGORIES) buckets.set(cat, []);
+  const buckets = new Map<TemplateLevel, T[]>();
+  for (const lvl of TEMPLATE_LEVELS) buckets.set(lvl, []);
   for (const tpl of templates) {
-    buckets.get(categorizeTemplate(tpl))!.push(tpl);
+    buckets.get(levelOfTemplate(tpl))!.push(tpl);
   }
-  return TEMPLATE_CATEGORIES.map((cat) => ({
-    cat,
-    list: buckets.get(cat) ?? [],
+  return TEMPLATE_LEVELS.map((level) => ({
+    level,
+    list: buckets.get(level) ?? [],
   })).filter((g) => g.list.length > 0);
 }

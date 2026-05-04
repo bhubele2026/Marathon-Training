@@ -639,6 +639,18 @@ export interface PlanTemplateMetadata {
   equipmentMixHint: string;
 }
 
+/**
+ * Skill-level bucket used to group templates in the picker.
+ */
+export type PlanTemplateLevel =
+  (typeof PlanTemplateLevel)[keyof typeof PlanTemplateLevel];
+
+export const PlanTemplateLevel = {
+  Beginner: "Beginner",
+  Intermediate: "Intermediate",
+  Advanced: "Advanced",
+} as const;
+
 export interface PlanTemplate {
   id: string;
   name: string;
@@ -655,6 +667,8 @@ export interface PlanTemplate {
   metadata: PlanTemplateMetadata;
   /** Lightweight, runner-facing topic tags surfaced as chips on the template card and matched by the planner's free-text filter (e.g. "polarized", "hill focus", "low-mileage", "first-timer"). */
   tags: string[];
+  /** Skill-level bucket used to group templates in the picker. */
+  level: PlanTemplateLevel;
 }
 
 export type StarterShortcutEntriesItem = {

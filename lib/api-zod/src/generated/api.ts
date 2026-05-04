@@ -1364,6 +1364,9 @@ export const ListPlannerTemplatesResponse = zod.object({
         .describe(
           'Lightweight, runner-facing topic tags surfaced as chips on the template card and matched by the planner\'s free-text filter (e.g. \"polarized\", \"hill focus\", \"low-mileage\", \"first-timer\").',
         ),
+      level: zod
+        .enum(["Beginner", "Intermediate", "Advanced"])
+        .describe("Skill-level bucket used to group templates in the picker."),
     }),
   ),
   starters: zod.array(
