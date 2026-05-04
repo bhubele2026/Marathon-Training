@@ -202,33 +202,38 @@ export default function WeekDetail() {
 
   if (!week) return <div>Week not found</div>;
 
-  // Map: date -> all workouts logged for that date, ordered by time-of-day
-  // tag (AM, PM, Other, then untagged) and then createdAt ascending so an AM
-  // strength session logged in the evening still surfaces above an earlier
-  // PM run.
-  const workoutsByDate = new Map<string, Workout[]>();
+  // Task #143: group logged workouts by the plan_day they were logged
+  // against so concurrent programs each get their own attributed
+  // sessions, completion badge and missed-day status. Workouts that
+  // pre-date plan_day attribution (planDayId == null) fall back to the
+  // primary (lowest-index) card on that date so legacy single-program
+  // history still shows up where the runner expects it. Within each
+  // bucket sessions are ordered by time-of-day tag (AM, PM, Other,
+  // then untagged) and then createdAt ascending so an AM strength
+  // session logged in the evening still surfaces above an earlier PM
+  // run.
+  const workoutsByPlanDayId = new Map<number, Workout[]>();
+  const unattributedByDate = new Map<string, Workout[]>();
   for (const w of workouts ?? []) {
-    const list = workoutsByDate.get(w.date);
-    if (list) list.push(w);
-    else workoutsByDate.set(w.date, [w]);
+    if (w.planDayId != null) {
+      const list = workoutsByPlanDayId.get(w.planDayId);
+      if (list) list.push(w);
+      else workoutsByPlanDayId.set(w.planDayId, [w]);
+    } else {
+      const list = unattributedByDate.get(w.date);
+      if (list) list.push(w);
+      else unattributedByDate.set(w.date, [w]);
+    }
   }
-  for (const list of workoutsByDate.values()) {
-    sortWorkoutsByTimeOfDay(list);
-  }
-
-  const today = todayISO();
-  const isMissedDay = (day: PlanDayWithSuggestions) =>
-    !day.isRest && day.date < today && (workoutsByDate.get(day.date)?.length ?? 0) === 0;
+  for (const list of workoutsByPlanDayId.values()) sortWorkoutsByTimeOfDay(list);
+  for (const list of unattributedByDate.values()) sortWorkoutsByTimeOfDay(list);
 
   // Task #135: with concurrent overlapping programs, the same calendar
-  // date may have multiple plan_days (one per TemplateEntry). Group them
-  // so we can render the first as the "primary" card (which owns the
-  // logged-workout sessions and the Crushed/Log/Skip buttons) and any
-  // additional concurrent rows as supplementary cards labelled with the
-  // owning program name. Logged workouts are attributed only once per
-  // date — they live on the primary so they don't duplicate across every
-  // concurrent program card. Server orders rows by (date, sourceEntryIndex)
-  // so the first row in iteration order is always the lowest-index program.
+  // date may have multiple plan_days (one per TemplateEntry). Track
+  // which is the primary (lowest-index) card per date so it can absorb
+  // any unattributed legacy workouts. Server orders rows by
+  // (date, sourceEntryIndex) so the first row in iteration order is
+  // always the lowest-index program.
   const planDayCountByDate = new Map<string, number>();
   for (const d of week.days) {
     planDayCountByDate.set(d.date, (planDayCountByDate.get(d.date) ?? 0) + 1);
@@ -239,6 +244,24 @@ export default function WeekDetail() {
     renderedPrimaryDates.add(day.date);
     return true;
   };
+
+  // Per-card sessions = workouts attributed to this plan_day, plus any
+  // unattributed workouts on the same date if this is the primary card.
+  // Used to drive the per-card hasSessions / missed-day badges so each
+  // concurrent program reflects its own completion state.
+  const sessionsForCard = (day: PlanDayWithSuggestions, primary: boolean): Workout[] => {
+    const own = workoutsByPlanDayId.get(day.id) ?? [];
+    if (!primary) return own;
+    const legacy = unattributedByDate.get(day.date) ?? [];
+    if (legacy.length === 0) return own;
+    const merged = [...own, ...legacy];
+    sortWorkoutsByTimeOfDay(merged);
+    return merged;
+  };
+
+  const today = todayISO();
+  const isMissedDay = (day: PlanDayWithSuggestions, sessions: Workout[]) =>
+    !day.isRest && day.date < today && sessions.length === 0;
 
   const ctxFor = (day: PlanDayWithSuggestions, loggedWorkout: Workout | null) => ({
     date: day.date,
@@ -463,16 +486,19 @@ export default function WeekDetail() {
 
       <div className="space-y-4">
         {week.days.map((day) => {
-          // Concurrent programs: primary card owns the logged-workout
-          // sessions and the Crushed/Log/Skip buttons; supplementary
-          // cards get a program label badge but no session list (so
-          // logged workouts aren't duplicated across every program card)
-          // and disambiguate their testids with the sourceEntryIndex
-          // suffix so tests can target the correct concurrent program.
+          // Concurrent programs (Tasks #135 + #143): each program's
+          // card owns its own logged-workout sessions (workouts attributed
+          // via planDayId) and its own Crushed/Log/Skip buttons that link
+          // back to that specific plan_day. The primary (lowest-index)
+          // card additionally absorbs any unattributed legacy workouts on
+          // the same date so single-program history still surfaces in the
+          // expected place. Test ids on supplementary cards are
+          // disambiguated with the sourceEntryIndex suffix so tests can
+          // target the correct concurrent program.
           const primary = isPrimaryAtDate(day);
           const concurrentCount = planDayCountByDate.get(day.date) ?? 1;
           const showProgramBadge = concurrentCount > 1 && day.sourceEntryLabel != null;
-          const sessions = primary ? workoutsByDate.get(day.date) ?? [] : [];
+          const sessions = sessionsForCard(day, primary);
           const cardTestId = primary
             ? `day-card-${day.date}`
             : `day-card-${day.date}-${day.sourceEntryIndex}`;
@@ -651,7 +677,7 @@ export default function WeekDetail() {
           }
 
           const hasSessions = sessions.length > 0;
-          const missed = isMissedDay(day);
+          const missed = isMissedDay(day, sessions);
 
           return (
             <Card

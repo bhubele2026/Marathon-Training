@@ -118,6 +118,14 @@ router.get("/plan/weeks", async (_req, res) => {
   const today = todayISO();
   const weeks = await db.select().from(planWeeksTable).orderBy(asc(planWeeksTable.week));
   // Aggregate actuals per week
+  // Task #143: completedSessions and missedSessions are now per
+  // plan_day, not per workout/date. With concurrent overlapping programs
+  // (Task #135) two plan_days can share a calendar date — each program
+  // earns its own completion credit when a workout is logged against
+  // its plan_day_id, and is missed independently when no such workout
+  // exists. Legacy workouts that pre-date plan_day attribution
+  // (planDayId IS NULL) fall back to date-only matching so single-program
+  // history still counts toward completion.
   const actuals = await db.execute<{
     week: number;
     actual_miles: number;
@@ -130,7 +138,20 @@ router.get("/plan/weeks", async (_req, res) => {
       SELECT pw.week,
         COALESCE(SUM(w.distance_mi) FILTER (WHERE w.session_type <> 'Skipped'), 0)::float AS actual_miles,
         COALESCE(SUM(w.cardio_min) FILTER (WHERE w.session_type <> 'Skipped'), 0)::float AS actual_cardio,
-        COUNT(DISTINCT w.id) FILTER (WHERE w.session_type <> 'Skipped')::int AS completed_sessions,
+        (
+          SELECT COUNT(*)
+          FROM plan_days pd
+          WHERE pd.week = pw.week
+            AND pd.is_rest = false
+            AND EXISTS (
+              SELECT 1 FROM workouts w2
+              WHERE w2.session_type <> 'Skipped'
+                AND (
+                  w2.plan_day_id = pd.id
+                  OR (w2.plan_day_id IS NULL AND w2.date = pd.date)
+                )
+            )
+        )::int AS completed_sessions,
         (SELECT COUNT(*) FROM plan_days pd WHERE pd.week = pw.week AND pd.is_rest = false)::int AS total_sessions,
         (
           SELECT COUNT(*)
@@ -139,7 +160,9 @@ router.get("/plan/weeks", async (_req, res) => {
             AND pd.is_rest = false
             AND pd.date < ${today}
             AND NOT EXISTS (
-              SELECT 1 FROM workouts w2 WHERE w2.date = pd.date
+              SELECT 1 FROM workouts w2
+              WHERE w2.plan_day_id = pd.id
+                 OR (w2.plan_day_id IS NULL AND w2.date = pd.date)
             )
         )::int AS missed_sessions
       FROM plan_weeks pw
@@ -211,13 +234,30 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
   const actuals = await db.execute<{
     actual_miles: number;
     actual_cardio: number;
-    completed: number;
   }>(
     sql`SELECT
           COALESCE(SUM(distance_mi) FILTER (WHERE session_type <> 'Skipped'), 0)::float AS actual_miles,
-          COALESCE(SUM(cardio_min) FILTER (WHERE session_type <> 'Skipped'), 0)::float AS actual_cardio,
-          COUNT(*) FILTER (WHERE session_type <> 'Skipped')::int AS completed
+          COALESCE(SUM(cardio_min) FILTER (WHERE session_type <> 'Skipped'), 0)::float AS actual_cardio
         FROM workouts WHERE date BETWEEN ${weekRow.startDate} AND ${weekRow.endDate}`,
+  );
+  // Task #143: completedSessions is per plan_day, not per workout, so
+  // concurrent overlapping programs (Task #135) each get their own
+  // completion credit when a workout links back to that program's
+  // plan_day_id. Legacy workouts (planDayId IS NULL) fall back to
+  // date-only matching so single-program history still counts.
+  const completedRow = await db.execute<{ completed: number }>(
+    sql`SELECT COUNT(*)::int AS completed
+        FROM plan_days pd
+        WHERE pd.week = ${week}
+          AND pd.is_rest = false
+          AND EXISTS (
+            SELECT 1 FROM workouts w2
+            WHERE w2.session_type <> 'Skipped'
+              AND (
+                w2.plan_day_id = pd.id
+                OR (w2.plan_day_id IS NULL AND w2.date = pd.date)
+              )
+          )`,
   );
   const totalSessions = days.filter((d) => !d.isRest).length;
   const today = todayISO();
@@ -249,7 +289,7 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
     ...toPlanWeek(weekRow, {
       actualMiles: actuals.rows[0]?.actual_miles ?? 0,
       actualCardio: actuals.rows[0]?.actual_cardio ?? 0,
-      completedSessions: actuals.rows[0]?.completed ?? 0,
+      completedSessions: completedRow.rows[0]?.completed ?? 0,
       totalSessions,
       dominantCardioEquipment,
     }),

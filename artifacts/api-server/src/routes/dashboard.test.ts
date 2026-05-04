@@ -10,6 +10,7 @@ import {
   GetWeightTrendResponse,
 } from "@workspace/api-zod";
 import { db, plannerConfigsTable } from "@workspace/db";
+import { sql } from "drizzle-orm";
 import app from "../app";
 import {
   cleanTestData,
@@ -295,6 +296,93 @@ describe("GET /api/dashboard/summary programs breakdown (Task #144)", () => {
     expect(body.programs[0]?.sourceEntryIndex).toBe(0);
     // Synthetic / legacy rows fall back to the canonical "Marathon Plan" label.
     expect(body.programs[0]?.label).toBe("Marathon Plan");
+  });
+});
+
+describe("GET /api/dashboard/summary adherence per program (task #143)", () => {
+  it("attributes adherence per concurrent program plan_day, not per calendar date", async () => {
+    // The /dashboard/summary adherence query is global (all plan_days
+    // in the DB up to today), so the seeded production plan_days
+    // dilute any percentage we'd assert. Instead, snapshot the
+    // baseline numerator/denominator with our 4 test plan_days but no
+    // workouts, then add the 2 attributed workouts and assert the
+    // delta: planned must NOT change (still 4 added rows) and
+    // completed must increase by exactly 2 (one per program). The
+    // pre-Task #143 date-only SQL would have credited the OTHER
+    // program on the same date as well, surfacing a delta of 4.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-07-10T12:00:00.000Z"));
+
+    const week = 8401;
+    const phase = "Adherence Phase";
+    await insertWeek(week, {
+      startDate: "2099-07-06",
+      endDate: "2099-07-12",
+      phase,
+      plannedMiles: 10,
+    });
+    // Program A (sourceEntryIndex=0): two non-rest days.
+    const aMon = await insertPlanDay(week, phase, {
+      date: "2099-07-06", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 5,
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-07-07", day: "Tue", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 5,
+    });
+    // Program B (sourceEntryIndex=1): same two dates, distinct plan_days.
+    await insertPlanDay(week, phase, {
+      date: "2099-07-06", day: "Mon", sessionType: T_STRENGTH, equipment: E_GYM,
+      sourceEntryIndex: 1, sourceEntryLabel: "Tonal Lift",
+    });
+    const bTue = await insertPlanDay(week, phase, {
+      date: "2099-07-07", day: "Tue", sessionType: T_STRENGTH, equipment: E_GYM,
+      sourceEntryIndex: 1, sourceEntryLabel: "Tonal Lift",
+    });
+
+    // Pull raw planned/completed counts directly so the assertion
+    // doesn't depend on the dashboard's denominator-driven percentage.
+    const today = "2099-07-10";
+    type Row = { planned: number; completed: number };
+    const fetchCounts = async (): Promise<Row> => {
+      const r = await db.execute<Row>(
+        sql`SELECT
+          (SELECT COUNT(*)::int FROM plan_days WHERE date <= ${today} AND is_rest = false) AS planned,
+          (SELECT COUNT(*)::int FROM plan_days pd
+            WHERE pd.date <= ${today} AND pd.is_rest = false
+              AND EXISTS (
+                SELECT 1 FROM workouts w
+                WHERE w.session_type <> 'Skipped'
+                  AND (
+                    w.plan_day_id = pd.id
+                    OR (w.plan_day_id IS NULL AND w.date = pd.date)
+                  )
+              )
+          ) AS completed`,
+      );
+      return r.rows[0]!;
+    };
+    const baseline = await fetchCounts();
+
+    // Add the 2 attributed workouts. Each links to its own plan_day_id
+    // so the OTHER program on the same date stays uncompleted.
+    await insertWorkout({
+      date: "2099-07-06", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 5, planDayId: aMon.id,
+    });
+    await insertWorkout({
+      date: "2099-07-07", sessionType: T_STRENGTH, equipment: E_GYM, totalLoad: 100, planDayId: bTue.id,
+    });
+
+    const after = await fetchCounts();
+    expect(after.planned).toBe(baseline.planned);
+    expect(after.completed - baseline.completed).toBe(2);
+
+    // The dashboard endpoint must surface those same numbers via
+    // adherencePct. Re-derive the expected percentage from the raw
+    // counts so the assertion is precise even when seed data dominates.
+    const res = await request(app).get("/api/dashboard/summary");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetDashboardSummaryResponse, res.body);
+    const expectedPct = Math.min(100, (after.completed / after.planned) * 100);
+    expect(res.body.adherencePct).toBeCloseTo(expectedPct, 5);
   });
 });
 

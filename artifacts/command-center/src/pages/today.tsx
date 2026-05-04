@@ -22,9 +22,6 @@ export default function Today() {
   const { data: today, isLoading } = useGetTodayPlan();
   const { openLog, openEdit, requestDelete, requestSkip, crushIt, isDeleting, isCrushing, dialogs } =
     useMissionActions();
-  const baseCtx = today
-    ? { date: today.date, plan: today.plan, suggestions: today.suggestions }
-    : null;
 
   if (isLoading) {
     return <div className="space-y-6"><Skeleton className="h-64" /></div>;
@@ -35,7 +32,6 @@ export default function Today() {
   }
 
   const sessions = today.loggedWorkouts ?? [];
-  const hasSessions = sessions.length > 0;
   // Pre-launch countdown: when the API tells us today is before the first
   // scheduled session, take over the page with a dedicated countdown card so
   // the user has clear orientation during the gap. We hide both the plan card
@@ -179,16 +175,16 @@ export default function Today() {
 
       {today.hasPlan && !showCountdown && (
         <div className="grid gap-6">
-          {/* Task #135: render one Mission Brief card per concurrent
+          {/* Task #135 + #143: render one Mission Brief card per concurrent
               program. `plans[]` is ordered by sourceEntryIndex so the
               lowest-index program (typically the legacy run program)
               renders first. When multiple programs overlap each card
               shows its program name as a header badge ("TONAL LIFT",
               "5K IMPROVER") so the runner can tell which session
-              belongs to which template. The mission-action buttons
-              still target `today.plan` (the lowest-index program) for
-              the legacy single-log workflow — logging multiple
-              concurrent programs separately is a deferred follow-up.
+              belongs to which template. EVERY card now exposes its own
+              Crushed/Log/Skip buttons that link the resulting workout
+              back to that specific plan_day via planDayId so dashboards
+              and adherence math can attribute completion per program.
 
               Each card uses the slim collapsed view (Task #133): title +
               the one headline number via PrimaryMetricDisplay. Equipment
@@ -201,7 +197,24 @@ export default function Today() {
               ? [today.plan]
               : []
           ).map((plan, planIdx) => {
-            const isPrimary = planIdx === 0;
+            // Task #143: per-program completion. A plan card's
+            // hasSessions is now keyed off workouts that link back to
+            // THIS plan_day (via plan_day_id) so each concurrent
+            // program's button label reflects its own state. Legacy /
+            // unattributed workouts (planDayId == null) are credited to
+            // the lowest-index plan card so the existing single-program
+            // single-log behaviour is unchanged.
+            const cardSessions = sessions.filter(
+              (s) => s.planDayId === plan.id || (s.planDayId == null && planIdx === 0),
+            );
+            const hasSessions = cardSessions.length > 0;
+            // Suggestions are computed server-side for the lowest-index
+            // plan_day; share them only with that primary card so the
+            // history-based pace pre-fill keeps working there. Other
+            // concurrent cards get null suggestions — they'll still
+            // pre-fill from the plan_day's prescribed values.
+            const planSuggestions = planIdx === 0 ? today.suggestions : null;
+            const ctx = { date: today.date, plan, suggestions: planSuggestions };
             return (
             <Card
               key={`today-plan-${plan.id}`}
@@ -302,42 +315,52 @@ export default function Today() {
                       </SessionDetailDisclosure>
                     </div>
 
-                    {isPrimary && (
-                      <div className="shrink-0 flex flex-col items-stretch justify-center gap-3 border-t md:border-t-0 md:border-l border-border pt-6 md:pt-0 md:pl-6 md:w-56">
+                    <div className="shrink-0 flex flex-col items-stretch justify-center gap-3 border-t md:border-t-0 md:border-l border-border pt-6 md:pt-0 md:pl-6 md:w-56">
+                      <Button
+                        size="lg"
+                        className="h-14 px-6 text-base uppercase font-black tracking-widest group"
+                        onClick={() => crushIt({ ...ctx, loggedWorkout: null })}
+                        disabled={isCrushing}
+                        data-testid={
+                          planIdx === 0
+                            ? "button-crush-today"
+                            : `button-crush-today-${plan.sourceEntryIndex}`
+                        }
+                      >
+                        <Zap className="mr-2 h-5 w-5 group-hover:scale-110 transition-transform" />
+                        {hasSessions ? "Crushed Another" : "Crushed It"}
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        className="uppercase font-bold tracking-wider"
+                        onClick={() => openLog({ ...ctx, loggedWorkout: null })}
+                        disabled={isCrushing}
+                        data-testid={
+                          planIdx === 0
+                            ? "button-log-today"
+                            : `button-log-today-${plan.sourceEntryIndex}`
+                        }
+                      >
+                        <Pencil className="mr-2 h-4 w-4" />
+                        {hasSessions ? "Log Another" : "Log Mission"}
+                      </Button>
+                      {!hasSessions && (
                         <Button
-                          size="lg"
-                          className="h-14 px-6 text-base uppercase font-black tracking-widest group"
-                          onClick={() => baseCtx && crushIt({ ...baseCtx, loggedWorkout: null })}
+                          variant="outline"
+                          className="uppercase font-bold tracking-wider text-destructive hover:text-destructive border-destructive/40"
+                          onClick={() => requestSkip({ ...ctx, loggedWorkout: null })}
                           disabled={isCrushing}
-                          data-testid="button-crush-today"
+                          data-testid={
+                            planIdx === 0
+                              ? "button-skip-today"
+                              : `button-skip-today-${plan.sourceEntryIndex}`
+                          }
                         >
-                          <Zap className="mr-2 h-5 w-5 group-hover:scale-110 transition-transform" />
-                          {hasSessions ? "Crushed Another" : "Crushed It"}
+                          <XCircle className="mr-2 h-4 w-4" />
+                          Skipped
                         </Button>
-                        <Button
-                          variant="secondary"
-                          className="uppercase font-bold tracking-wider"
-                          onClick={() => baseCtx && openLog({ ...baseCtx, loggedWorkout: null })}
-                          disabled={isCrushing}
-                          data-testid="button-log-today"
-                        >
-                          <Pencil className="mr-2 h-4 w-4" />
-                          {hasSessions ? "Log Another" : "Log Mission"}
-                        </Button>
-                        {!hasSessions && (
-                          <Button
-                            variant="outline"
-                            className="uppercase font-bold tracking-wider text-destructive hover:text-destructive border-destructive/40"
-                            onClick={() => baseCtx && requestSkip({ ...baseCtx, loggedWorkout: null })}
-                            disabled={isCrushing}
-                            data-testid="button-skip-today"
-                          >
-                            <XCircle className="mr-2 h-4 w-4" />
-                            Skipped
-                          </Button>
-                        )}
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -345,7 +368,21 @@ export default function Today() {
             );
           })}
 
-          {sessions.map((session) => (
+          {sessions.map((session) => {
+            // Task #143: when a workout was logged against a specific
+            // concurrent program, pull THAT plan_day for the
+            // planned-vs-actual comparison and the edit/delete ctx.
+            // Legacy or unattributed workouts (planDayId == null) fall
+            // back to the lowest-index program (today.plan) so single
+            // program flows are unchanged.
+            const matchedPlan =
+              (session.planDayId != null
+                ? today.plans?.find((p) => p.id === session.planDayId)
+                : null) ?? today.plan ?? null;
+            const sessionCtx = matchedPlan
+              ? { date: today.date, plan: matchedPlan, suggestions: null }
+              : null;
+            return (
             <Card key={session.id} className="border-border" data-testid={`session-today-${session.id}`}>
               <CardHeader className="bg-muted/30 border-b border-border pb-4 flex flex-row items-center justify-between space-y-0">
                 <CardTitle className="text-lg uppercase tracking-wider flex items-center gap-2">
@@ -364,7 +401,7 @@ export default function Today() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => baseCtx && openEdit({ ...baseCtx, loggedWorkout: session })}
+                    onClick={() => sessionCtx && openEdit({ ...sessionCtx, loggedWorkout: session })}
                     data-testid={`button-edit-today-${session.id}`}
                   >
                     <Edit className="h-4 w-4 mr-2" /> Edit
@@ -372,7 +409,7 @@ export default function Today() {
                   <Button
                     variant="destructive"
                     size="sm"
-                    onClick={() => baseCtx && requestDelete({ ...baseCtx, loggedWorkout: session })}
+                    onClick={() => sessionCtx && requestDelete({ ...sessionCtx, loggedWorkout: session })}
                     disabled={isDeleting}
                     data-testid={`button-delete-today-${session.id}`}
                   >
@@ -387,7 +424,7 @@ export default function Today() {
                     equipment chips and notes all live in the disclosure
                     below so the card stays scannable. */}
                 <PrimaryMetricDisplay
-                  metric={getPrimaryMetricCompare(session, today.plan)}
+                  metric={getPrimaryMetricCompare(session, matchedPlan)}
                   variant="prominent"
                   testIdPrefix={`session-today-${session.id}`}
                 />
@@ -434,10 +471,10 @@ export default function Today() {
                       cardioMin={session.cardioMin}
                       runMin={session.runMin}
                       durationMin={session.durationMin}
-                      plannedTotalMin={today.plan?.totalMin}
-                      plannedStrengthMin={today.plan?.strengthMin}
-                      plannedCardioMin={today.plan?.cardioMin}
-                      plannedRunMin={today.plan?.runMin}
+                      plannedTotalMin={matchedPlan?.totalMin}
+                      plannedStrengthMin={matchedPlan?.strengthMin}
+                      plannedCardioMin={matchedPlan?.cardioMin}
+                      plannedRunMin={matchedPlan?.runMin}
                       variant="prominent"
                       testIdPrefix={`session-today-${session.id}`}
                     />
@@ -483,7 +520,8 @@ export default function Today() {
                 </SessionDetailDisclosure>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
 

@@ -156,10 +156,14 @@ export interface PlanDayInput {
   // column is left NULL, which simulates a pre-task-#77 legacy row and
   // exercises the API's `[equipment]` fallback path.
   equipmentList?: string[] | null;
-  // Task #135 / #144: program attribution. Default is 0 / null which
-  // matches a legacy single-program campaign. Multi-program tests pass
-  // both fields so two plan_days on the same date can coexist (one per
-  // TemplateEntry).
+  // Task #135 / #144 / #143: program attribution. Concurrent overlapping
+  // programs share calendar dates by distinguishing rows on
+  // (date, source_entry_index). Default is 0 / null which matches a
+  // legacy single-program campaign. Multi-program tests (e.g. Task #143
+  // per-program adherence, Task #144 programs breakdown) pass both
+  // fields so two plan_days on the same date can coexist (one per
+  // TemplateEntry); sourceEntryLabel is the human-readable program name
+  // shown in the UI.
   sourceEntryIndex?: number;
   sourceEntryLabel?: string | null;
 }

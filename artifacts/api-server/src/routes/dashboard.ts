@@ -159,15 +159,24 @@ router.get("/dashboard/summary", async (_req, res) => {
   );
   const currentWeight = lastMeas.rows[0]?.weight ?? null;
 
-  // Adherence: planned non-rest dates that have at least one logged workout / total planned non-rest dates up to today
+  // Adherence: per plan_day completion / total planned non-rest plan_days
+  // up to today (Task #143). Each concurrent overlapping program (Task
+  // #135) contributes its own plan_day to the denominator and is credited
+  // toward the numerator only when a workout was logged against ITS
+  // plan_day_id. Legacy workouts (planDayId IS NULL) fall back to date
+  // matching so single-program history still counts toward completion.
   const adherence = await db.execute<{ planned: number; completed: number }>(
     sql`SELECT
       (SELECT COUNT(*)::int FROM plan_days WHERE date <= ${today} AND is_rest = false) AS planned,
-      (SELECT COUNT(DISTINCT pd.date)::int FROM plan_days pd
+      (SELECT COUNT(*)::int FROM plan_days pd
         WHERE pd.date <= ${today} AND pd.is_rest = false
           AND EXISTS (
             SELECT 1 FROM workouts w
-            WHERE w.date = pd.date AND w.session_type <> 'Skipped'
+            WHERE w.session_type <> 'Skipped'
+              AND (
+                w.plan_day_id = pd.id
+                OR (w.plan_day_id IS NULL AND w.date = pd.date)
+              )
           )
       ) AS completed`,
   );

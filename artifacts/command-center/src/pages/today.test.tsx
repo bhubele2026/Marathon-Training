@@ -312,4 +312,99 @@ describe("Today page — pre-launch countdown", () => {
 
     expect(screen.queryByTestId("session-today-555-run-target")).toBeNull();
   });
+
+  // Task #143: per-program Crushed/Log/Skip buttons. With concurrent
+  // overlapping programs (Task #135) every Mission Brief card must
+  // expose its own action buttons so the runner can log a workout
+  // against THAT program's plan_day. The lowest-index card uses the
+  // legacy testIds (button-crush-today, etc.) and secondary cards
+  // suffix the testId with the program's sourceEntryIndex so the
+  // selectors stay stable.
+  it("renders Crushed/Log/Skip buttons on every concurrent program card (task #143)", () => {
+    const tonalPlan = {
+      ...firstSession,
+      id: 1001,
+      sessionType: "Tonal Lift",
+      sourceEntryIndex: 0,
+      sourceEntryLabel: "Tonal Lift",
+    };
+    const runPlan = {
+      ...firstSession,
+      id: 1002,
+      sessionType: "Easy Run",
+      equipment: "Outdoor",
+      strengthLoad: 0,
+      cardioMin: 0,
+      sourceEntryIndex: 1,
+      sourceEntryLabel: "5K Improver",
+    };
+    renderWithData({
+      date: "2026-05-05",
+      hasPlan: true,
+      plan: tonalPlan,
+      plans: [tonalPlan, runPlan],
+      loggedWorkouts: [],
+      suggestions: null,
+      daysUntilStart: null,
+      firstSession: null,
+    });
+
+    // Primary card (sourceEntryIndex=0) keeps the unsuffixed testIds.
+    expect(screen.getByTestId("button-crush-today")).toBeTruthy();
+    expect(screen.getByTestId("button-log-today")).toBeTruthy();
+    expect(screen.getByTestId("button-skip-today")).toBeTruthy();
+    // Secondary card (sourceEntryIndex=1) gets its own suffixed buttons.
+    expect(screen.getByTestId("button-crush-today-1")).toBeTruthy();
+    expect(screen.getByTestId("button-log-today-1")).toBeTruthy();
+    expect(screen.getByTestId("button-skip-today-1")).toBeTruthy();
+    // Both program-name badges render so runners can tell the cards apart.
+    expect(screen.getByTestId("badge-program-0").textContent).toBe("Tonal Lift");
+    expect(screen.getByTestId("badge-program-1").textContent).toBe("5K Improver");
+  });
+
+  it("hides Skip and shows Crushed Another / Log Another only on the program whose plan_day was logged (task #143)", () => {
+    const tonalPlan = {
+      ...firstSession,
+      id: 1001,
+      sessionType: "Tonal Lift",
+      sourceEntryIndex: 0,
+      sourceEntryLabel: "Tonal Lift",
+    };
+    const runPlan = {
+      ...firstSession,
+      id: 1002,
+      sessionType: "Easy Run",
+      equipment: "Outdoor",
+      sourceEntryIndex: 1,
+      sourceEntryLabel: "5K Improver",
+    };
+    // A workout logged against ONLY the run program (planDayId = 1002).
+    renderWithData({
+      date: "2026-05-05",
+      hasPlan: true,
+      plan: tonalPlan,
+      plans: [tonalPlan, runPlan],
+      loggedWorkouts: [{ ...loggedSession, planDayId: 1002 }],
+      suggestions: null,
+      daysUntilStart: null,
+      firstSession: null,
+    });
+
+    // Tonal card (untouched) keeps Crushed It / Log Mission / Skipped.
+    expect(screen.getByTestId("button-crush-today").textContent).toContain(
+      "Crushed It",
+    );
+    expect(screen.getByTestId("button-log-today").textContent).toContain(
+      "Log Mission",
+    );
+    expect(screen.getByTestId("button-skip-today")).toBeTruthy();
+    // Run card (logged) flips to Crushed Another / Log Another and hides Skip.
+    expect(screen.getByTestId("button-crush-today-1").textContent).toContain(
+      "Crushed Another",
+    );
+    expect(screen.getByTestId("button-log-today-1").textContent).toContain(
+      "Log Another",
+    );
+    expect(screen.queryByTestId("button-skip-today-1")).toBeNull();
+  });
 });

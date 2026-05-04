@@ -319,6 +319,105 @@ describe("GET /api/plan/weeks", () => {
     expect(detail.body.plannedCardio).toBe(180);
   });
 
+  it("attributes completedSessions per program for concurrent overlapping plan_days (task #143)", async () => {
+    // Two concurrent programs share the same calendar dates. Each
+    // program contributes its own plan_day per date, so totalSessions
+    // counts both. completedSessions is now per plan_day: a workout
+    // logged against program A's plan_day on day 1 must NOT credit
+    // program B's plan_day on the same day. Skipped workouts and
+    // out-of-window workouts are excluded.
+    const week = 8950;
+    const phase = "Concurrent Phase";
+    await insertWeek(week, {
+      startDate: "2099-12-21",
+      endDate: "2099-12-27",
+      phase,
+      plannedMiles: 10,
+    });
+    // Program A (sourceEntryIndex defaults to 0): two non-rest days.
+    const aMon = await insertPlanDay(week, phase, {
+      date: "2099-12-21", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 5,
+    });
+    const aTue = await insertPlanDay(week, phase, {
+      date: "2099-12-22", day: "Tue", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 5,
+    });
+    // Program B: same two dates, different plan_day rows. Use a
+    // distinct sourceEntryIndex so the unique constraint allows the
+    // same-date insert.
+    const bMon = await insertPlanDay(week, phase, {
+      date: "2099-12-21", day: "Mon", sessionType: T_STRENGTH, equipment: E_GYM,
+      sourceEntryIndex: 1, sourceEntryLabel: "Tonal Lift",
+    });
+    const bTue = await insertPlanDay(week, phase, {
+      date: "2099-12-22", day: "Tue", sessionType: T_STRENGTH, equipment: E_GYM,
+      sourceEntryIndex: 1, sourceEntryLabel: "Tonal Lift",
+    });
+
+    // Crush program A on Mon, program B on Tue. Each plan_day gets its
+    // own attributed workout. completedSessions should be 2/4 (one per
+    // program per day, NOT 4/4 because of date-only matching, NOT 2/2
+    // because totalSessions still counts BOTH programs' plan_days).
+    void aTue;
+    await insertWorkout({
+      date: "2099-12-21", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 5, planDayId: aMon.id,
+    });
+    await insertWorkout({
+      date: "2099-12-22", sessionType: T_STRENGTH, equipment: E_GYM, totalLoad: 100, planDayId: bTue.id,
+    });
+    // Skipped workout against program B Mon — must NOT credit completion.
+    await insertWorkout({
+      date: "2099-12-21", sessionType: "Skipped", equipment: E_GYM, planDayId: bMon.id,
+    });
+
+    const list = await request(app).get("/api/plan/weeks");
+    expect(list.status).toBe(200);
+    const row = (list.body as Array<{
+      week: number; completedSessions: number; totalSessions: number;
+    }>).find((r) => r.week === week);
+    expect(row).toBeDefined();
+    expect(row!.totalSessions).toBe(4);   // 2 programs × 2 non-rest days
+    expect(row!.completedSessions).toBe(2); // A-Mon + B-Tue, NOT both per date
+
+    // Single-week endpoint mirrors the same per-program semantics.
+    const detail = await request(app).get(`/api/plan/weeks/${week}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.totalSessions).toBe(4);
+    expect(detail.body.completedSessions).toBe(2);
+  });
+
+  it("falls back to date-only completion for legacy workouts with planDayId IS NULL (task #143)", async () => {
+    // A single-program week (no concurrent overlap) plus a workout that
+    // pre-dates plan_day attribution must still earn completion credit
+    // via the date-only fallback so existing history doesn't disappear
+    // from the rolled-up adherence numbers.
+    const week = 8951;
+    const phase = "Legacy Workouts";
+    await insertWeek(week, {
+      startDate: "2099-12-28",
+      endDate: "2100-01-03",
+      phase,
+      plannedMiles: 5,
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-12-28", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 5,
+    });
+    await insertWorkout({
+      // planDayId omitted -> null, simulating a pre-attribution row.
+      date: "2099-12-28", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 5,
+    });
+
+    const list = await request(app).get("/api/plan/weeks");
+    const row = (list.body as Array<{
+      week: number; completedSessions: number; totalSessions: number;
+    }>).find((r) => r.week === week);
+    expect(row).toBeDefined();
+    expect(row!.totalSessions).toBe(1);
+    expect(row!.completedSessions).toBe(1);
+
+    const detail = await request(app).get(`/api/plan/weeks/${week}`);
+    expect(detail.body.completedSessions).toBe(1);
+  });
+
   it("returns zero aggregates for a week with no workouts or non-rest plan days", async () => {
     const week = 8202;
     const phase = "Empty Phase";
