@@ -25,13 +25,19 @@ import {
   HYBRID_MAX_DAYS_PER_WEEK,
   HYBRID_MIN_DAYS_PER_WEEK,
   HYBRID_POSITIONS_ORDERED,
+  expandCustomHybrid,
+  expandEntriesToBlocks,
   generatePlanFromConfig,
+  getTemplateById,
   hybridMixSpec,
+  hybridPhase,
   previewHybridWeek,
   previewWeeklyMileage,
+  validatePlannerConfig,
   type DailyRow,
   type HybridFitnessLevel,
   type HybridMixPosition,
+  type PhaseBlock,
   type PlannerConfig,
 } from "@workspace/plan-generator";
 
@@ -453,5 +459,327 @@ describe("previewWeeklyMileage matches generatePlanFromConfig for hybrid blocks"
     for (const wk of preview) {
       expect(wk.totalMi, `week ${wk.week}`).toBeLessThanOrEqual(3);
     }
+  });
+});
+
+// ---------------------------------------------------------------------
+// Task #154 — phased custom_hybrid expansion (base / build / taper)
+// ---------------------------------------------------------------------
+// custom_hybrid plans now expand into mesocycles based on length:
+//   - n <  12 weeks: single Custom block (legacy v1 layout)
+//   - 12-15 weeks:   Hybrid Base + Hybrid Build
+//   - n ≥  16 weeks: Hybrid Base + Hybrid Build + 2-week Hybrid Taper
+// Each phase block carries a `[hybrid-phase:base|build|taper]` sentinel
+// alongside the existing `[hybrid-mix:...]` sentinels. Mileage and lift
+// load progress meaningfully across phases (build > base, taper < build,
+// lift load 0.85x base / 1.0x build / 0.7x taper). Saved single-block
+// hybrid campaigns (no phase sentinel) must continue to render with the
+// v1 ramp.
+
+describe("hybridPhase sentinel parser", () => {
+  it("parses each of the three phase tokens", () => {
+    expect(hybridPhase("[hybrid-phase:base]")).toBe("base");
+    expect(hybridPhase("[hybrid-phase:build]")).toBe("build");
+    expect(hybridPhase("[hybrid-phase:taper]")).toBe("taper");
+  });
+
+  it("extracts the phase tag when merged with other hybrid sentinels", () => {
+    const merged =
+      "[hybrid-phase:build]; [hybrid-mix:balanced] [hybrid-days:5] [hybrid-level:intermediate]";
+    expect(hybridPhase(merged)).toBe("build");
+  });
+
+  it("returns null for missing / blank / unknown phase values", () => {
+    expect(hybridPhase(null)).toBeNull();
+    expect(hybridPhase(undefined)).toBeNull();
+    expect(hybridPhase("")).toBeNull();
+    expect(hybridPhase("[hybrid-mix:balanced]")).toBeNull();
+    expect(hybridPhase("[hybrid-phase:peak]")).toBeNull();
+    expect(hybridPhase("[hybrid-phase:]")).toBeNull();
+  });
+});
+
+describe("expandCustomHybrid — phased mesocycle expansion", () => {
+  it("short plans (< 12 weeks) expand to one Custom block with no phase tag", () => {
+    for (const n of [1, 4, 8, 11]) {
+      const blocks = expandCustomHybrid(n);
+      expect(blocks, `${n} weeks → 1 block`).toHaveLength(1);
+      const b = blocks[0]!;
+      expect(b.focusType).toBe("Custom");
+      expect(b.weeks).toBe(n);
+      expect(b.customName).toBe("Custom Hybrid");
+      // No phase sentinel = legacy v1 single-block ramp.
+      expect(hybridPhase(b.customNotes ?? null)).toBeNull();
+    }
+  });
+
+  it("medium plans (12-15 weeks) expand to base + build (no taper)", () => {
+    for (const n of [12, 13, 14, 15]) {
+      const blocks = expandCustomHybrid(n);
+      expect(blocks, `${n} weeks → 2 blocks`).toHaveLength(2);
+      expect(blocks.map((b) => b.customName)).toEqual([
+        "Hybrid Base",
+        "Hybrid Build",
+      ]);
+      expect(hybridPhase(blocks[0]!.customNotes ?? null)).toBe("base");
+      expect(hybridPhase(blocks[1]!.customNotes ?? null)).toBe("build");
+      // No taper at this length.
+      expect(blocks.find((b) => b.customName === "Hybrid Taper")).toBeUndefined();
+    }
+  });
+
+  it("long plans (≥ 16 weeks) expand to base + build + 2-week taper", () => {
+    for (const n of [16, 18, 20, 24]) {
+      const blocks = expandCustomHybrid(n);
+      expect(blocks, `${n} weeks → 3 blocks`).toHaveLength(3);
+      expect(blocks.map((b) => b.customName)).toEqual([
+        "Hybrid Base",
+        "Hybrid Build",
+        "Hybrid Taper",
+      ]);
+      expect(hybridPhase(blocks[0]!.customNotes ?? null)).toBe("base");
+      expect(hybridPhase(blocks[1]!.customNotes ?? null)).toBe("build");
+      expect(hybridPhase(blocks[2]!.customNotes ?? null)).toBe("taper");
+      // Taper is always exactly 2 weeks.
+      expect(blocks[2]!.weeks).toBe(2);
+    }
+  });
+
+  it("week counts always sum back to the requested input n", () => {
+    for (let n = 0; n <= 26; n++) {
+      const blocks = expandCustomHybrid(n);
+      const sum = blocks.reduce((s, b) => s + b.weeks, 0);
+      expect(sum, `${n} weeks → blocks sum`).toBe(n);
+    }
+  });
+
+  it("entry-merge stamps the mix sentinel onto every phase block", () => {
+    // An entry-level custom_hybrid pick (the runner picks the slider
+    // config once on the entry, not per-block). expandEntriesToBlocks
+    // must merge the entry's customNotes into every phase block so
+    // both the phase sentinel AND the mix sentinel are present on
+    // each block — otherwise base/taper blocks would lose their mix
+    // and fall back to the lift_primary defaults.
+    const blocks = expandEntriesToBlocks([
+      {
+        templateId: "custom_hybrid",
+        weeks: 18,
+        customName: "My Hybrid Build",
+        customNotes:
+          "[hybrid-mix:balanced] [hybrid-days:5] [hybrid-level:intermediate]",
+      },
+    ]);
+    expect(blocks).toHaveLength(3);
+    // Block 0 takes the entry-level customName override; blocks 1+
+    // keep their phase-default names so the runner can see the
+    // periodization at a glance.
+    expect(blocks[0]!.customName).toBe("My Hybrid Build");
+    expect(blocks[1]!.customName).toBe("Hybrid Build");
+    expect(blocks[2]!.customName).toBe("Hybrid Taper");
+    for (const b of blocks) {
+      const spec = hybridMixSpec(b.customNotes ?? null);
+      expect(spec, `block ${b.customName} has mix spec`).not.toBeNull();
+      expect(spec!.position).toBe("balanced");
+      expect(spec!.daysPerWeek).toBe(5);
+      expect(spec!.level).toBe("intermediate");
+      // Phase sentinel survives the merge too.
+      expect(hybridPhase(b.customNotes ?? null)).not.toBeNull();
+    }
+  });
+
+  it("custom_hybrid template's expand() routes through expandCustomHybrid", () => {
+    // Template registry layer wires the phased expansion in. Pulling
+    // the template by id and calling expand() must produce the same
+    // shape as expandCustomHybrid directly.
+    const tpl = getTemplateById("custom_hybrid");
+    expect(tpl).not.toBeUndefined();
+    expect(tpl!.expand(8)).toEqual(expandCustomHybrid(8));
+    expect(tpl!.expand(12)).toEqual(expandCustomHybrid(12));
+    expect(tpl!.expand(18)).toEqual(expandCustomHybrid(18));
+  });
+});
+
+describe("hybridMileage phase ramp — build > base, taper < build at the same week", () => {
+  // Use previewHybridWeek with the new `phase` opt to read mileage
+  // values without having to plumb through generatePlanFromConfig. The
+  // preview uses the same hybridMileage call the generator does, so any
+  // drift would surface here first.
+  function totals(opts: {
+    position: HybridMixPosition;
+    phase: "base" | "build" | "taper" | null;
+    weekInBlock: number;
+    blockWeeks: number;
+  }): number {
+    const p = previewHybridWeek(
+      { position: opts.position, daysPerWeek: 5, level: "intermediate" },
+      {
+        weekInBlock: opts.weekInBlock,
+        blockWeeks: opts.blockWeeks,
+        phase: opts.phase,
+      },
+    );
+    return p.totals.miles;
+  }
+
+  it("at week 1 of each phase: build mileage strictly exceeds base mileage", () => {
+    // Week 1 (t=0): base starts at 1.5 mi per intensity, build starts
+    // at 0.6 * peak. For every position whose 0.6*peak exceeds 1.5
+    // (every position except lift_primary's tiny easy/quality peaks),
+    // build's week-1 mileage must be greater than base's week-1.
+    for (const position of [
+      "lift_leaning",
+      "balanced",
+      "run_leaning",
+      "run_primary",
+    ] as HybridMixPosition[]) {
+      const base = totals({ position, phase: "base", weekInBlock: 1, blockWeeks: 6 });
+      const build = totals({ position, phase: "build", weekInBlock: 1, blockWeeks: 6 });
+      expect(build, `${position} week 1 build > base`).toBeGreaterThan(base);
+    }
+  });
+
+  it("at the final week of each phase: build peaks, taper drops below build peak", () => {
+    // Final week of base ≈ 0.6 * peak; final week of build ≈ peak;
+    // final week of taper ≈ 0.5 * peak. Build must outrun base, and
+    // taper must finish below build.
+    for (const position of [
+      "balanced",
+      "run_leaning",
+      "run_primary",
+    ] as HybridMixPosition[]) {
+      const baseEnd = totals({ position, phase: "base", weekInBlock: 6, blockWeeks: 6 });
+      const buildEnd = totals({ position, phase: "build", weekInBlock: 6, blockWeeks: 6 });
+      const taperEnd = totals({ position, phase: "taper", weekInBlock: 2, blockWeeks: 2 });
+      expect(buildEnd, `${position} build end > base end`).toBeGreaterThan(baseEnd);
+      expect(taperEnd, `${position} taper end < build end`).toBeLessThan(buildEnd);
+    }
+  });
+
+  it("null phase preserves the legacy single-block ramp", () => {
+    // Same (position, level, weekInBlock, blockWeeks) with phase=null
+    // must equal what previewHybridWeek emitted before Task #154 (no
+    // opts.phase). The default opts.phase is null, so calling without
+    // it and calling with `phase: null` must agree byte-for-byte.
+    for (const position of HYBRID_POSITIONS_ORDERED) {
+      for (const w of [1, 4, 8]) {
+        const noPhase = previewHybridWeek(
+          { position, daysPerWeek: 5, level: "intermediate" },
+          { weekInBlock: w, blockWeeks: 8 },
+        ).totals.miles;
+        const explicitNull = previewHybridWeek(
+          { position, daysPerWeek: 5, level: "intermediate" },
+          { weekInBlock: w, blockWeeks: 8, phase: null },
+        ).totals.miles;
+        expect(explicitNull, `${position} week ${w}`).toBe(noPhase);
+      }
+    }
+  });
+});
+
+describe("phased custom_hybrid generates progressing lift load + mileage", () => {
+  // End-to-end: build a phased 18-week custom_hybrid plan and confirm
+  // the daily rows the generator emits show the lift-load phase
+  // scalar (base 0.85x, build 1.0x, taper 0.7x). This exercises the
+  // full templates → expand → entry-merge → buildHybridWeekDays path.
+  // Uses blocks-mode (the auto-pinned 16w Marathon-Specific tail is
+  // appended by the validator) and seeds `blocks` with the result of
+  // expandEntriesToBlocks([custom_hybrid, 18w]) so each phase block
+  // already carries both the phase sentinel and the merged mix
+  // sentinel, mirroring what the planner UI persists.
+  function makePhasedConfig(): PlannerConfig {
+    // 18-week hybrid + 16-week marathon-specific tail = 34 weeks.
+    // Start on a Monday so the marathon lands on a Sunday.
+    const total = 18 + 16;
+    const startMs = Date.parse("2026-01-05T00:00:00Z");
+    const endMs = startMs + (total * 7 - 1) * 86400000;
+    const marathonDate = new Date(endMs).toISOString().slice(0, 10);
+    const blocks = expandEntriesToBlocks([
+      {
+        templateId: "custom_hybrid",
+        weeks: 18,
+        customName: "Hybrid Build",
+        customNotes:
+          "[hybrid-mix:balanced] [hybrid-days:5] [hybrid-level:intermediate]",
+      },
+    ]);
+    return {
+      startDate: "2026-01-05",
+      marathonDate,
+      blocks,
+    };
+  }
+
+  it("validates and regenerates without errors at 18 weeks", () => {
+    const cfg = makePhasedConfig();
+    const issues = validatePlannerConfig(cfg);
+    // Hybrid 18w (3 phase blocks) + auto-pinned 16w marathon tail
+    // covers the full campaign cleanly — no validation issues.
+    expect(issues, `validate issues: ${JSON.stringify(issues)}`).toEqual([]);
+    const { daily, weekly } = generatePlanFromConfig(cfg);
+    expect(weekly.length).toBe(34);
+    // 7 days per week, daily.length === weeks * 7
+    expect(daily.length).toBe(34 * 7);
+  });
+
+  it("lift load follows the phase scalar (base ≈ 0.85x build, taper ≈ 0.7x build)", () => {
+    const cfg = makePhasedConfig();
+    const { daily } = generatePlanFromConfig(cfg);
+    // Phase block boundaries for 18w hybrid: taper=2, remaining=16,
+    // base=8, build=8 → base weeks 1-8, build weeks 9-16, taper
+    // weeks 17-18. Pick a non-cutback week-in-block from each phase
+    // (cutbacks land every 4th week-in-block) and grab the first
+    // heavy lift day to compare loads.
+    function firstHeavyLoad(weekNumber: number): number {
+      const wkRows = daily.filter((d) => d.week === weekNumber);
+      const heavy = wkRows.find((d) => d.session_type === "Strength");
+      expect(
+        heavy,
+        `week ${weekNumber} has a heavy Strength day`,
+      ).not.toBeUndefined();
+      return heavy!.strength_load ?? 0;
+    }
+    // Week 3 is in base (weekInBlock 3, non-cutback).
+    // Week 11 is in build (weekInBlock 3 of build block, non-cutback).
+    // Week 17 is in taper (weekInBlock 1 of taper, non-cutback).
+    const baseLoad = firstHeavyLoad(3);
+    const buildLoad = firstHeavyLoad(11);
+    const taperLoad = firstHeavyLoad(17);
+
+    expect(baseLoad, "base load > 0").toBeGreaterThan(0);
+    expect(buildLoad, "build load > base load").toBeGreaterThan(baseLoad);
+    expect(taperLoad, "taper load < build load").toBeLessThan(buildLoad);
+    // Approximate ratios — loads are rounded to whole pounds so allow
+    // a +/- 1 lb slack on each side.
+    expect(baseLoad).toBeGreaterThanOrEqual(Math.round(buildLoad * 0.85) - 1);
+    expect(baseLoad).toBeLessThanOrEqual(Math.round(buildLoad * 0.85) + 1);
+    expect(taperLoad).toBeGreaterThanOrEqual(Math.round(buildLoad * 0.7) - 1);
+    expect(taperLoad).toBeLessThanOrEqual(Math.round(buildLoad * 0.7) + 1);
+  });
+
+  it("legacy single-block hybrid (no phase sentinel) still validates and regenerates", () => {
+    // 8-week custom_hybrid → single Custom block, no phase. This is
+    // the v1 layout that saved campaigns rely on; mileage and load
+    // must use the original ramp (phaseLoadScalar = 1.0) so saved
+    // plans regenerate identically to before Task #154.
+    const cfg = hybridBlockConfig({
+      blockWeeks: 8,
+      position: "balanced",
+      daysPerWeek: 5,
+      level: "intermediate",
+    });
+    const issues = validatePlannerConfig(cfg);
+    expect(issues, `validate issues: ${JSON.stringify(issues)}`).toEqual([]);
+    const { daily, weekly } = generatePlanFromConfig(cfg);
+    // 8w hybrid + 16w marathon tail = 24w.
+    expect(weekly.length).toBe(24);
+    // The single-block hybrid has no phase tag, so its first heavy
+    // lift load must equal the v1 baseline (60 lb * intermediate
+    // scalar 1.0 * cutFactor 1.0 = 60). Pull from week 1 to avoid
+    // any cutback-week ambiguity.
+    const wk1Heavy = daily.find(
+      (d) => d.week === 1 && d.session_type === "Strength",
+    );
+    expect(wk1Heavy, "week 1 has a heavy Strength day").not.toBeUndefined();
+    expect(wk1Heavy!.strength_load).toBe(60);
   });
 });

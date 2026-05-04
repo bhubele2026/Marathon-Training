@@ -9,12 +9,14 @@ import {
   expandEntriesToBlocksWithGaps,
   getTemplateById,
   hybridMixSpec,
+  hybridPhase,
   liftPrimaryKind,
   primaryMachineKind,
   projectEntries,
   type HybridFitnessLevel,
   type HybridMixPosition,
   type HybridMixSpec,
+  type HybridPhase,
   type PrimaryMachineKind,
   type TemplateEntry,
 } from "./templates.js";
@@ -1484,6 +1486,7 @@ function hybridMileage(
   weekInBlock: number,
   blockWeeks: number,
   isCutback: boolean,
+  phase: HybridPhase | null = null,
 ): HybridMileage {
   const t = blockWeeks > 1 ? (weekInBlock - 1) / (blockWeeks - 1) : 0;
   const cutFactor = isCutback ? 0.7 : 1.0;
@@ -1511,8 +1514,40 @@ function hybridMileage(
     run_primary: 12.0,
   };
 
-  const ramp = (start: number, peak: number) =>
-    r1((start + t * (peak - start)) * lvl * cutFactor);
+  // Phase-aware ramp window (Task #154). When `phase` is null the
+  // block ramps from `start` to peak across the whole block — that's
+  // the v1 single-block behavior preserved for back-compat with saved
+  // hybrid campaigns and short (<12w) custom_hybrid plans. When the
+  // template's expand() emits phased blocks the ramp window narrows:
+  //
+  //   - base:  start .. 0.6 * peak     (build aerobic, stay below peak)
+  //   - build: 0.6 * peak .. peak      (continue from where base ended)
+  //   - taper: peak .. 0.5 * peak      (descending into race week)
+  //
+  // For lift-leaning positions where peak is already very low (e.g.
+  // lift_primary long peak = 3.0 mi vs start 3.0 mi) we clamp so the
+  // ramp never inverts (ascending in base, descending in taper).
+  function rampWindow(start: number, peak: number): { lo: number; hi: number } {
+    if (phase === "base") {
+      const hi = Math.max(start, 0.6 * peak);
+      return { lo: Math.min(start, hi), hi };
+    }
+    if (phase === "build") {
+      const lo = Math.max(start, 0.6 * peak);
+      return { lo, hi: Math.max(lo, peak) };
+    }
+    if (phase === "taper") {
+      const hi = peak;
+      const lo = Math.min(hi, Math.max(start * 0.5, 0.5 * peak));
+      return { lo: hi, hi: lo };
+    }
+    return { lo: Math.min(start, peak), hi: Math.max(start, peak) };
+  }
+
+  const ramp = (start: number, peak: number) => {
+    const { lo, hi } = rampWindow(start, peak);
+    return r1((lo + t * (hi - lo)) * lvl * cutFactor);
+  };
 
   return {
     easy: ramp(1.5, peakEasy[position]),
@@ -1591,7 +1626,17 @@ export interface HybridPreviewWeek {
 // drift from what the generator actually emits at runtime.
 export function previewHybridWeek(
   spec: HybridMixSpec,
-  opts?: { weekInBlock?: number; blockWeeks?: number },
+  opts?: {
+    weekInBlock?: number;
+    blockWeeks?: number;
+    // Optional phase tag (Task #154). When provided, the preview's
+    // mileage scales to the phase's ramp window — base finishes at
+    // 60% of peak, build covers 60% → peak, taper descends from
+    // peak to 50%. Defaults to null = the v1 single-block ramp,
+    // which is what the planner UI uses for its "typical week"
+    // preview because it doesn't carry a phase indicator.
+    phase?: HybridPhase | null;
+  },
 ): HybridPreviewWeek {
   const blockWeeks = Math.max(1, Math.floor(opts?.blockWeeks ?? 8));
   const weekInBlock = Math.max(
@@ -1607,6 +1652,7 @@ export function previewHybridWeek(
     weekInBlock,
     blockWeeks,
     isCutback,
+    opts?.phase ?? null,
   );
   let lifts = 0;
   let runs = 0;
@@ -1680,6 +1726,12 @@ function buildHybridWeekDays(opts: {
   isCutback: boolean;
   wkStart: Date;
   customSuffix: string;
+  // Mesocycle phase (Task #154). When set, lift load + minutes scale
+  // by phase (base 0.85x, build 1.0x, taper 0.7x) and the mileage
+  // ramp narrows to the phase's window. Null = legacy single-block
+  // hybrid (full load, full ramp) — preserves v1 behavior for short
+  // (<12w) custom_hybrid plans and saved hybrid campaigns.
+  hybridPhase: HybridPhase | null;
 }): DailyRow[] {
   const {
     weekNumber,
@@ -1690,18 +1742,25 @@ function buildHybridWeekDays(opts: {
     isCutback,
     wkStart,
     customSuffix,
+    hybridPhase: hPhase,
   } = opts;
 
   const schedule = pickHybridSchedule(spec.position, spec.daysPerWeek);
   const lvl = levelScalar(spec.level);
   const cutFactor = isCutback ? 0.8 : 1.0;
+  // Per-phase lift-load scalar — base eases the runner into the work,
+  // build runs at full intensity, taper deloads into the event. Null
+  // phase keeps the v1 single-block load (multiplier 1.0).
+  const phaseLoadScalar =
+    hPhase === "base" ? 0.85 : hPhase === "taper" ? 0.7 : 1.0;
 
   // Lift sizing — heavy vs accessory. Loads / mins scale with fitness
-  // level and ease off on cutback weeks.
-  const heavyLoad = Math.round(60 * lvl * cutFactor);
-  const heavyMin = Math.round(45 * lvl * cutFactor);
-  const accessoryLoad = Math.round(40 * lvl * cutFactor);
-  const accessoryMin = Math.round(30 * lvl * cutFactor);
+  // level, ease off on cutback weeks, and apply the phase scalar so
+  // base/build/taper progress meaningfully across the hybrid span.
+  const heavyLoad = Math.round(60 * lvl * cutFactor * phaseLoadScalar);
+  const heavyMin = Math.round(45 * lvl * cutFactor * phaseLoadScalar);
+  const accessoryLoad = Math.round(40 * lvl * cutFactor * phaseLoadScalar);
+  const accessoryMin = Math.round(30 * lvl * cutFactor * phaseLoadScalar);
 
   // Run sizing — distance per intensity, plus a default min/mile pace.
   // Pacing-mode preference is a downstream display concern (the
@@ -1713,6 +1772,7 @@ function buildHybridWeekDays(opts: {
     weekInBlock,
     blockWeeks,
     isCutback,
+    hPhase,
   );
   const easyPace = "13:00";
   const qualityPace = "11:30";
@@ -1911,6 +1971,11 @@ function buildWeekDays(opts: {
   const hybridSpec =
     block.focusType === "Custom" ? hybridMixSpec(block.customNotes) : null;
   if (hybridSpec) {
+    // Pull the mesocycle phase off the block (Task #154). The
+    // template's expand() stamps `[hybrid-phase:base|build|taper]` on
+    // each phased block; legacy single-block hybrid configs (and short
+    // <12w plans) carry no phase tag and render with the v1 ramp.
+    const blockHybridPhase = hybridPhase(block.customNotes);
     return buildHybridWeekDays({
       weekNumber,
       weekInBlock,
@@ -1920,6 +1985,7 @@ function buildWeekDays(opts: {
       isCutback,
       wkStart,
       customSuffix,
+      hybridPhase: blockHybridPhase,
     });
   }
 
@@ -2362,6 +2428,11 @@ export function previewWeeklyMileage(
     // Custom recipe defaults when the sentinel isn't present.
     const hybridSpecForPreview =
       b.focusType === "Custom" ? hybridMixSpec(b.customNotes) : null;
+    // Mesocycle phase for hybrid blocks (Task #154). Threaded into
+    // `hybridMileage` below so the Phase Planner curve mirrors the
+    // base/build/taper ramp the generator emits.
+    const hybridPhaseForPreview =
+      b.focusType === "Custom" ? hybridPhase(b.customNotes) : null;
     const zeroRuns = isLiftPrimary || isPrimaryMachine;
     // Number of slot-based easy/quality/long runs the schedule will
     // actually emit for the runner-picked (position, daysPerWeek). Used
@@ -2391,6 +2462,7 @@ export function previewWeeklyMileage(
           weekInBlock,
           w,
           isCutback,
+          hybridPhaseForPreview,
         );
         easyMi = mi.easy * hybridScheduleCounts.easy;
         qualityMi = mi.quality * hybridScheduleCounts.quality;
@@ -2715,6 +2787,8 @@ export {
   liftPrimaryKind,
   primaryMachineKind,
   hybridMixSpec,
+  hybridPhase,
+  expandCustomHybrid,
   HYBRID_POSITION_LABEL,
   HYBRID_POSITION_BLURB,
   HYBRID_POSITIONS_ORDERED,
@@ -2731,6 +2805,7 @@ export {
   type HybridMixPosition,
   type HybridMixSpec,
   type HybridFitnessLevel,
+  type HybridPhase,
 } from "./templates.js";
 // Note: previewHybridWeek + HybridPreview* types are exported inline
 // at their declaration site above (line ~1557). They live here in

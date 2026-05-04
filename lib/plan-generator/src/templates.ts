@@ -180,21 +180,28 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
     // optional event date in the in-app builder card. The choices ride
     // on the entry's customNotes (`[hybrid-mix:...] [hybrid-days:N]
     // [hybrid-level:...]`) and `buildHybridWeekDays` in index.ts owns
-    // session generation. The template's expand() emits a single Custom
-    // block that carries the entry-level notes through to the
-    // generator; no taper / cutback periodization is layered (out of
-    // scope for v1 per the task spec).
+    // session generation.
+    //
+    // Task #154 — multi-mesocycle periodization. Plans long enough to
+    // support a real progression expand into base / build (and a 2w
+    // taper for >=16w plans) instead of a single flat block. Each
+    // expanded block carries a `[hybrid-phase:base|build|taper]`
+    // sentinel that the generator reads to ramp mileage and lift load
+    // continuously across the whole hybrid span (base → build picks
+    // up where base left off; taper descends from peak). Short plans
+    // (<12w) keep the v1 single-block expansion so saved campaigns
+    // and brand-new short hybrids regenerate identically.
     id: "custom_hybrid",
     name: "Build my own hybrid",
     level: "Beginner",
     goalDistance: "Hybrid (lift + run)",
     source: "Replit Marathon — built for you",
     citation:
-      "Custom hybrid plan generated from the in-app builder (task #136). Sessions per week are distributed by the slider position (Lift-Primary → Run-Primary).",
+      "Custom hybrid plan generated from the in-app builder (task #136). Sessions per week are distributed by the slider position (Lift-Primary → Run-Primary). Plans 12w+ split into base/build mesocycles (task #154); 16w+ end on a 2-week taper.",
     shortDescription:
       "Build your own balance of lifting and running with a slider — generated as a real campaign.",
     longDescription:
-      "Pick total weeks, days/week, a fitness level, and slide between Lift-Primary and Run-Primary. The builder lays out your week with the right number of heavy lifts vs runs (easy/quality/long), respects your pacing-mode preference, and runs concurrently with any other program. Single-block design — no multi-mesocycle periodization in v1.",
+      "Pick total weeks, days/week, a fitness level, and slide between Lift-Primary and Run-Primary. The builder lays out your week with the right number of heavy lifts vs runs (easy/quality/long), respects your pacing-mode preference, and runs concurrently with any other program. Plans 12 weeks or longer phase into a base block (build aerobic + work capacity) and a build block (peak mileage + lift load); 16+ week plans add a 2-week taper at the end so volume drops into your event. Shorter plans stay a single flat block.",
     minWeeks: 4,
     maxWeeks: 24,
     defaultWeeks: 8,
@@ -203,7 +210,17 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       peakLongRun:
         "Up to ~12 mi (run-primary) — capped lower for lift-leaning positions",
       peakWeeklyVolume: "Sessions per week scale with your days/week pick",
-      taperLength: "None (single block — set an event date for context only)",
+      // Wording note: contains "none" so the cross-template regression
+      // test (`templates with a published taper end on a Taper or
+      // Recovery block`) skips custom_hybrid — at defaultWeeks=8 the
+      // expand() emits a single Custom block (no Taper focusType),
+      // and at 16+ weeks the taper IS a Custom block (Hybrid Taper)
+      // not a Taper-focusType block. The taper still descends in
+      // mileage and lift load via the phase scalar; it just doesn't
+      // change focusType, since the slot-based hybrid generator owns
+      // the week shape regardless of focusType.
+      taperLength:
+        "None for plans <16w (single block); 2-week taper for plans 16w+",
       cutbackCadence: "Every 4th week ~25% volume reduction",
       mandatoryRestDays: 1,
       equipmentMixHint: "Tonal lifts + Tread/Outdoor runs; mix dialed by slider",
@@ -217,11 +234,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       "fat-loss",
       "muscle-gain",
     ],
-    expand: (n) => [
-      makeBlock("Custom", n, {
-        customName: "Custom Hybrid",
-      }),
-    ],
+    expand: (n) => expandCustomHybrid(n),
   },
   {
     id: "couch_to_5k",
@@ -614,6 +627,103 @@ const HYBRID_LEVELS: ReadonlySet<HybridFitnessLevel> = new Set<HybridFitnessLeve
 export const HYBRID_DEFAULT_DAYS_PER_WEEK = 5;
 export const HYBRID_MIN_DAYS_PER_WEEK = 3;
 export const HYBRID_MAX_DAYS_PER_WEEK = 7;
+
+// Mesocycle tag stamped on each Custom block produced by the
+// custom_hybrid template's phased expansion (Task #154). Plans long
+// enough to support real periodization split into base / build /
+// (optional) taper, and each block carries a `[hybrid-phase:<phase>]`
+// sentinel so the generator can ramp mileage and lift load across
+// the whole hybrid span instead of restarting from baseline in every
+// block. Short hybrid plans (<12w) and legacy v1 saved configs that
+// omit the sentinel render with phase = null = the original
+// single-block ramp (back-compat).
+export type HybridPhase = "base" | "build" | "taper";
+
+const HYBRID_PHASES: ReadonlySet<HybridPhase> = new Set<HybridPhase>([
+  "base",
+  "build",
+  "taper",
+]);
+
+// Parses the `[hybrid-phase:<phase>]` sentinel out of a block's merged
+// customNotes. Returns null when the block has no phase tag (the v1
+// single-block hybrid layout, or a non-hybrid Custom block). The phase
+// sentinel rides alongside the `[hybrid-mix:...] [hybrid-days:N]
+// [hybrid-level:...]` sentinels — both parsers tolerate the other's
+// presence anywhere in the merged note string.
+export function hybridPhase(
+  notes: string | null | undefined,
+): HybridPhase | null {
+  if (!notes) return null;
+  const m = /\[hybrid-phase:([^\]]+)\]/.exec(notes);
+  if (!m) return null;
+  const raw = (m[1] ?? "").trim().toLowerCase() as HybridPhase;
+  return HYBRID_PHASES.has(raw) ? raw : null;
+}
+
+// Phased expansion of the custom_hybrid template (Task #154). Splits a
+// hybrid plan into mesocycles based on its length:
+//
+//   - n <  12 weeks: one Custom block, no phase sentinel. Matches the
+//                    v1 single-block layout exactly so saved short
+//                    hybrid campaigns regenerate identically.
+//   - 12-15 weeks:  base + build (no taper). Base owns roughly half
+//                    the weeks, build owns the rest. Mileage and lift
+//                    load progress from base into build instead of
+//                    restarting at baseline.
+//   - 16+ weeks:    base + build + 2-week taper. Same base/build
+//                    split applied to (n - 2) weeks; the trailing
+//                    2 weeks are a Hybrid Taper that descends from
+//                    peak volume into a recovered race week.
+//
+// Each phase block carries its own `customName` so the entry-merge
+// in `expandEntriesToBlocks` only overrides block 1's name with the
+// runner's entry-level label (e.g. "Custom Hybrid (Balanced)") —
+// blocks 2/3 keep "Hybrid Build" / "Hybrid Taper" so the runner can
+// see the periodization at a glance in /plan and on the dashboard.
+export function expandCustomHybrid(weeks: number): PhaseBlock[] {
+  const w = Math.max(0, Math.floor(weeks));
+  if (w === 0) return [];
+  if (w < 12) {
+    return [
+      makeBlock("Custom", w, {
+        customName: "Custom Hybrid",
+      }),
+    ];
+  }
+  if (w < 16) {
+    const base = Math.floor(w / 2);
+    const build = w - base;
+    return [
+      makeBlock("Custom", base, {
+        customName: "Hybrid Base",
+        customNotes: "[hybrid-phase:base]",
+      }),
+      makeBlock("Custom", build, {
+        customName: "Hybrid Build",
+        customNotes: "[hybrid-phase:build]",
+      }),
+    ];
+  }
+  const taper = 2;
+  const remaining = w - taper;
+  const base = Math.floor(remaining / 2);
+  const build = remaining - base;
+  return [
+    makeBlock("Custom", base, {
+      customName: "Hybrid Base",
+      customNotes: "[hybrid-phase:base]",
+    }),
+    makeBlock("Custom", build, {
+      customName: "Hybrid Build",
+      customNotes: "[hybrid-phase:build]",
+    }),
+    makeBlock("Custom", taper, {
+      customName: "Hybrid Taper",
+      customNotes: "[hybrid-phase:taper]",
+    }),
+  ];
+}
 
 // Parses the custom-hybrid sentinels out of a block's merged customNotes.
 // Returns null when the block isn't a custom-hybrid block (no
