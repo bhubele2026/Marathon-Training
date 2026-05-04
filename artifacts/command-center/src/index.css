@@ -73,51 +73,52 @@
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
 
-  --background: 0 0% 96%;
-  --foreground: 0 0% 10%;
-  --border: 0 0% 85%;
+  --background: 210 22% 97%;
+  --foreground: 215 30% 14%;
+  --border: 210 18% 86%;
   --card: 0 0% 100%;
-  --card-foreground: 0 0% 10%;
-  --card-border: 0 0% 85%;
+  --card-foreground: 215 30% 14%;
+  --card-border: 210 18% 88%;
   
-  --sidebar: 0 0% 98%;
-  --sidebar-foreground: 0 0% 15%;
-  --sidebar-border: 0 0% 85%;
-  --sidebar-primary: 24 95% 53%;
+  --sidebar: 215 25% 96%;
+  --sidebar-foreground: 215 30% 18%;
+  --sidebar-border: 210 18% 86%;
+  --sidebar-primary: 178 65% 36%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 0 0% 90%;
-  --sidebar-accent-foreground: 0 0% 10%;
-  --sidebar-ring: 24 95% 53%;
+  --sidebar-accent: 210 22% 91%;
+  --sidebar-accent-foreground: 215 30% 18%;
+  --sidebar-ring: 178 65% 36%;
   
   --popover: 0 0% 100%;
-  --popover-foreground: 0 0% 10%;
-  --popover-border: 0 0% 85%;
+  --popover-foreground: 215 30% 14%;
+  --popover-border: 210 18% 88%;
 
-  --primary: 24 95% 53%;
+  --primary: 178 65% 36%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 0 0% 90%;
-  --secondary-foreground: 0 0% 10%;
-  --muted: 0 0% 90%;
-  --muted-foreground: 0 0% 40%;
-  --accent: 24 95% 53%;
+  --secondary: 210 22% 90%;
+  --secondary-foreground: 215 30% 18%;
+  --muted: 210 22% 92%;
+  --muted-foreground: 215 14% 42%;
+  --accent: 160 50% 48%;
   --accent-foreground: 0 0% 100%;
-  --destructive: 0 84% 60%;
+  --destructive: 0 70% 52%;
   --destructive-foreground: 0 0% 100%;
-  --input: 0 0% 85%;
-  --ring: 24 95% 53%;
+  --input: 210 18% 86%;
+  --ring: 178 65% 36%;
 
-  /* Logo-derived brand palette: orange "H" + purple "2" + lavender swoosh.
-     chart-2 maps to brand purple so dual-series charts (mileage vs goal,
-     long-run distance vs cardio minutes) read as the brand instead of
-     orange-on-gray. brand-purple is exposed as its own token for spot
-     accents (race-week banner, milestone badges, etc.). */
-  --brand-orange: 24 95% 53%;
-  --brand-purple: 262 60% 65%;
-  --chart-1: 24 95% 53%;
-  --chart-2: 262 60% 65%;
-  --chart-3: 24 80% 70%;
-  --chart-4: 262 45% 80%;
-  --chart-5: 0 0% 60%;
+  /* Arctic Performance brand palette: slate + teal primary + soft mint
+     accent. The legacy `brand-orange` / `brand-purple` token NAMES are
+     preserved so downstream components keep working without rewrites,
+     but their VALUES now map to the Arctic teal/mint pair. chart-2
+     stays the spot-accent (mint) so dual-series charts read as the
+     theme instead of slate-on-slate. */
+  --brand-orange: 178 65% 36%;
+  --brand-purple: 160 50% 48%;
+  --chart-1: 178 65% 38%;
+  --chart-2: 160 55% 50%;
+  --chart-3: 215 50% 50%;
+  --chart-4: 260 35% 55%;
+  --chart-5: 30 60% 55%;
 
   --app-font-sans: 'Inter', sans-serif;
   --app-font-serif: Georgia, serif;
@@ -143,47 +144,47 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
 
-  --background: 0 0% 7%;
-  --foreground: 0 0% 90%;
-  --border: 0 0% 18%;
+  --background: 215 28% 9%;
+  --foreground: 210 20% 92%;
+  --border: 215 20% 18%;
   
-  --card: 0 0% 11%;
-  --card-foreground: 0 0% 90%;
-  --card-border: 0 0% 18%;
+  --card: 215 25% 13%;
+  --card-foreground: 210 20% 92%;
+  --card-border: 215 20% 18%;
   
-  --sidebar: 0 0% 9%;
-  --sidebar-foreground: 0 0% 85%;
-  --sidebar-border: 0 0% 18%;
-  --sidebar-primary: 24 95% 53%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 0 0% 18%;
-  --sidebar-accent-foreground: 0 0% 95%;
-  --sidebar-ring: 24 95% 53%;
+  --sidebar: 215 30% 7%;
+  --sidebar-foreground: 210 20% 88%;
+  --sidebar-border: 215 22% 14%;
+  --sidebar-primary: 178 65% 50%;
+  --sidebar-primary-foreground: 215 30% 8%;
+  --sidebar-accent: 215 22% 16%;
+  --sidebar-accent-foreground: 210 20% 92%;
+  --sidebar-ring: 178 65% 50%;
 
-  --popover: 0 0% 11%;
-  --popover-foreground: 0 0% 90%;
-  --popover-border: 0 0% 18%;
+  --popover: 215 25% 13%;
+  --popover-foreground: 210 20% 92%;
+  --popover-border: 215 20% 18%;
 
-  --primary: 24 95% 53%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 0 0% 18%;
-  --secondary-foreground: 0 0% 90%;
-  --muted: 0 0% 15%;
-  --muted-foreground: 0 0% 60%;
-  --accent: 24 95% 53%;
-  --accent-foreground: 0 0% 100%;
-  --destructive: 0 62% 30%;
-  --destructive-foreground: 0 0% 90%;
-  --input: 0 0% 18%;
-  --ring: 24 95% 53%;
+  --primary: 178 65% 50%;
+  --primary-foreground: 215 30% 8%;
+  --secondary: 215 20% 18%;
+  --secondary-foreground: 210 20% 92%;
+  --muted: 215 18% 16%;
+  --muted-foreground: 210 14% 62%;
+  --accent: 160 55% 58%;
+  --accent-foreground: 215 30% 8%;
+  --destructive: 0 65% 58%;
+  --destructive-foreground: 0 0% 100%;
+  --input: 215 20% 18%;
+  --ring: 178 65% 50%;
   
-  --brand-orange: 24 95% 53%;
-  --brand-purple: 262 65% 72%;
-  --chart-1: 24 95% 53%;
-  --chart-2: 262 65% 72%;
-  --chart-3: 24 80% 65%;
-  --chart-4: 262 50% 55%;
-  --chart-5: 0 0% 60%;
+  --brand-orange: 178 65% 50%;
+  --brand-purple: 160 55% 58%;
+  --chart-1: 178 65% 55%;
+  --chart-2: 160 55% 60%;
+  --chart-3: 215 60% 65%;
+  --chart-4: 260 45% 65%;
+  --chart-5: 30 70% 62%;
 }
 
 @layer base {

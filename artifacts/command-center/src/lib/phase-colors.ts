@@ -1,12 +1,20 @@
+// Arctic Performance phase palette (task #186):
+//   Foundation Build → slate-blue
+//   Aerobic Build    → teal
+//   Tempo/Threshold  → mint
+//   Race-Specific    → soft plum
+//   Taper & Race     → warm amber
+// The trailing entries are theme-coordinated fallbacks for any
+// non-canonical phase name (hashed deterministically below).
 const PHASE_PALETTE = [
-  "hsl(24 95% 53%)",
-  "hsl(199 89% 48%)",
-  "hsl(142 71% 45%)",
-  "hsl(271 76% 53%)",
-  "hsl(346 87% 55%)",
-  "hsl(48 96% 53%)",
-  "hsl(180 65% 40%)",
-  "hsl(217 91% 60%)",
+  "hsl(215 50% 52%)",
+  "hsl(178 65% 42%)",
+  "hsl(160 55% 48%)",
+  "hsl(260 40% 58%)",
+  "hsl(30 65% 55%)",
+  "hsl(195 70% 50%)",
+  "hsl(140 45% 50%)",
+  "hsl(245 45% 60%)",
 ];
 
 const CANONICAL_PHASE_COLORS: Record<string, string> = {

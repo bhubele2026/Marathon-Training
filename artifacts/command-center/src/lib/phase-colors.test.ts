@@ -3,11 +3,14 @@ import { phaseColor } from "./phase-colors";
 
 describe("phaseColor", () => {
   it("maps each canonical phase to its expected palette color", () => {
-    expect(phaseColor("Foundation Build")).toBe("hsl(24 95% 53%)");
-    expect(phaseColor("Aerobic Build")).toBe("hsl(199 89% 48%)");
-    expect(phaseColor("Tempo / Threshold")).toBe("hsl(142 71% 45%)");
-    expect(phaseColor("Race-Specific")).toBe("hsl(271 76% 53%)");
-    expect(phaseColor("Taper & Race")).toBe("hsl(346 87% 55%)");
+    // Arctic Performance phase palette (task #186): slate-blue, teal,
+    // mint, soft plum, warm amber for Foundation Build, Aerobic Build,
+    // Tempo/Threshold, Race-Specific, Taper & Race respectively.
+    expect(phaseColor("Foundation Build")).toBe("hsl(215 50% 52%)");
+    expect(phaseColor("Aerobic Build")).toBe("hsl(178 65% 42%)");
+    expect(phaseColor("Tempo / Threshold")).toBe("hsl(160 55% 48%)");
+    expect(phaseColor("Race-Specific")).toBe("hsl(260 40% 58%)");
+    expect(phaseColor("Taper & Race")).toBe("hsl(30 65% 55%)");
   });
 
   it("returns a stable color for unknown phase names across calls", () => {

@@ -252,11 +252,25 @@ export { levelOfTemplate };
 // localStorage key for the planner's per-level collapse state.
 // Versioned so we can change the shape later without colliding with
 // stale entries. Bumped to v2 when the picker switched from
-// modality-based categories to skill-level groupings (task #132) so
-// stale "Bike"/"Strength" collapse state doesn't bleed into the new
-// Beginner/Intermediate/Advanced layout.
+// modality-based categories to skill-level groupings (task #132), and
+// to v3 (task #186) when the default flipped from "only Beginner
+// expanded" to "all three levels expanded" — returning runners with
+// the v2 stale `["Intermediate","Advanced"]` entry would otherwise
+// keep seeing the old hidden-by-default layout.
 const COLLAPSED_CATEGORIES_STORAGE_KEY =
-  "planner.collapsedTemplateLevels.v2";
+  "planner.collapsedTemplateLevels.v3";
+
+// Per-level accent colors used as a left-edge strip on each section
+// header AND the cards inside it (task #186 — Arctic Performance theme).
+// Beginner = mint, Intermediate = teal (primary), Advanced = slate-blue.
+// Inlined as raw hsl strings (rather than going through CSS tokens) so
+// the visual mapping stays stable across the light/dark themes — the
+// strip is the runner's anchor for "what difficulty am I scanning?"
+const LEVEL_ACCENT: Record<TemplateLevel, string> = {
+  Beginner: "hsl(160 50% 48%)",
+  Intermediate: "hsl(178 65% 36%)",
+  Advanced: "hsl(215 50% 52%)",
+};
 
 // localStorage key for the planner's per-template "Details" expansion
 // state in the Plan Template Library card. Versioned so we can change
@@ -540,11 +554,12 @@ export default function Planner() {
   const [templateTagCloudOpen, setTemplateTagCloudOpen] = useState(false);
   const [quickAddTagCloudOpen, setQuickAddTagCloudOpen] = useState(false);
   // Per-level collapse state for the grouped template grid. Default
-  // is "Beginner" expanded (the gentlest entry point) and Intermediate
-  // / Advanced collapsed so the picker doesn't overwhelm a first-time
-  // runner with high-mileage Pfitz plans. Toggled by the section
-  // header chevron. Persisted to localStorage so a returning advanced
-  // runner sees their preferred level already expanded (storage key
+  // (task #186) is ALL THREE levels expanded so the runner immediately
+  // sees the curated 5/5/5 catalog shape on first load — collapsing
+  // Intermediate/Advanced by default was hiding 2/3 of the library and
+  // making it look like only 5 templates existed. The runner can still
+  // collapse any section manually via the chevron, and the choice is
+  // persisted per-runner via localStorage (key
   // `COLLAPSED_CATEGORIES_STORAGE_KEY`, hoisted to module scope).
   const [collapsedCategories, setCollapsedCategories] = useState<
     Set<TemplateLevel>
@@ -567,9 +582,7 @@ export default function Planner() {
         // Ignore corrupt storage and fall through to default.
       }
     }
-    return new Set<TemplateLevel>(
-      TEMPLATE_LEVELS.filter((c) => c !== "Beginner"),
-    );
+    return new Set<TemplateLevel>();
   });
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -738,6 +751,23 @@ export default function Planner() {
       ),
     );
   }, [templates, templateSearch, selectedTemplateTags]);
+  // Total catalog size per level (unfiltered) — drives the
+  // `<Level> · n of <total>` denominator in each section header so the
+  // runner always sees the curated catalog shape (5/5/5 today) even
+  // when an active search has narrowed the visible list. Memoized so
+  // it only recomputes when the upstream catalog actually changes.
+  const totalsByLevel = useMemo(() => {
+    const out: Record<TemplateLevel, number> = {
+      Beginner: 0,
+      Intermediate: 0,
+      Advanced: 0,
+    };
+    for (const t of templates) {
+      const lvl = levelOfTemplate(t);
+      out[lvl] += 1;
+    }
+    return out;
+  }, [templates]);
   // Search/filter results are scoped to currently-VISIBLE level
   // sections. A level the runner has collapsed is treated as "out of
   // view" — its matches do NOT inflate the summary count and do NOT
@@ -2418,28 +2448,36 @@ export default function Planner() {
             {groupedTemplates.map(({ level, list }) => {
               // Search results are scoped to visible levels only — a
               // collapsed section stays collapsed even when filters
-              // have matches inside it. The header badge still shows
-              // the local match count so the runner can decide to
-              // expand it explicitly.
+              // have matches inside it. The header still shows the
+              // local match count (`<Level> · n of <total>`) so the
+              // runner can decide to expand it explicitly.
               const isCollapsed = collapsedCategories.has(level);
+              const totalForLevel = totalsByLevel[level];
+              // Arctic Performance accent strip per level (task #186):
+              // Beginner = mint, Intermediate = teal (primary),
+              // Advanced = slate-blue. Used for the section header
+              // strip AND each card's left edge so the runner can scan
+              // a level visually before reading any text.
+              const accent = LEVEL_ACCENT[level];
               return (
                 <div
                   key={level}
-                  className="border rounded-md"
+                  className="border rounded-md overflow-hidden"
                   data-testid={`planner-template-level-${level.toLowerCase()}`}
                 >
                   <button
                     type="button"
                     onClick={() => toggleCategory(level)}
-                    className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-muted/40"
+                    className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-muted/40 border-l-[3px]"
+                    style={{ borderLeftColor: accent }}
                     aria-expanded={!isCollapsed}
                     data-testid={`planner-template-level-toggle-${level.toLowerCase()}`}
                   >
-                    <span className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{level}</span>
-                      <Badge variant="secondary" className="text-[10px]">
-                        {list.length}
-                      </Badge>
+                    <span className="flex items-baseline gap-2">
+                      <span className="text-sm font-semibold">{level}</span>
+                      <span className="text-[11px] text-muted-foreground tabular-nums">
+                        · {list.length} of {totalForLevel}
+                      </span>
                     </span>
                     {isCollapsed ? (
                       <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -2460,17 +2498,26 @@ export default function Planner() {
                 return (
                   <div
                     key={tpl.id}
-                    className={`border rounded-md p-3 flex flex-col gap-2 scroll-mt-4 ${isLastApplied ? "border-primary" : ""}`}
+                    className={`relative border rounded-md p-3 pl-4 flex flex-col gap-2.5 scroll-mt-4 bg-card ${isLastApplied ? "border-primary ring-1 ring-primary/20" : ""}`}
+                    style={{
+                      // Accent strip on the card's left edge mirrors the
+                      // section header so a single glance tells the
+                      // runner which difficulty bucket each card belongs
+                      // to even when scanning across columns.
+                      boxShadow: `inset 3px 0 0 0 ${accent}`,
+                    }}
                     data-testid={`planner-template-${tpl.id}`}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="font-medium text-sm">{tpl.name}</div>
-                        <div className="text-xs text-muted-foreground">
+                      <div className="min-w-0">
+                        <div className="font-semibold text-[15px] leading-tight">
+                          {tpl.name}
+                        </div>
+                        <div className="text-[11px] uppercase tracking-wider text-muted-foreground mt-0.5">
                           {tpl.goalDistance} · {tpl.source}
                         </div>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 shrink-0">
                         <Badge
                           variant="outline"
                           className="text-[10px]"
@@ -2485,7 +2532,7 @@ export default function Planner() {
                         )}
                       </div>
                     </div>
-                    <div className="text-xs text-muted-foreground flex-1">
+                    <div className="text-xs text-muted-foreground leading-relaxed flex-1">
                       {tpl.shortDescription}
                     </div>
                     {tpl.tags.length > 0 && (
@@ -2496,37 +2543,56 @@ export default function Planner() {
                         {tpl.tags.map((tag) => (
                           <span
                             key={tag}
-                            className="inline-flex items-center rounded-sm bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                            className="inline-flex items-center rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent-foreground/80"
+                            style={{
+                              color: "hsl(var(--accent))",
+                            }}
                             data-testid={`planner-template-${tpl.id}-tag-${tag}`}
                           >
-                            {tag}
+                            #{tag}
                           </span>
                         ))}
                       </div>
                     )}
-                    <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[11px]">
-                      <dt className="text-muted-foreground">Peak LR</dt>
-                      <dd
-                        className="text-right tabular-nums"
-                        data-testid={`planner-template-${tpl.id}-peak-lr`}
-                      >
-                        {tpl.metadata.peakLongRun}
-                      </dd>
-                      <dt className="text-muted-foreground">Peak vol</dt>
-                      <dd
-                        className="text-right tabular-nums"
-                        data-testid={`planner-template-${tpl.id}-peak-vol`}
-                      >
-                        {tpl.metadata.peakWeeklyVolume}
-                      </dd>
-                      <dt className="text-muted-foreground">Taper</dt>
-                      <dd className="text-right tabular-nums">
-                        {tpl.metadata.taperLength}
-                      </dd>
-                      <dt className="text-muted-foreground">Range</dt>
-                      <dd className="text-right tabular-nums">
-                        {tpl.minWeeks}–{tpl.maxWeeks}w (default {tpl.defaultWeeks})
-                      </dd>
+                    <dl className="grid grid-cols-2 gap-2 rounded-md bg-muted/40 p-2 text-[11px]">
+                      <div className="flex flex-col">
+                        <dt className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                          Peak LR
+                        </dt>
+                        <dd
+                          className="font-semibold tabular-nums text-foreground"
+                          data-testid={`planner-template-${tpl.id}-peak-lr`}
+                        >
+                          {tpl.metadata.peakLongRun}
+                        </dd>
+                      </div>
+                      <div className="flex flex-col">
+                        <dt className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                          Peak vol
+                        </dt>
+                        <dd
+                          className="font-semibold tabular-nums text-foreground"
+                          data-testid={`planner-template-${tpl.id}-peak-vol`}
+                        >
+                          {tpl.metadata.peakWeeklyVolume}
+                        </dd>
+                      </div>
+                      <div className="flex flex-col">
+                        <dt className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                          Taper
+                        </dt>
+                        <dd className="font-semibold tabular-nums text-foreground">
+                          {tpl.metadata.taperLength}
+                        </dd>
+                      </div>
+                      <div className="flex flex-col">
+                        <dt className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                          Range
+                        </dt>
+                        <dd className="font-semibold tabular-nums text-foreground">
+                          {tpl.minWeeks}–{tpl.maxWeeks}w · {tpl.defaultWeeks}
+                        </dd>
+                      </div>
                     </dl>
                     <Button
                       size="sm"

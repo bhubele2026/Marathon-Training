@@ -1213,22 +1213,24 @@ describe("Plan Template Library — search filter and level grouping", () => {
     expect(screen.queryByTestId("planner-template-half_marathon")).toBeNull();
 
     // Summary line reports the match count for the active query.
-    // Pfitzinger plans now live across both Intermediate (10k_pfitz)
-    // and Advanced (hm_pfitz, marathon, marathon_pfitz_18_70). Both
-    // levels are collapsed by default, so the headline count is 0 and
-    // all 4 matches surface as "+N in collapsed levels". Expanding
-    // Advanced lifts 3 of them into the visible count and leaves 1
-    // (10k_pfitz) still collapsed inside Intermediate.
+    // Pfitzinger plans live across both Intermediate (10k_pfitz) and
+    // Advanced (hm_pfitz, marathon, marathon_pfitz_18_70). All three
+    // levels are expanded by default (task #186 — the planner shows
+    // the full 5/5/5 catalog up front), so all 4 matches are visible
+    // with no "+N in collapsed levels" suffix.
     const summary = screen.getByTestId("planner-template-search-summary");
-    expect(summary.textContent).toContain("0 templates match");
+    expect(summary.textContent).toContain("4 templates match");
     expect(summary.textContent).toContain("pfitz");
-    expect(summary.textContent).toContain("+4 in collapsed levels");
+    expect(summary.textContent).not.toContain("collapsed level");
 
+    // Collapsing Advanced manually drops its 3 matches out of the
+    // visible count and surfaces them as "+3 in collapsed levels",
+    // leaving only the Intermediate 10k_pfitz match visible.
     fireEvent.click(
       screen.getByTestId("planner-template-level-toggle-advanced"),
     );
-    expect(summary.textContent).toContain("3 templates match");
-    expect(summary.textContent).toMatch(/\+1 in collapsed levels?/);
+    expect(summary.textContent).toContain("1 template match");
+    expect(summary.textContent).toMatch(/\+3 in collapsed levels?/);
   });
 
   it("filters by author/source and equipment hint, not just template name", () => {
@@ -1244,10 +1246,15 @@ describe("Plan Template Library — search filter and level grouping", () => {
     expect(screen.queryByTestId("planner-template-marathon")).toBeNull();
   });
 
-  it("does NOT auto-expand a collapsed level section even when filters have matches inside it (search is scoped to visible levels)", () => {
+  it("does NOT auto-expand a manually-collapsed level section even when filters have matches inside it (search is scoped to visible levels)", () => {
     renderPlanner();
-    // Advanced is collapsed by default (only Beginner starts expanded). With
-    // no search, the marathon card is hidden from the layout via `hidden`.
+    // Task #186 default is all three levels expanded — manually
+    // collapse Advanced first so we can verify the search-time
+    // contract that a collapsed section stays collapsed even when
+    // matches live inside it.
+    fireEvent.click(
+      screen.getByTestId("planner-template-level-toggle-advanced"),
+    );
     const advancedBefore = screen.getByTestId(
       "planner-template-level-advanced",
     );
@@ -1258,26 +1265,32 @@ describe("Plan Template Library — search filter and level grouping", () => {
     });
 
     // After search, the Advanced section MUST stay collapsed even
-    // though all the pfitzinger matches live inside it.
+    // though most pfitzinger matches live inside it.
     const advancedAfter = screen.getByTestId(
       "planner-template-level-advanced",
     );
     expect(advancedAfter.querySelector("[hidden]")).not.toBeNull();
-    // The header still reports a positive match count for that level
-    // (so the runner can choose to expand it), but the visible-scoped
-    // summary above stays at 0 + a "+N in collapsed levels" suffix.
+    // The visible-scoped summary stays at 1 (the Intermediate
+    // 10k_pfitz match) + a "+3 in collapsed levels" suffix for the
+    // Advanced ones the runner has hidden.
     const summary = screen.getByTestId("planner-template-search-summary");
-    expect(summary.textContent).toContain("0 templates match");
-    expect(summary.textContent).toContain("+4 in collapsed levels");
+    expect(summary.textContent).toContain("1 template match");
+    expect(summary.textContent).toContain("+3 in collapsed levels");
   });
 
-  it("scopes search results to currently-visible levels — Beginner-default view does not surface Intermediate/Advanced cards as visible matches", () => {
+  it("scopes search results to currently-visible levels — manually-collapsed Intermediate/Advanced sections do not surface their cards as visible matches", () => {
     renderPlanner();
-    // Beginner is the only level expanded by default. Searching for a
-    // term that only matches templates in the collapsed Intermediate
-    // and Advanced levels must NOT promote those cards into the visible
-    // surface — both matching cards stay inside a [hidden] grid wrapper
-    // and the visible match count stays at 0.
+    // Task #186 default is all three levels expanded — manually
+    // collapse Intermediate AND Advanced first so we can verify the
+    // visible-only scoping contract holds when the runner has narrowed
+    // their view to just Beginner.
+    fireEvent.click(
+      screen.getByTestId("planner-template-level-toggle-intermediate"),
+    );
+    fireEvent.click(
+      screen.getByTestId("planner-template-level-toggle-advanced"),
+    );
+
     fireEvent.change(screen.getByTestId("planner-template-search"), {
       target: { value: "pfitzinger" },
     });
