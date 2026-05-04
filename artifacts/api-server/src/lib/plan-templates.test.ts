@@ -1075,3 +1075,109 @@ describe("Marathon-Specific recipe — entries-mode smoothed late-MS ramp (Task 
     expect(preview[14]!.longRunMi, "preview MS w6 block-final (plan w15)").toBe(20);
   });
 });
+
+// Task #195 — entries-mode marathon plans must mark race day on the
+// final Sunday with the canonical "RACE DAY — Marathon (26.2 mi)"
+// label, race-prep Saturday, and "Race" session_type — exactly what
+// the blocks-mode auto-pinned 16-week tail produces. Task #184 wired
+// the `endsOnMarathonRaceDay` gate to fire for entries-mode plans
+// whose trailing entry classifies as a marathon template; the
+// existing Task #184/#185/#190 tests pin `distance_mi == 26.2` on the
+// race-week Sunday. This describe block locks in the FULL race-day
+// contract — description text, session_type, and the race-eve Sat
+// shape — so a regression that silently drops the canonical label
+// (e.g. by skipping the `isRaceWeek` branch for entries-mode) is
+// caught loudly. It also guards that non-marathon entries-mode
+// templates (half-marathon, 5K, hybrid) keep their template's natural
+// taper Sunday and never get the marathon race-day override.
+describe("Race-day marking on entries-mode marathon plans (Task #195)", () => {
+  function entriesPlan(templateId: string, weeks: number): PlannerConfig {
+    const startMs = Date.parse("2026-05-04T00:00:00Z");
+    const endMs = startMs + (weeks * 7 - 1) * 86400000;
+    const marathonDate = new Date(endMs).toISOString().slice(0, 10);
+    return {
+      startDate: "2026-05-04",
+      marathonDate,
+      blocks: [],
+      entries: [
+        {
+          templateId,
+          weeks,
+          startDate: "2026-05-04",
+        },
+      ],
+    } as unknown as PlannerConfig;
+  }
+
+  function finalSunAndSat(cfg: PlannerConfig): {
+    sun: ReturnType<typeof generatePlanFromConfig>["daily"][number];
+    sat: ReturnType<typeof generatePlanFromConfig>["daily"][number];
+  } {
+    const { daily, weekly } = generatePlanFromConfig(cfg);
+    const raceWeek = weekly.length;
+    const finalSun = daily.find((d) => d.week === raceWeek && d.day === "Sun");
+    const finalSat = daily.find((d) => d.week === raceWeek && d.day === "Sat");
+    if (!finalSun) throw new Error("missing final Sun");
+    if (!finalSat) throw new Error("missing final Sat");
+    return { sun: finalSun, sat: finalSat };
+  }
+
+  for (const templateId of ["marathon", "marathon_pfitz_18_70"] as const) {
+    it(`18w entries-mode '${templateId}' — final Sunday reads "RACE DAY — Marathon (26.2 mi)"`, () => {
+      const { sun, sat } = finalSunAndSat(entriesPlan(templateId, 18));
+
+      // Distance pinned at the canonical marathon distance — NOT the
+      // Taper recipe's natural ~4 mi taper Sunday that would
+      // otherwise close the plan.
+      expect(sun.distance_mi).toBe(26.2);
+      // Canonical race-day prose surfaced verbatim by the runner-
+      // facing dashboard / today / plan views. Drives the "RACE DAY"
+      // banner copy, so a regression that dropped this string would
+      // silently strip the headline label even if mileage stayed
+      // correct.
+      expect(sun.description).toBe(
+        "RACE DAY — Marathon (26.2 mi). Execute race plan, fuel every 4 mi, finish strong.",
+      );
+      expect(sun.session_type).toBe("Race");
+      expect(sun.equipment).toBe("Outdoor");
+      expect(sun.equipment_list).toEqual(["Outdoor"]);
+      expect(sun.is_rest).toBe(false);
+
+      // The Sat companion must flip to the race-eve mobility flush
+      // pattern (light Tonal + short spin), not the heavy lift the
+      // recipe would otherwise emit on the Taper block's final Sat.
+      expect(sat.session_type).toBe("Race Prep");
+      expect(sat.strength_load).toBe(0);
+      expect(sat.description).toContain("Race-eve");
+    });
+  }
+
+  it("12w entries-mode 'half_marathon' — final Sunday is unchanged (no marathon race-day override)", () => {
+    // Half-marathon templates classify as raceKind === "half", so
+    // `entriesEndOnMarathonRace` returns false and the race-day
+    // branch in `buildWeekDays` does NOT fire — the plan ends on
+    // the recipe's natural taper Sunday.
+    const { sun } = finalSunAndSat(entriesPlan("half_marathon", 12));
+    expect(sun.distance_mi).not.toBe(26.2);
+    expect(sun.description).not.toContain("RACE DAY — Marathon");
+    expect(sun.session_type).toBe("Long Run");
+  });
+
+  it("8w entries-mode 'higdon_5k_novice' — final Sunday is unchanged (no marathon race-day override)", () => {
+    // 5K templates classify as raceKind === "5k" — same guard.
+    const { sun } = finalSunAndSat(entriesPlan("higdon_5k_novice", 8));
+    expect(sun.distance_mi).not.toBe(26.2);
+    expect(sun.description).not.toContain("RACE DAY — Marathon");
+    expect(sun.session_type).toBe("Long Run");
+  });
+
+  it("18w entries-mode 'marathon_hybrid' — final Sunday is unchanged (raceKind: 'none' opt-out)", () => {
+    // marathon_hybrid explicitly sets raceKind: "none" because the
+    // hybrid generator doesn't honor isRaceWeek; the trailing Sun
+    // must therefore stay on the hybrid recipe's natural long run,
+    // NOT get short-circuited to a phantom 26.2 mi marathon.
+    const { sun } = finalSunAndSat(entriesPlan("marathon_hybrid", 18));
+    expect(sun.distance_mi).not.toBe(26.2);
+    expect(sun.description).not.toContain("RACE DAY — Marathon");
+  });
+});
