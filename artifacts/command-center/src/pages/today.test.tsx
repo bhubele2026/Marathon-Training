@@ -45,6 +45,7 @@ vi.mock("@/components/quick-log-activity", () => ({
 }));
 
 import { useGetTodayPlan } from "@workspace/api-client-react";
+import { HR_ZONE_COLORS } from "@/lib/run-target";
 import Today from "./today";
 
 const mockedUseToday = vi.mocked(useGetTodayPlan);
@@ -702,6 +703,81 @@ describe("Today page — HR zone swatch coverage on first-session and logged-ses
       expect(
         screen.queryByTestId("session-today-555-run-target-zone-swatch"),
       ).toBeNull();
+    },
+  );
+});
+
+// Task #170: every existing per-surface swatch test only exercises one
+// bucket (Long Run / week 4 → bucket 2 → bg-emerald-500), so the other
+// four entries in HR_ZONE_COLORS (slate-400 / amber-400 / orange-500 /
+// red-500 for buckets 1, 3, 4, 5) were only locked in by the unit test
+// on HR_ZONE_COLORS itself. A regression that wired the wrong bucket
+// to the wrong swatch on a Recovery / Steady / Tempo / Interval session
+// would slip through. This parametrized suite picks one representative
+// sessionType per intensityBucket value, flips the active mode to
+// hr_zones, and asserts the rendered swatch class matches the swatch
+// pulled directly from HR_ZONE_COLORS — so the assertion stays in
+// lockstep with the source map instead of re-hardcoding the Tailwind
+// tokens here.
+describe("Today page — every HR zone bucket renders the matching swatch (task #170)", () => {
+  // sessionType → bucket pairs covering all five HR_ZONE_COLORS entries.
+  // The bucket column is the value intensityBucket() should return for
+  // each sessionType; documenting it here keeps the test self-checking
+  // if intensityBucket ever drifts.
+  const cases: Array<{
+    sessionType: string;
+    bucket: 1 | 2 | 3 | 4 | 5;
+  }> = [
+    { sessionType: "Recovery Run", bucket: 1 },
+    { sessionType: "Long Run", bucket: 2 },
+    { sessionType: "Steady Run", bucket: 3 },
+    { sessionType: "Tempo Run", bucket: 4 },
+    { sessionType: "VO2 Intervals", bucket: 5 },
+  ];
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    runTargetingModeRef.current = "effort";
+  });
+
+  it.each(cases)(
+    "$sessionType (bucket $bucket) paints the matching HR_ZONE_COLORS swatch on the Mission Brief in hr_zones mode",
+    ({ sessionType, bucket }) => {
+      runTargetingModeRef.current = "hr_zones";
+      const plan = {
+        ...firstSession,
+        sourceEntryIndex: 0,
+        week: 4,
+        sessionType,
+        runMin: 60,
+        distanceMi: 6,
+        pace: "10:00",
+      };
+      renderWithData({
+        date: "2026-05-05",
+        hasPlan: true,
+        plan,
+        loggedWorkouts: [],
+        suggestions: null,
+        daysUntilStart: null,
+        firstSession: null,
+      });
+
+      const target = screen.getByTestId("today-plan-0-run-target");
+      expect(target.getAttribute("data-run-targeting-mode")).toBe("hr_zones");
+      // The "Zone N" prefix proves this swatch belongs to the zone
+      // we're asserting on, not some other run-target chip on the page.
+      expect(target.textContent).toContain(`Zone ${bucket}`);
+
+      const swatch = screen.getByTestId(
+        "today-plan-0-run-target-zone-swatch",
+      );
+      // Pulled from HR_ZONE_COLORS so the assertion follows any future
+      // re-mapping of buckets → tokens without needing a test edit.
+      const expectedSwatchClass = HR_ZONE_COLORS[bucket].swatchClass;
+      expect(swatch.className).toContain(expectedSwatchClass);
+      expect(swatch.getAttribute("aria-hidden")).toBe("true");
     },
   );
 });

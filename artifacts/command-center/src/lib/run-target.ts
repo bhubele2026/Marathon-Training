@@ -70,6 +70,12 @@ function intensityBucket(sessionType: string): 1 | 2 | 3 | 4 | 5 {
   const s = sessionType.toLowerCase();
   if (s.includes("recovery")) return 1;
   if (s.includes("long")) return 2;
+  // "Steady" / steady-state aerobic prescriptions land in zone 3
+  // (matches the EFFORT_LABELS[3] = "Steady moderate" rung). Without
+  // this bucket 3 is unreachable from any sessionType, leaving the
+  // amber-400 swatch in HR_ZONE_COLORS only locked in by the unit
+  // test on the color map and never exercised end-to-end (Task #170).
+  if (s.includes("steady")) return 3;
   if (s.includes("tempo") || s.includes("threshold")) return 4;
   if (s.includes("interval") || s.includes("vo2") || s.includes("speed")) return 5;
   if (s.includes("race") || s.includes("marathon-pace") || s.includes("goal")) return 4;
