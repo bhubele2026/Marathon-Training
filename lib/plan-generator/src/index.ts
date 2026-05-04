@@ -403,7 +403,14 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
       phase,
       date: fmt(addDays(wkStart, 5)),
       day: "Sat",
-      strength_load: heavyStrengthLoad,
+      // Race-eve Sat is a 15-min mobility flush + 15-min easy spin, NOT
+      // a heavy lift, so `strength_load` zeroes out alongside the other
+      // race-week Sat shape values. Matches the second `buildWeekDays`
+      // branch (line ~2588) and the hybrid race-week branch (line ~2129)
+      // so weekly intensity / load summaries no longer spike on race-eve
+      // for marathon plans whose campaign-final week flows through this
+      // branch (Task #213).
+      strength_load: isRaceWeek ? 0 : heavyStrengthLoad,
       equipment: "Tonal",
       equipment_list: ["Tonal", satCardioName],
       description: isRaceWeek

@@ -122,6 +122,34 @@ describe("generator: per-day minute breakdown", () => {
     expect(raceSun.run_min).toBeGreaterThan(120);
   });
 
+  // Task #213 — race-eve Sat (week 52 in the canonical 52-week plan) is
+  // a 15-min Tonal mobility flush + 15-min easy spin, not a heavy lift,
+  // so `strength_load` must zero out alongside the rest of the race-week
+  // Sat shape values that already pull from `RACE_EVE_SAT_SPEC` (session
+  // type, total_load, strength_min, cardio_min). Without this pin the
+  // first `buildWeekDays` race-week Sat branch could regress back to the
+  // recipe's heavy `heavyStrengthLoad`, throwing off weekly load
+  // summaries and the dashboard's intensity colouring three days out
+  // from race day. The other two race-week Sat branches (the second
+  // `buildWeekDays` branch and the hybrid pipeline) already zero the
+  // load — this lock-in keeps all three branches consistent.
+  it("SAT race week is the Race Prep mobility flush with strength_load === 0 (Task #213)", () => {
+    const raceSat = dayOf(52, "Sat");
+    expect(raceSat.session_type).toBe("Race Prep");
+    expect(raceSat.strength_load).toBe(0);
+    // Sanity: the rest of the race-eve shape values still come through
+    // — short Tonal mobility minutes + short spin minutes, no run.
+    expect(raceSat.strength_min).toBeGreaterThan(0);
+    expect(raceSat.cardio_min).toBeGreaterThan(0);
+    expect(raceSat.run_min).toBe(0);
+    // total_load matches the spec (strengthMin + cardioMin) — NOT the
+    // pre-#213 `heavyStrengthLoad + shortCardioMin` which would have
+    // spiked the weekly summary on race-eve.
+    expect(raceSat.total_load).toBe(
+      (raceSat.strength_min ?? 0) + (raceSat.cardio_min ?? 0),
+    );
+  });
+
   it("never emits NULLs for any of the three minute buckets across all 52 weeks", () => {
     for (const row of PLAN.daily) {
       expect(row.strength_min, `${row.date} ${row.day} strength_min`).not.toBeNull();
