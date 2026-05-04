@@ -1,9 +1,30 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
+// Mutable ref so individual tests can flip the active run-targeting mode
+// (effort / intervals / pace / hr_zones) and observe RunTargetLine
+// re-render with or without the HR zone color swatch (Task #166).
+// vi.hoisted is required because vi.mock factories run before
+// top-level statements, so a plain `let` in module scope wouldn't be
+// initialized when the factory closure first reads it.
+const { runTargetingModeRef } = vi.hoisted(() => ({
+  runTargetingModeRef: {
+    current: "effort" as "effort" | "intervals" | "pace" | "hr_zones",
+  },
+}));
+
 vi.mock("@workspace/api-client-react", () => ({
   useGetTodayPlan: vi.fn(),
-  useGetUserPreferences: () => ({ data: { runTargetingMode: "effort" } }),
+  useGetUserPreferences: () => ({
+    data: {
+      runTargetingMode: runTargetingModeRef.current,
+      // Provide a realistic maxHr so the hr_zones-mode primary string
+      // includes the "· 134-148 bpm" suffix and the swatch test can
+      // assert on a fully-rendered chip.
+      maxHr: 200,
+      restingHr: null,
+    },
+  }),
 }));
 
 vi.mock("@/hooks/use-mission-actions", () => ({
@@ -406,5 +427,115 @@ describe("Today page — pre-launch countdown", () => {
       "Log Another",
     );
     expect(screen.queryByTestId("button-skip-today-1")).toBeNull();
+  });
+});
+
+// Task #166: end-to-end coverage that the HR-zone color swatch added in
+// Task #165 actually shows up next to the "Zone N · 134-148 bpm" line on
+// Today's Mission Brief expanded plan card when the active mode is
+// hr_zones — and stays absent in the other three modes (effort,
+// intervals, pace) so we don't accidentally start coloring all
+// run-target chips. The mode-flip test proves switching the
+// runTargetingMode preference re-renders the chip with / without the
+// swatch as expected.
+//
+// We deliberately reach for the `${testId}-zone-swatch` testId hook
+// exposed by RunTargetLine rather than scraping classnames, so the
+// test stays robust to Tailwind / styling changes as long as the
+// public swatch contract holds.
+describe("Today page — HR zone swatch coverage (task #166)", () => {
+  // Same run-shaped plan day used across the swatch tests. Long Run on
+  // week 4 maps to intensityBucket=2, so hr_zones mode renders
+  // "Zone 2 · 120-140 bpm" with the bg-emerald-500 swatch.
+  const runPlan = {
+    ...firstSession,
+    sourceEntryIndex: 0,
+    week: 4,
+    sessionType: "Long Run",
+    runMin: 60,
+    distanceMi: 6,
+    pace: "10:00",
+  };
+
+  const todayPayload = {
+    date: "2026-05-05",
+    hasPlan: true,
+    plan: runPlan,
+    loggedWorkouts: [],
+    suggestions: null,
+    daysUntilStart: null,
+    firstSession: null,
+  };
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    // Reset the run-targeting mode back to "effort" so subsequent test
+    // files (or a re-run of this file) don't inherit a stale mode.
+    runTargetingModeRef.current = "effort";
+  });
+
+  it("renders the colored zone swatch on the Mission Brief when the active mode is hr_zones", () => {
+    runTargetingModeRef.current = "hr_zones";
+    renderWithData(todayPayload);
+
+    const target = screen.getByTestId("today-plan-0-run-target");
+    expect(target.getAttribute("data-run-targeting-mode")).toBe("hr_zones");
+    // maxHr=200 + bucket=2 → "Zone 2 · 120-140 bpm"
+    expect(target.textContent).toContain("Zone 2");
+    expect(target.textContent).toContain("120-140 bpm");
+
+    const swatch = screen.getByTestId("today-plan-0-run-target-zone-swatch");
+    expect(swatch).toBeTruthy();
+    // bucket=2 → emerald token from HR_ZONE_COLORS. Asserted here so
+    // the mapping locked in by run-target.test.ts is also enforced
+    // end-to-end on the actual rendered DOM.
+    expect(swatch.className).toContain("bg-emerald-500");
+    // Decorative — a screen reader shouldn't announce the swatch.
+    expect(swatch.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it.each([
+    ["effort"],
+    ["intervals"],
+    ["pace"],
+  ])(
+    "does NOT render the zone swatch on the Mission Brief in %s mode",
+    (mode) => {
+      runTargetingModeRef.current = mode as
+        | "effort"
+        | "intervals"
+        | "pace"
+        | "hr_zones";
+      renderWithData(todayPayload);
+
+      const target = screen.getByTestId("today-plan-0-run-target");
+      expect(target.getAttribute("data-run-targeting-mode")).toBe(mode);
+      expect(
+        screen.queryByTestId("today-plan-0-run-target-zone-swatch"),
+      ).toBeNull();
+    },
+  );
+
+  it("re-renders the chip with / without the swatch when the run-targeting mode flips", () => {
+    runTargetingModeRef.current = "pace";
+    const { rerender } = renderWithData(todayPayload);
+    expect(
+      screen.queryByTestId("today-plan-0-run-target-zone-swatch"),
+    ).toBeNull();
+
+    // Flip the preference → swatch should appear on the next render.
+    runTargetingModeRef.current = "hr_zones";
+    rerender(<Today />);
+    const swatch = screen.getByTestId("today-plan-0-run-target-zone-swatch");
+    expect(swatch).toBeTruthy();
+    expect(swatch.className).toContain("bg-emerald-500");
+
+    // Flip back to a non-HR mode → swatch should disappear again.
+    runTargetingModeRef.current = "effort";
+    rerender(<Today />);
+    expect(
+      screen.queryByTestId("today-plan-0-run-target-zone-swatch"),
+    ).toBeNull();
   });
 });
