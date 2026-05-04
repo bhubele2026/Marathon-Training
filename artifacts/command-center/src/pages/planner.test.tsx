@@ -543,12 +543,12 @@ describe("Planner template library (entries-mode)", () => {
       (
         within(list).getByTestId("planner-entry-0-weeks") as HTMLInputElement
       ).value,
-    ).toBe("4");
+    ).toBe("6");
     expect(
       (
         within(list).getByTestId("planner-entry-1-weeks") as HTMLInputElement
       ).value,
-    ).toBe("12");
+    ).toBe("10");
     expect(screen.getByText(/Composition · 2 entries · 16\/16w/)).toBeTruthy();
   });
 
@@ -574,7 +574,7 @@ describe("Planner template library (entries-mode)", () => {
 
   it("removing an entry with a downstream gap normalizes startDates so the composition stays saveable", () => {
     renderPlanner();
-    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-template-apply-higdon_5k_novice"));
     fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
     fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
     const dateInput = screen.getByTestId(
@@ -632,7 +632,7 @@ describe("Planner template library (entries-mode)", () => {
   it("applying a 2nd template opens the start-date dialog and stacks back-to-back by default", () => {
     renderPlanner();
     // First Apply also opens the dialog now; confirm with default to add.
-    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-template-apply-higdon_5k_novice"));
     fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
     expect(screen.queryByTestId("planner-pending-apply-start-date")).toBeNull();
     const headerBefore = screen.getByText(/Composition · 1 entry/);
@@ -656,7 +656,7 @@ describe("Planner template library (entries-mode)", () => {
 
   it("pushing the 2nd entry's start date later inserts a Recovery gap and re-anchors the race date", () => {
     renderPlanner();
-    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-template-apply-higdon_5k_novice"));
     fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
     fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
     const dateInput = screen.getByTestId(
@@ -680,7 +680,7 @@ describe("Planner template library (entries-mode)", () => {
 
   it("changing the config start date re-projects gaps and re-anchors the race date", () => {
     renderPlanner();
-    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-template-apply-higdon_5k_novice"));
     fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
     fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
     const dateInput = screen.getByTestId(
@@ -804,7 +804,7 @@ describe("Planner template library (entries-mode)", () => {
     const list = screen.getByTestId("planner-composition-list");
     fireEvent.click(within(list).getByTestId("planner-entry-0-remove"));
 
-    expect(screen.getByText(/Composition · 1 entry · 12\/12w/)).toBeTruthy();
+    expect(screen.getByText(/Composition · 1 entry · 10\/10w/)).toBeTruthy();
     expect(screen.queryByTestId("planner-issues")?.textContent ?? "").not.toMatch(
       /must sum to/,
     );
@@ -921,7 +921,7 @@ describe("Planner template entry end-date picker", () => {
     renderPlanner();
     // Stage one entry first so the 2nd Apply opens the dialog with a
     // proposed start cursor.
-    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-template-apply-higdon_5k_novice"));
     fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
     const stagedHeader = screen.getByText(/Composition · 1 entry · (\d+)\/\1w/);
     const stagedWeeks = Number(stagedHeader.textContent!.match(/(\d+)\/\1w/)![1]);
@@ -1002,7 +1002,7 @@ describe("Planner template entry end-date picker", () => {
 
   it("shows a clamp hint in the apply dialog when the picked end date is outside the range", () => {
     renderPlanner();
-    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-template-apply-higdon_5k_novice"));
     fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
     fireEvent.click(screen.getByTestId("planner-template-apply-half_marathon"));
     const startInput = screen.getByTestId(
@@ -1104,19 +1104,25 @@ describe("Planner Apply Template race-date overrun warning", () => {
 // of the picker. After task #132 the catalog is curated to ~10
 // templates grouped by Beginner / Intermediate / Advanced.
 const EXPECTED_LEVELS: Record<string, "Beginner" | "Intermediate" | "Advanced"> = {
-  // Task #136 — first-class Beginner entry that opens the slider-based
-  // hybrid builder card instead of a normal Apply button.
+  // Beginner — 5K race focus, run-only → heavier hybrid. Task #136
+  // first-class hybrid-builder entry stays in Beginner.
   custom_hybrid: "Beginner",
   couch_to_5k: "Beginner",
   higdon_5k_novice: "Beginner",
-  aerobic_base: "Beginner",
-  recovery: "Beginner",
-  "5k_improver": "Intermediate",
-  half_marathon: "Intermediate",
-  marathon_higdon_novice: "Intermediate",
+  "5k_strength_lite": "Beginner",
+  "5k_hybrid_balanced": "Beginner",
+  // Intermediate — 10K race focus, run-only → heavier hybrid.
+  "10k_higdon_int": "Intermediate",
+  "10k_daniels": "Intermediate",
+  "10k_pfitz": "Intermediate",
+  "10k_strength_lite": "Intermediate",
+  "10k_hybrid_balanced": "Intermediate",
+  // Advanced — half-marathon and marathon, run-only → heavier hybrid.
+  half_marathon: "Advanced",
+  hm_pfitz: "Advanced",
   marathon: "Advanced",
   marathon_pfitz_18_70: "Advanced",
-  ultramarathon_50k: "Advanced",
+  marathon_hybrid: "Advanced",
 };
 
 describe("levelOfTemplate (table-driven)", () => {
@@ -1146,7 +1152,7 @@ describe("Plan Template Library — search filter and level grouping", () => {
   it("renders one section per non-empty level and places known templates in the right buckets", () => {
     renderPlanner();
     // Beginner section contains couch_to_5k; Intermediate contains
-    // half_marathon; Advanced contains marathon and ultramarathon_50k.
+    // 10k_higdon_int; Advanced contains half_marathon and marathon.
     const beginnerSection = screen.getByTestId(
       "planner-template-level-beginner",
     );
@@ -1161,17 +1167,17 @@ describe("Plan Template Library — search filter and level grouping", () => {
       "planner-template-level-intermediate",
     );
     expect(
-      within(intermediateSection).getByTestId("planner-template-half_marathon"),
+      within(intermediateSection).getByTestId("planner-template-10k_higdon_int"),
     ).toBeTruthy();
 
     const advancedSection = screen.getByTestId(
       "planner-template-level-advanced",
     );
     expect(
-      within(advancedSection).getByTestId("planner-template-marathon"),
+      within(advancedSection).getByTestId("planner-template-half_marathon"),
     ).toBeTruthy();
     expect(
-      within(advancedSection).getByTestId("planner-template-ultramarathon_50k"),
+      within(advancedSection).getByTestId("planner-template-marathon"),
     ).toBeTruthy();
   });
 
@@ -1182,7 +1188,7 @@ describe("Plan Template Library — search filter and level grouping", () => {
     ).toBe("Beginner");
     expect(
       screen.getByTestId("planner-template-half_marathon-level").textContent,
-    ).toBe("Intermediate");
+    ).toBe("Advanced");
     expect(
       screen.getByTestId("planner-template-marathon-level").textContent,
     ).toBe("Advanced");
@@ -1207,21 +1213,22 @@ describe("Plan Template Library — search filter and level grouping", () => {
     expect(screen.queryByTestId("planner-template-half_marathon")).toBeNull();
 
     // Summary line reports the match count for the active query.
-    // Pfitzinger templates live in the Advanced level which is
-    // collapsed by default — search is scoped to visible levels, so
-    // the headline count is 0 and the matches surface as "+N in
-    // collapsed levels". Expanding Advanced flips them into the
-    // visible count.
+    // Pfitzinger plans now live across both Intermediate (10k_pfitz)
+    // and Advanced (hm_pfitz, marathon, marathon_pfitz_18_70). Both
+    // levels are collapsed by default, so the headline count is 0 and
+    // all 4 matches surface as "+N in collapsed levels". Expanding
+    // Advanced lifts 3 of them into the visible count and leaves 1
+    // (10k_pfitz) still collapsed inside Intermediate.
     const summary = screen.getByTestId("planner-template-search-summary");
     expect(summary.textContent).toContain("0 templates match");
     expect(summary.textContent).toContain("pfitz");
-    expect(summary.textContent).toContain("+2 in collapsed levels");
+    expect(summary.textContent).toContain("+4 in collapsed levels");
 
     fireEvent.click(
       screen.getByTestId("planner-template-level-toggle-advanced"),
     );
-    expect(summary.textContent).toContain("2 templates match");
-    expect(summary.textContent).not.toContain("collapsed levels");
+    expect(summary.textContent).toContain("3 templates match");
+    expect(summary.textContent).toMatch(/\+1 in collapsed levels?/);
   });
 
   it("filters by author/source and equipment hint, not just template name", () => {
@@ -1232,7 +1239,7 @@ describe("Plan Template Library — search filter and level grouping", () => {
     });
     expect(screen.getByTestId("planner-template-higdon_5k_novice")).toBeTruthy();
     expect(
-      screen.getByTestId("planner-template-marathon_higdon_novice"),
+      screen.getByTestId("planner-template-10k_higdon_int"),
     ).toBeTruthy();
     expect(screen.queryByTestId("planner-template-marathon")).toBeNull();
   });
@@ -1261,7 +1268,7 @@ describe("Plan Template Library — search filter and level grouping", () => {
     // summary above stays at 0 + a "+N in collapsed levels" suffix.
     const summary = screen.getByTestId("planner-template-search-summary");
     expect(summary.textContent).toContain("0 templates match");
-    expect(summary.textContent).toContain("+2 in collapsed levels");
+    expect(summary.textContent).toContain("+4 in collapsed levels");
   });
 
   it("scopes search results to currently-visible levels — Beginner-default view does not surface Intermediate/Advanced cards as visible matches", () => {
@@ -1277,19 +1284,24 @@ describe("Plan Template Library — search filter and level grouping", () => {
 
     const summary = screen.getByTestId("planner-template-search-summary");
     expect(summary.textContent).toContain("0 templates match");
-    expect(summary.textContent).toContain("+2 in collapsed levels");
+    expect(summary.textContent).toContain("+4 in collapsed levels");
 
     const advanced = screen.getByTestId("planner-template-level-advanced");
     expect(advanced.querySelector("[hidden]")).not.toBeNull();
-    // Both matching pfitzinger cards live inside the Advanced section's
-    // hidden wrapper — they exist in the DOM (so the runner can opt in
-    // by expanding Advanced) but are not part of the visible result set.
+    // The Advanced pfitzinger cards (hm_pfitz, marathon,
+    // marathon_pfitz_18_70) live inside the Advanced section's hidden
+    // wrapper — they exist in the DOM (so the runner can opt in by
+    // expanding Advanced) but are not part of the visible result set.
+    const hmPfitz = within(advanced).getByTestId(
+      "planner-template-hm_pfitz",
+    );
     const marathon = within(advanced).getByTestId(
       "planner-template-marathon",
     );
     const pfitz70 = within(advanced).getByTestId(
       "planner-template-marathon_pfitz_18_70",
     );
+    expect(hmPfitz.closest("[hidden]")).not.toBeNull();
     expect(marathon.closest("[hidden]")).not.toBeNull();
     expect(pfitz70.closest("[hidden]")).not.toBeNull();
   });
@@ -1603,7 +1615,7 @@ describe("Quick-add popover (entries-mode) — tag-cloud filter", () => {
     renderPlanner();
     // Enter entries-mode by applying any template; this exposes the
     // quick-add combobox at the bottom of the composition editor.
-    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-template-apply-higdon_5k_novice"));
     fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
 
     // Open the quick-add popover.
@@ -1638,7 +1650,7 @@ describe("Quick-add popover (entries-mode) — tag-cloud filter", () => {
 
   it("quick-add chips carry counts that narrow with the popover's free-text query and selected chips", () => {
     renderPlanner();
-    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-template-apply-higdon_5k_novice"));
     fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
     fireEvent.click(screen.getByTestId("planner-entry-add-select"));
 
@@ -1667,7 +1679,7 @@ describe("Quick-add popover (entries-mode) — tag-cloud filter", () => {
 
   it("hides zero-count quick-add chips behind a '+N hidden' toggle once a filter is active; expanded chips stay disabled", () => {
     renderPlanner();
-    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-template-apply-higdon_5k_novice"));
     fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
     fireEvent.click(screen.getByTestId("planner-entry-add-select"));
 
@@ -1713,7 +1725,7 @@ describe("Quick-add popover (entries-mode) — tag-cloud filter", () => {
 
   it("hides zero-count quick-add chips under a free-text-only filter and resets the toggle when the search clears", () => {
     renderPlanner();
-    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-template-apply-higdon_5k_novice"));
     fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
     fireEvent.click(screen.getByTestId("planner-entry-add-select"));
 
@@ -1756,7 +1768,7 @@ describe("Quick-add popover (entries-mode) — tag-cloud filter", () => {
 
   it("Clear in the quick-add popover restores the full option list", () => {
     renderPlanner();
-    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-template-apply-higdon_5k_novice"));
     fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
 
     fireEvent.click(screen.getByTestId("planner-entry-add-select"));
@@ -2059,7 +2071,7 @@ describe("Tag-cloud sort toggle", () => {
 
   it("Quick-add popover: A–Z reorders chips and persists separately from the library toggle", () => {
     renderPlanner();
-    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-template-apply-higdon_5k_novice"));
     fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
     fireEvent.click(screen.getByTestId("planner-entry-add-select"));
 
@@ -2089,7 +2101,7 @@ describe("Tag-cloud sort toggle", () => {
   it("Quick-add popover: sort choice survives a remount via the QUICKADD_SORT_KEY", () => {
     window.localStorage.setItem(QUICKADD_SORT_KEY, "alpha");
     renderPlanner();
-    fireEvent.click(screen.getByTestId("planner-template-apply-aerobic_base"));
+    fireEvent.click(screen.getByTestId("planner-template-apply-higdon_5k_novice"));
     fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
     fireEvent.click(screen.getByTestId("planner-entry-add-select"));
 
@@ -2143,7 +2155,7 @@ describe("Planner archived-template migration safety", () => {
         customNotes: null,
       },
       {
-        templateId: "hm_pfitz",
+        templateId: "aerobic_base",
         weeks: 4,
         startDate: "2026-06-01",
         customName: null,
@@ -2185,7 +2197,7 @@ describe("Planner archived-template migration safety", () => {
       screen.queryByTestId("planner-template-apply-marathon_hansons"),
     ).toBeNull();
     expect(
-      screen.queryByTestId("planner-template-apply-hm_pfitz"),
+      screen.queryByTestId("planner-template-apply-aerobic_base"),
     ).toBeNull();
   });
 });

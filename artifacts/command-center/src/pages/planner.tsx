@@ -2466,7 +2466,7 @@ export default function Planner() {
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <div className="font-medium text-sm">{tpl.name}</div>
-                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                        <div className="text-xs text-muted-foreground">
                           {tpl.goalDistance} · {tpl.source}
                         </div>
                       </div>
@@ -2494,44 +2494,40 @@ export default function Planner() {
                         data-testid={`planner-template-${tpl.id}-tags`}
                       >
                         {tpl.tags.map((tag) => (
-                          <Badge
+                          <span
                             key={tag}
-                            variant="outline"
-                            className="text-[10px] font-normal px-1.5 py-0"
+                            className="inline-flex items-center rounded-sm bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground"
                             data-testid={`planner-template-${tpl.id}-tag-${tag}`}
                           >
                             {tag}
-                          </Badge>
+                          </span>
                         ))}
                       </div>
                     )}
-                    <dl className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
-                      <dt className="uppercase tracking-wider">Peak LR</dt>
+                    <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[11px]">
+                      <dt className="text-muted-foreground">Peak LR</dt>
                       <dd
-                        className="text-right font-mono"
+                        className="text-right tabular-nums"
                         data-testid={`planner-template-${tpl.id}-peak-lr`}
                       >
                         {tpl.metadata.peakLongRun}
                       </dd>
-                      <dt className="uppercase tracking-wider">Peak vol</dt>
+                      <dt className="text-muted-foreground">Peak vol</dt>
                       <dd
-                        className="text-right font-mono"
+                        className="text-right tabular-nums"
                         data-testid={`planner-template-${tpl.id}-peak-vol`}
                       >
                         {tpl.metadata.peakWeeklyVolume}
                       </dd>
-                      <dt className="uppercase tracking-wider">Taper</dt>
-                      <dd className="text-right font-mono">
+                      <dt className="text-muted-foreground">Taper</dt>
+                      <dd className="text-right tabular-nums">
                         {tpl.metadata.taperLength}
                       </dd>
-                      <dt className="uppercase tracking-wider">Range</dt>
-                      <dd className="text-right font-mono">
+                      <dt className="text-muted-foreground">Range</dt>
+                      <dd className="text-right tabular-nums">
                         {tpl.minWeeks}–{tpl.maxWeeks}w (default {tpl.defaultWeeks})
                       </dd>
                     </dl>
-                    <div className="text-[10px] text-muted-foreground italic">
-                      {tpl.citation}
-                    </div>
                     <Button
                       size="sm"
                       variant="ghost"
@@ -2549,7 +2545,7 @@ export default function Planner() {
                     </Button>
                     {isExpanded && (
                       <div
-                        className="border-t pt-2 space-y-2 text-xs"
+                        className="mt-1 space-y-2 text-xs"
                         data-testid={`planner-template-details-${tpl.id}`}
                       >
                         <p
@@ -2559,69 +2555,51 @@ export default function Planner() {
                           {tpl.longDescription}
                         </p>
                         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px]">
-                          <dt className="uppercase tracking-wider text-muted-foreground">
-                            Intensity
-                          </dt>
+                          <dt className="text-muted-foreground">Intensity</dt>
                           <dd
-                            className="font-mono"
+                            className="tabular-nums"
                             data-testid={`planner-template-${tpl.id}-intensity`}
                           >
                             {tpl.metadata.intensityDistribution}
                           </dd>
-                          <dt className="uppercase tracking-wider text-muted-foreground">
-                            Peak long run
-                          </dt>
-                          <dd className="font-mono">
+                          <dt className="text-muted-foreground">Peak long run</dt>
+                          <dd className="tabular-nums">
                             {tpl.metadata.peakLongRun}
                           </dd>
-                          <dt className="uppercase tracking-wider text-muted-foreground">
-                            Peak volume
-                          </dt>
-                          <dd className="font-mono">
+                          <dt className="text-muted-foreground">Peak volume</dt>
+                          <dd className="tabular-nums">
                             {tpl.metadata.peakWeeklyVolume}
                           </dd>
-                          <dt className="uppercase tracking-wider text-muted-foreground">
-                            Taper
-                          </dt>
-                          <dd className="font-mono">
+                          <dt className="text-muted-foreground">Taper</dt>
+                          <dd className="tabular-nums">
                             {tpl.metadata.taperLength}
                           </dd>
-                          <dt className="uppercase tracking-wider text-muted-foreground">
-                            Cutback
-                          </dt>
+                          <dt className="text-muted-foreground">Cutback</dt>
                           <dd
-                            className="font-mono"
+                            className="tabular-nums"
                             data-testid={`planner-template-${tpl.id}-cutback`}
                           >
                             {tpl.metadata.cutbackCadence}
                           </dd>
-                          <dt className="uppercase tracking-wider text-muted-foreground">
-                            Rest days
-                          </dt>
+                          <dt className="text-muted-foreground">Rest days</dt>
                           <dd
-                            className="font-mono"
+                            className="tabular-nums"
                             data-testid={`planner-template-${tpl.id}-rest-days`}
                           >
                             {tpl.metadata.mandatoryRestDays} / week
                           </dd>
-                          <dt className="uppercase tracking-wider text-muted-foreground">
-                            Equipment
-                          </dt>
+                          <dt className="text-muted-foreground">Equipment</dt>
                           <dd
-                            className="font-mono"
+                            className="tabular-nums"
                             data-testid={`planner-template-${tpl.id}-equipment`}
                           >
                             {tpl.metadata.equipmentMixHint}
                           </dd>
-                          <dt className="uppercase tracking-wider text-muted-foreground">
-                            Source
-                          </dt>
-                          <dd className="font-mono">{tpl.source}</dd>
-                          <dt className="uppercase tracking-wider text-muted-foreground">
-                            Citation
-                          </dt>
+                          <dt className="text-muted-foreground">Source</dt>
+                          <dd>{tpl.source}</dd>
+                          <dt className="text-muted-foreground">Citation</dt>
                           <dd
-                            className="italic"
+                            className="italic text-muted-foreground"
                             data-testid={`planner-template-${tpl.id}-citation`}
                           >
                             {tpl.citation}
@@ -2651,7 +2629,7 @@ export default function Planner() {
                             ),
                           }))
                         }
-                        className="h-8 w-20"
+                        className="h-9 w-20"
                         data-testid={`planner-template-weeks-${tpl.id}`}
                       />
                     </div>
@@ -2831,6 +2809,7 @@ export default function Planner() {
                         onClick={() => applyTemplate(tpl, weeks)}
                         data-testid={`planner-template-apply-${tpl.id}`}
                         disabled={outOfRange}
+                        className="h-9"
                       >
                         Apply template
                       </Button>

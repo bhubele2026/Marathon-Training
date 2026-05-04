@@ -16,26 +16,43 @@ import {
 } from "@workspace/plan-generator";
 
 describe("PLAN_TEMPLATES", () => {
-  it("registers the curated skill-level catalog (Task #132)", () => {
+  it("registers the curated skill-level catalog (Task #169 — exactly 15 templates, 5 per level)", () => {
     const ids = PLAN_TEMPLATES.map((t) => t.id).sort();
     expect(ids).toEqual(
       [
-        // Beginner
+        // Beginner — 5K race focus, run-only → heavier hybrid.
         "custom_hybrid",
         "couch_to_5k",
         "higdon_5k_novice",
-        "aerobic_base",
-        "recovery",
-        // Intermediate
-        "5k_improver",
+        "5k_strength_lite",
+        "5k_hybrid_balanced",
+        // Intermediate — 10K race focus, run-only → heavier hybrid.
+        "10k_higdon_int",
+        "10k_daniels",
+        "10k_pfitz",
+        "10k_strength_lite",
+        "10k_hybrid_balanced",
+        // Advanced — half-marathon and marathon, run-only → heavier hybrid.
         "half_marathon",
-        "marathon_higdon_novice",
-        // Advanced
+        "hm_pfitz",
         "marathon",
         "marathon_pfitz_18_70",
-        "ultramarathon_50k",
+        "marathon_hybrid",
       ].sort(),
     );
+  });
+
+  it("ships exactly 15 templates split 5 / 5 / 5 across the three levels (Task #169)", () => {
+    expect(PLAN_TEMPLATES).toHaveLength(15);
+    const counts = PLAN_TEMPLATES.reduce<Record<string, number>>(
+      (acc, t) => ({ ...acc, [t.level]: (acc[t.level] ?? 0) + 1 }),
+      {},
+    );
+    expect(counts).toEqual({
+      Beginner: 5,
+      Intermediate: 5,
+      Advanced: 5,
+    });
   });
 
   it("every template has a citation, source, descriptions, and full metadata", () => {
@@ -65,20 +82,24 @@ describe("PLAN_TEMPLATES", () => {
   it("ships exact launch-catalog week ranges per template", () => {
     const expected: Record<string, [number, number, number]> = {
       // [min, default, max]
-      // Beginner
+      // Beginner — 5K race focus, run-only → heavier hybrid.
       custom_hybrid: [4, 8, 24],
       couch_to_5k: [6, 9, 12],
       higdon_5k_novice: [6, 8, 10],
-      aerobic_base: [4, 8, 16],
-      recovery: [2, 4, 6],
-      // Intermediate
-      "5k_improver": [6, 8, 12],
+      "5k_strength_lite": [6, 8, 12],
+      "5k_hybrid_balanced": [6, 8, 12],
+      // Intermediate — 10K race focus, run-only → heavier hybrid.
+      "10k_higdon_int": [8, 10, 12],
+      "10k_daniels": [8, 10, 12],
+      "10k_pfitz": [8, 10, 12],
+      "10k_strength_lite": [8, 10, 12],
+      "10k_hybrid_balanced": [8, 10, 12],
+      // Advanced — half-marathon and marathon, run-only → heavier hybrid.
       half_marathon: [10, 12, 16],
-      marathon_higdon_novice: [16, 18, 22],
-      // Advanced
+      hm_pfitz: [10, 12, 16],
       marathon: [16, 18, 24],
       marathon_pfitz_18_70: [18, 18, 24],
-      ultramarathon_50k: [16, 20, 24],
+      marathon_hybrid: [16, 18, 24],
     };
     for (const t of PLAN_TEMPLATES) {
       const want = expected[t.id];
@@ -142,14 +163,15 @@ describe("PLAN_TEMPLATES tags", () => {
         t.tags.join(" ").toLowerCase().includes(q.toLowerCase()),
       ).map((t) => t.id);
 
-    // "pfitzinger" only appears as a tag on the Pfitz-authored marathon.
+    // "pfitzinger" appears on every Pfitz-authored plan (10k_pfitz,
+    // hm_pfitz, marathon, marathon_pfitz_18_70).
     expect(findByTag("pfitzinger")).toContain("marathon");
-    // "first-timer" tag should surface the C25K and 50K first-timer plans.
+    expect(findByTag("pfitzinger")).toContain("hm_pfitz");
+    // "first-timer" tag should surface the C25K starter plan.
     const firstTimer = findByTag("first-timer");
     expect(firstTimer).toContain("couch_to_5k");
-    expect(firstTimer).toContain("ultramarathon_50k");
     // Case-insensitive substring match works on multi-word tags too.
-    expect(findByTag("LOW-MILEAGE")).toContain("recovery");
+    expect(findByTag("LOW-MILEAGE")).toContain("couch_to_5k");
   });
 });
 
@@ -184,29 +206,29 @@ describe("STARTER_SHORTCUTS", () => {
     }
   });
 
-  it("HM Beginner = 4w Aerobic Base + 12w Half Marathon (16w total)", () => {
+  it("HM Beginner = 6w Higdon Novice 5K + 10w Half Marathon (16w total)", () => {
     const s = STARTER_SHORTCUTS.find((x) => x.id === "hm_beginner_16w")!;
     expect(s.entries.map((e) => [e.templateId, e.weeks])).toEqual([
-      ["aerobic_base", 4],
-      ["half_marathon", 12],
+      ["higdon_5k_novice", 6],
+      ["half_marathon", 10],
     ]);
   });
 
-  it("Marathon First-Timer = 6w Aerobic Base + 18w Marathon (24w total)", () => {
+  it("Marathon First-Timer = 6w Higdon Novice 5K + 18w Marathon (24w total)", () => {
     const s = STARTER_SHORTCUTS.find(
       (x) => x.id === "marathon_first_timer_24w",
     )!;
     expect(s.entries.map((e) => [e.templateId, e.weeks])).toEqual([
-      ["aerobic_base", 6],
+      ["higdon_5k_novice", 6],
       ["marathon", 18],
     ]);
   });
 
-  it("Get Faster 5K = 6w Aerobic Base + 8w 5K Improver (14w total)", () => {
+  it("Get Faster 5K = 6w Couch to 5K + 8w 5K-with-strength-accessory (14w total)", () => {
     const s = STARTER_SHORTCUTS.find((x) => x.id === "get_faster_5k_14w")!;
     expect(s.entries.map((e) => [e.templateId, e.weeks])).toEqual([
-      ["aerobic_base", 6],
-      ["5k_improver", 8],
+      ["couch_to_5k", 6],
+      ["5k_strength_lite", 8],
     ]);
   });
 
@@ -434,19 +456,23 @@ describe("expandEntriesToBlocks", () => {
   it("skips entries referencing unknown template ids", () => {
     const blocks = expandEntriesToBlocks([
       { templateId: "does_not_exist", weeks: 5 },
-      { templateId: "recovery", weeks: 3 },
+      { templateId: "higdon_5k_novice", weeks: 6 },
     ]);
-    expect(blocks).toHaveLength(1);
-    expect(blocks[0]!.focusType).toBe("Recovery");
-    expect(blocks[0]!.weeks).toBe(3);
+    // higdon_5k_novice 6w → 5w Base + 1w Taper.
+    const totalWeeks = blocks.reduce((s, b) => s + b.weeks, 0);
+    expect(totalWeeks).toBe(6);
+    expect(blocks[0]!.focusType).toBe("Base");
+    expect(blocks[blocks.length - 1]!.focusType).toBe("Taper");
   });
 
   it("merges per-entry customNotes into every expanded block", () => {
     const blocks = expandEntriesToBlocks([
-      { templateId: "aerobic_base", weeks: 4, customNotes: "Heat block" },
+      { templateId: "higdon_5k_novice", weeks: 6, customNotes: "Heat block" },
     ]);
-    expect(blocks).toHaveLength(1);
-    expect(blocks[0]!.customNotes).toBe("Heat block");
+    expect(blocks.length).toBeGreaterThan(0);
+    for (const b of blocks) {
+      expect(b.customNotes).toBe("Heat block");
+    }
   });
 });
 
@@ -546,9 +572,9 @@ describe("archived template registry (legacy-campaign migration safety)", () => 
   });
 
   it("getTemplateById resolves archived IDs so legacy entries don't appear unknown", () => {
-    // hm_pfitz, marathon_hansons, race_countdown were all in the
+    // aerobic_base, marathon_hansons, race_countdown were all in the
     // pre-curation catalog — they must still resolve.
-    for (const id of ["hm_pfitz", "marathon_hansons", "race_countdown"]) {
+    for (const id of ["aerobic_base", "marathon_hansons", "race_countdown"]) {
       const tpl = getTemplateById(id);
       expect(tpl).not.toBeNull();
       expect(tpl!.id).toBe(id);
@@ -580,7 +606,7 @@ describe("archived template registry (legacy-campaign migration safety)", () => 
       blocks: [],
       entries: [
         {
-          templateId: "hm_pfitz",
+          templateId: "aerobic_base",
           weeks: 8,
           startDate: "2026-01-05",
         },

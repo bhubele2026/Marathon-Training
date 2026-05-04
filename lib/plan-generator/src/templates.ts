@@ -299,95 +299,233 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       ]),
   },
   {
-    id: "aerobic_base",
-    name: "Aerobic Base",
+    id: "5k_strength_lite",
+    name: "5K with strength accessory",
     level: "Beginner",
-    goalDistance: "Aerobic capacity",
-    source: "Arthur Lydiard",
-    citation:
-      "Arthur Lydiard, Running with Lydiard — Aerobic Base / Marathon Conditioning phase.",
-    shortDescription:
-      "Pure conversational mileage to build mitochondrial density and tendon resilience.",
-    longDescription:
-      "Lydiard's foundational philosophy: 4-16 weeks of aerobic-only running, all conversational, no quality work. The engine that all later speed work sits on top of. Designed to be paired BEFORE a race-specific template entry.",
-    minWeeks: 4,
-    maxWeeks: 16,
-    defaultWeeks: 8,
-    metadata: {
-      intensityDistribution: "100% conversational",
-      peakLongRun: "12-16 mi",
-      peakWeeklyVolume: "30-50 mpw",
-      taperLength: "None — feeds into a follow-on race-specific entry",
-      cutbackCadence: "Every 4th week ~25% volume reduction",
-      mandatoryRestDays: 1,
-      equipmentMixHint: "Run + optional easy bike / strength on rest days",
-    },
-    tags: ["base", "lydiard", "easy", "aerobic", "polarized", "lead-in"],
-    expand: (n) => [makeBlock("Base", n)],
-  },
-  {
-    id: "recovery",
-    name: "Recovery",
-    level: "Beginner",
-    goalDistance: "Active recovery",
-    source: "Iñigo Mujika",
-    citation:
-      "Iñigo Mujika, Endurance Training — Science and Practice (transition phase guidance).",
-    shortDescription:
-      "Active recovery: short easy runs, low load, two rest days per week.",
-    longDescription:
-      "Mujika's transition-phase prescription for in-season recovery: 2-6 weeks of low-volume, low-intensity work to restore freshness. Friday quality is dropped for an extra rest day; long runs cap at 4 mi.",
-    minWeeks: 2,
-    maxWeeks: 6,
-    defaultWeeks: 4,
-    metadata: {
-      intensityDistribution: "100% conversational",
-      peakLongRun: "4 mi",
-      peakWeeklyVolume: "10-20 mpw",
-      taperLength: "N/A (entire entry IS the deload)",
-      cutbackCadence: "Continuous reduced load; no further cutbacks",
-      mandatoryRestDays: 2,
-      equipmentMixHint: "Run + walking; mobility/stretching emphasis",
-    },
-    tags: ["recovery", "deload", "low-mileage", "transition", "off-season"],
-    expand: (n) => [makeBlock("Recovery", n)],
-  },
-  {
-    id: "5k_improver",
-    name: "5K Improver",
-    level: "Intermediate",
     goalDistance: "3.1 mi",
-    source: "Jack Daniels",
+    source: "Jay Dicharry",
     citation:
-      "Jack Daniels, Daniels' Running Formula 4ed — 5K-10K plan (Phase II/III).",
+      "Jay Dicharry, Running Rewired — strength-supported run training for durable runners.",
     shortDescription:
-      "VO2max-biased speed block on top of a short aerobic base, ending with a 1-week sharpening taper.",
+      "Run-first 5K plan with two short strength accessory days bolted onto the easy days.",
     longDescription:
-      "Daniels' 5K plan: short aerobic base, then a heavy interval block (R-pace and I-pace work), capped by a 1-week sharpening taper. Pyramidal intensity distribution with one long run and two quality sessions per week.",
+      "Dicharry's pragmatic approach for new runners who want to keep lifting: three runs per week (one tempo, two easy) with two 25-minute strength accessory sessions on the non-quality days. Mileage stays modest so the lifts can recover; the run plan still owns the race week.",
     minWeeks: 6,
     maxWeeks: 12,
     defaultWeeks: 8,
     metadata: {
-      intensityDistribution: "Pyramidal — emphasis on R-pace + I-pace",
-      peakLongRun: "8-10 mi",
-      peakWeeklyVolume: "25-40 mpw",
+      intensityDistribution: "80/20 polarized + 2 light strength accessory days",
+      peakLongRun: "5 mi",
+      peakWeeklyVolume: "12-18 mpw + 2 strength sessions",
       taperLength: "1 week",
-      cutbackCadence: "Every 4th week ~20% volume reduction",
-      mandatoryRestDays: 1,
-      equipmentMixHint: "Run-only with optional easy spin / cross-train",
+      cutbackCadence: "Every 4th week ~25% reduction",
+      mandatoryRestDays: 2,
+      equipmentMixHint: "Run + bodyweight or barbell strength accessory",
     },
-    tags: ["5k", "intermediate", "speed", "vo2max", "pyramidal", "sharpening"],
+    tags: ["5k", "beginner", "strength-lite", "polarized", "dicharry"],
     expand: (n) =>
       distribute(n, [
-        { focus: "Base", weight: 2, min: 2 },
-        { focus: "Speed", weight: 5, min: 3 },
+        { focus: "Base", weight: 4, min: 3 },
+        { focus: "Speed", weight: 3, min: 2 },
         { focus: "Taper", weight: 1, min: 1 },
       ]),
   },
   {
+    id: "5k_hybrid_balanced",
+    name: "5K — Balanced Hybrid",
+    level: "Beginner",
+    goalDistance: "3.1 mi",
+    source: "Alex Viada",
+    citation:
+      "Alex Viada, The Hybrid Athlete — concurrent training for runners and lifters.",
+    shortDescription:
+      "Heavier hybrid split: 3 lifts + 2-3 runs per week with a 5K race focus.",
+    longDescription:
+      "Built on Viada's hybrid model: pair concurrent strength and aerobic training without losing either side. Three full-body lift days bracket short tempo and long-easy runs, with race-week load handled by the hybrid generator's internal phase scalar.",
+    minWeeks: 6,
+    maxWeeks: 12,
+    defaultWeeks: 8,
+    metadata: {
+      intensityDistribution: "Balanced lift/run with weekly tempo run",
+      peakLongRun: "5-6 mi",
+      peakWeeklyVolume: "12-18 mpw + 3 lift sessions",
+      taperLength: "None (single hybrid block; load tapers via internal phase scalar)",
+      cutbackCadence: "Every 4th week ~25% reduction",
+      mandatoryRestDays: 2,
+      equipmentMixHint: "Lifts (Tonal/barbell) + Tread/Outdoor runs",
+    },
+    tags: ["5k", "beginner", "hybrid", "lift-and-run", "balanced", "viada"],
+    expand: (n) => [
+      makeBlock("Custom", n, {
+        customName: "5K Hybrid (Balanced)",
+        customNotes: "[hybrid-mix:balanced] [hybrid-days:5] [hybrid-level:beginner]",
+      }),
+    ],
+  },
+  {
+    id: "10k_higdon_int",
+    name: "10K — Higdon Intermediate",
+    level: "Intermediate",
+    goalDistance: "6.2 mi",
+    source: "Hal Higdon",
+    citation:
+      "Hal Higdon, Intermediate 10K Training Program. halhigdon.com/training/10k",
+    shortDescription:
+      "Aerobic base mileage with a mid-cycle tempo block and a 1-week taper.",
+    longDescription:
+      "Higdon's Intermediate 10K: build conversational mileage first, layer in tempo runs and 5K-pace intervals once aerobic base is established, then taper for one week. Long runs progress from 4 mi to 7-8 mi over the build.",
+    minWeeks: 8,
+    maxWeeks: 12,
+    defaultWeeks: 10,
+    metadata: {
+      intensityDistribution: "80/20 polarized with weekly tempo",
+      peakLongRun: "7-8 mi",
+      peakWeeklyVolume: "25-35 mpw",
+      taperLength: "1 week",
+      cutbackCadence: "Every 4th week ~25% reduction",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Run-only with optional cross-train on rest day",
+    },
+    tags: ["10k", "intermediate", "higdon", "polarized", "tempo"],
+    expand: (n) =>
+      distribute(n, [
+        { focus: "Base", weight: 4, min: 3 },
+        { focus: "Speed", weight: 4, min: 3 },
+        { focus: "Taper", weight: 1, min: 2 },
+      ]),
+  },
+  {
+    id: "10k_daniels",
+    name: "10K — Daniels",
+    level: "Intermediate",
+    goalDistance: "6.2 mi",
+    source: "Jack Daniels",
+    citation:
+      "Jack Daniels, Daniels' Running Formula 4ed — 5K-15K plan (Phase II/III).",
+    shortDescription:
+      "VO2max-biased speed block on top of a short aerobic base, ending with a 1-week sharpening taper.",
+    longDescription:
+      "Daniels' 10K plan: short aerobic base, then a heavy interval block (I-pace and T-pace work), capped by a 1-week sharpening taper. Pyramidal intensity distribution with one long run and two quality sessions per week.",
+    minWeeks: 8,
+    maxWeeks: 12,
+    defaultWeeks: 10,
+    metadata: {
+      intensityDistribution: "Pyramidal — emphasis on I-pace + T-pace",
+      peakLongRun: "8-10 mi",
+      peakWeeklyVolume: "30-40 mpw",
+      taperLength: "1 week",
+      cutbackCadence: "Every 4th week ~20% reduction",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Run-only with optional easy spin / cross-train",
+    },
+    tags: ["10k", "intermediate", "daniels", "vo2max", "threshold", "pyramidal"],
+    expand: (n) =>
+      distribute(n, [
+        { focus: "Base", weight: 2, min: 2 },
+        { focus: "Speed", weight: 5, min: 5 },
+        { focus: "Taper", weight: 1, min: 1 },
+      ]),
+  },
+  {
+    id: "10k_pfitz",
+    name: "10K — Pfitzinger",
+    level: "Intermediate",
+    goalDistance: "6.2 mi",
+    source: "Pete Pfitzinger",
+    citation:
+      "Pfitzinger & Latter, Faster Road Racing — 10K training plan (up to 47 mpw).",
+    shortDescription:
+      "Lactate-threshold-led 10K build: tempo runs, VO2max intervals, 1-2 week taper.",
+    longDescription:
+      "Pfitzinger's 10K mesocycle: an endurance base feeds into a deep lactate-threshold block (tempo runs, LT intervals) with a single VO2max session per week, then a 1-2 week taper. Designed for runners coming off solid aerobic base.",
+    minWeeks: 8,
+    maxWeeks: 12,
+    defaultWeeks: 10,
+    metadata: {
+      intensityDistribution: "Pyramidal — heavy LT + race-pace work",
+      peakLongRun: "10 mi",
+      peakWeeklyVolume: "35-45 mpw",
+      taperLength: "1-2 weeks",
+      cutbackCadence: "Every 4th week ~20% reduction",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Run-only; cross-train discouraged late",
+    },
+    tags: ["10k", "intermediate", "pfitzinger", "threshold", "race-pace"],
+    expand: (n) =>
+      distribute(n, [
+        { focus: "Base", weight: 4, min: 3 },
+        { focus: "Speed", weight: 3, min: 3 },
+        { focus: "Taper", weight: 1, min: 2 },
+      ]),
+  },
+  {
+    id: "10k_strength_lite",
+    name: "10K with strength accessory",
+    level: "Intermediate",
+    goalDistance: "6.2 mi",
+    source: "Jay Dicharry",
+    citation:
+      "Jay Dicharry, Running Rewired — strength-supported run training for durable runners.",
+    shortDescription:
+      "Run-first 10K plan with two short strength accessory days bolted onto the easy days.",
+    longDescription:
+      "Dicharry's pragmatic approach for runners who want to keep lifting: four runs per week (one tempo, one long, two easy) with two 30-minute strength accessory sessions on the non-quality days. Mileage stays in the moderate band so the lifts can recover; the run plan still owns the race week.",
+    minWeeks: 8,
+    maxWeeks: 12,
+    defaultWeeks: 10,
+    metadata: {
+      intensityDistribution: "80/20 polarized + 2 light strength accessory days",
+      peakLongRun: "8 mi",
+      peakWeeklyVolume: "25-35 mpw + 2 strength sessions",
+      taperLength: "1 week",
+      cutbackCadence: "Every 4th week ~25% reduction",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Run + bodyweight or barbell strength accessory",
+    },
+    tags: ["10k", "intermediate", "strength-lite", "polarized", "dicharry"],
+    expand: (n) =>
+      distribute(n, [
+        { focus: "Base", weight: 4, min: 3 },
+        { focus: "Speed", weight: 4, min: 3 },
+        { focus: "Taper", weight: 1, min: 2 },
+      ]),
+  },
+  {
+    id: "10k_hybrid_balanced",
+    name: "10K — Balanced Hybrid",
+    level: "Intermediate",
+    goalDistance: "6.2 mi",
+    source: "Alex Viada",
+    citation:
+      "Alex Viada, The Hybrid Athlete — applied concurrent training for runners.",
+    shortDescription:
+      "Heavier hybrid split: 3 lifts + 3 runs per week with a 10K race focus.",
+    longDescription:
+      "Viada's hybrid recipe scaled to a 10K: three full-body lifts plus three runs (easy, tempo, long), with a long run that progresses to 8-9 mi. Race-week load is handled by the hybrid generator's internal phase scalar.",
+    minWeeks: 8,
+    maxWeeks: 12,
+    defaultWeeks: 10,
+    metadata: {
+      intensityDistribution: "Balanced lift/run with weekly tempo + long run",
+      peakLongRun: "8-9 mi",
+      peakWeeklyVolume: "18-25 mpw + 3 lift sessions",
+      taperLength: "None (single hybrid block; load tapers via internal phase scalar)",
+      cutbackCadence: "Every 4th week ~25% reduction",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Lifts (Tonal/barbell) + Tread/Outdoor runs",
+    },
+    tags: ["10k", "intermediate", "hybrid", "lift-and-run", "balanced", "viada"],
+    expand: (n) => [
+      makeBlock("Custom", n, {
+        customName: "10K Hybrid (Balanced)",
+        customNotes: "[hybrid-mix:balanced] [hybrid-days:5] [hybrid-level:intermediate]",
+      }),
+    ],
+  },
+  {
     id: "half_marathon",
     name: "Half Marathon",
-    level: "Intermediate",
+    level: "Advanced",
     goalDistance: "13.1 mi",
     source: "Hal Higdon",
     citation:
@@ -408,7 +546,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       mandatoryRestDays: 1,
       equipmentMixHint: "Run-only with optional cross-train on rest day",
     },
-    tags: ["half-marathon", "intermediate", "polarized", "tempo"],
+    tags: ["half-marathon", "advanced", "polarized", "tempo", "higdon"],
     expand: (n) =>
       distribute(n, [
         { focus: "Base", weight: 4, min: 4 },
@@ -417,34 +555,34 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       ]),
   },
   {
-    id: "marathon_higdon_novice",
-    name: "Marathon — Higdon Novice 1",
-    level: "Intermediate",
-    goalDistance: "26.2 mi",
-    source: "Hal Higdon",
+    id: "hm_pfitz",
+    name: "Half Marathon — Pfitzinger",
+    level: "Advanced",
+    goalDistance: "13.1 mi",
+    source: "Pete Pfitzinger",
     citation:
-      "Hal Higdon, Novice 1 Marathon Training Program. halhigdon.com/training/marathon",
+      "Pfitzinger & Latter, Faster Road Racing — half marathon plan (up to 55 mpw).",
     shortDescription:
-      "Beginner marathon plan: 4 runs/week, conversational pace, single peak 20-miler.",
+      "Endurance base, lactate-threshold development, race-specific endurance, 2-week taper.",
     longDescription:
-      "Higdon's Novice 1: 18 weeks, 4 runs per week, all conversational. Long runs grow to a single 20 mi peak before a 2-week taper. The most accessible first-marathon plan.",
-    minWeeks: 16,
-    maxWeeks: 22,
-    defaultWeeks: 18,
+      "Pfitzinger's half-marathon mesocycle: mileage build, lactate-threshold development with cruise intervals and tempo runs, race-specific endurance with HM-pace long runs, then a 2-week taper. For runners coming off solid base.",
+    minWeeks: 10,
+    maxWeeks: 16,
+    defaultWeeks: 12,
     metadata: {
-      intensityDistribution: "100% conversational",
-      peakLongRun: "20 mi (single peak)",
-      peakWeeklyVolume: "30-40 mpw",
+      intensityDistribution: "Pyramidal — heavy LT + HM-pace work",
+      peakLongRun: "14-16 mi",
+      peakWeeklyVolume: "40-55 mpw",
       taperLength: "2 weeks",
-      cutbackCadence: "Every 4th week ~25% reduction",
-      mandatoryRestDays: 2,
-      equipmentMixHint: "Run + cross-train day",
+      cutbackCadence: "Every 4th week ~20% reduction",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Run-only; cross-train discouraged late",
     },
-    tags: ["marathon", "novice", "first-timer", "easy", "low-mileage", "higdon"],
+    tags: ["half-marathon", "pfitzinger", "advanced", "threshold", "race-pace", "pyramidal"],
     expand: (n) =>
       distribute(n, [
-        { focus: "Base", weight: 3, min: 4 },
-        { focus: "Time on Feet", weight: 6, min: 10 },
+        { focus: "Base", weight: 4, min: 4 },
+        { focus: "Speed", weight: 4, min: 3 },
         { focus: "Taper", weight: 1, min: 2 },
       ]),
   },
@@ -515,36 +653,36 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       ]),
   },
   {
-    id: "ultramarathon_50k",
-    name: "Ultramarathon 50K",
+    id: "marathon_hybrid",
+    name: "Marathon — Balanced Hybrid",
     level: "Advanced",
-    goalDistance: "31 mi",
-    source: "Jason Koop",
+    goalDistance: "26.2 mi",
+    source: "Alex Viada",
     citation:
-      "Jason Koop, Training Essentials for Ultrarunning 2ed — 50K base + sustained TOF + 2w taper.",
+      "Alex Viada, The Hybrid Athlete — marathon-distance concurrent training for runners and lifters.",
     shortDescription:
-      "Extended Time-on-Feet phase with back-to-back long runs; 2-week taper.",
+      "Heavier hybrid split scaled to the marathon: 3 lifts + 3-4 runs per week.",
     longDescription:
-      "Koop's ultra prescription for first-timer 50K: aerobic base, then a long sustained Time-on-Feet phase emphasizing back-to-back long runs and time-on-feet over peak speed, capped by a 2-week taper.",
+      "Viada's hybrid model applied at marathon distance: three full-body lifts plus a long aerobic run, a tempo run, and one or two easy runs. The long run climbs to 18-20 mi; race-week load is handled by the hybrid generator's internal phase scalar.",
     minWeeks: 16,
     maxWeeks: 24,
-    defaultWeeks: 20,
+    defaultWeeks: 18,
     metadata: {
-      intensityDistribution: "85/15 polarized — dominant easy volume",
-      peakLongRun: "Back-to-back long runs (e.g. 22 mi + 12 mi)",
-      peakWeeklyVolume: "45-60 mpw",
-      taperLength: "2 weeks",
-      cutbackCadence: "Every 4th week ~30% volume reduction",
+      intensityDistribution: "Balanced lift/run with weekly tempo + long run",
+      peakLongRun: "18-20 mi",
+      peakWeeklyVolume: "30-45 mpw + 3 lift sessions",
+      taperLength: "None (single hybrid block; load tapers via internal phase scalar)",
+      cutbackCadence: "Every 4th week ~25% reduction",
       mandatoryRestDays: 1,
-      equipmentMixHint: "Run + hike + strength accessory work",
+      equipmentMixHint: "Lifts (Tonal/barbell) + Tread/Outdoor runs",
     },
-    tags: ["ultra", "50k", "polarized", "back-to-back", "first-timer", "trail"],
-    expand: (n) =>
-      distribute(n, [
-        { focus: "Base", weight: 3, min: 3 },
-        { focus: "Time on Feet", weight: 7, min: 11 },
-        { focus: "Taper", weight: 1, min: 2 },
-      ]),
+    tags: ["marathon", "advanced", "hybrid", "lift-and-run", "balanced", "viada"],
+    expand: (n) => [
+      makeBlock("Custom", n, {
+        customName: "Marathon Hybrid (Balanced)",
+        customNotes: "[hybrid-mix:balanced] [hybrid-days:5] [hybrid-level:advanced]",
+      }),
+    ],
   },
 ];
 
@@ -808,7 +946,6 @@ const ARCHIVED_TEMPLATE_IDS: readonly string[] = [
   "higdon_5k_advanced",
   "higdon_10k_advanced",
   "hm_higdon_novice2",
-  "hm_pfitz",
   "hm_hansons",
   "marathon_pfitz_12_55",
   "marathon_hansons",
@@ -844,6 +981,15 @@ const ARCHIVED_TEMPLATE_IDS: readonly string[] = [
   "strength_custom",
   "hybrid_custom",
   "race_countdown",
+  // Task #169 — Plan Template Library tightened to exactly 15 templates
+  // (5 per Beginner / Intermediate / Advanced). Templates pruned during
+  // the Task #169 pass are kept here as stubs so existing user
+  // campaigns continue to validate, expand and regenerate.
+  "aerobic_base",
+  "recovery",
+  "5k_improver",
+  "marathon_higdon_novice",
+  "ultramarathon_50k",
 ];
 
 const ARCHIVED_TEMPLATE_ID_SET: ReadonlySet<string> = new Set(
@@ -926,19 +1072,19 @@ export const STARTER_SHORTCUTS: StarterShortcut[] = [
     id: "hm_beginner_16w",
     name: "HM Beginner — 16 weeks",
     description:
-      "4-week Aerobic Base lead-in (Lydiard) feeding into 12 weeks of Higdon's Intermediate-1 half-marathon plan. Ends on the HM template's 2-week taper.",
+      "6-week Higdon Novice 5K lead-in feeding into 10 weeks of Higdon's half-marathon plan. Ends on the HM template's 2-week taper.",
     entries: [
-      { templateId: "aerobic_base", weeks: 4 },
-      { templateId: "half_marathon", weeks: 12 },
+      { templateId: "higdon_5k_novice", weeks: 6 },
+      { templateId: "half_marathon", weeks: 10 },
     ],
   },
   {
     id: "marathon_first_timer_24w",
     name: "Marathon First-Timer — 24 weeks",
     description:
-      "6-week Aerobic Base + 18-week Pfitzinger marathon build. Conservative ramp through Base → Time on Feet → Marathon-Specific → 3-week taper.",
+      "6-week Higdon Novice 5K + 18-week Pfitzinger marathon build. Conservative ramp through Base → Time on Feet → Marathon-Specific → 3-week taper.",
     entries: [
-      { templateId: "aerobic_base", weeks: 6 },
+      { templateId: "higdon_5k_novice", weeks: 6 },
       { templateId: "marathon", weeks: 18 },
     ],
   },
@@ -946,21 +1092,20 @@ export const STARTER_SHORTCUTS: StarterShortcut[] = [
     id: "get_faster_5k_14w",
     name: "Get Faster 5K — 14 weeks",
     description:
-      "6-week Aerobic Base lead-in + 8-week Daniels 5K Improver speed block. Ends on a 1-week sharpening taper into race day.",
+      "6-week NHS Couch to 5K lead-in + 8-week 5K-with-strength-accessory build. Ends on a 1-week sharpening taper into race day.",
     entries: [
-      { templateId: "aerobic_base", weeks: 6 },
-      { templateId: "5k_improver", weeks: 8 },
+      { templateId: "couch_to_5k", weeks: 6 },
+      { templateId: "5k_strength_lite", weeks: 8 },
     ],
   },
   {
     id: "couch_to_hm_24w",
     name: "Couch → Half Marathon — 24 weeks",
     description:
-      "9-week NHS Couch to 5K + 4-week Aerobic Base bridge + 11-week Higdon HM. From zero to a half-marathon finish.",
+      "9-week NHS Couch to 5K + 15-week Higdon HM. From zero to a half-marathon finish.",
     entries: [
       { templateId: "couch_to_5k", weeks: 9 },
-      { templateId: "aerobic_base", weeks: 4 },
-      { templateId: "half_marathon", weeks: 11 },
+      { templateId: "half_marathon", weeks: 15 },
     ],
   },
 ];
