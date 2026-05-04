@@ -1786,16 +1786,33 @@ function buildHybridWeekDays(opts: {
   // hybrid (full load, full ramp) — preserves v1 behavior for short
   // (<12w) custom_hybrid plans and saved hybrid campaigns.
   hybridPhase: HybridPhase | null;
-  // Campaign-final race week (Task #192). When true, the trailing
-  // Saturday of this hybrid week is force-overridden to a "Race Prep"
-  // shake-out (15 min Tonal mobility + 15 min easy Bike/Row spin) and
-  // the trailing Sunday is force-overridden to a 26.2 mi RACE DAY,
-  // regardless of what the canonical schedule slots for those days.
-  // Mon-Fri are left to the schedule's normal lift/run/rest layout —
-  // the trailing taper is still owned by the hybrid phase scalar
-  // (base 0.85x / build 1.0x / taper 0.7x), this only flips the last
-  // two days so a hybrid marathon plan ends on a true marathon Sunday.
+  // Campaign-final race week (Task #192 / #200). When true, the
+  // trailing Saturday of this hybrid week is force-overridden to a
+  // "Race Prep" shake-out (15 min Tonal mobility + 15 min easy
+  // Bike/Row spin) and the trailing Sunday is force-overridden to a
+  // RACE DAY at the matching `raceKind` distance (26.2 / 13.1 / 6.2
+  // / 3.1 mi), regardless of what the canonical schedule slots for
+  // those days. Mon-Fri are left to the schedule's normal lift/run/
+  // rest layout — the trailing taper is still owned by the hybrid
+  // phase scalar (base 0.85x / build 1.0x / taper 0.7x), this only
+  // flips the last two days so a hybrid race plan ends on a real
+  // race-day Sunday at the correct distance.
   isRaceWeek: boolean;
+  // Race-day kind for the campaign-final week (Task #200). Drives
+  // which `RACE_DAY_SPECS` entry the trailing Sunday pulls
+  // distance / description / load from when `isRaceWeek` is true. A
+  // hybrid marathon plan (`marathon_hybrid` — raceKind="marathon")
+  // ends on a 26.2 mi marathon Sunday; a hybrid 10K plan
+  // (`10k_hybrid_balanced` — classified "10k" via goalDistance) ends
+  // on a 6.2 mi 10K; a hybrid 5K plan (`5k_hybrid_balanced` — "5k")
+  // ends on a 3.1 mi 5K. Defaults to "marathon" so legacy callers
+  // (and the existing #192 test) keep emitting the 26.2 mi Sunday.
+  // When `isRaceWeek` is false the value is ignored. When
+  // `isRaceWeek` is true and `raceKind` is "none" the override is
+  // skipped — but `generatePlanFromConfig` already gates `isRaceWeek`
+  // on `raceKind !== "none"` so this guard exists only for
+  // defensive symmetry.
+  raceKind?: PlanRaceKind;
 }): DailyRow[] {
   const {
     weekNumber,
@@ -1809,6 +1826,7 @@ function buildHybridWeekDays(opts: {
     hybridPhase: hPhase,
     isRaceWeek,
   } = opts;
+  const raceKind: PlanRaceKind = opts.raceKind ?? "marathon";
 
   const schedule = pickHybridSchedule(spec.position, spec.daysPerWeek);
   const lvl = levelScalar(spec.level);
@@ -1856,11 +1874,11 @@ function buildHybridWeekDays(opts: {
     // would have emitted (lift, run, or rest). Mon-Fri stay on the
     // schedule's normal layout — the trailing taper is handled by
     // the hybrid phase scalar (build → taper drops loads ~30%).
-    if (isRaceWeek && dayOffset === 5) {
+    if (isRaceWeek && dayOffset === 5 && raceKind !== "none") {
       // Race-eve Saturday: 15-min Tonal mobility flush + 15-min easy
       // bike/row spin. Mirrors the non-hybrid `buildWeekDays` race-week
-      // Sat so a hybrid marathon plan emits the same race-eve protocol
-      // as a non-hybrid marathon plan.
+      // Sat so a hybrid race plan emits the same race-eve protocol
+      // as a non-hybrid race plan, regardless of race distance.
       const satCardioName =
         weekNumber % 2 === 0 ? "Peloton Row" : "Peloton Bike";
       return {
@@ -1884,11 +1902,15 @@ function buildHybridWeekDays(opts: {
         total_load: 30,
       };
     }
-    if (isRaceWeek && dayOffset === 6) {
-      // Race day Sunday: 26.2 mi marathon. Mirrors the non-hybrid
-      // race-day branch in `buildWeekDays` (same description, distance,
-      // pace, run_min, session_type, total_load).
-      const raceMin = Math.round(MARATHON_DISTANCE_MI * 11);
+    if (isRaceWeek && dayOffset === 6 && raceKind !== "none") {
+      // Race day Sunday: pull the per-kind race-day spec (Task #200).
+      // marathon → 26.2, half → 13.1, 10K → 6.2, 5K → 3.1. Mirrors the
+      // non-hybrid race-day branch in `buildWeekDays` (same
+      // description, distance, pace, run_min, session_type, total_load)
+      // so a hybrid race plan ends on the same race-day Sunday as its
+      // recipe-driven counterpart at the matching distance.
+      const spec = RACE_DAY_SPECS[raceKind];
+      const raceMin = Math.round(spec.distanceMi * spec.runMinPerMi);
       return {
         week: weekNumber,
         phase,
@@ -1897,16 +1919,15 @@ function buildHybridWeekDays(opts: {
         strength_load: 0,
         equipment: "Outdoor",
         equipment_list: ["Outdoor"],
-        description:
-          "RACE DAY — Marathon (26.2 mi). Execute race plan, fuel every 4 mi, finish strong.",
+        description: spec.description,
         strength_min: 0,
         cardio_min: 0,
         run_min: raceMin,
-        distance_mi: MARATHON_DISTANCE_MI,
+        distance_mi: spec.distanceMi,
         pace: qualityPace,
         session_type: "Race",
         is_rest: false,
-        total_load: 350,
+        total_load: spec.totalLoad,
       };
     }
 
@@ -2138,6 +2159,10 @@ function buildWeekDays(opts: {
       customSuffix,
       hybridPhase: blockHybridPhase,
       isRaceWeek,
+      // Task #200: thread the campaign-final race kind through so a
+      // hybrid 5K / 10K / half / marathon plan ends on the matching
+      // RACE DAY distance instead of a hardcoded 26.2 mi marathon.
+      raceKind,
     });
   }
 
@@ -2704,14 +2729,17 @@ export function previewWeeklyMileage(
           hybridPhaseForPreview,
         );
         if (isRaceWeek) {
-          // Race-week override (Task #192): the hybrid week builder
-          // force-overrides the trailing Saturday to Race Prep (no
-          // run miles) and the trailing Sunday to a 26.2 mi RACE DAY
-          // regardless of what the schedule slots for those days.
-          // Mirror that here so the Phase Planner sparkline matches
-          // what the generator emits on the campaign-final week of a
-          // hybrid marathon plan: drop any Sat run miles, ignore the
-          // schedule's Sun slot, and add a flat marathon distance.
+          // Race-week override (Task #192 / #200): the hybrid week
+          // builder force-overrides the trailing Saturday to Race
+          // Prep (no run miles) and the trailing Sunday to a RACE
+          // DAY at the matching `raceKind` distance regardless of
+          // what the schedule slots for those days. Mirror that here
+          // so the Phase Planner sparkline matches what the generator
+          // emits on the campaign-final week of a hybrid race plan:
+          // drop any Sat run miles, ignore the schedule's Sun slot,
+          // and add a flat per-kind race distance (26.2 / 13.1 / 6.2
+          // / 3.1 mi). Falls back to MARATHON_DISTANCE_MI for the
+          // legacy blocks-mode appended tail.
           const schedule = pickHybridSchedule(
             hybridSpecForPreview.position,
             hybridSpecForPreview.daysPerWeek,
@@ -2728,7 +2756,7 @@ export function previewWeeklyMileage(
           });
           easyMi = e;
           qualityMi = q;
-          longMi = l + MARATHON_DISTANCE_MI;
+          longMi = l + entriesRaceDistanceMi;
         } else {
           easyMi = mi.easy * hybridScheduleCounts.easy;
           qualityMi = mi.quality * hybridScheduleCounts.quality;

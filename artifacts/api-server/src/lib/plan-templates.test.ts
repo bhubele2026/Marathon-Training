@@ -1152,32 +1152,44 @@ describe("Race-day marking on entries-mode marathon plans (Task #195)", () => {
     });
   }
 
-  it("12w entries-mode 'half_marathon' — final Sunday is unchanged (no marathon race-day override)", () => {
-    // Half-marathon templates classify as raceKind === "half", so
-    // `entriesEndOnMarathonRace` returns false and the race-day
-    // branch in `buildWeekDays` does NOT fire — the plan ends on
-    // the recipe's natural taper Sunday.
+  it("12w entries-mode 'half_marathon' — final Sunday is a 13.1 mi RACE DAY (Task #191)", () => {
+    // Half-marathon templates classify as raceKind === "half". Task
+    // #191 extended the trailing-Sunday race-day override from
+    // marathon-only to per-kind, so a half-marathon entry now ends
+    // on a 13.1 mi RACE DAY Sunday (NOT the recipe's natural ~10
+    // mi taper long run, and NOT a 26.2 mi marathon).
     const { sun } = finalSunAndSat(entriesPlan("half_marathon", 12));
+    expect(sun.distance_mi).toBe(13.1);
+    expect(sun.description).toContain("RACE DAY — Half (13.1 mi)");
+    expect(sun.session_type).toBe("Race");
+    // Marathon distance / prose must NOT leak into a half race day.
     expect(sun.distance_mi).not.toBe(26.2);
     expect(sun.description).not.toContain("RACE DAY — Marathon");
-    expect(sun.session_type).toBe("Long Run");
   });
 
-  it("8w entries-mode 'higdon_5k_novice' — final Sunday is unchanged (no marathon race-day override)", () => {
-    // 5K templates classify as raceKind === "5k" — same guard.
+  it("8w entries-mode 'higdon_5k_novice' — final Sunday is a 3.1 mi RACE DAY (Task #191)", () => {
+    // 5K templates classify as raceKind === "5k" — same per-kind
+    // override fires, ending the plan on a 3.1 mi RACE DAY Sunday.
     const { sun } = finalSunAndSat(entriesPlan("higdon_5k_novice", 8));
+    expect(sun.distance_mi).toBe(3.1);
+    expect(sun.description).toContain("RACE DAY — 5K (3.1 mi)");
+    expect(sun.session_type).toBe("Race");
     expect(sun.distance_mi).not.toBe(26.2);
     expect(sun.description).not.toContain("RACE DAY — Marathon");
-    expect(sun.session_type).toBe("Long Run");
   });
 
-  it("18w entries-mode 'marathon_hybrid' — final Sunday is unchanged (raceKind: 'none' opt-out)", () => {
-    // marathon_hybrid explicitly sets raceKind: "none" because the
-    // hybrid generator doesn't honor isRaceWeek; the trailing Sun
-    // must therefore stay on the hybrid recipe's natural long run,
-    // NOT get short-circuited to a phantom 26.2 mi marathon.
-    const { sun } = finalSunAndSat(entriesPlan("marathon_hybrid", 18));
-    expect(sun.distance_mi).not.toBe(26.2);
-    expect(sun.description).not.toContain("RACE DAY — Marathon");
+  it("18w entries-mode 'marathon_hybrid' — final Sunday is a 26.2 mi RACE DAY (Task #192)", () => {
+    // Task #192 flipped marathon_hybrid raceKind from "none" to
+    // "marathon" AND wired the race-week override into
+    // `buildHybridWeekDays`, so a hybrid marathon plan now ends on
+    // the SAME 26.2 mi RACE DAY Sunday as a recipe-driven marathon
+    // plan. Task #200 then extended that per-kind so 5K / 10K
+    // hybrid plans end on the matching distance — see the dedicated
+    // hybrid race-kind cases in plan-generator-preview.test.ts.
+    const { sun, sat } = finalSunAndSat(entriesPlan("marathon_hybrid", 18));
+    expect(sun.distance_mi).toBe(26.2);
+    expect(sun.description).toContain("RACE DAY — Marathon (26.2 mi)");
+    expect(sun.session_type).toBe("Race");
+    expect(sat.session_type).toBe("Race Prep");
   });
 });

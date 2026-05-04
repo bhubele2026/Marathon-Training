@@ -529,19 +529,27 @@ describe("previewWeeklyMileage matches generatePlanFromConfig", () => {
 
   it("does NOT inject a mid-campaign race day when a marathon entry is followed by another entry", () => {
     // Pfitz 18w marathon (race date 2026-09-06) followed by a
-    // marathon_hybrid block (raceKind === "none") starting the next
-    // week. Trailing entry is intentionally non-race so the test
-    // pins TWO invariants in one campaign:
+    // custom_hybrid block (raceKind === "none") starting the next
+    // week. Trailing entry is intentionally a non-race hybrid so
+    // the test pins TWO invariants in one campaign:
     //   (a) mid-campaign suppression — the marathon entry at weeks
     //       1..18 must NOT inject a 26.2 mi race-day Sunday at the
     //       boundary (week 18). Owned by the per-entry pipeline's
     //       `endsOnMarathonRaceDayOverride: false` for non-final
     //       entries (task #184).
-    //   (b) non-race trailing — the trailing marathon_hybrid entry
+    //   (b) non-race trailing — the trailing custom_hybrid entry
     //       has raceKind="none", so the campaign-final week must
     //       ALSO not earn a race-day Sunday (task #191's per-kind
     //       gate must skip "none"-kind trailing entries).
-    // Total span 18 + 16 = 34 weeks (marathon_hybrid minWeeks=16).
+    //
+    // NOTE: marathon_hybrid was raceKind="none" pre-#192 and made
+    // a natural trailing entry here, but #192 flipped it to
+    // raceKind="marathon" (so a hybrid marathon plan ends on a
+    // 26.2 mi race-day Sunday — see the dedicated test above), and
+    // #200 extended that to all hybrid race kinds (5K/10K hybrid).
+    // custom_hybrid is now the canonical non-race hybrid template
+    // since it explicitly carries raceKind="none".
+    // Total span 18 + 8 = 26 weeks (custom_hybrid defaultWeeks=8).
     const entries: TemplateEntry[] = [
       {
         templateId: "marathon_pfitz_18_70",
@@ -550,8 +558,8 @@ describe("previewWeeklyMileage matches generatePlanFromConfig", () => {
         customNotes: null,
       },
       {
-        templateId: "marathon_hybrid",
-        weeks: 16,
+        templateId: "custom_hybrid",
+        weeks: 8,
         customName: null,
         customNotes: null,
       },
@@ -562,13 +570,13 @@ describe("previewWeeklyMileage matches generatePlanFromConfig", () => {
     );
     const config = {
       startDate: "2026-05-04",
-      // 34 weeks: Mon 2026-05-04 → Sun 2026-12-27.
-      marathonDate: "2026-12-27",
+      // 26 weeks: Mon 2026-05-04 → Sun 2026-11-01.
+      marathonDate: "2026-11-01",
       blocks: expandedBlocks,
       entries,
     };
     const { weekly, taggedDaily } = expandConfigToPlanRows(config);
-    expect(weekly.length).toBe(34);
+    expect(weekly.length).toBe(26);
     // The marathon entry occupies weeks 1..18 — week 18's Sunday
     // would be the mid-campaign boundary if the gate fired
     // incorrectly. Pin its long-run mileage to the Pfitz template's
@@ -582,22 +590,143 @@ describe("previewWeeklyMileage matches generatePlanFromConfig", () => {
       .find((d) => d.week === 18 && d.day === "Sun");
     expect(week18Sun).toBeDefined();
     expect(week18Sun!.session_type).not.toBe("Race");
-    // The campaign-final entry is marathon_hybrid (raceKind="none"),
-    // so the trailing week 34 must ALSO not earn a race day at any
+    // The campaign-final entry is custom_hybrid (raceKind="none"),
+    // so the trailing week 26 must ALSO not earn a race day at any
     // distance — the hybrid pipeline's internal phase scalar handles
     // its own trailing taper.
     const lastWeek = weekly[weekly.length - 1]!;
-    expect(lastWeek.week).toBe(34);
+    expect(lastWeek.week).toBe(26);
     expect(lastWeek.long_run_mi).not.toBe(26.2);
     expect(lastWeek.long_run_mi).not.toBe(13.1);
     expect(lastWeek.long_run_mi).not.toBe(6.2);
     expect(lastWeek.long_run_mi).not.toBe(3.1);
-    const week34Sun = taggedDaily
+    const week26Sun = taggedDaily
       .map((t) => t.row)
-      .find((d) => d.week === 34 && d.day === "Sun");
-    expect(week34Sun).toBeDefined();
-    expect(week34Sun!.session_type).not.toBe("Race");
+      .find((d) => d.week === 26 && d.day === "Sun");
+    expect(week26Sun).toBeDefined();
+    expect(week26Sun!.session_type).not.toBe("Race");
   });
+
+  // Task #200: an entries-mode plan whose LAST entry is a hybrid
+  // 5K / 10K template (`5k_hybrid_balanced` — classified "5k" via
+  // its goalDistance default; `10k_hybrid_balanced` — classified
+  // "10k") must end on the SAME race-day pattern as its
+  // recipe-driven counterpart at the matching distance: trailing
+  // Sat = "Race Prep", trailing Sun = `<distance>` mi "Race".
+  // Before #200 the hybrid pipeline (`buildHybridWeekDays`)
+  // hardcoded a 26.2 mi marathon Sunday for the race-week override
+  // (originally introduced in #192 for `marathon_hybrid`), so a
+  // hybrid 5K or hybrid 10K plan ended on a stray 26.2 mi marathon
+  // Sunday — runners who chose the hybrid path for a 5K or 10K
+  // trained for that distance but saw a marathon on race day.
+  //
+  // Strict per-week parity (preview vs generator) covers the entire
+  // span — including the race week — so any future regression that
+  // either (a) drops the per-kind RACE_DAY_SPECS lookup in
+  // `buildHybridWeekDays`, (b) re-pins MARATHON_DISTANCE_MI for the
+  // hybrid race-week override, or (c) breaks the per-kind branch in
+  // `previewWeeklyMileage`'s hybrid path fails loudly here.
+  const HYBRID_RACE_KIND_CASES: Array<{
+    name: string;
+    templateId: string;
+    weeks: number;
+    marathonDate: string;
+    raceDistanceMi: number;
+    descriptionPrefix: string;
+    previewRaceKind: "5k" | "10k";
+  }> = [
+    {
+      name: "10K hybrid",
+      // 10k_hybrid_balanced at its `defaultWeeks` of 10. Mon
+      // 2026-05-04 → Sun 2026-07-12 spans 10 weeks.
+      templateId: "10k_hybrid_balanced",
+      weeks: 10,
+      marathonDate: "2026-07-12",
+      raceDistanceMi: 6.2,
+      descriptionPrefix: "RACE DAY — 10K (6.2 mi)",
+      previewRaceKind: "10k",
+    },
+    {
+      name: "5K hybrid",
+      // 5k_hybrid_balanced at its `defaultWeeks` of 8. Mon
+      // 2026-05-04 → Sun 2026-06-28 spans 8 weeks.
+      templateId: "5k_hybrid_balanced",
+      weeks: 8,
+      marathonDate: "2026-06-28",
+      raceDistanceMi: 3.1,
+      descriptionPrefix: "RACE DAY — 5K (3.1 mi)",
+      previewRaceKind: "5k",
+    },
+  ];
+
+  for (const tc of HYBRID_RACE_KIND_CASES) {
+    it(`ends an entries-mode ${tc.name} plan on a ${tc.raceDistanceMi} mi RACE DAY Sunday`, () => {
+      const entries: TemplateEntry[] = [
+        {
+          templateId: tc.templateId,
+          weeks: tc.weeks,
+          customName: null,
+          customNotes: null,
+        },
+      ];
+      const expandedBlocks = expandEntriesToBlocksWithGaps(
+        entries,
+        "2026-05-04",
+      );
+      const config = {
+        startDate: "2026-05-04",
+        marathonDate: tc.marathonDate,
+        blocks: expandedBlocks,
+        entries,
+      };
+      const preview = previewWeeklyMileage(expandedBlocks, {
+        appendMarathonTail: false,
+        entriesRaceKind: tc.previewRaceKind,
+      });
+      const generated = generatePlanFromConfig(config);
+      expect(preview.length).toBe(tc.weeks);
+      expect(generated.weekly.length).toBe(tc.weeks);
+      // Strict per-week parity for EVERY week, race week included.
+      // The preview helper's hybrid race-week branch MUST agree
+      // with what the generator's `buildHybridWeekDays` pipeline
+      // emits when the per-kind race-day spec is wired through.
+      for (let i = 0; i < preview.length; i++) {
+        const p = preview[i]!;
+        const g = generated.weekly[i]!;
+        expect(p.week).toBe(g.week);
+        expect(p.totalMi).toBe(g.planned_miles);
+        expect(p.longRunMi).toBe(g.long_run_mi);
+      }
+      // Campaign-final week: race-day Sunday at the matching
+      // distance. Both preview + generator must agree.
+      const lastPreview = preview[preview.length - 1]!;
+      const lastGenerated = generated.weekly[generated.weekly.length - 1]!;
+      expect(lastPreview.isRaceWeek).toBe(true);
+      expect(lastPreview.longRunMi).toBe(tc.raceDistanceMi);
+      expect(lastGenerated.long_run_mi).toBe(tc.raceDistanceMi);
+      // Daily rows for the trailing week: Sat="Race Prep",
+      // Sun="Race" with the exact `distance_mi` and the per-kind
+      // description prefix.
+      const lastWeekDays = generated.daily.filter(
+        (d) => d.week === lastGenerated.week,
+      );
+      const sat = lastWeekDays.find((d) => d.day === "Sat");
+      const sun = lastWeekDays.find((d) => d.day === "Sun");
+      expect(sat).toBeDefined();
+      expect(sun).toBeDefined();
+      expect(sat!.session_type).toBe("Race Prep");
+      expect(sun!.session_type).toBe("Race");
+      expect(sun!.distance_mi).toBe(tc.raceDistanceMi);
+      expect(sun!.description.startsWith(tc.descriptionPrefix)).toBe(true);
+      // Marathon distance must NOT leak into a non-marathon hybrid
+      // race-day Sunday — defends against a regression that
+      // re-pins MARATHON_DISTANCE_MI in the hybrid race-week
+      // override.
+      expect(sun!.distance_mi).not.toBe(26.2);
+      expect(sat!.distance_mi).toBeNull();
+      expect(sat!.run_min).toBe(0);
+    });
+  }
 });
 
 describe("previewWeeklyMileage exposes wedSteady matching the generator (task #175)", () => {
