@@ -74,16 +74,21 @@ describe("formatRunTarget hr_zones mode", () => {
     expect(formatRunTarget("hr_zones", baseInput)).toEqual({
       primary: "Zone 2",
       modeLabel: "HR Zone",
+      bucket: 2,
     });
     expect(
       formatRunTarget("hr_zones", { ...baseInput, maxHr: null }),
-    ).toEqual({ primary: "Zone 2", modeLabel: "HR Zone" });
+    ).toEqual({ primary: "Zone 2", modeLabel: "HR Zone", bucket: 2 });
   });
 
   it("appends the personalized BPM range when maxHr is set", () => {
     expect(
       formatRunTarget("hr_zones", { ...baseInput, maxHr: 200 }),
-    ).toEqual({ primary: "Zone 2 · 120-140 bpm", modeLabel: "HR Zone" });
+    ).toEqual({
+      primary: "Zone 2 · 120-140 bpm",
+      modeLabel: "HR Zone",
+      bucket: 2,
+    });
   });
 
   it("uses the same intensity bucket for hard sessions", () => {
@@ -94,13 +99,17 @@ describe("formatRunTarget hr_zones mode", () => {
         sessionType: "tempo run",
         maxHr: 200,
       }),
-    ).toEqual({ primary: "Zone 4 · 160-180 bpm", modeLabel: "HR Zone" });
+    ).toEqual({
+      primary: "Zone 4 · 160-180 bpm",
+      modeLabel: "HR Zone",
+      bucket: 4,
+    });
   });
 
   it("falls back to the generic label when maxHr is out of range", () => {
     expect(
       formatRunTarget("hr_zones", { ...baseInput, maxHr: 50 }),
-    ).toEqual({ primary: "Zone 2", modeLabel: "HR Zone" });
+    ).toEqual({ primary: "Zone 2", modeLabel: "HR Zone", bucket: 2 });
   });
 
   it("uses Karvonen ranges when both maxHr and restingHr are set (Task #146)", () => {
@@ -110,7 +119,11 @@ describe("formatRunTarget hr_zones mode", () => {
         maxHr: 200,
         restingHr: 50,
       }),
-    ).toEqual({ primary: "Zone 2 · 140-155 bpm", modeLabel: "HR Zone" });
+    ).toEqual({
+      primary: "Zone 2 · 140-155 bpm",
+      modeLabel: "HR Zone",
+      bucket: 2,
+    });
   });
 
   it("falls back to % of max when only maxHr is set (restingHr null)", () => {
@@ -120,6 +133,31 @@ describe("formatRunTarget hr_zones mode", () => {
         maxHr: 200,
         restingHr: null,
       }),
-    ).toEqual({ primary: "Zone 2 · 120-140 bpm", modeLabel: "HR Zone" });
+    ).toEqual({
+      primary: "Zone 2 · 120-140 bpm",
+      modeLabel: "HR Zone",
+      bucket: 2,
+    });
+  });
+
+  // Task #165: callers on Today and the expanded plan card use the
+  // returned bucket to look up `HR_ZONE_COLORS[bucket]` for the colored
+  // swatch shown next to "Zone N · …". Locking it in so the buckets
+  // stay aligned with the Settings preview ramp (1=grey, 2=green,
+  // 3=yellow, 4=orange, 5=red).
+  it("returns the intensity bucket so HR-zone callers can color the swatch", () => {
+    expect(
+      formatRunTarget("hr_zones", { ...baseInput, sessionType: "recovery jog" })
+        .bucket,
+    ).toBe(1);
+    expect(formatRunTarget("hr_zones", baseInput).bucket).toBe(2);
+    expect(
+      formatRunTarget("hr_zones", { ...baseInput, sessionType: "tempo run" })
+        .bucket,
+    ).toBe(4);
+    expect(
+      formatRunTarget("hr_zones", { ...baseInput, sessionType: "vo2 intervals" })
+        .bucket,
+    ).toBe(5);
   });
 });

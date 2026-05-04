@@ -49,6 +49,11 @@ export interface RunTargetOutput {
   // headline (e.g. "EFFORT", "INTERVALS", "ZONE", "PACE") so the user
   // remembers which mode their plan is being shown in.
   modeLabel: string;
+  // The intensity bucket (1-5) we mapped this prescription to. Exposed
+  // so hr_zones-mode callers can look up `HR_ZONE_COLORS[bucket]` for
+  // the color swatch (Task #165) without re-deriving the bucket
+  // themselves. Always populated; non-HR modes can ignore it.
+  bucket: 1 | 2 | 3 | 4 | 5;
 }
 
 const MODE_LABELS: Record<RunTargetingMode, string> = {
@@ -238,7 +243,7 @@ export function formatRunTarget(
   const modeLabel = MODE_LABELS[mode];
   switch (mode) {
     case "effort":
-      return { primary: EFFORT_LABELS[bucket], modeLabel };
+      return { primary: EFFORT_LABELS[bucket], modeLabel, bucket };
     case "hr_zones": {
       const range = hrZoneBpmRange(bucket, input.maxHr, input.restingHr);
       const label = HR_ZONE_LABELS[bucket];
@@ -246,25 +251,26 @@ export function formatRunTarget(
         return {
           primary: `${label} · ${range.low}-${range.high} bpm`,
           modeLabel,
+          bucket,
         };
       }
-      return { primary: label, modeLabel };
+      return { primary: label, modeLabel, bucket };
     }
     case "intervals": {
       const runMin = input.runMin ?? 0;
       const recipe = intervalRecipe(runMin, input.week);
-      if (recipe) return { primary: recipe, modeLabel };
+      if (recipe) return { primary: recipe, modeLabel, bucket };
       // Fall back to effort label when there's no run minutes to fill.
-      return { primary: EFFORT_LABELS[bucket], modeLabel };
+      return { primary: EFFORT_LABELS[bucket], modeLabel, bucket };
     }
     case "pace":
     default: {
-      if (input.pace) return { primary: `${input.pace}/mi`, modeLabel };
+      if (input.pace) return { primary: `${input.pace}/mi`, modeLabel, bucket };
       const runMin = input.runMin ?? 0;
       if (runMin > 0) {
-        return { primary: `${runMin} min easy`, modeLabel };
+        return { primary: `${runMin} min easy`, modeLabel, bucket };
       }
-      return { primary: EFFORT_LABELS[bucket], modeLabel };
+      return { primary: EFFORT_LABELS[bucket], modeLabel, bucket };
     }
   }
 }
