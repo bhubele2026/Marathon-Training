@@ -197,6 +197,23 @@ router.get("/plan/weeks", async (_req, res) => {
   const dominantByWeek = new Map(
     cardioEq.rows.map((r) => [r.week, r.equipment]),
   );
+  // Task #175: per-week flag indicating whether the Wednesday plan_day
+  // is a Steady (Z3) Run + Accessory session. Sourced directly from
+  // plan_days.session_type so any user customization that swaps Wed away
+  // from steady is reflected immediately on the calendar chip — no need
+  // to re-derive the generator's wedKind / cutback gating client-side.
+  // Concurrent overlapping programs (Task #135) can put more than one
+  // row on the same Wed; BOOL_OR returns true if any of them is steady,
+  // which matches the UX intent ("this week earns the Z3 stimulus").
+  const wedSteadyRows = await db.execute<{ week: number; wed_steady: boolean }>(
+    sql`SELECT week, BOOL_OR(session_type = 'Steady Run + Accessory') AS wed_steady
+        FROM plan_days
+        WHERE day = 'Wed'
+        GROUP BY week`,
+  );
+  const wedSteadyByWeek = new Map(
+    wedSteadyRows.rows.map((r) => [r.week, r.wed_steady]),
+  );
   res.json(
     weeks.map((w) => {
       const a = byWeek.get(w.week);
@@ -208,6 +225,7 @@ router.get("/plan/weeks", async (_req, res) => {
         missedSessions: a?.missed_sessions ?? 0,
         customizedDays: customizedByWeek.get(w.week) ?? 0,
         dominantCardioEquipment: dominantByWeek.get(w.week) ?? null,
+        wedSteady: wedSteadyByWeek.get(w.week) ?? null,
       });
     }),
   );
@@ -285,6 +303,18 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
     );
     dominantCardioEquipment = ranked[0][0];
   }
+  // Task #175: surface wedSteady on the single-week endpoint too so the
+  // Week Detail header / drilldown stays in sync with the list view's
+  // amber Z3 chip. Computed off the same `session_type` signal as the
+  // /plan/weeks aggregation so a runner who swaps Wed off Steady Run
+  // sees the chip drop here as soon as the page refetches.
+  const wedSteady = days.some(
+    (d) => d.day === "Wed" && d.sessionType === "Steady Run + Accessory",
+  )
+    ? true
+    : days.some((d) => d.day === "Wed")
+      ? false
+      : null;
   res.json({
     ...toPlanWeek(weekRow, {
       actualMiles: actuals.rows[0]?.actual_miles ?? 0,
@@ -292,6 +322,7 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
       completedSessions: completedRow.rows[0]?.completed ?? 0,
       totalSessions,
       dominantCardioEquipment,
+      wedSteady,
     }),
     days: daysWithSuggestions,
   });

@@ -418,6 +418,59 @@ describe("GET /api/plan/weeks", () => {
     expect(detail.body.completedSessions).toBe(1);
   });
 
+  it("surfaces wedSteady from plan_days.session_type so the calendar chip mirrors the generator (task #175)", async () => {
+    // Three weeks: one with a Steady Wed (Marathon-Specific style), one
+    // with the canonical easy "Run + Accessory" Wed (cutback / non-tail
+    // weeks), and one with no Wed plan_day at all (empty / freshly
+    // seeded). The /plan/weeks aggregation must surface true / false /
+    // null respectively so the plan calendar chip lights up only on
+    // the Steady weeks and stays dormant elsewhere — matching the
+    // amber-400 Z3 swatch HR_ZONE_COLORS[3] uses for Run Target.
+    const steadyWeek = 8401;
+    const easyWeek = 8402;
+    const emptyWeek = 8403;
+    await insertWeek(steadyWeek, {
+      startDate: "2099-10-12", endDate: "2099-10-18",
+      phase: "Marathon-Specific", plannedMiles: 30, longRunMi: 18,
+    });
+    await insertPlanDay(steadyWeek, "Marathon-Specific", {
+      date: "2099-10-14", day: "Wed",
+      sessionType: "Steady Run + Accessory",
+      equipment: "Peloton Tread", distanceMi: 5,
+    });
+    await insertWeek(easyWeek, {
+      startDate: "2099-10-19", endDate: "2099-10-25",
+      phase: "Marathon-Specific", plannedMiles: 22, longRunMi: 12,
+    });
+    await insertPlanDay(easyWeek, "Marathon-Specific", {
+      date: "2099-10-21", day: "Wed",
+      sessionType: "Run + Accessory",
+      equipment: "Peloton Tread", distanceMi: 3,
+    });
+    await insertWeek(emptyWeek, {
+      startDate: "2099-10-26", endDate: "2099-11-01",
+      phase: "Marathon-Specific", plannedMiles: 0, longRunMi: 0,
+    });
+
+    const res = await request(app).get("/api/plan/weeks");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(ListPlanWeeksResponse, res.body);
+    const rows = res.body as Array<{ week: number; wedSteady: boolean | null }>;
+    expect(rows.find((r) => r.week === steadyWeek)?.wedSteady).toBe(true);
+    expect(rows.find((r) => r.week === easyWeek)?.wedSteady).toBe(false);
+    expect(rows.find((r) => r.week === emptyWeek)?.wedSteady).toBeNull();
+
+    // The single-week endpoint mirrors the same value so the Week
+    // Detail page stays in sync with the calendar's chip — drift would
+    // mean the chip shows on the strip but the drilldown disagrees.
+    const detailSteady = await request(app).get(`/api/plan/weeks/${steadyWeek}`);
+    expect(detailSteady.body.wedSteady).toBe(true);
+    const detailEasy = await request(app).get(`/api/plan/weeks/${easyWeek}`);
+    expect(detailEasy.body.wedSteady).toBe(false);
+    const detailEmpty = await request(app).get(`/api/plan/weeks/${emptyWeek}`);
+    expect(detailEmpty.body.wedSteady).toBeNull();
+  });
+
   it("returns zero aggregates for a week with no workouts or non-rest plan days", async () => {
     const week = 8202;
     const phase = "Empty Phase";

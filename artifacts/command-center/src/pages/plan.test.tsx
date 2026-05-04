@@ -245,6 +245,88 @@ describe("Plan page — bike/row cardio summary (task #109)", () => {
     expect(screen.queryByTestId("week-volume-miles-chip-1")).toBeNull();
   });
 
+  it("renders the amber Steady chip on weeks where wedSteady=true (task #175)", () => {
+    // Two run weeks side-by-side: one with a Steady Wed (Marathon-Specific
+    // non-cutback), one with the canonical easy Wed. The chip must show
+    // up only on the steady week so runners can see at a glance which
+    // weeks earn the Z3 stimulus — and use the same amber-400 swatch
+    // HR_ZONE_COLORS[3] uses for the Run Target chip on Today / Week
+    // Detail so Z3 reads the same everywhere in the app.
+    renderWith([
+      {
+        week: 5,
+        phase: "Marathon-Specific",
+        startDate: "2026-06-01",
+        endDate: "2026-06-07",
+        plannedStrength: 0,
+        plannedCardio: 0,
+        plannedTotalLoad: 0,
+        plannedMiles: 30,
+        longRunMi: 14,
+        actualMiles: 0,
+        actualCardio: 0,
+        completedSessions: 0,
+        totalSessions: 5,
+        missedSessions: 0,
+        dominantCardioEquipment: null,
+        wedSteady: true,
+      },
+      {
+        week: 8,
+        phase: "Marathon-Specific",
+        startDate: "2026-06-22",
+        endDate: "2026-06-28",
+        plannedStrength: 0,
+        plannedCardio: 0,
+        plannedTotalLoad: 0,
+        plannedMiles: 22,
+        longRunMi: 10,
+        actualMiles: 0,
+        actualCardio: 0,
+        completedSessions: 0,
+        totalSessions: 5,
+        missedSessions: 0,
+        dominantCardioEquipment: null,
+        // Cutback week: the Wed eases so the chip must NOT show.
+        wedSteady: false,
+      },
+    ]);
+    const chip = screen.getByTestId("badge-steady-week-5");
+    expect(chip.textContent).toContain("Steady");
+    // Same amber-400 swatch HR_ZONE_COLORS[3] uses for the Run Target
+    // chip — drift would visually disconnect the calendar from Today.
+    expect(chip.className).toContain("amber");
+    expect(screen.queryByTestId("badge-steady-week-8")).toBeNull();
+  });
+
+  it("does not render the Steady chip when wedSteady is null/false (task #175)", () => {
+    // Empty / freshly seeded weeks come back with wedSteady=null; legacy
+    // backends that haven't shipped the field yet send undefined. Either
+    // way the chip must stay dormant so we don't accidentally light it
+    // up on every week of the calendar.
+    renderWith([
+      {
+        week: 1,
+        phase: "Base",
+        startDate: "2026-05-04",
+        endDate: "2026-05-10",
+        plannedStrength: 0,
+        plannedCardio: 0,
+        plannedTotalLoad: 0,
+        plannedMiles: 12,
+        longRunMi: 4,
+        actualMiles: 0,
+        actualCardio: 0,
+        completedSessions: 0,
+        totalSessions: 4,
+        missedSessions: 0,
+        dominantCardioEquipment: null,
+        wedSteady: null,
+      },
+    ]);
+    expect(screen.queryByTestId("badge-steady-week-1")).toBeNull();
+  });
+
   it("colors the mileage headline green when planned miles are met", () => {
     renderWith([
       {

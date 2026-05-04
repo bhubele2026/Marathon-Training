@@ -2207,6 +2207,67 @@ describe("Planner archived-template migration safety", () => {
 // builder, and a live preview of week 1 that mirrors what the
 // generator will emit. These tests cover the unique pieces of that
 // flow that don't apply to any other template card.
+// Task #175 — the per-block sparkline now overlays an amber-400 dot on
+// every week whose Wed will be a Steady Run. The dot uses the same
+// HR_ZONE_COLORS[3] swatch the plan calendar chip and the Run Target
+// chip on Today / Week Detail use, so a Z3 stimulus reads the same
+// across surfaces. The marker is purely driven by the
+// `wedSteady` flag on `previewWeeklyMileage` output, which mirrors the
+// generator's `buildWeekDays` rule (Marathon-Specific recipe,
+// non-cutback, non-race-week, no swap). These tests assert the marker
+// appears only on the auto-pinned tail block (which uses Marathon-
+// Specific) and not on the user-authored Base / Time on Feet blocks.
+describe("Block sparkline Steady-Wed marker (Task #175)", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("renders the steady legend on the Marathon-Specific tail and omits it from Base / Time on Feet blocks", () => {
+    renderPlanner();
+    // SAMPLE_CONFIG has Base 18 + Time on Feet 18 + auto-pinned 16-week
+    // Marathon-Specific tail. Only the tail recipe emits Steady Wed
+    // sessions, so only the tail sparkline should show the legend.
+    expect(
+      screen.queryByTestId("planner-block-0-sparkline-steady-legend"),
+    ).toBeNull();
+    expect(
+      screen.queryByTestId("planner-block-1-sparkline-steady-legend"),
+    ).toBeNull();
+    const tailLegend = screen.getByTestId(
+      "planner-block-tail-sparkline-steady-legend",
+    );
+    expect(tailLegend.textContent).toContain("Steady Wed");
+    // Tail is 16 weeks; 4 are cutbacks (every 4th), and the final week
+    // is the race week, so the Marathon-Specific tail emits Steady Wed
+    // on weeks {1,2,3,5,6,7,9,10,11,13,14,15} of the block — 12 weeks.
+    // The legend pluralizes "wks" so verify both the count and the
+    // plural suffix so a future regression in the gating rule shows up
+    // here instead of silently in production.
+    expect(tailLegend.textContent).toContain("12");
+    expect(tailLegend.textContent).toContain("wks");
+  });
+
+  it("places one amber dot per steady week inside the tail sparkline", () => {
+    renderPlanner();
+    // Each per-week dot uses testid `<sparkline-id>-steady-w<weekNumber>`.
+    // The tail sits at planner-block weeks 37..52 in SAMPLE_CONFIG, so
+    // its steady weeks are 37,38,39,41,42,43,45,46,47,49,50,51 (12 wks,
+    // skipping cutbacks 40/44/48 and race week 52).
+    const expected = [37, 38, 39, 41, 42, 43, 45, 46, 47, 49, 50, 51];
+    for (const w of expected) {
+      expect(
+        screen.getByTestId(`planner-block-tail-sparkline-steady-w${w}`),
+      ).toBeTruthy();
+    }
+    for (const w of [40, 44, 48, 52]) {
+      expect(
+        screen.queryByTestId(`planner-block-tail-sparkline-steady-w${w}`),
+      ).toBeNull();
+    }
+  });
+});
+
 describe("Custom hybrid builder card (Task #136)", () => {
   afterEach(() => {
     cleanup();

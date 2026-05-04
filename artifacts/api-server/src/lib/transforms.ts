@@ -173,6 +173,12 @@ export function toPlanWeek(
     missedSessions?: number;
     customizedDays?: number;
     dominantCardioEquipment?: string | null;
+    // Task #175: true when the Wednesday plan_day for this week is a
+    // Steady (Z3) Run + Accessory session. Sourced from plan_days
+    // server-side so customizations that swap Wed away from steady are
+    // reflected on the calendar chip. Null when no Wed plan_day exists
+    // yet (legacy / freshly seeded weeks).
+    wedSteady?: boolean | null;
   },
 ) {
   return {
@@ -192,6 +198,7 @@ export function toPlanWeek(
     missedSessions: extras?.missedSessions ?? null,
     customizedDays: extras?.customizedDays ?? null,
     dominantCardioEquipment: extras?.dominantCardioEquipment ?? null,
+    wedSteady: extras?.wedSteady ?? null,
   };
 }
 

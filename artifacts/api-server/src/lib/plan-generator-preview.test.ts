@@ -120,3 +120,73 @@ describe("previewWeeklyMileage matches generatePlanFromConfig", () => {
     expect(preview[preview.length - 1]!.longRunMi).toBe(26.2);
   });
 });
+
+describe("previewWeeklyMileage exposes wedSteady matching the generator (task #175)", () => {
+  // The plan calendar week strip and the Phase Planner sparklines both
+  // surface an amber-400 Z3 "Steady" marker on the same weeks the
+  // generator emits a Steady Run + Accessory Wed. Source-of-truth for
+  // both surfaces is `WeekMileagePreview.wedSteady`, so it must agree
+  // exactly with `daily[i].session_type === "Steady Run + Accessory"`
+  // on the corresponding Wed row from `generatePlanFromConfig`. Any
+  // drift would mislead runners about which weeks earn the Z3 stimulus.
+  it("flags the Marathon-Specific tail's non-cutback / non-race-week Weds as steady", () => {
+    // 4-week Base block + 16-week auto-pinned Marathon-Specific tail.
+    const cfg = configFor("Base");
+    const preview = previewWeeklyMileage(cfg.blocks, {
+      appendMarathonTail: true,
+    });
+    const generated = generatePlanFromConfig(cfg);
+
+    // The 4-week Base block uses the easy Wed recipe — every preview
+    // entry inside that block must report wedSteady=false.
+    for (const w of preview.filter((p) => p.focusType === "Base")) {
+      expect(w.wedSteady, `base w${w.week}`).toBe(false);
+    }
+
+    // Every Marathon-Specific tail week's wedSteady must match the
+    // actual `session_type` the generator wrote for that week's Wed.
+    const tail = preview.filter((p) => p.focusType === "Marathon-Specific");
+    expect(tail.length).toBeGreaterThan(0);
+    for (const w of tail) {
+      const wed = generated.daily.find(
+        (d) => d.week === w.week && d.day === "Wed",
+      );
+      expect(wed, `w${w.week} wed row`).toBeDefined();
+      const expected = wed!.session_type === "Steady Run + Accessory";
+      expect(w.wedSteady, `w${w.week}`).toBe(expected);
+    }
+
+    // Sanity: at least one cutback week (every 4th, weekInBlock=4/8/12)
+    // and the trailing race week (weekInBlock=16) must report false so
+    // the rule isn't accidentally always-true on the tail.
+    const tailRaceWeek = tail.find((w) => w.isRaceWeek);
+    expect(tailRaceWeek?.wedSteady).toBe(false);
+    const tailCutback = tail.find((w) => w.isCutback);
+    expect(tailCutback?.wedSteady).toBe(false);
+    // And at least one non-cutback non-race week must be steady so we
+    // know the chip will actually fire on the calendar.
+    expect(tail.some((w) => w.wedSteady)).toBe(true);
+  });
+
+  it("never flags Base / Time on Feet / Speed / Recovery weeks as steady", () => {
+    // Recipes without `wedKind: "Steady"` must always report false.
+    for (const focus of ["Base", "Time on Feet", "Speed"] as const) {
+      const cfg = configFor(focus);
+      const preview = previewWeeklyMileage(cfg.blocks, {
+        appendMarathonTail: false,
+      });
+      for (const w of preview) {
+        expect(w.wedSteady, `${focus} w${w.week}`).toBe(false);
+      }
+    }
+    // Recovery doesn't even emit a Friday quality day, but its Wed is
+    // also easy — verify wedSteady stays false there too.
+    const recovery = previewWeeklyMileage(
+      [{ focusType: "Recovery", weeks: 4, customName: null, customNotes: null }],
+      { appendMarathonTail: false },
+    );
+    for (const w of recovery) {
+      expect(w.wedSteady).toBe(false);
+    }
+  });
+});

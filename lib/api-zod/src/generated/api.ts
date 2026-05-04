@@ -71,6 +71,12 @@ export const ListPlanWeeksResponseItem = zod.object({
     .describe(
       'For Bike-only \/ Row-only weeks where `plannedMiles` is 0 but\n`plannedCardio` is high, the most-used cardio machine across\nthe week\'s non-rest plan days (e.g. \"Peloton Bike\",\n\"Peloton Row\"). Computed by summing `cardio_min` per equipment\nand picking the highest. Null when no plan day has cardio_min\n> 0 or when the week has no plan days yet (legacy \/ freshly\nseeded weeks).\n',
     ),
+  wedSteady: zod
+    .boolean()
+    .nullish()
+    .describe(
+      'Task #175. True when this week\'s Wednesday plan day is a\nSteady (Z3) Run + Accessory session — i.e. the same gating\nthe generator uses to upgrade the mid-week run on\nMarathon-Specific weeks (recipe `wedKind: \"Steady\"`,\nnon-cutback, non-race-week). Sourced directly from\n`plan_days.session_type` so customizations that swap Wed\naway from steady are reflected here. Drives the amber-400\n\"Steady\" chip on the plan calendar week strip so runners\ncan see at a glance which weeks earn the Z3 stimulus\nwithout opening each week. Null on weeks with no Wed plan\nday yet (freshly seeded \/ legacy data).\n',
+    ),
 });
 export const ListPlanWeeksResponse = zod.array(ListPlanWeeksResponseItem);
 
@@ -110,6 +116,12 @@ export const GetPlanWeekResponse = zod
       .nullish()
       .describe(
         'For Bike-only \/ Row-only weeks where `plannedMiles` is 0 but\n`plannedCardio` is high, the most-used cardio machine across\nthe week\'s non-rest plan days (e.g. \"Peloton Bike\",\n\"Peloton Row\"). Computed by summing `cardio_min` per equipment\nand picking the highest. Null when no plan day has cardio_min\n> 0 or when the week has no plan days yet (legacy \/ freshly\nseeded weeks).\n',
+      ),
+    wedSteady: zod
+      .boolean()
+      .nullish()
+      .describe(
+        'Task #175. True when this week\'s Wednesday plan day is a\nSteady (Z3) Run + Accessory session — i.e. the same gating\nthe generator uses to upgrade the mid-week run on\nMarathon-Specific weeks (recipe `wedKind: \"Steady\"`,\nnon-cutback, non-race-week). Sourced directly from\n`plan_days.session_type` so customizations that swap Wed\naway from steady are reflected here. Drives the amber-400\n\"Steady\" chip on the plan calendar week strip so runners\ncan see at a glance which weeks earn the Z3 stimulus\nwithout opening each week. Null on weeks with no Wed plan\nday yet (freshly seeded \/ legacy data).\n',
       ),
   })
   .and(

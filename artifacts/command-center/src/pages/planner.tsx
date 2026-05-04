@@ -4195,6 +4195,17 @@ function BlockSparkline({
     .join(" ");
   const peakWeekMi = weeks.reduce((m, w) => Math.max(m, w.totalMi), 0);
   const peakLongMi = weeks.reduce((m, w) => Math.max(m, w.longRunMi), 0);
+  // Task #175: surface the same amber Z3 marker the plan calendar uses
+  // for Steady-Wed weeks (HR_ZONE_COLORS[3] swatch). The marker rides
+  // the total-mileage polyline so the runner can see at a glance which
+  // weeks earn the Z3 stimulus before clicking Apply. `wedSteady`
+  // already mirrors `buildWeekDays`' gating in `previewWeeklyMileage`
+  // (Marathon-Specific recipe, non-cutback, non-race-week, no
+  // lift-primary / primary-machine / hybrid swap), so no extra rule
+  // logic is needed here.
+  const steadyWeeks = weeks
+    .map((w, i) => ({ w, i }))
+    .filter(({ w }) => w.wedSteady);
   return (
     <div className="mt-3" data-testid={testId}>
       <svg
@@ -4220,6 +4231,16 @@ function BlockSparkline({
           className="text-muted-foreground"
           vectorEffect="non-scaling-stroke"
         />
+        {steadyWeeks.map(({ w, i }) => (
+          <circle
+            key={`steady-${w.week}`}
+            cx={x(i).toFixed(1)}
+            cy={y(w.totalMi).toFixed(1)}
+            r={1.6}
+            className="fill-amber-400"
+            data-testid={`${testId}-steady-w${w.week}`}
+          />
+        ))}
       </svg>
       <div className="flex justify-between text-[10px] uppercase tracking-wider text-muted-foreground mt-1">
         <span>
@@ -4235,6 +4256,24 @@ function BlockSparkline({
           </span>
         </span>
       </div>
+      {steadyWeeks.length > 0 && (
+        <div
+          className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5"
+          data-testid={`${testId}-steady-legend`}
+        >
+          <span
+            className="h-1.5 w-1.5 rounded-full bg-amber-400"
+            aria-hidden
+          />
+          <span>
+            Steady Wed ·{" "}
+            <span className="font-semibold tabular-nums">
+              {steadyWeeks.length}
+            </span>{" "}
+            wk{steadyWeeks.length === 1 ? "" : "s"}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

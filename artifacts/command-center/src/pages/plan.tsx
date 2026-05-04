@@ -481,6 +481,33 @@ export default function Plan() {
                         <div className="flex justify-between items-center text-[10px] uppercase font-bold text-muted-foreground">
                           <span>Adherence</span>
                           <div className="flex items-center gap-2">
+                            {/*
+                              Task #175: amber Z3 "Steady" chip on weeks
+                              whose Wednesday is a Steady Run + Accessory
+                              session. Mirrors the same week→intensity
+                              rule the generator uses (Marathon-Specific
+                              recipe, non-cutback, non-race-week) and the
+                              amber-400 swatch HR_ZONE_COLORS[3] uses for
+                              the Run Target chip on Today / Week Detail
+                              so Z3 reads the same everywhere. Sourced
+                              from `wedSteady` on /plan/weeks (computed
+                              from plan_days.session_type) so any user
+                              swap that takes Wed off Steady drops the
+                              chip immediately.
+                            */}
+                            {week.wedSteady && (
+                              <span
+                                className="flex items-center gap-1 bg-amber-400/15 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider"
+                                data-testid={`badge-steady-week-${week.week}`}
+                                title="Wednesday is a Steady (Z3) run this week"
+                              >
+                                <span
+                                  className="h-1.5 w-1.5 rounded-full bg-amber-400"
+                                  aria-hidden
+                                />
+                                Steady
+                              </span>
+                            )}
                             {(week.customizedDays ?? 0) > 0 && (
                               <span
                                 className="flex items-center gap-1 bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider"

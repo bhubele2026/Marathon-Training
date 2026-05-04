@@ -2408,6 +2408,20 @@ export interface WeekMileagePreview {
   qualityMi: number;
   longRunMi: number;
   totalMi: number;
+  // True when this week's Wednesday will emit a steady-state ("Z3
+  // effort") run instead of the canonical easy aerobic run. Mirrors
+  // `buildWeekDays` exactly: only blocks whose recipe pins
+  // `wedKind: "Steady"` (Marathon-Specific today) flip this on, and
+  // even then it stays false on cutback weeks (Wed eases to keep the
+  // long run recoverable) and on the trailing race week (Wed is part
+  // of the taper). Lift-primary / bike-only / row-only Custom blocks
+  // and hybrid-spec Custom blocks substitute the Wed run with
+  // non-running work, so they always report false. Drives the amber
+  // Z3 "Steady" chip on the plan calendar week strip and the matching
+  // amber dots on the Phase Planner sparklines so runners can see at
+  // a glance which weeks earn the Z3 stimulus before clicking Apply
+  // (Task #175).
+  wedSteady: boolean;
 }
 
 export interface PreviewWeeklyMileageOptions {
@@ -2518,6 +2532,19 @@ export function previewWeeklyMileage(
             : recipe.longRunMi(weekInBlock, w, isCutback);
       }
       const totalMi = r1(easyMi + qualityMi + longMi);
+      // Wed steady-run gating mirrors `buildWeekDays`: the recipe must
+      // opt-in via `wedKind: "Steady"`, the week must not be a cutback
+      // (Wed eases so Sun's long run stays recoverable) and not the
+      // trailing race week (Wed is taper). Lift-primary, primary-machine
+      // and hybrid-spec Custom blocks swap the Wed run for non-running
+      // work so they never surface a Steady Wed chip even if some future
+      // recipe were to pin `wedKind` on the Custom focus.
+      const wedSteady =
+        recipe.wedKind === "Steady" &&
+        !isCutback &&
+        !isRaceWeek &&
+        !zeroRuns &&
+        !hybridSpecForPreview;
       out.push({
         week,
         blockIndex,
@@ -2530,6 +2557,7 @@ export function previewWeeklyMileage(
         qualityMi: r1(qualityMi),
         longRunMi: r1(longMi),
         totalMi,
+        wedSteady,
       });
     }
   });

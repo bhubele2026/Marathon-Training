@@ -1128,6 +1128,21 @@ components:
             and picking the highest. Null when no plan day has cardio_min
             > 0 or when the week has no plan days yet (legacy / freshly
             seeded weeks).
+        wedSteady:
+          type: boolean
+          nullable: true
+          description: |
+            Task #175. True when this week's Wednesday plan day is a
+            Steady (Z3) Run + Accessory session — i.e. the same gating
+            the generator uses to upgrade the mid-week run on
+            Marathon-Specific weeks (recipe `wedKind: "Steady"`,
+            non-cutback, non-race-week). Sourced directly from
+            `plan_days.session_type` so customizations that swap Wed
+            away from steady are reflected here. Drives the amber-400
+            "Steady" chip on the plan calendar week strip so runners
+            can see at a glance which weeks earn the Z3 stimulus
+            without opening each week. Null on weeks with no Wed plan
+            day yet (freshly seeded / legacy data).
 
     PlanDayWithSuggestions:
       allOf:
