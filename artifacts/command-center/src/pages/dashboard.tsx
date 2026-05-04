@@ -419,6 +419,69 @@ export default function Dashboard() {
                 </div>
                 <Progress value={(summary.weeklySessionsCompleted / Math.max(summary.weeklySessionsPlanned, 1)) * 100} className="h-3" />
               </div>
+
+              {/* Task #144: per-program breakdown of the combined headline
+                  numbers above. Only renders when 2+ programs are stacked
+                  (entries-mode multi-program campaigns); legacy single-
+                  program campaigns just see the combined totals. Each
+                  row shows program label + actual/planned per metric and
+                  a program-end-date badge when the program ends before
+                  the campaign marathon date. */}
+              {summary.programs.length > 1 && (
+                <div
+                  className="border-t border-border pt-4 space-y-3"
+                  data-testid="snapshot-programs-breakdown"
+                >
+                  <div className="text-xs uppercase tracking-wider font-bold text-muted-foreground">
+                    Per Program
+                  </div>
+                  {summary.programs.map((p) => {
+                    const programEndsEarly =
+                      p.endDate < new Date(new Date().getTime() + summary.daysToRace * 24 * 3600 * 1000).toISOString().slice(0, 10);
+                    return (
+                      <div
+                        key={`snapshot-program-${p.sourceEntryIndex}`}
+                        className="rounded border border-border bg-muted/30 p-3 space-y-2"
+                        data-testid={`snapshot-program-${p.sourceEntryIndex}`}
+                      >
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="font-bold text-sm uppercase tracking-wider">
+                            {p.label}
+                          </span>
+                          {programEndsEarly && (
+                            <span
+                              className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-background px-2 py-0.5 rounded"
+                              data-testid={`snapshot-program-end-${p.sourceEntryIndex}`}
+                            >
+                              Ends {p.endDate}
+                            </span>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-xs">
+                          <div>
+                            <div className="text-[10px] uppercase font-bold text-muted-foreground">Miles</div>
+                            <div className="font-mono">
+                              {formatDistance(p.weeklyMilesActual)} / {formatDistance(p.weeklyMilesPlanned)}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase font-bold text-muted-foreground">Load</div>
+                            <div className="font-mono">
+                              {formatLoad(p.weeklyLoadActual)} / {formatLoad(p.weeklyLoadPlanned)}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase font-bold text-muted-foreground">Sessions</div>
+                            <div className="font-mono">
+                              {p.weeklySessionsCompleted} / {p.weeklySessionsPlanned}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
               <div
                 className="flex items-center justify-between border-t border-border pt-4 text-sm font-bold uppercase text-muted-foreground"
                 data-testid="row-lifestyle-minutes"
@@ -478,24 +541,97 @@ export default function Dashboard() {
                         />
                         <Tooltip
                           contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
-                          labelFormatter={(label, payload) => {
-                            const row = payload?.[0]?.payload as
-                              | { phase?: string; dominantCardioEquipment?: string | null; plannedMiles?: number; plannedCardioMin?: number }
+                          content={({ active, payload, label }) => {
+                            if (!active || !payload?.length) return null;
+                            const row = payload[0]?.payload as
+                              | {
+                                  phase?: string;
+                                  dominantCardioEquipment?: string | null;
+                                  plannedMiles?: number;
+                                  plannedCardioMin?: number;
+                                  programs?: Array<{
+                                    sourceEntryIndex: number;
+                                    label: string;
+                                    plannedMiles: number;
+                                    plannedCardioMin: number;
+                                  }>;
+                                }
                               | undefined;
                             const base = row?.phase ? `Week ${label} · ${row.phase}` : `Week ${label}`;
                             const cardioOnly =
                               (row?.plannedMiles ?? 0) === 0 &&
                               (row?.plannedCardioMin ?? 0) > 0;
-                            if (cardioOnly && row?.dominantCardioEquipment) {
-                              return `${base} · ${row.dominantCardioEquipment}`;
-                            }
-                            return base;
-                          }}
-                          formatter={(value, name) => {
-                            if (name === "Planned cardio" || name === "Actual cardio") {
-                              return [`${Number(value).toFixed(0)} min`, name];
-                            }
-                            return [`${Number(value).toFixed(1)} mi`, name];
+                            const heading = cardioOnly && row?.dominantCardioEquipment
+                              ? `${base} · ${row.dominantCardioEquipment}`
+                              : base;
+                            // Task #144: render per-program planned breakdown
+                            // when 2+ programs contribute to this week. The
+                            // existing Planned/Actual rows still show the
+                            // combined headline values; the breakdown clarifies
+                            // which program drove the combined number.
+                            const programs = row?.programs ?? [];
+                            const showPrograms = programs.length > 1;
+                            return (
+                              <div
+                                className="rounded border bg-card text-card-foreground text-xs shadow-md p-2 space-y-1"
+                                style={{ borderColor: "hsl(var(--border))" }}
+                                data-testid="mileage-tooltip"
+                              >
+                                <div className="font-bold uppercase tracking-wider">{heading}</div>
+                                {payload.map((entry, idx) => {
+                                  const value = Number(entry.value ?? 0);
+                                  const isCardio =
+                                    entry.name === "Planned cardio" ||
+                                    entry.name === "Actual cardio";
+                                  return (
+                                    <div
+                                      key={`tt-${idx}`}
+                                      className="flex items-center gap-2"
+                                    >
+                                      <span
+                                        className="h-2 w-2 rounded-sm"
+                                        style={{ backgroundColor: entry.color }}
+                                        aria-hidden
+                                      />
+                                      <span className="text-muted-foreground">
+                                        {entry.name}
+                                      </span>
+                                      <span className="ml-auto font-mono">
+                                        {isCardio
+                                          ? `${value.toFixed(0)} min`
+                                          : `${value.toFixed(1)} mi`}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                                {showPrograms && (
+                                  <div
+                                    className="border-t pt-1 mt-1 space-y-0.5"
+                                    style={{ borderColor: "hsl(var(--border))" }}
+                                    data-testid="mileage-tooltip-programs"
+                                  >
+                                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
+                                      Per Program
+                                    </div>
+                                    {programs.map((p) => (
+                                      <div
+                                        key={`tt-prog-${p.sourceEntryIndex}`}
+                                        className="flex items-center gap-2"
+                                        data-testid={`mileage-tooltip-program-${p.sourceEntryIndex}`}
+                                      >
+                                        <span className="text-muted-foreground">{p.label}</span>
+                                        <span className="ml-auto font-mono">
+                                          {p.plannedMiles.toFixed(1)} mi
+                                          {p.plannedCardioMin > 0 && (
+                                            <> · {p.plannedCardioMin.toFixed(0)} min</>
+                                          )}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
                           }}
                         />
                         <Legend />
@@ -662,18 +798,54 @@ export default function Dashboard() {
             <CardContent>
               {loadingEq ? <Skeleton className="h-64" /> : (
                 <div className="space-y-4">
-                  {equipment?.map(eq => (
-                    <div key={eq.equipment} className="flex justify-between items-center border-b border-border pb-3 last:border-0 last:pb-0">
-                      <div>
-                        <div className="font-bold text-sm">{eq.equipment}</div>
-                        <div className="text-xs text-muted-foreground">{eq.sessions} sessions</div>
+                  {equipment?.map(eq => {
+                    // Task #144: when a machine is shared by 2+ programs
+                    // (e.g. Tonal scheduled by both a Tonal Lift program and
+                    // a 5K Improver cross-train block), show a thin per-
+                    // program attribution line so the runner can see who
+                    // owns the planned minutes.
+                    const sharedPrograms = eq.byProgram.filter(
+                      (p) => p.plannedSessions > 0,
+                    );
+                    const isShared = sharedPrograms.length > 1;
+                    return (
+                      <div
+                        key={eq.equipment}
+                        className="border-b border-border pb-3 last:border-0 last:pb-0"
+                        data-testid={`arsenal-row-${eq.equipment}`}
+                      >
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <div className="font-bold text-sm">{eq.equipment}</div>
+                            <div className="text-xs text-muted-foreground">{eq.sessions} sessions</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-mono text-sm">{formatDuration(eq.totalMinutes)}</div>
+                            <div className="text-xs text-muted-foreground uppercase">Load {formatLoad(eq.totalLoad)}</div>
+                          </div>
+                        </div>
+                        {isShared && (
+                          <div
+                            className="mt-2 pl-2 border-l-2 border-muted text-[11px] text-muted-foreground space-y-0.5"
+                            data-testid={`arsenal-row-${eq.equipment}-programs`}
+                          >
+                            {sharedPrograms.map((p) => (
+                              <div
+                                key={`arsenal-${eq.equipment}-prog-${p.sourceEntryIndex}`}
+                                className="flex items-center justify-between gap-2"
+                                data-testid={`arsenal-row-${eq.equipment}-program-${p.sourceEntryIndex}`}
+                              >
+                                <span className="uppercase tracking-wider font-bold truncate">{p.label}</span>
+                                <span className="font-mono shrink-0">
+                                  {p.plannedSessions}× · {Math.round(p.plannedMinutes)}m
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      <div className="text-right">
-                        <div className="font-mono text-sm">{formatDuration(eq.totalMinutes)}</div>
-                        <div className="text-xs text-muted-foreground uppercase">Load {formatLoad(eq.totalLoad)}</div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>

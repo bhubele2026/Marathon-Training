@@ -156,6 +156,12 @@ export interface PlanDayInput {
   // column is left NULL, which simulates a pre-task-#77 legacy row and
   // exercises the API's `[equipment]` fallback path.
   equipmentList?: string[] | null;
+  // Task #135 / #144: program attribution. Default is 0 / null which
+  // matches a legacy single-program campaign. Multi-program tests pass
+  // both fields so two plan_days on the same date can coexist (one per
+  // TemplateEntry).
+  sourceEntryIndex?: number;
+  sourceEntryLabel?: string | null;
 }
 
 export async function insertPlanDay(
@@ -182,6 +188,8 @@ export async function insertPlanDay(
       distanceMi: d.distanceMi ?? null,
       strengthLoad: d.strengthLoad ?? null,
       totalLoad: d.totalLoad ?? 0,
+      sourceEntryIndex: d.sourceEntryIndex ?? 0,
+      sourceEntryLabel: d.sourceEntryLabel ?? null,
     })
     .returning({ id: planDaysTable.id });
   return { id: inserted[0]!.id };

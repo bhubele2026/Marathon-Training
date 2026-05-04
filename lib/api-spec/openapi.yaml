@@ -1437,6 +1437,7 @@ components:
           weightToGoal,
           adherencePct,
           daysToRace,
+          programs,
         ]
       properties:
         currentWeek: { type: integer }
@@ -1462,6 +1463,63 @@ components:
         weightToGoal: { type: number }
         adherencePct: { type: number }
         daysToRace: { type: integer }
+        programs:
+          type: array
+          description: >
+            Task #144. Per-program breakdown of the current week's planned and
+            actual training load for runners stacking concurrent programs (e.g.
+            a Tonal lift program alongside a 5K running program). Each program
+            corresponds to one TemplateEntry currently contributing rows to
+            plan_days. Headline weekly* fields above are the COMBINED totals
+            across all programs; this array lets the dashboard drill in to
+            per-program totals. Always present — for legacy single-program
+            campaigns it contains exactly one element labelled "Marathon Plan".
+            Programs are ordered by sourceEntryIndex ascending.
+          items: { $ref: "#/components/schemas/DashboardSummaryProgram" }
+
+    DashboardSummaryProgram:
+      type: object
+      required:
+        [
+          sourceEntryIndex,
+          label,
+          endDate,
+          weeklyMilesPlanned,
+          weeklyMilesActual,
+          weeklyLoadPlanned,
+          weeklyLoadActual,
+          weeklySessionsPlanned,
+          weeklySessionsCompleted,
+        ]
+      properties:
+        sourceEntryIndex:
+          type: integer
+          description: Stable identifier for this program within the active planner config (0..N-1).
+        label:
+          type: string
+          description: Human-readable program name (entry.customName or template name); falls back to "Marathon Plan" for legacy single-program campaigns.
+        endDate:
+          type: string
+          description: >
+            ISO yyyy-mm-dd. Last calendar date this program contributes a
+            plan_day on. Programs in an entries-mode config can finish before
+            the campaign marathonDate (e.g. a 5K Improver block that ends 12
+            weeks before race day) — this field surfaces that explicitly so
+            the dashboard can show "Tonal Lift ends 2027-01-15" alongside the
+            campaign marathon date.
+        weeklyMilesPlanned: { type: number }
+        weeklyMilesActual:
+          type: number
+          description: >
+            Sum of `distance_mi` from logged workouts whose plan_day_id links
+            back to one of this program's plan_days in the current week.
+            Workouts that were never linked to a specific plan_day (e.g.
+            unplanned cross-train) only contribute to the combined headline
+            number.
+        weeklyLoadPlanned: { type: number }
+        weeklyLoadActual: { type: number }
+        weeklySessionsPlanned: { type: integer }
+        weeklySessionsCompleted: { type: integer }
 
     WeightPoint:
       type: object
@@ -1479,6 +1537,7 @@ components:
           actualMiles,
           plannedCardioMin,
           actualCardioMin,
+          programs,
         ]
       properties:
         week: { type: integer }
@@ -1506,6 +1565,30 @@ components:
             week, used to label cardio-only weeks in the chart tooltip
             (e.g. "Peloton Bike"). Null when the week has no planned
             cross-train cardio.
+        programs:
+          type: array
+          description: >
+            Task #144. Per-program breakdown of this week's planned miles and
+            cardio minutes. The headline `plannedMiles` / `plannedCardioMin`
+            above are the COMBINED totals across overlapping programs (a
+            Tonal lift program stacked with a 5K running program for
+            example); this array lets the chart tooltip drill in to per-
+            program contributions. Empty for weeks where no program
+            contributes plan_days (e.g. interior recovery gaps that only
+            carry synthetic filler rows). Programs are ordered by
+            sourceEntryIndex ascending.
+          items: { $ref: "#/components/schemas/WeeklyMileageProgram" }
+
+    WeeklyMileageProgram:
+      type: object
+      required: [sourceEntryIndex, label, plannedMiles, plannedCardioMin]
+      properties:
+        sourceEntryIndex: { type: integer }
+        label:
+          type: string
+          description: Human-readable program name; falls back to "Marathon Plan" for legacy single-program campaigns.
+        plannedMiles: { type: number }
+        plannedCardioMin: { type: number }
 
     EquipmentUsage:
       type: object
@@ -1524,6 +1607,7 @@ components:
           plannedToDateMinutes,
           plannedToDateLoad,
           plannedToDateDistance,
+          byProgram,
         ]
       properties:
         equipment: { type: string }
@@ -1547,6 +1631,34 @@ components:
         plannedToDateDistance:
           type: number
           description: Planned distance (mi) for this machine on or before today.
+        byProgram:
+          type: array
+          description: >
+            Task #144. Per-program attribution of this machine's planned
+            workload. Lets the /equipment page (and the dashboard Arsenal
+            tile) split a machine's planned minutes between concurrent
+            programs — e.g. Tonal might be 80% Tonal Lift program and 20%
+            5K Improver cross-train. The headline `plannedSessions` /
+            `plannedMinutes` / `plannedLoad` / `plannedDistance` above are
+            the COMBINED totals across all programs that schedule this
+            machine; this array sums to those totals. Empty when no
+            program schedules the machine (i.e. unplanned actuals only).
+            Programs are ordered by sourceEntryIndex ascending.
+          items: { $ref: "#/components/schemas/EquipmentUsageProgram" }
+
+    EquipmentUsageProgram:
+      type: object
+      required:
+        [sourceEntryIndex, label, plannedSessions, plannedMinutes, plannedLoad, plannedDistance]
+      properties:
+        sourceEntryIndex: { type: integer }
+        label:
+          type: string
+          description: Human-readable program name; falls back to "Marathon Plan" for legacy single-program campaigns.
+        plannedSessions: { type: integer }
+        plannedMinutes: { type: number }
+        plannedLoad: { type: number }
+        plannedDistance: { type: number }
 
     EquipmentPhaseSummary:
       type: object

@@ -13,6 +13,11 @@ function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Task #144: Canonical fallback label for synthetic / legacy plan_day rows
+// where source_entry_label is NULL. Mirrors what /plan/overview shows so the
+// runner sees the same program name everywhere.
+const FALLBACK_PROGRAM_LABEL = "Marathon Plan";
+
 router.get("/dashboard/summary", async (_req, res) => {
   const today = todayISO();
   const weekRow = (await db.select().from(planWeeksTable)
@@ -39,6 +44,101 @@ router.get("/dashboard/summary", async (_req, res) => {
   const weekPlanned = await db.execute<{ planned_sessions: number }>(
     sql`SELECT COUNT(*)::int AS planned_sessions FROM plan_days WHERE week = ${weekRow?.week ?? 0} AND is_rest = false`,
   );
+
+  // Task #144: per-program breakdown of THIS week's planned and actual
+  // training load. We aggregate planned values from plan_days grouped by
+  // source_entry_index, and actuals from workouts joined back to their
+  // linked plan_day so each session is attributed to a single program.
+  // Workouts that were never matched to a plan_day (unplanned cross-train,
+  // logged-before-apply rows) only contribute to the combined headline
+  // numbers. `endDate` is the LAST calendar date this program contributes
+  // any plan_day on (across the WHOLE campaign, not just this week) so the
+  // dashboard can surface programs that finish before the campaign
+  // marathonDate.
+  interface ProgramAggRow extends Record<string, unknown> {
+    source_entry_index: number;
+    label: string | null;
+    program_end_date: string;
+    planned_miles: number;
+    planned_load: number;
+    planned_sessions: number;
+    actual_miles: number;
+    actual_load: number;
+    actual_sessions: number;
+  }
+  const programRowsRaw = weekRow
+    ? (
+        await db.execute<ProgramAggRow>(
+          sql`
+            WITH program_planned AS (
+              SELECT pd.source_entry_index,
+                MAX(pd.source_entry_label) AS label,
+                COALESCE(SUM(pd.distance_mi) FILTER (WHERE pd.week = ${weekRow.week}), 0)::float AS planned_miles,
+                COALESCE(SUM(pd.total_load) FILTER (WHERE pd.week = ${weekRow.week}), 0)::float AS planned_load,
+                COUNT(*) FILTER (WHERE pd.week = ${weekRow.week} AND pd.is_rest = false)::int AS planned_sessions,
+                TO_CHAR(MAX(pd.date), 'YYYY-MM-DD') AS program_end_date
+              FROM plan_days pd
+              GROUP BY pd.source_entry_index
+            ),
+            program_actuals AS (
+              SELECT pd.source_entry_index,
+                COALESCE(SUM(w.distance_mi), 0)::float AS actual_miles,
+                COALESCE(SUM(w.total_load), 0)::float AS actual_load,
+                COUNT(*)::int AS actual_sessions
+              FROM workouts w
+              JOIN plan_days pd ON pd.id = w.plan_day_id
+              WHERE w.date BETWEEN ${startDate} AND ${endDate}
+                AND w.equipment <> ${LIFESTYLE_EQUIPMENT}
+              GROUP BY pd.source_entry_index
+            )
+            SELECT
+              pp.source_entry_index,
+              pp.label,
+              pp.program_end_date,
+              pp.planned_miles,
+              pp.planned_load,
+              pp.planned_sessions,
+              COALESCE(pa.actual_miles, 0)::float AS actual_miles,
+              COALESCE(pa.actual_load, 0)::float AS actual_load,
+              COALESCE(pa.actual_sessions, 0)::int AS actual_sessions
+            FROM program_planned pp
+            LEFT JOIN program_actuals pa
+              ON pa.source_entry_index = pp.source_entry_index
+            ORDER BY pp.source_entry_index ASC
+          `,
+        )
+      ).rows
+    : [];
+
+  // Always return at least one program so single-program campaigns still
+  // get a stable shape; fall back to the campaign-level totals when the
+  // plan tables are empty (pre-launch).
+  const programs = programRowsRaw.length > 0
+    ? programRowsRaw.map((r) => ({
+        sourceEntryIndex: r.source_entry_index,
+        label: r.label ?? FALLBACK_PROGRAM_LABEL,
+        endDate: r.program_end_date,
+        weeklyMilesPlanned: r.planned_miles,
+        weeklyMilesActual: r.actual_miles,
+        weeklyLoadPlanned: r.planned_load,
+        weeklyLoadActual: r.actual_load,
+        weeklySessionsPlanned: r.planned_sessions,
+        weeklySessionsCompleted: r.actual_sessions,
+      }))
+    : [
+        {
+          sourceEntryIndex: 0,
+          label: FALLBACK_PROGRAM_LABEL,
+          endDate: weekRow?.endDate ?? today,
+          weeklyMilesPlanned: 0,
+          weeklyMilesActual: 0,
+          weeklyLoadPlanned: 0,
+          weeklyLoadActual: 0,
+          weeklySessionsPlanned: 0,
+          weeklySessionsCompleted: 0,
+        },
+      ];
+
   const weekProgressPct = (() => {
     if (!weekRow) return 0;
     const start = new Date(weekRow.startDate).getTime();
@@ -101,6 +201,7 @@ router.get("/dashboard/summary", async (_req, res) => {
     weightToGoal: currentWeight !== null ? Math.max(0, currentWeight - GOAL_WEIGHT) : START_WEIGHT - GOAL_WEIGHT,
     adherencePct,
     daysToRace,
+    programs,
   });
 });
 
@@ -154,6 +255,51 @@ router.get("/dashboard/weekly-mileage", async (_req, res) => {
     `,
   );
   const dominantByWeek = new Map(cardioEq.rows.map((r) => [r.week, r.equipment]));
+
+  // Task #144: per-program planned breakdown per week. The headline
+  // plannedMiles / plannedCardioMin above are the COMBINED totals across
+  // overlapping programs (the existing aggregated plan_weeks row); this
+  // breakdown lets the chart tooltip show the per-program contribution
+  // (e.g. "Tonal Lift: 0 mi · 5K Improver: 18 mi"). We aggregate from
+  // plan_days so synthetic recovery-gap rows (source_entry_label NULL)
+  // get folded under the canonical fallback label.
+  interface WeekProgramRow extends Record<string, unknown> {
+    week: number;
+    source_entry_index: number;
+    label: string | null;
+    planned_miles: number;
+    planned_cardio_min: number;
+  }
+  const programByWeek = await db.execute<WeekProgramRow>(
+    sql`
+      SELECT week,
+        source_entry_index,
+        MAX(source_entry_label) AS label,
+        COALESCE(SUM(distance_mi), 0)::float AS planned_miles,
+        COALESCE(SUM(cardio_min), 0)::float AS planned_cardio_min
+      FROM plan_days
+      WHERE is_rest = false
+      GROUP BY week, source_entry_index
+      ORDER BY week ASC, source_entry_index ASC
+    `,
+  );
+  const programsByWeek = new Map<number, Array<{
+    sourceEntryIndex: number;
+    label: string;
+    plannedMiles: number;
+    plannedCardioMin: number;
+  }>>();
+  for (const r of programByWeek.rows) {
+    const list = programsByWeek.get(r.week) ?? [];
+    list.push({
+      sourceEntryIndex: r.source_entry_index,
+      label: r.label ?? FALLBACK_PROGRAM_LABEL,
+      plannedMiles: r.planned_miles,
+      plannedCardioMin: r.planned_cardio_min,
+    });
+    programsByWeek.set(r.week, list);
+  }
+
   res.json(rows.rows.map((r) => ({
     week: r.week,
     startDate: r.start_date,
@@ -163,6 +309,7 @@ router.get("/dashboard/weekly-mileage", async (_req, res) => {
     plannedCardioMin: r.planned_cardio_min,
     actualCardioMin: r.actual_cardio_min,
     dominantCardioEquipment: dominantByWeek.get(r.week) ?? null,
+    programs: programsByWeek.get(r.week) ?? [],
   })));
 });
 
@@ -240,6 +387,59 @@ router.get("/dashboard/equipment-usage", async (_req, res) => {
     `,
   );
   const byName = new Map(rows.rows.map((r) => [r.equipment, r]));
+
+  // Task #144: per-program planned attribution per machine. Lets the
+  // /equipment page (and the dashboard Arsenal tile) split a machine's
+  // planned workload between concurrent programs — e.g. Tonal might be
+  // 80% Tonal Lift program and 20% 5K Improver cross-train. We aggregate
+  // from plan_days grouped by (equipment, source_entry_index) so the
+  // numbers sum to the headline planned* totals above.
+  interface EquipmentProgramRow extends Record<string, unknown> {
+    equipment: string;
+    source_entry_index: number;
+    label: string | null;
+    planned_sessions: number;
+    planned_minutes: number;
+    planned_load: number;
+    planned_distance: number;
+  }
+  const programsRows = await db.execute<EquipmentProgramRow>(
+    sql`
+      SELECT equipment,
+        source_entry_index,
+        MAX(source_entry_label) AS label,
+        COUNT(*)::int AS planned_sessions,
+        COALESCE(SUM(cardio_min), 0)::float AS planned_minutes,
+        COALESCE(SUM(total_load), 0)::float AS planned_load,
+        COALESCE(SUM(distance_mi), 0)::float AS planned_distance
+      FROM plan_days
+      WHERE is_rest = false
+        AND equipment NOT IN ('Off / Rest', 'Off / Mobility', 'None', 'Rest')
+      GROUP BY equipment, source_entry_index
+      ORDER BY equipment ASC, source_entry_index ASC
+    `,
+  );
+  const byProgramByEq = new Map<string, Array<{
+    sourceEntryIndex: number;
+    label: string;
+    plannedSessions: number;
+    plannedMinutes: number;
+    plannedLoad: number;
+    plannedDistance: number;
+  }>>();
+  for (const r of programsRows.rows) {
+    const list = byProgramByEq.get(r.equipment) ?? [];
+    list.push({
+      sourceEntryIndex: r.source_entry_index,
+      label: r.label ?? FALLBACK_PROGRAM_LABEL,
+      plannedSessions: r.planned_sessions,
+      plannedMinutes: r.planned_minutes,
+      plannedLoad: r.planned_load,
+      plannedDistance: r.planned_distance,
+    });
+    byProgramByEq.set(r.equipment, list);
+  }
+
   const toItem = (name: string, r?: EquipmentRow) => ({
     equipment: name,
     sessions: r?.sessions ?? 0,
@@ -254,6 +454,7 @@ router.get("/dashboard/equipment-usage", async (_req, res) => {
     plannedToDateMinutes: r?.planned_to_date_minutes ?? 0,
     plannedToDateLoad: r?.planned_to_date_load ?? 0,
     plannedToDateDistance: r?.planned_to_date_distance ?? 0,
+    byProgram: byProgramByEq.get(name) ?? [],
   });
   const arsenal = ARSENAL.map((name) => {
     const r = byName.get(name);

@@ -128,6 +128,176 @@ describe("GET /api/dashboard/summary", () => {
   });
 });
 
+describe("GET /api/dashboard/summary programs breakdown (Task #144)", () => {
+  it("attributes per-program planned and actual training load when 2+ programs overlap", async () => {
+    // Pin today inside the test week so the active-week lookup resolves.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-06-04T12:00:00.000Z"));
+
+    const week = 8311;
+    const phase = "Multi-Program Phase";
+    await insertWeek(week, {
+      startDate: "2099-06-01",
+      endDate: "2099-06-07",
+      phase,
+      plannedMiles: 18,
+      plannedTotalLoad: 700,
+    });
+    // Program 0 ("Tonal Lift") — strength only, ends mid-campaign on 2099-06-15.
+    const tonalDay = await insertPlanDay(week, phase, {
+      date: "2099-06-02",
+      day: "Tue",
+      sessionType: T_STRENGTH,
+      equipment: E_GYM,
+      distanceMi: 0,
+      totalLoad: 200,
+      sourceEntryIndex: 0,
+      sourceEntryLabel: "Tonal Lift",
+    });
+    // A LATER plan_day for the same program so endDate is past this week.
+    await insertPlanDay(week + 1, phase, {
+      date: "2099-06-15",
+      day: "Mon",
+      sessionType: T_STRENGTH,
+      equipment: E_GYM,
+      distanceMi: 0,
+      totalLoad: 200,
+      sourceEntryIndex: 0,
+      sourceEntryLabel: "Tonal Lift",
+    });
+    // Program 1 ("5K Improver") — running, also active this week.
+    const improverDay = await insertPlanDay(week, phase, {
+      date: "2099-06-03",
+      day: "Wed",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      distanceMi: 6,
+      totalLoad: 300,
+      sourceEntryIndex: 1,
+      sourceEntryLabel: "5K Improver",
+    });
+    // Same date, different program so we exercise overlapping plan_days.
+    await insertPlanDay(week, phase, {
+      date: "2099-06-04",
+      day: "Thu",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      distanceMi: 4,
+      totalLoad: 200,
+      sourceEntryIndex: 1,
+      sourceEntryLabel: "5K Improver",
+    });
+
+    // Workouts linked to a plan_day get attributed to that program.
+    await insertWorkout({
+      date: "2099-06-02",
+      sessionType: T_STRENGTH,
+      equipment: E_GYM,
+      distanceMi: 0,
+      totalLoad: 250,
+      planDayId: tonalDay.id,
+    });
+    await insertWorkout({
+      date: "2099-06-03",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      distanceMi: 5,
+      totalLoad: 280,
+      planDayId: improverDay.id,
+    });
+    // Untagged workout — only contributes to combined headline numbers,
+    // not to any per-program actual.
+    await insertWorkout({
+      date: "2099-06-05",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      distanceMi: 2,
+      totalLoad: 100,
+    });
+
+    const res = await request(app).get("/api/dashboard/summary");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetDashboardSummaryResponse, res.body);
+
+    const body = res.body as {
+      programs: Array<{
+        sourceEntryIndex: number;
+        label: string;
+        endDate: string;
+        weeklyMilesPlanned: number;
+        weeklyMilesActual: number;
+        weeklyLoadPlanned: number;
+        weeklyLoadActual: number;
+        weeklySessionsPlanned: number;
+        weeklySessionsCompleted: number;
+      }>;
+    };
+
+    expect(body.programs).toHaveLength(2);
+    const tonal = body.programs.find((p) => p.sourceEntryIndex === 0);
+    const improver = body.programs.find((p) => p.sourceEntryIndex === 1);
+
+    expect(tonal).toEqual({
+      sourceEntryIndex: 0,
+      label: "Tonal Lift",
+      // Latest plan_day for this program is 2099-06-15 (week + 1).
+      endDate: "2099-06-15",
+      weeklyMilesPlanned: 0,
+      weeklyMilesActual: 0,
+      weeklyLoadPlanned: 200,
+      weeklyLoadActual: 250,
+      weeklySessionsPlanned: 1,
+      weeklySessionsCompleted: 1,
+    });
+    expect(improver).toEqual({
+      sourceEntryIndex: 1,
+      label: "5K Improver",
+      // Latest plan_day for this program is 2099-06-04 (this week).
+      endDate: "2099-06-04",
+      weeklyMilesPlanned: 10,
+      weeklyMilesActual: 5,
+      weeklyLoadPlanned: 500,
+      weeklyLoadActual: 280,
+      weeklySessionsPlanned: 2,
+      weeklySessionsCompleted: 1,
+    });
+  });
+
+  it("returns a single fallback program for legacy single-program campaigns", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-06-04T12:00:00.000Z"));
+
+    const week = 8312;
+    const phase = "Legacy Single Program";
+    await insertWeek(week, {
+      startDate: "2099-06-01",
+      endDate: "2099-06-07",
+      phase,
+    });
+    // Single plan_day with default sourceEntryIndex=0 and NULL label.
+    await insertPlanDay(week, phase, {
+      date: "2099-06-02",
+      day: "Tue",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      distanceMi: 5,
+      totalLoad: 150,
+    });
+
+    const res = await request(app).get("/api/dashboard/summary");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetDashboardSummaryResponse, res.body);
+
+    const body = res.body as {
+      programs: Array<{ sourceEntryIndex: number; label: string }>;
+    };
+    expect(body.programs).toHaveLength(1);
+    expect(body.programs[0]?.sourceEntryIndex).toBe(0);
+    // Synthetic / legacy rows fall back to the canonical "Marathon Plan" label.
+    expect(body.programs[0]?.label).toBe("Marathon Plan");
+  });
+});
+
 describe("GET /api/dashboard/summary daysToRace anchored on applied Planner config", () => {
   it("counts down to the runner's APPLIED marathon date, not the canonical 2027 date", async () => {
     vi.useFakeTimers();
@@ -226,6 +396,10 @@ describe("GET /api/dashboard/weekly-mileage", () => {
       plannedCardioMin: 0,
       actualCardioMin: 0,
       dominantCardioEquipment: null,
+      // No plan_days inserted in this fixture, so the per-program planned
+      // breakdown (Task #144) is empty for this week. The headline
+      // plannedMiles still comes from plan_weeks, which is correct.
+      programs: [],
     });
   });
 
@@ -297,6 +471,81 @@ describe("GET /api/dashboard/weekly-mileage", () => {
       plannedCardioMin: 120,
       actualCardioMin: 95,
       dominantCardioEquipment: "Peloton Bike",
+    });
+  });
+});
+
+describe("GET /api/dashboard/weekly-mileage programs breakdown (Task #144)", () => {
+  it("returns per-program planned miles and cardio minutes per week", async () => {
+    const week = 8411;
+    const phase = "Multi-Program Mileage";
+    await insertWeek(week, {
+      startDate: "2099-07-06",
+      endDate: "2099-07-12",
+      phase,
+      plannedMiles: 18,
+      plannedCardio: 60,
+    });
+    // Program 0: 5K Improver — 12 mi running.
+    await insertPlanDay(week, phase, {
+      date: "2099-07-06",
+      day: "Mon",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      distanceMi: 8,
+      sourceEntryIndex: 0,
+      sourceEntryLabel: "5K Improver",
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-07-08",
+      day: "Wed",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      distanceMi: 4,
+      sourceEntryIndex: 0,
+      sourceEntryLabel: "5K Improver",
+    });
+    // Program 1: Tonal Lift — 6 mi treadmill warmup + 60 min cross-train.
+    await insertPlanDay(week, phase, {
+      date: "2099-07-07",
+      day: "Tue",
+      sessionType: "Bike",
+      equipment: "Peloton Bike",
+      distanceMi: 6,
+      cardioMin: 60,
+      sourceEntryIndex: 1,
+      sourceEntryLabel: "Tonal Lift",
+    });
+
+    const res = await request(app).get("/api/dashboard/weekly-mileage");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetWeeklyMileageResponse, res.body);
+
+    const rows = res.body as Array<{
+      week: number;
+      programs: Array<{
+        sourceEntryIndex: number;
+        label: string;
+        plannedMiles: number;
+        plannedCardioMin: number;
+      }>;
+    }>;
+    const ours = rows.find((r) => r.week === week);
+    expect(ours).toBeDefined();
+    expect(ours!.programs).toHaveLength(2);
+    const improver = ours!.programs.find((p) => p.sourceEntryIndex === 0);
+    const tonal = ours!.programs.find((p) => p.sourceEntryIndex === 1);
+    expect(improver).toEqual({
+      sourceEntryIndex: 0,
+      label: "5K Improver",
+      plannedMiles: 12,
+      plannedCardioMin: 0,
+    });
+    expect(tonal).toEqual({
+      sourceEntryIndex: 1,
+      label: "Tonal Lift",
+      plannedMiles: 6,
+      plannedCardioMin: 60,
     });
   });
 });
@@ -411,6 +660,9 @@ describe("GET /api/dashboard/equipment-usage", () => {
     // is "due so far" relative to today — plannedToDate* must be zero
     // even though plannedSessions/etc. are non-zero. This is the whole
     // point of the new field: early-campaign machines aren't flagged.
+    // Task #144: byProgram surfaces the single fallback "Marathon Plan"
+    // entry because these plan_days were inserted with the default
+    // sourceEntryIndex=0 / NULL label.
     expect(outdoor).toEqual({
       equipment: E_OUTDOOR,
       sessions: 2,
@@ -425,6 +677,16 @@ describe("GET /api/dashboard/equipment-usage", () => {
       plannedToDateMinutes: 0,
       plannedToDateLoad: 0,
       plannedToDateDistance: 0,
+      byProgram: [
+        {
+          sourceEntryIndex: 0,
+          label: "Marathon Plan",
+          plannedSessions: 2,
+          plannedMinutes: 80,
+          plannedLoad: 450,
+          plannedDistance: 9,
+        },
+      ],
     });
 
     // Planned-only equipment surfaces with zero actuals.
@@ -443,9 +705,20 @@ describe("GET /api/dashboard/equipment-usage", () => {
       plannedToDateMinutes: 0,
       plannedToDateLoad: 0,
       plannedToDateDistance: 0,
+      byProgram: [
+        {
+          sourceEntryIndex: 0,
+          label: "Marathon Plan",
+          plannedSessions: 1,
+          plannedMinutes: 30,
+          plannedLoad: 180,
+          plannedDistance: 3,
+        },
+      ],
     });
 
-    // Actual-only equipment surfaces with zero planned.
+    // Actual-only equipment surfaces with zero planned and an empty
+    // byProgram array (no plan_days for this machine to attribute).
     const gym = rows.find((r) => r.equipment === E_GYM);
     expect(gym).toEqual({
       equipment: E_GYM,
@@ -461,6 +734,7 @@ describe("GET /api/dashboard/equipment-usage", () => {
       plannedToDateMinutes: 0,
       plannedToDateLoad: 0,
       plannedToDateDistance: 0,
+      byProgram: [],
     });
   });
 
@@ -527,6 +801,137 @@ describe("GET /api/dashboard/equipment-usage", () => {
     expect(tread!.plannedToDateMinutes).toBe(20);
     expect(tread!.plannedToDateDistance).toBe(2);
     expect(tread!.plannedToDateLoad).toBe(100);
+  });
+});
+
+describe("GET /api/dashboard/equipment-usage programs breakdown (Task #144)", () => {
+  it("attributes per-equipment planned sessions across overlapping programs", async () => {
+    const week = 8612;
+    const phase = "Equipment Programs";
+    await insertWeek(week, {
+      startDate: "2099-08-01",
+      endDate: "2099-08-07",
+      phase,
+    });
+    // Treadmill: shared by both programs (3× from 5K Improver, 1× from
+    // Tonal Lift cross-train), with overlapping dates allowed because each
+    // plan_day carries its own sourceEntryIndex.
+    await insertPlanDay(week, phase, {
+      date: "2099-08-01",
+      day: "Mon",
+      sessionType: T_RUN,
+      equipment: E_TREADMILL,
+      cardioMin: 30,
+      distanceMi: 3,
+      totalLoad: 150,
+      sourceEntryIndex: 0,
+      sourceEntryLabel: "5K Improver",
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-08-02",
+      day: "Tue",
+      sessionType: T_RUN,
+      equipment: E_TREADMILL,
+      cardioMin: 30,
+      distanceMi: 3,
+      totalLoad: 150,
+      sourceEntryIndex: 0,
+      sourceEntryLabel: "5K Improver",
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-08-03",
+      day: "Wed",
+      sessionType: T_RUN,
+      equipment: E_TREADMILL,
+      cardioMin: 30,
+      distanceMi: 3,
+      totalLoad: 150,
+      sourceEntryIndex: 0,
+      sourceEntryLabel: "5K Improver",
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-08-04",
+      day: "Thu",
+      sessionType: T_RUN,
+      equipment: E_TREADMILL,
+      cardioMin: 20,
+      distanceMi: 2,
+      totalLoad: 100,
+      sourceEntryIndex: 1,
+      sourceEntryLabel: "Tonal Lift",
+    });
+    // Outdoor: only used by 5K Improver, so it should NOT show as shared.
+    await insertPlanDay(week, phase, {
+      date: "2099-08-05",
+      day: "Fri",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      cardioMin: 0,
+      distanceMi: 8,
+      totalLoad: 400,
+      sourceEntryIndex: 0,
+      sourceEntryLabel: "5K Improver",
+    });
+
+    const res = await request(app).get("/api/dashboard/equipment-usage");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetEquipmentUsageResponse, res.body);
+
+    const rows = res.body as Array<{
+      equipment: string;
+      plannedSessions: number;
+      byProgram: Array<{
+        sourceEntryIndex: number;
+        label: string;
+        plannedSessions: number;
+        plannedMinutes: number;
+        plannedLoad: number;
+        plannedDistance: number;
+      }>;
+    }>;
+
+    const tread = rows.find((r) => r.equipment === E_TREADMILL);
+    expect(tread).toBeDefined();
+    expect(tread!.plannedSessions).toBe(4);
+    expect(tread!.byProgram).toHaveLength(2);
+    const improver = tread!.byProgram.find((p) => p.sourceEntryIndex === 0);
+    const tonal = tread!.byProgram.find((p) => p.sourceEntryIndex === 1);
+    expect(improver).toEqual({
+      sourceEntryIndex: 0,
+      label: "5K Improver",
+      plannedSessions: 3,
+      plannedMinutes: 90,
+      plannedLoad: 450,
+      plannedDistance: 9,
+    });
+    expect(tonal).toEqual({
+      sourceEntryIndex: 1,
+      label: "Tonal Lift",
+      plannedSessions: 1,
+      plannedMinutes: 20,
+      plannedLoad: 100,
+      plannedDistance: 2,
+    });
+    // Per-program totals must sum to the headline planned* values for the
+    // machine — this is the contract the front-end attribution UI relies on.
+    expect(
+      tread!.byProgram.reduce((s, p) => s + p.plannedSessions, 0),
+    ).toBe(tread!.plannedSessions);
+
+    const outdoor = rows.find((r) => r.equipment === E_OUTDOOR);
+    expect(outdoor).toBeDefined();
+    // Single-program machine: the byProgram array still surfaces a single
+    // entry so callers always have a stable shape, but only one program
+    // owns the planned work.
+    expect(outdoor!.byProgram).toHaveLength(1);
+    expect(outdoor!.byProgram[0]).toEqual({
+      sourceEntryIndex: 0,
+      label: "5K Improver",
+      plannedSessions: 1,
+      plannedMinutes: 0,
+      plannedLoad: 400,
+      plannedDistance: 8,
+    });
   });
 });
 

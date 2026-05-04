@@ -344,6 +344,53 @@ export default function Equipment() {
                     </div>
                   </div>
                 )}
+                {(() => {
+                  // Task #144: per-program attribution. Only show when this
+                  // machine is shared by 2+ programs so the runner can see
+                  // (e.g.) "Tonal Lift owns 32 of 40 planned minutes; 5K
+                  // Improver owns the other 8". Synthetic recovery-gap rows
+                  // (label "Marathon Plan" with 0 planned sessions) are
+                  // filtered out to keep the breakdown signal-only.
+                  const sharedPrograms = eq.byProgram.filter(
+                    (p) => p.plannedSessions > 0,
+                  );
+                  if (sharedPrograms.length <= 1) return null;
+                  return (
+                    <div
+                      className="mt-3 pt-3 border-t border-border"
+                      data-testid={`equipment-card-programs-${eq.equipment.toLowerCase().replace(/\s+/g, "-")}`}
+                    >
+                      <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1.5">
+                        Per Program
+                      </div>
+                      <div className="space-y-1">
+                        {sharedPrograms.map((p) => {
+                          const sharePct =
+                            eq.plannedSessions > 0
+                              ? Math.round((p.plannedSessions / eq.plannedSessions) * 100)
+                              : 0;
+                          return (
+                            <div
+                              key={`eq-prog-${eq.equipment}-${p.sourceEntryIndex}`}
+                              className="flex items-center justify-between gap-2 text-xs"
+                              data-testid={`equipment-card-program-${eq.equipment.toLowerCase().replace(/\s+/g, "-")}-${p.sourceEntryIndex}`}
+                            >
+                              <span className="truncate font-bold uppercase tracking-wider">
+                                {p.label}
+                              </span>
+                              <span className="shrink-0 font-mono text-muted-foreground">
+                                {p.plannedSessions}× · {formatDuration(p.plannedMinutes)}
+                                {sharePct > 0 && (
+                                  <span className="text-[10px] ml-1">({sharePct}%)</span>
+                                )}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           ))}

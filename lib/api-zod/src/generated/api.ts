@@ -1391,6 +1391,39 @@ export const GetDashboardSummaryResponse = zod.object({
   weightToGoal: zod.number(),
   adherencePct: zod.number(),
   daysToRace: zod.number(),
+  programs: zod
+    .array(
+      zod.object({
+        sourceEntryIndex: zod
+          .number()
+          .describe(
+            "Stable identifier for this program within the active planner config (0..N-1).",
+          ),
+        label: zod
+          .string()
+          .describe(
+            'Human-readable program name (entry.customName or template name); falls back to \"Marathon Plan\" for legacy single-program campaigns.',
+          ),
+        endDate: zod
+          .string()
+          .describe(
+            'ISO yyyy-mm-dd. Last calendar date this program contributes a plan_day on. Programs in an entries-mode config can finish before the campaign marathonDate (e.g. a 5K Improver block that ends 12 weeks before race day) — this field surfaces that explicitly so the dashboard can show \"Tonal Lift ends 2027-01-15\" alongside the campaign marathon date.\n',
+          ),
+        weeklyMilesPlanned: zod.number(),
+        weeklyMilesActual: zod
+          .number()
+          .describe(
+            "Sum of `distance_mi` from logged workouts whose plan_day_id links back to one of this program's plan_days in the current week. Workouts that were never linked to a specific plan_day (e.g. unplanned cross-train) only contribute to the combined headline number.\n",
+          ),
+        weeklyLoadPlanned: zod.number(),
+        weeklyLoadActual: zod.number(),
+        weeklySessionsPlanned: zod.number(),
+        weeklySessionsCompleted: zod.number(),
+      }),
+    )
+    .describe(
+      'Task #144. Per-program breakdown of the current week\'s planned and actual training load for runners stacking concurrent programs (e.g. a Tonal lift program alongside a 5K running program). Each program corresponds to one TemplateEntry currently contributing rows to plan_days. Headline weekly\* fields above are the COMBINED totals across all programs; this array lets the dashboard drill in to per-program totals. Always present — for legacy single-program campaigns it contains exactly one element labelled \"Marathon Plan\". Programs are ordered by sourceEntryIndex ascending.\n',
+    ),
 });
 
 export const GetWeightTrendResponseItem = zod.object({
@@ -1421,6 +1454,22 @@ export const GetWeeklyMileageResponseItem = zod.object({
     .describe(
       'Equipment with the most planned cardio minutes for the week, used to label cardio-only weeks in the chart tooltip (e.g. \"Peloton Bike\"). Null when the week has no planned cross-train cardio.\n',
     ),
+  programs: zod
+    .array(
+      zod.object({
+        sourceEntryIndex: zod.number(),
+        label: zod
+          .string()
+          .describe(
+            'Human-readable program name; falls back to \"Marathon Plan\" for legacy single-program campaigns.',
+          ),
+        plannedMiles: zod.number(),
+        plannedCardioMin: zod.number(),
+      }),
+    )
+    .describe(
+      "Task #144. Per-program breakdown of this week's planned miles and cardio minutes. The headline `plannedMiles` \/ `plannedCardioMin` above are the COMBINED totals across overlapping programs (a Tonal lift program stacked with a 5K running program for example); this array lets the chart tooltip drill in to per- program contributions. Empty for weeks where no program contributes plan_days (e.g. interior recovery gaps that only carry synthetic filler rows). Programs are ordered by sourceEntryIndex ascending.\n",
+    ),
 });
 export const GetWeeklyMileageResponse = zod.array(GetWeeklyMileageResponseItem);
 
@@ -1448,6 +1497,24 @@ export const GetEquipmentUsageResponseItem = zod.object({
   plannedToDateDistance: zod
     .number()
     .describe("Planned distance (mi) for this machine on or before today."),
+  byProgram: zod
+    .array(
+      zod.object({
+        sourceEntryIndex: zod.number(),
+        label: zod
+          .string()
+          .describe(
+            'Human-readable program name; falls back to \"Marathon Plan\" for legacy single-program campaigns.',
+          ),
+        plannedSessions: zod.number(),
+        plannedMinutes: zod.number(),
+        plannedLoad: zod.number(),
+        plannedDistance: zod.number(),
+      }),
+    )
+    .describe(
+      "Task #144. Per-program attribution of this machine's planned workload. Lets the \/equipment page (and the dashboard Arsenal tile) split a machine's planned minutes between concurrent programs — e.g. Tonal might be 80% Tonal Lift program and 20% 5K Improver cross-train. The headline `plannedSessions` \/ `plannedMinutes` \/ `plannedLoad` \/ `plannedDistance` above are the COMBINED totals across all programs that schedule this machine; this array sums to those totals. Empty when no program schedules the machine (i.e. unplanned actuals only). Programs are ordered by sourceEntryIndex ascending.\n",
+    ),
 });
 export const GetEquipmentUsageResponse = zod.array(
   GetEquipmentUsageResponseItem,

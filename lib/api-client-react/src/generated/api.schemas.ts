@@ -467,6 +467,24 @@ export interface UpdateMeasurementBody {
   notes?: string | null;
 }
 
+export interface DashboardSummaryProgram {
+  /** Stable identifier for this program within the active planner config (0..N-1). */
+  sourceEntryIndex: number;
+  /** Human-readable program name (entry.customName or template name); falls back to "Marathon Plan" for legacy single-program campaigns. */
+  label: string;
+  /** ISO yyyy-mm-dd. Last calendar date this program contributes a plan_day on. Programs in an entries-mode config can finish before the campaign marathonDate (e.g. a 5K Improver block that ends 12 weeks before race day) — this field surfaces that explicitly so the dashboard can show "Tonal Lift ends 2027-01-15" alongside the campaign marathon date.
+   */
+  endDate: string;
+  weeklyMilesPlanned: number;
+  /** Sum of `distance_mi` from logged workouts whose plan_day_id links back to one of this program's plan_days in the current week. Workouts that were never linked to a specific plan_day (e.g. unplanned cross-train) only contribute to the combined headline number.
+   */
+  weeklyMilesActual: number;
+  weeklyLoadPlanned: number;
+  weeklyLoadActual: number;
+  weeklySessionsPlanned: number;
+  weeklySessionsCompleted: number;
+}
+
 export interface DashboardSummary {
   currentWeek: number;
   currentPhase: string;
@@ -489,11 +507,22 @@ export interface DashboardSummary {
   weightToGoal: number;
   adherencePct: number;
   daysToRace: number;
+  /** Task #144. Per-program breakdown of the current week's planned and actual training load for runners stacking concurrent programs (e.g. a Tonal lift program alongside a 5K running program). Each program corresponds to one TemplateEntry currently contributing rows to plan_days. Headline weekly* fields above are the COMBINED totals across all programs; this array lets the dashboard drill in to per-program totals. Always present — for legacy single-program campaigns it contains exactly one element labelled "Marathon Plan". Programs are ordered by sourceEntryIndex ascending.
+   */
+  programs: DashboardSummaryProgram[];
 }
 
 export interface WeightPoint {
   date: string;
   weight: number;
+}
+
+export interface WeeklyMileageProgram {
+  sourceEntryIndex: number;
+  /** Human-readable program name; falls back to "Marathon Plan" for legacy single-program campaigns. */
+  label: string;
+  plannedMiles: number;
+  plannedCardioMin: number;
 }
 
 export interface WeeklyMileagePoint {
@@ -511,6 +540,19 @@ export interface WeeklyMileagePoint {
   /** Equipment with the most planned cardio minutes for the week, used to label cardio-only weeks in the chart tooltip (e.g. "Peloton Bike"). Null when the week has no planned cross-train cardio.
    */
   dominantCardioEquipment?: string | null;
+  /** Task #144. Per-program breakdown of this week's planned miles and cardio minutes. The headline `plannedMiles` / `plannedCardioMin` above are the COMBINED totals across overlapping programs (a Tonal lift program stacked with a 5K running program for example); this array lets the chart tooltip drill in to per- program contributions. Empty for weeks where no program contributes plan_days (e.g. interior recovery gaps that only carry synthetic filler rows). Programs are ordered by sourceEntryIndex ascending.
+   */
+  programs: WeeklyMileageProgram[];
+}
+
+export interface EquipmentUsageProgram {
+  sourceEntryIndex: number;
+  /** Human-readable program name; falls back to "Marathon Plan" for legacy single-program campaigns. */
+  label: string;
+  plannedSessions: number;
+  plannedMinutes: number;
+  plannedLoad: number;
+  plannedDistance: number;
 }
 
 export interface EquipmentUsage {
@@ -531,6 +573,9 @@ export interface EquipmentUsage {
   plannedToDateLoad: number;
   /** Planned distance (mi) for this machine on or before today. */
   plannedToDateDistance: number;
+  /** Task #144. Per-program attribution of this machine's planned workload. Lets the /equipment page (and the dashboard Arsenal tile) split a machine's planned minutes between concurrent programs — e.g. Tonal might be 80% Tonal Lift program and 20% 5K Improver cross-train. The headline `plannedSessions` / `plannedMinutes` / `plannedLoad` / `plannedDistance` above are the COMBINED totals across all programs that schedule this machine; this array sums to those totals. Empty when no program schedules the machine (i.e. unplanned actuals only). Programs are ordered by sourceEntryIndex ascending.
+   */
+  byProgram: EquipmentUsageProgram[];
 }
 
 export interface EquipmentPhaseRow {
