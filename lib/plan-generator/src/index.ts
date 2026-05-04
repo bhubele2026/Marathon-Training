@@ -2581,6 +2581,29 @@ export function generatePlanFromConfig(
   const daily: DailyRow[] = [];
   const body: BodyRow[] = [];
 
+  // Marathon-mode (blocks-mode) campaigns always end with the auto-pinned
+  // 16-week Marathon-Specific tail (the validator forces user blocks to
+  // sum to totalWeeks - MARATHON_TAIL_WEEKS), so the campaign-final
+  // Sunday is unambiguously a 26.2 mi marathon — `buildWeekDays` takes
+  // the race-day branch on that week (Sun → 26.2 mi marathon, Sat → race
+  // prep).
+  //
+  // Entries-mode plans (config.entries is an array) DO NOT auto-pin a
+  // marathon tail: each template (5K, 10K, half-marathon, marathon,
+  // hybrid) owns its own taper / race week via its `expand()` blocks.
+  // Forcing a 26.2 mi marathon onto the last Sunday of a Higdon Novice
+  // 5K plan is wrong, and it also disagrees with the Phase Planner
+  // sparkline (which calls `previewWeeklyMileage` with
+  // `appendMarathonTail: false` in entries-mode and therefore never
+  // substitutes the marathon). Mirror that policy here so the
+  // generator matches what the preview promises (Task #182).
+  //
+  // `generatePlanFromConfigPerEntry` builds synthetic configs with
+  // `entries: [...]` for each template entry, so this gate also stops
+  // the per-entry codepath from turning every entry's last week into a
+  // marathon Sunday in multi-template plans.
+  const isMarathonCampaign = !Array.isArray(config.entries);
+
   let weekNumber = 0;
   for (const block of expandedBlocks) {
     const recipe = RECIPES[block.focusType];
@@ -2588,7 +2611,7 @@ export function generatePlanFromConfig(
       weekNumber += 1;
       const wkStart = addDays(startDate, (weekNumber - 1) * 7);
       const wkEnd = addDays(wkStart, 6);
-      const isRaceWeek = weekNumber === totalWeeks;
+      const isRaceWeek = isMarathonCampaign && weekNumber === totalWeeks;
       const days = buildWeekDays({
         weekNumber,
         weekInBlock,
