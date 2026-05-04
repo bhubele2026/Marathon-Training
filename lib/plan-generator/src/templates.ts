@@ -1194,6 +1194,101 @@ export interface RaceDaySpec {
   totalLoad: number;
 }
 
+// ---------------------------------------------------------------------------
+// Hybrid marathon race-week taper (Task #198 / #206).
+//
+// The hybrid marathon plan's campaign-final week is force-overridden to a
+// fixed light Mon-Fri taper so it mirrors the load + minutes of a non-hybrid
+// marathon race week (Pfitz/Higdon style) regardless of slider position
+// (lift_primary .. run_primary) or days-per-week. Two callers must agree on
+// the same numbers:
+//
+//   - `buildHybridWeekDays` in `index.ts` — emits the per-day plan_day rows
+//     for Mon-Fri (load, equipment, distance, minutes, total_load).
+//   - `previewWeeklyMileage` in `index.ts` — pins the Phase Planner's
+//     race-week sparkline to the same Wed easy + Fri tune-up mileage.
+//
+// Co-locating the constants here (next to `RACE_DAY_SPECS`) means a future
+// tweak (e.g. bumping Wed from 3 → 4 mi or trimming Tue mobility) lands in
+// one place; the parity test in `plan-generator-preview.test.ts` keeps the
+// two callers in lock-step.
+//
+// Sat/Sun are intentionally NOT covered here: race-eve Saturday is shared
+// with non-hybrid race weeks (different shape) and race-day Sunday already
+// has its single source of truth in `RACE_DAY_SPECS[raceKind]`.
+export interface HybridRaceWeekDayTaper {
+  // Tonal accessory load. 0 on rest / pure-run days, 25 on the Tue
+  // maintenance mobility block.
+  strengthLoad: number;
+  // Tonal session minutes. Mirrors `strengthLoad` zeroing.
+  strengthMin: number;
+  // Cardio (e.g. Peloton Bike spin) minutes. 15 on Tue, 0 elsewhere.
+  cardioMin: number;
+  // Run mileage on this day. `null` for non-run days (Mon / Tue / Thu);
+  // a fixed mile count for Wed easy and Fri tune-up.
+  distanceMi: number | null;
+  // Static `total_load`. Set for days whose load is fully constant
+  // (Mon / Thu rest = 0; Tue maintenance = 40). `null` for run days
+  // (Wed / Fri) where total_load tracks computed `run_min` (which
+  // itself depends on the runner's per-mile pace).
+  totalLoad: number | null;
+}
+
+export const HYBRID_RACE_WEEK_TAPER: Readonly<{
+  mon: HybridRaceWeekDayTaper;
+  tue: HybridRaceWeekDayTaper;
+  wed: HybridRaceWeekDayTaper;
+  thu: HybridRaceWeekDayTaper;
+  fri: HybridRaceWeekDayTaper;
+}> = {
+  // Mon: full rest. Race-week taper begins.
+  mon: {
+    strengthLoad: 0,
+    strengthMin: 0,
+    cardioMin: 0,
+    distanceMi: null,
+    totalLoad: 0,
+  },
+  // Tue: light Tonal mobility (25 min, load 25) + 15 min easy Peloton
+  // Bike spin. Maintenance pairing — keep joints loose without taxing
+  // the legs four days out from race day. total_load = 25 + 15 = 40.
+  tue: {
+    strengthLoad: 25,
+    strengthMin: 25,
+    cardioMin: 15,
+    distanceMi: null,
+    totalLoad: 40,
+  },
+  // Wed: short easy aerobic Tread run (3 mi, conversational pace).
+  // No Tonal accessory — race week is for freshness, not stimulus.
+  wed: {
+    strengthLoad: 0,
+    strengthMin: 0,
+    cardioMin: 0,
+    distanceMi: 3.0,
+    totalLoad: null,
+  },
+  // Thu: full rest. Drops the heavy lift to prioritize freshness three
+  // days out from race day.
+  thu: {
+    strengthLoad: 0,
+    strengthMin: 0,
+    cardioMin: 0,
+    distanceMi: null,
+    totalLoad: 0,
+  },
+  // Fri: short tune-up Tread run (2 mi at marathon pace + 4 x 30s
+  // strides in the final mile). Mirrors the non-hybrid `Sharpener`
+  // Friday — wake the legs up without taxing them.
+  fri: {
+    strengthLoad: 0,
+    strengthMin: 0,
+    cardioMin: 0,
+    distanceMi: 2.0,
+    totalLoad: null,
+  },
+};
+
 export const RACE_DAY_SPECS: Readonly<
   Record<Exclude<PlanRaceKind, "none">, RaceDaySpec>
 > = {

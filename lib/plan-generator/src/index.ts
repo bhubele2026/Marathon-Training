@@ -12,6 +12,7 @@ import {
   getTemplateById,
   hybridMixSpec,
   hybridPhase,
+  HYBRID_RACE_WEEK_TAPER,
   liftPrimaryKind,
   primaryMachineKind,
   projectEntries,
@@ -1960,130 +1961,141 @@ function buildHybridWeekDays(opts: {
     // `previewWeeklyMileage` (mileage-only) holds because the preview
     // hard-codes the same Mon-Fri totals on marathon race week.
     if (isRaceWeek && dayOffset === 0 && raceKind === "marathon") {
-      // Mon: full rest day. Race-week taper begins.
+      // Mon: full rest day. Race-week taper begins. Mon-Fri values
+      // come from `HYBRID_RACE_WEEK_TAPER` (Task #206) — the single
+      // source of truth shared with `previewWeeklyMileage`.
+      const spec = HYBRID_RACE_WEEK_TAPER.mon;
       return {
         week: weekNumber,
         phase,
         date,
         day,
-        strength_load: 0,
+        strength_load: spec.strengthLoad,
         equipment: "Off / Rest",
         equipment_list: ["Off / Rest"],
         description:
           "Rest day. Light walk (20-30 min), foam roll, hydrate. Race-week taper begins." +
           customSuffix,
-        strength_min: 0,
-        cardio_min: 0,
+        strength_min: spec.strengthMin,
+        cardio_min: spec.cardioMin,
         run_min: 0,
-        distance_mi: null,
+        distance_mi: spec.distanceMi,
         pace: null,
         session_type: "Rest",
         is_rest: true,
-        total_load: 0,
+        total_load: spec.totalLoad ?? 0,
       };
     }
     if (isRaceWeek && dayOffset === 1 && raceKind === "marathon") {
-      // Tue: light Tonal mobility (25 min, load 25) + 15 min easy
-      // Peloton Bike spin. Maintenance-style pairing — keep joints
-      // loose without taxing the legs four days out from race day.
+      // Tue: light Tonal mobility + easy Peloton Bike spin.
+      // Maintenance-style pairing — keep joints loose without taxing
+      // the legs four days out from race day. Values from
+      // `HYBRID_RACE_WEEK_TAPER.tue`.
+      const spec = HYBRID_RACE_WEEK_TAPER.tue;
       return {
         week: weekNumber,
         phase,
         date,
         day,
-        strength_load: 25,
+        strength_load: spec.strengthLoad,
         equipment: "Tonal",
         equipment_list: ["Tonal", "Peloton Bike"],
         description:
-          "Race-week mobility: light Tonal upper (25 min, leave 4-5 reps in reserve), then 15 min easy Peloton Bike spin. Stay loose, legs fresh." +
+          `Race-week mobility: light Tonal upper (${spec.strengthMin} min, leave 4-5 reps in reserve), then ${spec.cardioMin} min easy Peloton Bike spin. Stay loose, legs fresh.` +
           customSuffix,
-        strength_min: 25,
-        cardio_min: 15,
+        strength_min: spec.strengthMin,
+        cardio_min: spec.cardioMin,
         run_min: 0,
-        distance_mi: null,
+        distance_mi: spec.distanceMi,
         pace: null,
         session_type: "Strength + Cardio",
         is_rest: false,
-        total_load: 40,
+        total_load: spec.totalLoad ?? spec.strengthLoad + spec.cardioMin,
       };
     }
     if (isRaceWeek && dayOffset === 2 && raceKind === "marathon") {
-      // Wed: short easy aerobic run (3 mi at easy pace, ~39 min). No
-      // Tonal accessory — race week is for freshness, not stimulus.
-      const wedDist = 3.0;
+      // Wed: short easy aerobic run at easy pace. No Tonal accessory
+      // — race week is for freshness, not stimulus. Distance from
+      // `HYBRID_RACE_WEEK_TAPER.wed.distanceMi`; minutes derive from
+      // the runner's per-mile easy pace.
+      const spec = HYBRID_RACE_WEEK_TAPER.wed;
+      const wedDist = spec.distanceMi ?? 0;
       const wedMin = Math.max(20, Math.round(wedDist * easyMinPerMi));
       return {
         week: weekNumber,
         phase,
         date,
         day,
-        strength_load: 0,
+        strength_load: spec.strengthLoad,
         equipment: "Peloton Tread",
         equipment_list: ["Peloton Tread"],
         description:
           `Easy aerobic Tread run (${wedDist} mi, conversational pace). Keep it short — the race is Sunday.` +
           customSuffix,
-        strength_min: 0,
-        cardio_min: 0,
+        strength_min: spec.strengthMin,
+        cardio_min: spec.cardioMin,
         run_min: wedMin,
         distance_mi: wedDist,
         pace: easyPace,
         session_type: "Aerobic Base",
         is_rest: false,
-        total_load: wedMin,
+        total_load: spec.totalLoad ?? wedMin,
       };
     }
     if (isRaceWeek && dayOffset === 3 && raceKind === "marathon") {
       // Thu: full rest day. Drops the heavy lift to prioritize
       // freshness — three days out from race day is for recovery,
-      // not stimulus.
+      // not stimulus. Values from `HYBRID_RACE_WEEK_TAPER.thu`.
+      const spec = HYBRID_RACE_WEEK_TAPER.thu;
       return {
         week: weekNumber,
         phase,
         date,
         day,
-        strength_load: 0,
+        strength_load: spec.strengthLoad,
         equipment: "Off / Rest",
         equipment_list: ["Off / Rest"],
         description:
           "Rest day. No lift, no run — full recovery for race day. Mobility + hydration only." +
           customSuffix,
-        strength_min: 0,
-        cardio_min: 0,
+        strength_min: spec.strengthMin,
+        cardio_min: spec.cardioMin,
         run_min: 0,
-        distance_mi: null,
+        distance_mi: spec.distanceMi,
         pace: null,
         session_type: "Rest",
         is_rest: true,
-        total_load: 0,
+        total_load: spec.totalLoad ?? 0,
       };
     }
     if (isRaceWeek && dayOffset === 4 && raceKind === "marathon") {
-      // Fri: short tune-up Tread run (2 mi at quality pace, ~22 min)
-      // with 4 x 30s strides in the final mile. Mirrors the
-      // non-hybrid `Sharpener` Friday — wake the legs up without
-      // taxing them.
-      const friDist = 2.0;
+      // Fri: short tune-up Tread run at quality pace with 4 x 30s
+      // strides in the final mile. Mirrors the non-hybrid
+      // `Sharpener` Friday — wake the legs up without taxing them.
+      // Distance from `HYBRID_RACE_WEEK_TAPER.fri.distanceMi`; minutes
+      // derive from the runner's per-mile quality pace.
+      const spec = HYBRID_RACE_WEEK_TAPER.fri;
+      const friDist = spec.distanceMi ?? 0;
       const friMin = Math.max(20, Math.round(friDist * qualityMinPerMi));
       return {
         week: weekNumber,
         phase,
         date,
         day,
-        strength_load: 0,
+        strength_load: spec.strengthLoad,
         equipment: "Peloton Tread",
         equipment_list: ["Peloton Tread"],
         description:
           `Tune-up Tread run (${friDist} mi at marathon pace) with 4 x 30s strides in the final mile. Wake the legs up, fuel + sleep tonight.` +
           customSuffix,
-        strength_min: 0,
-        cardio_min: 0,
+        strength_min: spec.strengthMin,
+        cardio_min: spec.cardioMin,
         run_min: friMin,
         distance_mi: friDist,
         pace: qualityPace,
         session_type: "Sharpener",
         is_rest: false,
-        total_load: friMin,
+        total_load: spec.totalLoad ?? friMin,
       };
     }
     if (isRaceWeek && dayOffset === 5 && raceKind !== "none") {
@@ -2958,8 +2970,13 @@ export function previewWeeklyMileage(
           //   - blocks-mode legacy fallback (raceKind="none") →
           //     entriesRaceDistanceMi defaults to MARATHON_DISTANCE_MI.
           if (resolvedEntriesRaceKind === "marathon") {
-            easyMi = 3.0;
-            qualityMi = 2.0;
+            // Wed easy + Fri tune-up come from the shared
+            // `HYBRID_RACE_WEEK_TAPER` constant (Task #206) so
+            // generator and preview cannot drift on race-week
+            // mileage. Mon/Tue/Thu are non-run days
+            // (`distanceMi: null`) so they don't contribute.
+            easyMi = HYBRID_RACE_WEEK_TAPER.wed.distanceMi ?? 0;
+            qualityMi = HYBRID_RACE_WEEK_TAPER.fri.distanceMi ?? 0;
             longMi = entriesRaceDistanceMi;
           } else {
             const schedule = pickHybridSchedule(
