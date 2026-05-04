@@ -16,7 +16,7 @@ export interface Error {
   error: string;
 }
 
-export type ValidationErrorErrorFieldErrors = {[key: string]: string[]};
+export type ValidationErrorErrorFieldErrors = { [key: string]: string[] };
 
 export type ValidationErrorError = {
   formErrors: string[];
@@ -45,7 +45,7 @@ export interface PlanDay {
   strengthLoad?: number | null;
   equipment: string;
   /** Ordered chip rail of every machine the runner will use that day. The UI renders one chip per element so a Tue strength + cardio day shows "TONAL · PELOTON BIKE" instead of just "TONAL". Per the task #77 contract the scalar `equipment` field above always equals `equipmentList[0]` (the *primary* machine for the day) so any back-compat code path that still reads the scalar — dashboard equipment usage, suggestions pairKey, `/equipment` page — agrees with the chip rail's lead chip. Nullable to match the underlying DB column on legacy rows that predate the task #77 backfill, but in practice the server normalizes both NULL and empty arrays to `[equipment]` before responding so this field is always present and non-empty in API responses; clients should still tolerate `null` defensively (e.g. `equipmentList ?? [equipment]`).
- */
+   */
   equipmentList?: string[] | null;
   description: string;
   /** Prescribed Tonal / lift minutes for this day (heavy block plus accessory work). Null on rows that pre-date the breakdown columns and have not yet been backfilled. */
@@ -68,10 +68,10 @@ export interface PlanDay {
   /** Per-field before/after diff for the "Edited" badge popover. One entry per item in customizedFields (same order). Empty when isCustomized is false. Values are stringified — the UI applies field-specific formatting (e.g. distanceMi gets a "mi" suffix). null values mean the field had no seeded value or has been cleared. */
   customizedDiff: PlanDayCustomizedDiffItem[];
   /** Task #135. Identifies which TemplateEntry within the active planner config produced this row. 0 for legacy single-program campaigns and for blocks-mode configs; 0..N-1 for entries-mode configs (one row per entry that overlaps the date). The composite UNIQUE(date, sourceEntryIndex) on plan_days lets two concurrent overlapping programs each emit a row on the same calendar date.
- */
+   */
   sourceEntryIndex: number;
   /** Task #135. Human-readable program name (entry.customName or template name) shown as a badge in /today and /plan when concurrent programs are running. Null on legacy blocks-mode rows.
- */
+   */
   sourceEntryLabel?: string | null;
 }
 
@@ -200,12 +200,13 @@ seeded weeks).
 /**
  * Where the suggested pace came from. "plan" if it was prescribed by the plan day, "history" if it was averaged from recent comparable sessions. Null when no pace suggestion is available.
  */
-export type WorkoutSuggestionsPaceSource = typeof WorkoutSuggestionsPaceSource[keyof typeof WorkoutSuggestionsPaceSource] | null;
-
+export type WorkoutSuggestionsPaceSource =
+  | (typeof WorkoutSuggestionsPaceSource)[keyof typeof WorkoutSuggestionsPaceSource]
+  | null;
 
 export const WorkoutSuggestionsPaceSource = {
-  plan: 'plan',
-  history: 'history',
+  plan: "plan",
+  history: "history",
 } as const;
 
 export interface WorkoutSuggestions {
@@ -217,9 +218,9 @@ export interface WorkoutSuggestions {
   sampleSize: number;
 }
 
-export type PlanDayWithSuggestions = PlanDay & ({
+export type PlanDayWithSuggestions = PlanDay & {
   suggestions?: WorkoutSuggestions | null;
-});
+};
 
 export type PlanWeekDetail = PlanWeek & {
   days: PlanDayWithSuggestions[];
@@ -246,32 +247,34 @@ export interface PlanOverview {
   weeklyMilesTarget?: number;
   longRunTarget?: number;
   /** Task #135. Every program (TemplateEntry) currently contributing rows to plan_days, ordered by sourceEntryIndex. The /plan overview renders this as a parallel-tracks panel so a runner can see at a glance which concurrent programs are stacked. Aggregated from plan_days so the panel always reflects the applied state. For legacy single-program campaigns this is a one-element array labelled "Marathon Plan".
- */
+   */
   programs?: PlanOverviewProgramsItem[];
 }
 
 /**
  * Optional tag used to order and label same-day sessions. AM sorts before PM, PM before Other; rows with no tag fall back to createdAt order.
  */
-export type WorkoutTimeOfDay = typeof WorkoutTimeOfDay[keyof typeof WorkoutTimeOfDay] | null;
-
+export type WorkoutTimeOfDay =
+  | (typeof WorkoutTimeOfDay)[keyof typeof WorkoutTimeOfDay]
+  | null;
 
 export const WorkoutTimeOfDay = {
-  AM: 'AM',
-  PM: 'PM',
-  Other: 'Other',
+  AM: "AM",
+  PM: "PM",
+  Other: "Other",
 } as const;
 
 /**
  * High-level modality of the session. Lets the user explicitly mark a workout as cardio, strength, or mixed independent of the more granular sessionType. Nullable for rows logged before this field existed.
  */
-export type WorkoutModality = typeof WorkoutModality[keyof typeof WorkoutModality] | null;
-
+export type WorkoutModality =
+  | (typeof WorkoutModality)[keyof typeof WorkoutModality]
+  | null;
 
 export const WorkoutModality = {
-  Cardio: 'Cardio',
-  Strength: 'Strength',
-  Mixed: 'Mixed',
+  Cardio: "Cardio",
+  Strength: "Strength",
+  Mixed: "Mixed",
 } as const;
 
 export interface Workout {
@@ -280,7 +283,7 @@ export interface Workout {
   date: string;
   equipment: string;
   /** Ordered chip rail of every machine used in the logged session. The scalar `equipment` always equals `equipmentList[0]`. Nullable for legacy rows; clients should tolerate `null` (e.g. `equipmentList ?? [equipment]`).
- */
+   */
   equipmentList?: string[] | null;
   sessionType: string;
   durationMin?: number | null;
@@ -310,10 +313,10 @@ export interface TodayPlan {
   date: string;
   hasPlan: boolean;
   /** Back-compat single-plan field — the lowest-sourceEntryIndex plan_day for today, or null if there is none. New clients should iterate `plans[]` to render concurrent program sessions side-by-side; this field stays populated so legacy clients still work when only one program is active.
- */
+   */
   plan?: PlanDay | null;
   /** Task #135. Every plan_day on today's date, ordered by sourceEntryIndex ascending. Concurrent overlapping programs each contribute one row so the UI can render program-attributed cards (lift program + run program) side-by-side. Empty when no plan day exists for today (pre-launch or post-marathon).
- */
+   */
   plans: PlanDay[];
   /** All workouts logged for today, ordered by timeOfDay (AM, PM, Other, then untagged) and then createdAt ascending. Empty when nothing has been logged yet. */
   loggedWorkouts: Workout[];
@@ -324,22 +327,24 @@ export interface TodayPlan {
   firstSession?: PlanDay | null;
 }
 
-export type CreateWorkoutBodyTimeOfDay = typeof CreateWorkoutBodyTimeOfDay[keyof typeof CreateWorkoutBodyTimeOfDay] | null;
-
+export type CreateWorkoutBodyTimeOfDay =
+  | (typeof CreateWorkoutBodyTimeOfDay)[keyof typeof CreateWorkoutBodyTimeOfDay]
+  | null;
 
 export const CreateWorkoutBodyTimeOfDay = {
-  AM: 'AM',
-  PM: 'PM',
-  Other: 'Other',
+  AM: "AM",
+  PM: "PM",
+  Other: "Other",
 } as const;
 
-export type CreateWorkoutBodyModality = typeof CreateWorkoutBodyModality[keyof typeof CreateWorkoutBodyModality] | null;
-
+export type CreateWorkoutBodyModality =
+  | (typeof CreateWorkoutBodyModality)[keyof typeof CreateWorkoutBodyModality]
+  | null;
 
 export const CreateWorkoutBodyModality = {
-  Cardio: 'Cardio',
-  Strength: 'Strength',
-  Mixed: 'Mixed',
+  Cardio: "Cardio",
+  Strength: "Strength",
+  Mixed: "Mixed",
 } as const;
 
 export interface CreateWorkoutBody {
@@ -347,7 +352,7 @@ export interface CreateWorkoutBody {
   date: string;
   equipment: string;
   /** Optional ordered chip rail of machines used. When omitted, the server stores `[equipment]`. When provided, the server validates `equipmentList[0] === equipment`.
- */
+   */
   equipmentList?: string[] | null;
   sessionType: string;
   durationMin?: number | null;
@@ -365,29 +370,31 @@ export interface CreateWorkoutBody {
   modality?: CreateWorkoutBodyModality;
 }
 
-export type UpdateWorkoutBodyTimeOfDay = typeof UpdateWorkoutBodyTimeOfDay[keyof typeof UpdateWorkoutBodyTimeOfDay] | null;
-
+export type UpdateWorkoutBodyTimeOfDay =
+  | (typeof UpdateWorkoutBodyTimeOfDay)[keyof typeof UpdateWorkoutBodyTimeOfDay]
+  | null;
 
 export const UpdateWorkoutBodyTimeOfDay = {
-  AM: 'AM',
-  PM: 'PM',
-  Other: 'Other',
+  AM: "AM",
+  PM: "PM",
+  Other: "Other",
 } as const;
 
-export type UpdateWorkoutBodyModality = typeof UpdateWorkoutBodyModality[keyof typeof UpdateWorkoutBodyModality] | null;
-
+export type UpdateWorkoutBodyModality =
+  | (typeof UpdateWorkoutBodyModality)[keyof typeof UpdateWorkoutBodyModality]
+  | null;
 
 export const UpdateWorkoutBodyModality = {
-  Cardio: 'Cardio',
-  Strength: 'Strength',
-  Mixed: 'Mixed',
+  Cardio: "Cardio",
+  Strength: "Strength",
+  Mixed: "Mixed",
 } as const;
 
 export interface UpdateWorkoutBody {
   date?: string;
   equipment?: string;
   /** Optional ordered chip rail of machines used. When `equipment` is also patched, the server validates `equipmentList[0] === equipment`. When only `equipmentList` is patched, the server rewrites the scalar to `equipmentList[0]`.
- */
+   */
   equipmentList?: string[] | null;
   sessionType?: string;
   durationMin?: number | null;
@@ -479,13 +486,13 @@ export interface WeeklyMileagePoint {
   plannedMiles: number;
   actualMiles: number;
   /** Total planned cross-train cardio minutes for the week (bike / row / spin etc., not running). Lets the dashboard chart show non-zero bars for bike-only or row-only weeks whose `plannedMiles` is 0.
- */
+   */
   plannedCardioMin: number;
   /** Sum of `cardio_min` across logged workouts dated within the week.
- */
+   */
   actualCardioMin: number;
   /** Equipment with the most planned cardio minutes for the week, used to label cardio-only weeks in the chart tooltip (e.g. "Peloton Bike"). Null when the week has no planned cross-train cardio.
- */
+   */
   dominantCardioEquipment?: string | null;
 }
 
@@ -572,18 +579,18 @@ export interface SetRaceWeekChecklistItemBody {
   checked: boolean;
 }
 
-export type PhaseBlockFocusType = typeof PhaseBlockFocusType[keyof typeof PhaseBlockFocusType];
-
+export type PhaseBlockFocusType =
+  (typeof PhaseBlockFocusType)[keyof typeof PhaseBlockFocusType];
 
 export const PhaseBlockFocusType = {
-  Base: 'Base',
-  Time_on_Feet: 'Time on Feet',
-  'Cardio_+_Weight_Loss': 'Cardio + Weight Loss',
-  Speed: 'Speed',
-  'Marathon-Specific': 'Marathon-Specific',
-  Taper: 'Taper',
-  Recovery: 'Recovery',
-  Custom: 'Custom',
+  Base: "Base",
+  Time_on_Feet: "Time on Feet",
+  "Cardio_+_Weight_Loss": "Cardio + Weight Loss",
+  Speed: "Speed",
+  "Marathon-Specific": "Marathon-Specific",
+  Taper: "Taper",
+  Recovery: "Recovery",
+  Custom: "Custom",
 } as const;
 
 /**
@@ -657,13 +664,13 @@ export interface PlanTemplateMetadata {
 /**
  * Skill-level bucket used to group templates in the picker.
  */
-export type PlanTemplateLevel = typeof PlanTemplateLevel[keyof typeof PlanTemplateLevel];
-
+export type PlanTemplateLevel =
+  (typeof PlanTemplateLevel)[keyof typeof PlanTemplateLevel];
 
 export const PlanTemplateLevel = {
-  Beginner: 'Beginner',
-  Intermediate: 'Intermediate',
-  Advanced: 'Advanced',
+  Beginner: "Beginner",
+  Intermediate: "Intermediate",
+  Advanced: "Advanced",
 } as const;
 
 export interface PlanTemplate {
@@ -770,14 +777,14 @@ export interface DeletePlannerConfigResponse {
 Default for new accounts is "effort".
 
  */
-export type UserPreferencesRunTargetingMode = typeof UserPreferencesRunTargetingMode[keyof typeof UserPreferencesRunTargetingMode];
-
+export type UserPreferencesRunTargetingMode =
+  (typeof UserPreferencesRunTargetingMode)[keyof typeof UserPreferencesRunTargetingMode];
 
 export const UserPreferencesRunTargetingMode = {
-  effort: 'effort',
-  intervals: 'intervals',
-  hr_zones: 'hr_zones',
-  pace: 'pace',
+  effort: "effort",
+  intervals: "intervals",
+  hr_zones: "hr_zones",
+  pace: "pace",
 } as const;
 
 /**
@@ -795,14 +802,14 @@ Default for new accounts is "effort".
   updatedAt: string;
 }
 
-export type UpdateUserPreferencesBodyRunTargetingMode = typeof UpdateUserPreferencesBodyRunTargetingMode[keyof typeof UpdateUserPreferencesBodyRunTargetingMode];
-
+export type UpdateUserPreferencesBodyRunTargetingMode =
+  (typeof UpdateUserPreferencesBodyRunTargetingMode)[keyof typeof UpdateUserPreferencesBodyRunTargetingMode];
 
 export const UpdateUserPreferencesBodyRunTargetingMode = {
-  effort: 'effort',
-  intervals: 'intervals',
-  hr_zones: 'hr_zones',
-  pace: 'pace',
+  effort: "effort",
+  intervals: "intervals",
+  hr_zones: "hr_zones",
+  pace: "pace",
 } as const;
 
 /**
@@ -826,9 +833,8 @@ export interface ApplyPlannerConfigResponse {
 }
 
 export type ListWorkoutsParams = {
-limit?: number;
-from?: string;
-to?: string;
-equipment?: string;
+  limit?: number;
+  from?: string;
+  to?: string;
+  equipment?: string;
 };
-
