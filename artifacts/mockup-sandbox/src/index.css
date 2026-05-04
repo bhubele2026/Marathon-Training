@@ -42,13 +42,15 @@
   --color-sidebar-ring: hsl(var(--sidebar-ring));
 }
 
-/* LIGHT MODE - Arctic Performance default theme.
-   Values mirror the `arctic-performance` entry in
-   `./components/mockups/_shared/palettes.ts` (the canonical theme
-   source) so the sandbox's default render matches the live Command
-   Center. The PaletteVariant gallery components inline their own
-   per-palette CSS variables and continue to override these defaults
-   when rendering the other named palettes. */
+/* LIGHT MODE — non-palette structural defaults.
+   Palette CSS variables (--background, --foreground, --primary, ...) are
+   injected at runtime by `./theme-bootstrap.ts` from the canonical
+   `PALETTES["arctic-performance"]` definition in
+   `./components/mockups/_shared/palettes.ts`, so the sandbox default render
+   stays in lock-step with the live Command Center without any hand-copying.
+   The PaletteVariant gallery components inline their own per-palette CSS
+   variables and continue to override these defaults when rendering the other
+   named palettes. */
 :root {
   --button-outline: rgba(0,0,0, .10);
   --badge-outline: rgba(0,0,0, .05);
@@ -57,43 +59,6 @@
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
 
-  --background: 210 22% 97%;
-  --foreground: 215 30% 14%;
-  --card: 0 0% 100%;
-  --card-foreground: 215 30% 14%;
-  --card-border: 210 18% 88%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 215 30% 14%;
-  --popover-border: 210 18% 88%;
-  --primary: 178 65% 36%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 210 22% 90%;
-  --secondary-foreground: 215 30% 18%;
-  --muted: 210 22% 92%;
-  --muted-foreground: 215 14% 42%;
-  --accent: 160 50% 48%;
-  --accent-foreground: 0 0% 100%;
-  --destructive: 0 70% 52%;
-  --destructive-foreground: 0 0% 100%;
-  --border: 210 18% 86%;
-  --input: 210 18% 86%;
-  --ring: 178 65% 36%;
-  --brand-orange: 178 65% 36%;
-  --brand-purple: 160 50% 48%;
-  --chart-1: 178 65% 38%;
-  --chart-2: 160 55% 50%;
-  --chart-3: 215 50% 50%;
-  --chart-4: 260 35% 55%;
-  --chart-5: 30 60% 55%;
-  --sidebar: 215 25% 96%;
-  --sidebar-foreground: 215 30% 18%;
-  --sidebar-primary: 178 65% 36%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 210 22% 91%;
-  --sidebar-accent-foreground: 215 30% 18%;
-  --sidebar-border: 210 18% 86%;
-  --sidebar-ring: 178 65% 36%;
-
   --font-sans: 'Inter', sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Menlo, monospace;
@@ -101,7 +66,8 @@
   --spacing: 0.25rem;
 }
 
-/* DARK MODE - Arctic Performance dark variant. */
+/* DARK MODE — non-palette structural defaults. Palette tokens are injected
+   alongside this rule by `./theme-bootstrap.ts`. */
 .dark {
   --button-outline: rgba(255,255,255, .10);
   --badge-outline: rgba(255,255,255, .05);
@@ -109,43 +75,6 @@
 
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
-
-  --background: 215 28% 9%;
-  --foreground: 210 20% 92%;
-  --card: 215 25% 13%;
-  --card-foreground: 210 20% 92%;
-  --card-border: 215 20% 18%;
-  --popover: 215 25% 13%;
-  --popover-foreground: 210 20% 92%;
-  --popover-border: 215 20% 18%;
-  --primary: 178 65% 50%;
-  --primary-foreground: 215 30% 8%;
-  --secondary: 215 20% 18%;
-  --secondary-foreground: 210 20% 92%;
-  --muted: 215 18% 16%;
-  --muted-foreground: 210 14% 62%;
-  --accent: 160 55% 58%;
-  --accent-foreground: 215 30% 8%;
-  --destructive: 0 65% 58%;
-  --destructive-foreground: 0 0% 100%;
-  --border: 215 20% 18%;
-  --input: 215 20% 18%;
-  --ring: 178 65% 50%;
-  --brand-orange: 178 65% 50%;
-  --brand-purple: 160 55% 58%;
-  --chart-1: 178 65% 55%;
-  --chart-2: 160 55% 60%;
-  --chart-3: 215 60% 65%;
-  --chart-4: 260 45% 65%;
-  --chart-5: 30 70% 62%;
-  --sidebar: 215 30% 7%;
-  --sidebar-foreground: 210 20% 88%;
-  --sidebar-primary: 178 65% 50%;
-  --sidebar-primary-foreground: 215 30% 8%;
-  --sidebar-accent: 215 22% 16%;
-  --sidebar-accent-foreground: 210 20% 92%;
-  --sidebar-border: 215 22% 14%;
-  --sidebar-ring: 178 65% 50%;
 }
 
 @layer base {

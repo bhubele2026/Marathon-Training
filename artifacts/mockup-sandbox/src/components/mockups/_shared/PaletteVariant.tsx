@@ -6,50 +6,14 @@ import { MockToday } from "./MockToday";
 import { PaletteStrip } from "./PaletteStrip";
 import {
   PALETTES,
+  paletteTokensToCssVars,
   type PaletteDefinition,
   type PaletteMode,
   type PaletteTokens,
 } from "./palettes";
 
 function tokensToCss(tokens: PaletteTokens): CSSProperties {
-  return {
-    "--background": tokens.background,
-    "--foreground": tokens.foreground,
-    "--border": tokens.border,
-    "--card": tokens.card,
-    "--card-foreground": tokens.cardForeground,
-    "--card-border": tokens.cardBorder,
-    "--sidebar": tokens.sidebar,
-    "--sidebar-foreground": tokens.sidebarForeground,
-    "--sidebar-border": tokens.sidebarBorder,
-    "--sidebar-primary": tokens.sidebarPrimary,
-    "--sidebar-primary-foreground": tokens.sidebarPrimaryForeground,
-    "--sidebar-accent": tokens.sidebarAccent,
-    "--sidebar-accent-foreground": tokens.sidebarAccentForeground,
-    "--sidebar-ring": tokens.sidebarRing,
-    "--popover": tokens.popover,
-    "--popover-foreground": tokens.popoverForeground,
-    "--popover-border": tokens.popoverBorder,
-    "--primary": tokens.primary,
-    "--primary-foreground": tokens.primaryForeground,
-    "--secondary": tokens.secondary,
-    "--secondary-foreground": tokens.secondaryForeground,
-    "--muted": tokens.muted,
-    "--muted-foreground": tokens.mutedForeground,
-    "--accent": tokens.accent,
-    "--accent-foreground": tokens.accentForeground,
-    "--destructive": tokens.destructive,
-    "--destructive-foreground": tokens.destructiveForeground,
-    "--input": tokens.input,
-    "--ring": tokens.ring,
-    "--brand-orange": tokens.brandOrange,
-    "--brand-purple": tokens.brandPurple,
-    "--chart-1": tokens.chart1,
-    "--chart-2": tokens.chart2,
-    "--chart-3": tokens.chart3,
-    "--chart-4": tokens.chart4,
-    "--chart-5": tokens.chart5,
-  } as CSSProperties;
+  return paletteTokensToCssVars(tokens) as CSSProperties;
 }
 
 interface ScreenFrameProps {

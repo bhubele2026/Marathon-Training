@@ -507,6 +507,67 @@ export const PALETTES: Record<string, PaletteDefinition> = {
   },
 };
 
+/**
+ * Single source of truth for mapping {@link PaletteTokens} fields to the CSS
+ * custom properties they are written to. Used both by the runtime
+ * theme-bootstrap (which writes the `arctic-performance` defaults to
+ * `:root` / `.dark`) and by the gallery's per-palette inline overrides in
+ * `PaletteVariant`. Keep this list in sync with the `PaletteTokens` interface.
+ */
+export const PALETTE_TOKEN_TO_CSS_VAR: Record<keyof PaletteTokens, string> = {
+  background: "--background",
+  foreground: "--foreground",
+  border: "--border",
+  card: "--card",
+  cardForeground: "--card-foreground",
+  cardBorder: "--card-border",
+  sidebar: "--sidebar",
+  sidebarForeground: "--sidebar-foreground",
+  sidebarBorder: "--sidebar-border",
+  sidebarPrimary: "--sidebar-primary",
+  sidebarPrimaryForeground: "--sidebar-primary-foreground",
+  sidebarAccent: "--sidebar-accent",
+  sidebarAccentForeground: "--sidebar-accent-foreground",
+  sidebarRing: "--sidebar-ring",
+  popover: "--popover",
+  popoverForeground: "--popover-foreground",
+  popoverBorder: "--popover-border",
+  primary: "--primary",
+  primaryForeground: "--primary-foreground",
+  secondary: "--secondary",
+  secondaryForeground: "--secondary-foreground",
+  muted: "--muted",
+  mutedForeground: "--muted-foreground",
+  accent: "--accent",
+  accentForeground: "--accent-foreground",
+  destructive: "--destructive",
+  destructiveForeground: "--destructive-foreground",
+  input: "--input",
+  ring: "--ring",
+  brandOrange: "--brand-orange",
+  brandPurple: "--brand-purple",
+  chart1: "--chart-1",
+  chart2: "--chart-2",
+  chart3: "--chart-3",
+  chart4: "--chart-4",
+  chart5: "--chart-5",
+};
+
+/**
+ * Translates a {@link PaletteTokens} object into a `{ "--var": "value" }`
+ * map suitable for either inline React `style` props or for serialising into
+ * a `<style>` rule body.
+ */
+export function paletteTokensToCssVars(
+  tokens: PaletteTokens,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [tokenKey, cssVar] of Object.entries(PALETTE_TOKEN_TO_CSS_VAR)) {
+    out[cssVar] = tokens[tokenKey as keyof PaletteTokens];
+  }
+  return out;
+}
+
 export const PHASE_LABELS: Array<keyof PaletteDefinition["phaseColors"]> = [
   "foundation",
   "aerobic",
