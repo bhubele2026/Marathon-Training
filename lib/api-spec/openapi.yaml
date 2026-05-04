@@ -1287,6 +1287,22 @@ components:
           enum: [Cardio, Strength, Mixed]
           nullable: true
           description: High-level modality of the session. Lets the user explicitly mark a workout as cardio, strength, or mixed independent of the more granular sessionType. Nullable for rows logged before this field existed.
+        prescribedRunTarget:
+          nullable: true
+          description: |
+            Snapshot of the matched plan day's prescribed run target, populated by joining `planDayId` against `plan_days`. Lets the Training Log table render the user's chosen run-target line (effort / intervals / HR zone / pace) next to the actual results without the client having to fetch each plan day separately. Null when the workout has no `planDayId` (quick-logged Lifestyle activity, off-plan run) or when the referenced plan day no longer exists.
+          type: object
+          required: [sessionType, week, runMin, distanceMi, pace]
+          properties:
+            sessionType:
+              type: string
+              description: sessionType of the prescribed plan day (e.g. "Long Run", "Tempo"). Drives the intensity bucket the run target line falls into.
+            week:
+              type: integer
+              description: 1-indexed campaign week of the prescribed plan day. Drives the walk/run interval recipe ramp in intervals mode.
+            runMin: { type: number, nullable: true }
+            distanceMi: { type: number, nullable: true }
+            pace: { type: string, nullable: true }
         createdAt: { type: string, format: date-time }
 
     CreateWorkoutBody:

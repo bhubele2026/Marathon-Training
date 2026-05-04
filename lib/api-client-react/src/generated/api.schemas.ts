@@ -277,6 +277,20 @@ export const WorkoutModality = {
   Mixed: "Mixed",
 } as const;
 
+/**
+ * Snapshot of the matched plan day's prescribed run target, populated by joining `planDayId` against `plan_days`. Lets the Training Log table render the user's chosen run-target line (effort / intervals / HR zone / pace) next to the actual results without the client having to fetch each plan day separately. Null when the workout has no `planDayId` (quick-logged Lifestyle activity, off-plan run) or when the referenced plan day no longer exists.
+
+ */
+export type WorkoutPrescribedRunTarget = {
+  /** sessionType of the prescribed plan day (e.g. "Long Run", "Tempo"). Drives the intensity bucket the run target line falls into. */
+  sessionType: string;
+  /** 1-indexed campaign week of the prescribed plan day. Drives the walk/run interval recipe ramp in intervals mode. */
+  week: number;
+  runMin: number | null;
+  distanceMi: number | null;
+  pace: string | null;
+} | null;
+
 export interface Workout {
   id: number;
   planDayId?: number | null;
@@ -306,6 +320,9 @@ export interface Workout {
   timeOfDay?: WorkoutTimeOfDay;
   /** High-level modality of the session. Lets the user explicitly mark a workout as cardio, strength, or mixed independent of the more granular sessionType. Nullable for rows logged before this field existed. */
   modality?: WorkoutModality;
+  /** Snapshot of the matched plan day's prescribed run target, populated by joining `planDayId` against `plan_days`. Lets the Training Log table render the user's chosen run-target line (effort / intervals / HR zone / pace) next to the actual results without the client having to fetch each plan day separately. Null when the workout has no `planDayId` (quick-logged Lifestyle activity, off-plan run) or when the referenced plan day no longer exists.
+   */
+  prescribedRunTarget?: WorkoutPrescribedRunTarget;
   createdAt: string;
 }
 

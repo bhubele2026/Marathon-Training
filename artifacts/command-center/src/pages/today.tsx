@@ -409,6 +409,25 @@ export default function Today() {
                         </span>
                       ))}
                     </span>
+                    {/* Task #140: surface the prescribed run-target
+                        line in the user's chosen mode (effort /
+                        intervals / HR zone / pace) next to the actuals
+                        so the runner can compare what they were asked
+                        to do vs what they actually did. The component
+                        no-ops on rest / strength / cardio days, so we
+                        can render it unconditionally — only run-shaped
+                        plan days actually surface a target. */}
+                    {today.plan && (
+                      <RunTargetLine
+                        sessionType={today.plan.sessionType}
+                        week={today.plan.week}
+                        runMin={today.plan.runMin}
+                        distanceMi={today.plan.distanceMi}
+                        pace={today.plan.pace}
+                        variant="prominent"
+                        testId={`session-today-${session.id}-run-target`}
+                      />
+                    )}
                     <ActualBreakdown
                       totalMin={session.totalMin}
                       strengthMin={session.strengthMin}

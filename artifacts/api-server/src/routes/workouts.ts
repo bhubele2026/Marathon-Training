@@ -1,9 +1,9 @@
 import { Router, type IRouter } from "express";
-import { db, workoutsTable } from "@workspace/db";
+import { db, planDaysTable, workoutsTable } from "@workspace/db";
 import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { CreateWorkoutBody, UpdateWorkoutBody, ListWorkoutsQueryParams } from "@workspace/api-zod";
 import { LIFESTYLE_EQUIPMENT } from "@workspace/plan-generator";
-import { toWorkout } from "../lib/transforms";
+import { toWorkout, type PrescribedRunTargetSource } from "../lib/transforms";
 
 const router: IRouter = Router();
 
@@ -54,6 +54,29 @@ function resolveEquipment(
   return {};
 }
 
+// Look up the matched plan day for a workout's `planDayId` so the
+// canonical Workout response can include `prescribedRunTarget` (Task
+// #140). Returns null when the workout has no planDayId or the
+// referenced plan day no longer exists. Kept outside the route handlers
+// so create / update / list all serialize the same shape.
+async function fetchPrescribedRunTarget(
+  planDayId: number | null,
+): Promise<PrescribedRunTargetSource | null> {
+  if (planDayId == null) return null;
+  const rows = await db
+    .select({
+      sessionType: planDaysTable.sessionType,
+      week: planDaysTable.week,
+      runMin: planDaysTable.runMin,
+      distanceMi: planDaysTable.distanceMi,
+      pace: planDaysTable.pace,
+    })
+    .from(planDaysTable)
+    .where(eq(planDaysTable.id, planDayId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 router.get("/workouts", async (req, res): Promise<void> => {
   const parsed = ListWorkoutsQueryParams.safeParse(req.query);
   if (!parsed.success) {
@@ -65,9 +88,24 @@ router.get("/workouts", async (req, res): Promise<void> => {
   if (from) conditions.push(gte(workoutsTable.date, from));
   if (to) conditions.push(lte(workoutsTable.date, to));
   if (equipment) conditions.push(eq(workoutsTable.equipment, equipment));
+  // Left join the matched plan day so each Workout row carries the
+  // prescribed run-target snapshot (Task #140). Rows with no
+  // `planDayId`, or whose referenced plan day was deleted, get a NULL
+  // join and serialize `prescribedRunTarget: null` — the client treats
+  // that as "no target line for this row" and renders nothing.
   const rows = await db
-    .select()
+    .select({
+      workout: workoutsTable,
+      planDay: {
+        sessionType: planDaysTable.sessionType,
+        week: planDaysTable.week,
+        runMin: planDaysTable.runMin,
+        distanceMi: planDaysTable.distanceMi,
+        pace: planDaysTable.pace,
+      },
+    })
     .from(workoutsTable)
+    .leftJoin(planDaysTable, eq(workoutsTable.planDayId, planDaysTable.id))
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(
       desc(workoutsTable.date),
@@ -82,7 +120,17 @@ router.get("/workouts", async (req, res): Promise<void> => {
       desc(workoutsTable.createdAt),
     )
     .limit(limit ?? 500);
-  res.json(rows.map(toWorkout));
+  res.json(
+    rows.map((r) =>
+      toWorkout(
+        r.workout,
+        // The leftJoin returns an object with all-null columns when no
+        // plan day matched; use sessionType (NOT NULL on the table) as
+        // the discriminator so we don't pass a half-null PlanDaySource.
+        r.planDay && r.planDay.sessionType != null ? r.planDay : null,
+      ),
+    ),
+  );
 });
 
 router.post("/workouts", async (req, res): Promise<void> => {
@@ -123,7 +171,8 @@ router.post("/workouts", async (req, res): Promise<void> => {
     timeOfDay: d.timeOfDay ?? null,
     modality: d.modality ?? null,
   }).returning();
-  res.status(201).json(toWorkout(inserted[0]!));
+  const prescribed = await fetchPrescribedRunTarget(inserted[0]!.planDayId);
+  res.status(201).json(toWorkout(inserted[0]!, prescribed));
 });
 
 router.patch("/workouts/:id", async (req, res): Promise<void> => {
@@ -162,7 +211,8 @@ router.patch("/workouts/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "not found" });
     return;
   }
-  res.json(toWorkout(updated[0]));
+  const prescribed = await fetchPrescribedRunTarget(updated[0].planDayId);
+  res.json(toWorkout(updated[0], prescribed));
 });
 
 router.delete("/workouts/:id", async (req, res): Promise<void> => {

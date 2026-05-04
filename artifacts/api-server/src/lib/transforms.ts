@@ -195,7 +195,24 @@ export function toPlanWeek(
   };
 }
 
-export function toWorkout(r: WorkoutRow) {
+// Subset of the matched plan day used to render the Training Log's
+// prescribed run target line (Task #140). The /workouts list route does
+// the join so the per-row UI doesn't need to refetch each plan day; on
+// rows with no `planDayId` (quick-logged Lifestyle activities, off-plan
+// runs) or where the referenced plan day no longer exists, the caller
+// passes `undefined` and we serialize `prescribedRunTarget: null`.
+export interface PrescribedRunTargetSource {
+  sessionType: string;
+  week: number;
+  runMin: number | null;
+  distanceMi: number | null;
+  pace: string | null;
+}
+
+export function toWorkout(
+  r: WorkoutRow,
+  prescribed?: PrescribedRunTargetSource | null,
+) {
   return {
     id: r.id,
     planDayId: r.planDayId,
@@ -234,6 +251,20 @@ export function toWorkout(r: WorkoutRow) {
     notes: r.notes,
     timeOfDay: r.timeOfDay,
     modality: r.modality,
+    // Task #140: snapshot of the matched plan day's prescribed run
+    // target so the /log table can render the user's chosen target line
+    // (effort / intervals / HR zone / pace) next to the actual results.
+    // Null when the workout has no plan day join (quick-logged Lifestyle
+    // activity, off-plan run) or when the referenced plan day is gone.
+    prescribedRunTarget: prescribed
+      ? {
+          sessionType: prescribed.sessionType,
+          week: prescribed.week,
+          runMin: prescribed.runMin,
+          distanceMi: prescribed.distanceMi,
+          pace: prescribed.pace,
+        }
+      : null,
     createdAt: r.createdAt.toISOString(),
   };
 }

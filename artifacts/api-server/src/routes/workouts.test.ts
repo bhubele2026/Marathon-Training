@@ -10,6 +10,7 @@ import app from "../app";
 import {
   cleanTestData,
   expectMatchesSchema,
+  insertPlanDay,
   insertWorkout,
   E_OUTDOOR,
   E_TREADMILL,
@@ -170,6 +171,73 @@ describe("GET /api/workouts", () => {
     const res = await request(app).get("/api/workouts").query({ limit: "not-a-number" });
     expect(res.status).toBe(400);
     expectMatchesSchema(ValidationErrorResponse, res.body);
+  });
+});
+
+describe("GET /api/workouts (prescribed run target join, Task #140)", () => {
+  // The /log Training Log table renders the user's chosen run-target
+  // line (effort / intervals / HR zone / pace) next to the actuals.
+  // To avoid an N+1 of plan-day fetches from the client, the server
+  // joins workouts.plan_day_id against plan_days and snapshots the
+  // matched day's sessionType / week / runMin / distanceMi / pace into
+  // the new `prescribedRunTarget` nested object on the wire shape.
+  it("populates prescribedRunTarget from the joined plan day when planDayId is set", async () => {
+    // Use a week inside the cleanTestData range (TEST_WEEK_MIN..MAX,
+     // 8000..8999) so the inserted plan day gets scrubbed between tests
+     // and can't leak into other test files that count plan rows.
+    const planDay = await insertPlanDay(8140, "Foundation Build", {
+      date: "2099-06-21",
+      day: "Mon",
+      sessionType: "Long Run",
+      equipment: E_OUTDOOR,
+      runMin: 60,
+      distanceMi: 6,
+      pace: "10:00",
+    });
+    await insertWorkout({
+      date: "2099-06-21",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      planDayId: planDay.id,
+      runMin: 58,
+      distanceMi: 5.9,
+    });
+
+    const res = await request(app)
+      .get("/api/workouts")
+      .query({ from: "2099-06-21", to: "2099-06-21" });
+    expect(res.status).toBe(200);
+    expectMatchesSchema(ListWorkoutsResponse, res.body);
+    const rows = res.body as Array<{ prescribedRunTarget: unknown }>;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.prescribedRunTarget).toEqual({
+      sessionType: "Long Run",
+      week: 8140,
+      runMin: 60,
+      distanceMi: 6,
+      pace: "10:00",
+    });
+  });
+
+  it("returns prescribedRunTarget=null for workouts with no planDayId (quick-logged Lifestyle / off-plan rows)", async () => {
+    await insertWorkout({
+      date: "2099-06-22",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      // planDayId omitted — these are off-plan rows the join can't
+      // resolve, so the wire payload must surface a null target rather
+      // than a fabricated one.
+      distanceMi: 3,
+    });
+
+    const res = await request(app)
+      .get("/api/workouts")
+      .query({ from: "2099-06-22", to: "2099-06-22" });
+    expect(res.status).toBe(200);
+    expectMatchesSchema(ListWorkoutsResponse, res.body);
+    const rows = res.body as Array<{ prescribedRunTarget: unknown }>;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.prescribedRunTarget).toBeNull();
   });
 });
 

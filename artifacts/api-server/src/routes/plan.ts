@@ -499,7 +499,7 @@ router.get("/plan/today", async (_req, res) => {
     hasPlan: planRows.length > 0,
     plan: planRow ? toPlanDay(planRow) : null,
     plans: planRows.map(toPlanDay),
-    loggedWorkouts: loggedRows.map(toWorkout),
+    loggedWorkouts: loggedRows.map((r) => toWorkout(r)),
     suggestions,
     daysUntilStart,
     firstSession,

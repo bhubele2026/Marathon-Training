@@ -11,6 +11,7 @@ import { formatDistance, formatLoad, formatDate } from "@/lib/format";
 import { Edit, Trash2, Plus } from "lucide-react";
 import { WorkoutForm } from "@/components/workout-form";
 import { ActualBreakdown } from "@/components/actual-breakdown";
+import { RunTargetLine } from "@/components/run-target-line";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -184,6 +185,27 @@ export default function Log() {
                         variant="compact"
                         testIdPrefix={`log-row-${workout.id}`}
                       />
+                      {/* Task #140: surface the prescribed run-target
+                          line in the user's chosen mode so the runner
+                          can compare what the plan asked for vs the
+                          actuals shown above. The component no-ops on
+                          rest / strength / cardio days and on rows that
+                          have no plan-day join (quick-logged Lifestyle
+                          activities, off-plan runs), so we can render
+                          it unconditionally. */}
+                      {workout.prescribedRunTarget && (
+                        <div className="mt-1 flex justify-end">
+                          <RunTargetLine
+                            sessionType={workout.prescribedRunTarget.sessionType}
+                            week={workout.prescribedRunTarget.week}
+                            runMin={workout.prescribedRunTarget.runMin}
+                            distanceMi={workout.prescribedRunTarget.distanceMi}
+                            pace={workout.prescribedRunTarget.pace}
+                            variant="compact"
+                            testId={`log-row-${workout.id}-run-target`}
+                          />
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="text-right font-mono">{workout.pace || '-'}</TableCell>
                     <TableCell className="text-right font-mono">{formatLoad(workout.totalLoad)}</TableCell>

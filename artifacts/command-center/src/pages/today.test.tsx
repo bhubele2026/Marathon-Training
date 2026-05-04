@@ -256,4 +256,60 @@ describe("Today page — pre-launch countdown", () => {
     ).toBe("Tonal");
     expect(screen.queryByTestId("chip-equipment-actual-555-1")).toBeNull();
   });
+
+  // Task #140: the prescribed run-target line should appear next to the
+  // actuals on the logged Mission Accomplished card so the runner can
+  // compare what the plan asked for vs what they did. The mode hook is
+  // stubbed at the top of this file to "effort", so we expect the EFFORT
+  // label and an effort-bucket primary string.
+  it("renders the prescribed run target on the logged Mission Accomplished card for run-shaped plan days", () => {
+    const runPlan = {
+      ...firstSession,
+      week: 4,
+      sessionType: "Long Run",
+      runMin: 60,
+      distanceMi: 6,
+      pace: "10:00",
+    };
+    renderWithData({
+      date: "2026-05-05",
+      hasPlan: true,
+      plan: runPlan,
+      loggedWorkouts: [
+        {
+          ...loggedSession,
+          sessionType: "Long Run",
+          runMin: 58,
+          distanceMi: 5.9,
+        },
+      ],
+      suggestions: null,
+      daysUntilStart: null,
+      firstSession: null,
+    });
+
+    const target = screen.getByTestId("session-today-555-run-target");
+    // The mode tag shows the user's chosen mode (mocked to "effort"
+    // above) so the runner remembers which mode the plan is being
+    // surfaced in.
+    expect(target.getAttribute("data-run-targeting-mode")).toBe("effort");
+    expect(target.textContent).toContain("Effort");
+  });
+
+  it("does NOT render a prescribed run target on the logged Mission Accomplished card for non-run plan days (rest / strength / cardio)", () => {
+    // firstSession is a Strength + Cardio day with runMin/distanceMi
+    // null — RunTargetLine returns null on these so the actuals card
+    // stays uncluttered.
+    renderWithData({
+      date: "2026-05-05",
+      hasPlan: true,
+      plan: firstSession,
+      loggedWorkouts: [loggedSession],
+      suggestions: null,
+      daysUntilStart: null,
+      firstSession: null,
+    });
+
+    expect(screen.queryByTestId("session-today-555-run-target")).toBeNull();
+  });
 });

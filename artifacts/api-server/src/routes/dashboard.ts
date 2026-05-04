@@ -397,7 +397,7 @@ router.get("/dashboard/long-run-progression", async (_req, res) => {
 
 router.get("/dashboard/recent-activity", async (_req, res) => {
   const rows = await db.select().from(workoutsTable).orderBy(desc(workoutsTable.date), desc(workoutsTable.createdAt)).limit(10);
-  res.json(rows.map(toWorkout));
+  res.json(rows.map((r) => toWorkout(r)));
 });
 
 export default router;
