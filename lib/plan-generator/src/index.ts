@@ -423,9 +423,23 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
     }
 
     // ---------- SUN: LONG RUN (no lift) or RACE ----------
+    // Race-day Sun (race week) reads its distance, description, run
+    // minutes, and total_load from the shared `RACE_DAY_SPECS.half`
+    // table (Task #218) — the same single source of truth that the
+    // recipe-driven `buildWeekDays` and hybrid `buildHybridWeekDays`
+    // race-day branches consume. Before this migration the legacy
+    // generator inlined "Half Marathon (13.1 mi)" copy, `run_min =
+    // round(13.1 * 12) = 157`, `pace = "12:00"`, and `total_load = 260`,
+    // which silently disagreed with `RACE_DAY_SPECS.half`'s "Half
+    // (13.1 mi)" copy, `runMinPerMi = 11` (→ run_min 144), and
+    // `totalLoad = 200`. Pace mirrors what the templated branch does
+    // (`recipe.tempoPace`) by reading the legacy generator's local
+    // `tempoPace` so the pace chip stays consistent with every other
+    // run shown that week.
     let sunDay: DailyRow;
     if (isRaceWeek) {
-      const raceMin = Math.round(13.1 * 12);
+      const halfRaceSpec = RACE_DAY_SPECS.half;
+      const raceMin = Math.round(halfRaceSpec.distanceMi * halfRaceSpec.runMinPerMi);
       sunDay = {
         week: w,
         phase,
@@ -434,16 +448,15 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
         strength_load: 0,
         equipment: "Outdoor",
         equipment_list: ["Outdoor"],
-        description:
-          "RACE DAY — Half Marathon (13.1 mi). Execute race plan, fuel every 4 mi, finish strong.",
+        description: halfRaceSpec.description,
         strength_min: 0,
         cardio_min: 0,
         run_min: raceMin,
-        distance_mi: 13.1,
-        pace: "12:00",
+        distance_mi: halfRaceSpec.distanceMi,
+        pace: tempoPace,
         session_type: "Race",
         is_rest: false,
-        total_load: 260,
+        total_load: halfRaceSpec.totalLoad,
       };
     } else {
       const longEquipment = w % 2 === 0 ? "Outdoor" : "Peloton Tread";

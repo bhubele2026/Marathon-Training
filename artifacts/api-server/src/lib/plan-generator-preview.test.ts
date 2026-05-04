@@ -9,11 +9,14 @@ import {
   expandConfigToPlanRows,
   expandEntriesToBlocksWithGaps,
   FOCUS_TYPES,
+  generatePlan,
   generatePlanFromConfig,
   PLAN_TEMPLATES,
+  PLAN_START_ISO,
   previewWeeklyMileage,
   RACE_DAY_SPECS,
   templateRaceKindById,
+  TOTAL_WEEKS,
   type FocusType,
   type PhaseBlock,
   type TemplateEntry,
@@ -896,6 +899,57 @@ describe("previewWeeklyMileage matches generatePlanFromConfig", () => {
         }
         expect(hybridSun.equipment_list).toEqual(halfRecipeSun.equipment_list);
       }
+    });
+
+    // Task #218: the legacy `generatePlan()` (the standalone 52-week
+    // half-marathon default plan in `lib/plan-generator/src/index.ts`)
+    // is the third place that builds a race-day Sun row, alongside
+    // recipe-driven `buildWeekDays` and hybrid `buildHybridWeekDays`
+    // already covered above. Before this task it inlined its own
+    // "Half Marathon (13.1 mi)" copy, `run_min = round(13.1 * 12) = 157`,
+    // `pace = "12:00"`, and `total_load = 260` — silently disagreeing
+    // with `RACE_DAY_SPECS.half`'s "Half (13.1 mi)" copy, runMinPerMi
+    // 11 (→ run_min 144), and totalLoad 200. The legacy Sun was
+    // migrated to read from the shared spec; pin it directly here so
+    // a future regression that re-inlines a stale literal in the
+    // legacy branch (or drifts the spec without updating this branch)
+    // fails loudly the same way the templated parity tests above
+    // catch drift in `buildWeekDays` / `buildHybridWeekDays`.
+    it("legacy generatePlan() Sun race-day matches RACE_DAY_SPECS.half byte-for-byte", () => {
+      const { daily } = generatePlan();
+      const sun = daily.find((d) => d.week === TOTAL_WEEKS && d.day === "Sun");
+      expect(sun, `legacy generatePlan w${TOTAL_WEEKS} Sun row`).toBeDefined();
+
+      // Sanity: confirm the trailing Sun flipped to the race-day
+      // override. If `isRaceWeek` ever lost its trigger here, the
+      // parity assertions below could pass on identical-but-wrong
+      // long-run rows — pin the override branch explicitly.
+      expect(sun!.session_type).toBe("Race");
+      expect(sun!.equipment).toBe("Outdoor");
+      expect(sun!.equipment_list).toEqual(["Outdoor"]);
+
+      // Byte-for-byte parity against `RACE_DAY_SPECS.half` for every
+      // field the spec drives.
+      const spec = RACE_DAY_SPECS.half;
+      expect(sun!.distance_mi).toBe(spec.distanceMi);
+      expect(sun!.distance_mi).toBe(13.1);
+      expect(sun!.description).toBe(spec.description);
+      expect(sun!.run_min).toBe(Math.round(spec.distanceMi * spec.runMinPerMi));
+      expect(sun!.run_min).toBe(144);
+      expect(sun!.total_load).toBe(spec.totalLoad);
+      expect(sun!.total_load).toBe(200);
+
+      // The race-day Sun must land on the campaign-final Sunday — six
+      // days after `PLAN_START_ISO` + (TOTAL_WEEKS-1) weeks. Locks the
+      // `isRaceWeek` calendar alignment so the spec values above are
+      // tied to the actual final Sunday, not some mid-campaign row.
+      const startMs = Date.UTC(
+        Number(PLAN_START_ISO.slice(0, 4)),
+        Number(PLAN_START_ISO.slice(5, 7)) - 1,
+        Number(PLAN_START_ISO.slice(8, 10)),
+      );
+      const sunMs = startMs + ((TOTAL_WEEKS - 1) * 7 + 6) * 24 * 60 * 60 * 1000;
+      expect(sun!.date).toBe(new Date(sunMs).toISOString().slice(0, 10));
     });
   });
 
