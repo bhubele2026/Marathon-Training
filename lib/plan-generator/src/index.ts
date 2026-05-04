@@ -6,6 +6,7 @@
 // directly without spinning up a CLI.
 
 import {
+  entriesEndOnMarathonRace,
   expandEntriesToBlocksWithGaps,
   getTemplateById,
   hybridMixSpec,
@@ -2439,6 +2440,16 @@ export interface PreviewWeeklyMileageOptions {
   // Pass false in entries-mode (templates own their own taper) — the
   // entries-mode preview helpers below set this automatically.
   appendMarathonTail?: boolean;
+  // Entries-mode race-day flag (Task #184). When true (and
+  // `appendMarathonTail` is false — i.e. entries-mode), the trailing
+  // Sunday's `longRunMi` is forced to the 26.2 mi marathon distance
+  // and `isRaceWeek` flips on, mirroring `generatePlanFromConfig`'s
+  // `endsOnMarathonRaceDay` gate so the Phase Planner sparkline / week
+  // strip stays in lock-step with what Apply emits when the entries
+  // plan ends on a marathon-classified template. Defaults to false so
+  // 5K / 10K / half / hybrid / lifting entries plans still preview
+  // their template's natural taper Sunday.
+  entriesEndOnMarathonRace?: boolean;
 }
 
 export function previewWeeklyMileage(
@@ -2446,6 +2457,13 @@ export function previewWeeklyMileage(
   opts: PreviewWeeklyMileageOptions = {},
 ): WeekMileagePreview[] {
   const appendTail = opts.appendMarathonTail ?? true;
+  // Entries-mode marathon race-day re-enables the campaign-final
+  // marathon Sunday (long=26.2) without appending the 16w
+  // Marathon-Specific tail. Mirrors the `endsOnMarathonRaceDay` gate
+  // in `generatePlanFromConfig` so preview and Apply agree on the
+  // final week (Task #184). Has no effect in blocks-mode (where the
+  // appended tail's race-week handling already produces 26.2).
+  const entriesMarathonRace = !appendTail && (opts.entriesEndOnMarathonRace ?? false);
   const blocks: PhaseBlock[] = appendTail
     ? [
         ...userBlocks,
@@ -2505,7 +2523,12 @@ export function previewWeeklyMileage(
       : null;
     for (let weekInBlock = 1; weekInBlock <= w; weekInBlock++) {
       week += 1;
-      const isRaceWeek = week === totalWeeks && appendTail;
+      // Race week: the trailing 16w Marathon-Specific tail's final
+      // week (blocks-mode) OR the campaign-final week of an
+      // entries-mode marathon plan (Task #184). Both branches force
+      // the long-run Sunday to the 26.2 mi marathon distance.
+      const isRaceWeek =
+        week === totalWeeks && (appendTail || entriesMarathonRace);
       const isCutback = recipe.useCutbacks
         ? w >= 4 && weekInBlock % 4 === 0 && weekInBlock !== w
         : false;
@@ -2573,8 +2596,25 @@ export function previewWeeklyMileage(
   return out;
 }
 
+// Internal generator options. Currently only used by
+// `generatePlanFromConfigPerEntry` to suppress race-day on synthetic
+// single-entry configs that DON'T correspond to the campaign's final
+// entry — a mid-campaign marathon entry would otherwise inject a 26.2
+// mi RACE DAY at its boundary because the auto-derived gate in
+// `generatePlanFromConfig` can't see the surrounding campaign context.
+// Not part of the public planner contract — callers outside the
+// per-entry pipeline should leave the override unset.
+export interface GeneratePlanOptions {
+  // When set, overrides the auto-derived `endsOnMarathonRaceDay` gate.
+  // `false` forces no race-day Sunday even if the config is blocks-mode
+  // or its entries end on a marathon template; `true` is reserved for
+  // future use. Leave `undefined` to use the default derivation.
+  endsOnMarathonRaceDayOverride?: boolean;
+}
+
 export function generatePlanFromConfig(
   config: PlannerConfig,
+  opts: GeneratePlanOptions = {},
 ): { daily: DailyRow[]; weekly: WeeklyRow[]; body: BodyRow[] } {
   const issues = validatePlannerConfig(config);
   if (issues.length > 0) {
@@ -2607,11 +2647,31 @@ export function generatePlanFromConfig(
   // substitutes the marathon). Mirror that policy here so the
   // generator matches what the preview promises (Task #182).
   //
+  // BUT: an entries-mode plan whose LAST entry is a marathon template
+  // (templateRaceKind === "marathon") should still end on a true RACE
+  // DAY Sunday — otherwise a runner who picks the Pfitz 18w marathon
+  // template ends their plan on the Taper recipe's final week (long=4
+  // mi) instead of running the 26.2 mi marathon they trained for. So
+  // re-enable the campaign-final race-day branch when the plan ends on
+  // a marathon-classified template (Task #184). Non-marathon entries
+  // plans (5K / 10K / half / hybrid / lifting) still end on their
+  // template's natural taper Sunday.
+  //
   // `generatePlanFromConfigPerEntry` builds synthetic configs with
-  // `entries: [...]` for each template entry, so this gate also stops
-  // the per-entry codepath from turning every entry's last week into a
-  // marathon Sunday in multi-template plans.
-  const isMarathonCampaign = !Array.isArray(config.entries);
+  // `entries: [singleEntry]` for EACH template entry — including
+  // mid-campaign marathon entries. The auto-derived gate below would
+  // fire race-day on every such synthetic marathon config (because it
+  // can't see the surrounding campaign context), injecting a stray
+  // 26.2 mi RACE DAY Sunday at the boundary of any non-final marathon
+  // entry. The per-entry pipeline therefore passes
+  // `endsOnMarathonRaceDayOverride: false` for every entry except the
+  // campaign-final one, leaving auto-derivation in charge for the
+  // trailing entry (which DOES correctly classify as a campaign-final
+  // marathon iff its template is marathon).
+  const endsOnMarathonRaceDay =
+    opts.endsOnMarathonRaceDayOverride ??
+    (!Array.isArray(config.entries)
+      || entriesEndOnMarathonRace(config.entries));
 
   let weekNumber = 0;
   for (const block of expandedBlocks) {
@@ -2620,7 +2680,7 @@ export function generatePlanFromConfig(
       weekNumber += 1;
       const wkStart = addDays(startDate, (weekNumber - 1) * 7);
       const wkEnd = addDays(wkStart, 6);
-      const isRaceWeek = isMarathonCampaign && weekNumber === totalWeeks;
+      const isRaceWeek = endsOnMarathonRaceDay && weekNumber === totalWeeks;
       const days = buildWeekDays({
         weekNumber,
         weekInBlock,
@@ -2770,7 +2830,19 @@ export function generatePlanFromConfigPerEntry(
         },
       ],
     };
-    const sub = generatePlanFromConfig(synthetic);
+    // Task #184: campaign-final entry only earns the marathon race-day
+    // Sunday. For every non-final entry — including mid-campaign
+    // marathon entries — force the override OFF so the synthetic
+    // single-entry config (which would otherwise auto-classify itself
+    // as ending on a marathon and inject a stray 26.2 mi RACE DAY at
+    // the entry's boundary) falls through to the trailing recipe's
+    // natural taper Sunday. The trailing entry leaves the override
+    // unset so auto-derivation correctly fires race-day iff its
+    // template is marathon.
+    const isLastEntry = i === config.entries.length - 1;
+    const sub = generatePlanFromConfig(synthetic, {
+      endsOnMarathonRaceDayOverride: isLastEntry ? undefined : false,
+    });
     // Remap week numbers from entry-local (1..N) to campaign-relative
     // so plan_days.week matches the position of the date in the
     // overall campaign timeline.
@@ -2875,6 +2947,9 @@ export {
   STARTER_SHORTCUTS,
   getTemplateById,
   isArchivedTemplateId,
+  templateRaceKind,
+  templateRaceKindById,
+  entriesEndOnMarathonRace,
   expandEntriesToBlocks,
   expandEntriesToBlocksWithGaps,
   projectEntries,
@@ -2900,6 +2975,7 @@ export {
   type HybridMixSpec,
   type HybridFitnessLevel,
   type HybridPhase,
+  type PlanRaceKind,
 } from "./templates.js";
 // Note: previewHybridWeek + HybridPreview* types are exported inline
 // at their declaration site above (line ~1557). They live here in

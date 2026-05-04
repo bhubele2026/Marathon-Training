@@ -6,6 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  expandConfigToPlanRows,
   expandEntriesToBlocksWithGaps,
   FOCUS_TYPES,
   generatePlanFromConfig,
@@ -206,6 +207,156 @@ describe("previewWeeklyMileage matches generatePlanFromConfig", () => {
     expect(lastPreview.totalMi).toBe(16);
     expect(lastGenerated.long_run_mi).toBe(10);
     expect(lastGenerated.planned_miles).toBe(16);
+  });
+
+  // Task #184: an entries-mode plan whose LAST entry is a marathon
+  // template (raceKind === "marathon") must still end on a real RACE
+  // DAY Sunday — the trailing week's long-run jumps to the 26.2 mi
+  // marathon distance and Saturday flips to "Race Prep". Task #182
+  // suppressed marathon-substitution for ALL entries-mode plans so a
+  // 5K Sunday wouldn't get a forced marathon, but that left runners
+  // who picked the Pfitz 18w marathon template ending their plan on
+  // the Taper recipe's natural ~4 mi long Sunday instead of the
+  // 26.2 mi marathon they trained for. The fix re-enables the
+  // campaign-final race-day branch ONLY when the last entry is a
+  // marathon template.
+  //
+  // Strict per-week parity (preview vs generator) covers the entire
+  // span — including the race week — so any future regression that
+  // either suppresses marathon-substitution again on marathon
+  // entries plans, or accidentally re-introduces it on non-marathon
+  // entries plans (covered by the 5K case above), fails loudly.
+  it("ends an entries-mode marathon plan on a 26.2 mi RACE DAY Sunday", () => {
+    // Mon 2026-05-04 → Sun 2026-09-06 is exactly 18 weeks: a vanilla
+    // Pfitz 18w marathon template at its `defaultWeeks` of 18.
+    const entries: TemplateEntry[] = [
+      {
+        templateId: "marathon_pfitz_18_70",
+        weeks: 18,
+        customName: null,
+        customNotes: null,
+      },
+    ];
+    const expandedBlocks = expandEntriesToBlocksWithGaps(
+      entries,
+      "2026-05-04",
+    );
+    const config = {
+      startDate: "2026-05-04",
+      marathonDate: "2026-09-06",
+      blocks: expandedBlocks,
+      entries,
+    };
+    const preview = previewWeeklyMileage(expandedBlocks, {
+      appendMarathonTail: false,
+      entriesEndOnMarathonRace: true,
+    });
+    const generated = generatePlanFromConfig(config);
+    expect(preview.length).toBe(18);
+    expect(generated.weekly.length).toBe(18);
+    // Strict per-week parity for EVERY week, race week included. The
+    // preview helper's recipe-driven mileage MUST match what the
+    // generator's `buildWeekDays` pipeline emits via the same recipe.
+    for (let i = 0; i < preview.length; i++) {
+      const p = preview[i]!;
+      const g = generated.weekly[i]!;
+      expect(p.week).toBe(g.week);
+      expect(p.totalMi).toBe(g.planned_miles);
+      expect(p.longRunMi).toBe(g.long_run_mi);
+    }
+    // Pin the campaign-final week's race-day expectations directly.
+    // Both preview and generator must agree on a 26.2 mi marathon
+    // long-run on the trailing Sunday and flip `isRaceWeek` true.
+    const lastPreview = preview[preview.length - 1]!;
+    const lastGenerated = generated.weekly[generated.weekly.length - 1]!;
+    expect(lastPreview.isRaceWeek).toBe(true);
+    expect(lastPreview.longRunMi).toBe(26.2);
+    expect(lastGenerated.long_run_mi).toBe(26.2);
+    // The generator's daily rows expose the actual session_type chips
+    // shown in the calendar — Sat must be "Race Prep" and Sun must
+    // be "Race". Lock both directly so a future regression that
+    // breaks the buildWeekDays race-day branch (or skips the Sat
+    // override) also fails this test.
+    const lastWeekDays = generated.daily.filter(
+      (d) => d.week === lastGenerated.week,
+    );
+    const sat = lastWeekDays.find((d) => d.day === "Sat");
+    const sun = lastWeekDays.find((d) => d.day === "Sun");
+    expect(sat).toBeDefined();
+    expect(sun).toBeDefined();
+    expect(sat!.session_type).toBe("Race Prep");
+    expect(sun!.session_type).toBe("Race");
+  });
+
+  // Task #184 regression: a multi-entry campaign whose marathon entry
+  // is NOT the trailing entry (e.g. a marathon followed by a recovery
+  // 5K) must NOT inject a stray 26.2 mi RACE DAY Sunday at the
+  // marathon entry's boundary. Only the campaign-final entry can earn
+  // the race-day branch — and only if it's marathon-classified itself.
+  //
+  // The per-entry pipeline (`expandConfigToPlanRows` →
+  // `generatePlanFromConfigPerEntry`) builds synthetic single-entry
+  // configs for every entry, so without the
+  // `endsOnMarathonRaceDayOverride: false` guard for non-final
+  // entries, the synthetic marathon config would auto-classify itself
+  // as ending on a marathon and inject a 26.2 mi Sunday at the
+  // mid-campaign boundary. Pin both the absence of the mid-campaign
+  // race day AND the absence of the campaign-final race day (since
+  // the trailing entry here is a 5K, not a marathon).
+  it("does NOT inject a mid-campaign race day when a marathon entry is followed by another entry", () => {
+    // Pfitz 18w marathon (race date 2026-09-06) followed by a Higdon
+    // Novice 5K starting the next week. Total span 18 + 8 = 26 weeks.
+    const entries: TemplateEntry[] = [
+      {
+        templateId: "marathon_pfitz_18_70",
+        weeks: 18,
+        customName: null,
+        customNotes: null,
+      },
+      {
+        templateId: "higdon_5k_novice",
+        weeks: 8,
+        customName: null,
+        customNotes: null,
+      },
+    ];
+    const expandedBlocks = expandEntriesToBlocksWithGaps(
+      entries,
+      "2026-05-04",
+    );
+    const config = {
+      startDate: "2026-05-04",
+      // 26 weeks: Mon 2026-05-04 → Sun 2026-11-01.
+      marathonDate: "2026-11-01",
+      blocks: expandedBlocks,
+      entries,
+    };
+    const { weekly, taggedDaily } = expandConfigToPlanRows(config);
+    expect(weekly.length).toBe(26);
+    // The marathon entry occupies weeks 1..18 — week 18's Sunday
+    // would be the mid-campaign boundary if the gate fired
+    // incorrectly. Pin its long-run mileage to the Pfitz template's
+    // natural taper Sunday (NOT 26.2) and its session_type to the
+    // recipe's normal long-run session, NOT "Race".
+    const marathonBoundaryWeek = weekly.find((w) => w.week === 18)!;
+    expect(marathonBoundaryWeek).toBeDefined();
+    expect(marathonBoundaryWeek.long_run_mi).not.toBe(26.2);
+    const week18Sun = taggedDaily
+      .map((t) => t.row)
+      .find((d) => d.week === 18 && d.day === "Sun");
+    expect(week18Sun).toBeDefined();
+    expect(week18Sun!.session_type).not.toBe("Race");
+    // The campaign-final entry is a 5K (not marathon), so the
+    // trailing week 26 must ALSO not earn a 26.2 mi race day — the
+    // 5K's Taper recipe rolls straight through.
+    const lastWeek = weekly[weekly.length - 1]!;
+    expect(lastWeek.week).toBe(26);
+    expect(lastWeek.long_run_mi).not.toBe(26.2);
+    const week26Sun = taggedDaily
+      .map((t) => t.row)
+      .find((d) => d.week === 26 && d.day === "Sun");
+    expect(week26Sun).toBeDefined();
+    expect(week26Sun!.session_type).not.toBe("Race");
   });
 });
 

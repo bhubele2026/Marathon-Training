@@ -36,6 +36,25 @@ export interface PlanTemplateMetadata {
 
 export type PlanTemplateLevel = "Beginner" | "Intermediate" | "Advanced";
 
+// Classifies whether the template's final week culminates in a real
+// race-day event. Drives the campaign-final race-day branch in
+// `generatePlanFromConfig` / `buildWeekDays` for entries-mode plans:
+// when the LAST entry's template is a marathon, the trailing Sunday
+// becomes the 26.2 mi marathon and Saturday becomes race-prep —
+// mirroring what blocks-mode (`isMarathonCampaign`) already produces.
+//
+// Today only `"marathon"` triggers the race-day branch in the standard
+// recipe pipeline; the other values are recorded for completeness so
+// the catalog stays self-describing and future work (e.g. a 13.1 mi
+// half-marathon race-day Sunday) can opt in by reading this field.
+//
+// `"none"` is used for templates that have no race-day event at all
+// (custom_hybrid, marathon_hybrid — the hybrid generator does NOT
+// honor the race-day branch in `buildWeekDays` because hybrid weeks
+// flow through `buildHybridWeekDays` instead, which doesn't read
+// `isRaceWeek`. See task #184 for context.).
+export type PlanRaceKind = "marathon" | "half" | "10k" | "5k" | "none";
+
 export interface PlanTemplate {
   id: string;
   name: string;
@@ -44,6 +63,15 @@ export interface PlanTemplate {
   // and Advanced collapse so a first-time runner is not overwhelmed.
   level: PlanTemplateLevel;
   goalDistance: string;
+  // Race-day classification (task #184). Only `"marathon"` currently
+  // triggers the campaign-final race-day branch in the entries-mode
+  // generator; other values are descriptive metadata for future
+  // distance-specific race-day support. Optional: when omitted,
+  // `templateRaceKind()` derives a reasonable default from
+  // `goalDistance` so older templates that haven't been updated still
+  // classify correctly. Set explicitly to `"none"` to opt out (e.g.
+  // `marathon_hybrid` whose hybrid pipeline doesn't honor isRaceWeek).
+  raceKind?: PlanRaceKind;
   source: string;
   citation: string;
   shortDescription: string;
@@ -195,6 +223,9 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
     name: "Build my own hybrid",
     level: "Beginner",
     goalDistance: "Hybrid (lift + run)",
+    // No race-day event — hybrid plans descend via internal phase
+    // scalar, not a marathon-day Sunday (task #184).
+    raceKind: "none",
     source: "Replit Marathon — built for you",
     citation:
       "Custom hybrid plan generated from the in-app builder (task #136). Sessions per week are distributed by the slider position (Lift-Primary → Run-Primary). Plans 12w+ split into base/build mesocycles (task #154); 16w+ end on a 2-week taper.",
@@ -591,6 +622,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
     name: "Marathon",
     level: "Advanced",
     goalDistance: "26.2 mi",
+    raceKind: "marathon",
     source: "Pete Pfitzinger",
     citation:
       "Pfitzinger & Douglas, Advanced Marathoning 3ed — 18/55 plan (up to 55 mpw).",
@@ -624,6 +656,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
     name: "Marathon — Pfitzinger 18/70",
     level: "Advanced",
     goalDistance: "26.2 mi",
+    raceKind: "marathon",
     source: "Pete Pfitzinger",
     citation:
       "Pfitzinger & Douglas, Advanced Marathoning 3ed — 18-week, up to 70 mpw plan.",
@@ -657,6 +690,16 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
     name: "Marathon — Balanced Hybrid",
     level: "Advanced",
     goalDistance: "26.2 mi",
+    // Explicit opt-out from the campaign-final marathon race-day
+    // branch (task #184). marathon_hybrid expands to a single Custom
+    // hybrid block whose week-by-week generation flows through
+    // `buildHybridWeekDays`, which doesn't honor the `isRaceWeek`
+    // parameter — the trailing taper is handled internally via the
+    // hybrid phase scalar instead. Adding race-day support here would
+    // require teaching the hybrid pipeline to override its Saturday
+    // and Sunday slots on the campaign-final week, which is out of
+    // scope for #184.
+    raceKind: "none",
     source: "Alex Viada",
     citation:
       "Alex Viada, The Hybrid Athlete — marathon-distance concurrent training for runners and lifters.",
@@ -1002,6 +1045,9 @@ function makeArchivedStub(id: string): PlanTemplate {
     name: `(Archived) ${id}`,
     level: "Beginner",
     goalDistance: "Archived plan",
+    // Archived templates collapse to a single Base block with no
+    // race-day event (task #184).
+    raceKind: "none",
     source: "archived",
     citation:
       "Archived template — preserved so legacy campaigns still load and regenerate.",
@@ -1052,6 +1098,59 @@ export function getTemplateById(id: string): PlanTemplate | null {
   if (live) return live;
   const archived = ARCHIVED_PLAN_TEMPLATES.find((t) => t.id === id);
   return archived ?? null;
+}
+
+// Classify a template's race-day kind (task #184). Honors the
+// explicit `raceKind` field when set; otherwise derives a default
+// from `goalDistance` so older templates that haven't been updated
+// still classify correctly. Templates whose goalDistance doesn't
+// match a recognized race distance (e.g. "Hybrid (lift + run)",
+// "Archived plan") fall through to `"none"`.
+//
+// Single source of truth for both `entriesEndOnMarathonRace` (in
+// index.ts, drives `generatePlanFromConfig`'s isRaceWeek gate) and
+// any UI that needs to know whether a template ends in a real
+// marathon / half / 10K / 5K event.
+export function templateRaceKind(
+  template: PlanTemplate | null | undefined,
+): PlanRaceKind {
+  if (!template) return "none";
+  if (template.raceKind) return template.raceKind;
+  switch (template.goalDistance) {
+    case "26.2 mi":
+      return "marathon";
+    case "13.1 mi":
+      return "half";
+    case "6.2 mi":
+      return "10k";
+    case "3.1 mi":
+      return "5k";
+    default:
+      return "none";
+  }
+}
+
+// Convenience lookup: classify by template id. Unknown ids and
+// archived templates resolve to `"none"` so callers can use the
+// helper unconditionally without nil-checking.
+export function templateRaceKindById(id: string): PlanRaceKind {
+  return templateRaceKind(getTemplateById(id));
+}
+
+// True when the LAST entry in an entries-mode plan is a marathon
+// template — i.e. the campaign's trailing Sunday is a real marathon
+// race day (task #184). Drives the entries-mode race-day branch in
+// `generatePlanFromConfig` (re-enables the 26.2 mi marathon Sunday +
+// race-prep Saturday for marathon entries plans without forcing it
+// onto 5K / 10K / half / hybrid entries plans). An empty entries
+// array, an unknown last templateId, or a non-marathon last template
+// returns false.
+export function entriesEndOnMarathonRace(
+  entries: ReadonlyArray<{ templateId: string }>,
+): boolean {
+  if (!entries || entries.length === 0) return false;
+  const last = entries[entries.length - 1]!;
+  return templateRaceKindById(last.templateId) === "marathon";
 }
 
 // Opinionated starter shortcuts surfaced as one-click "Use this starter"

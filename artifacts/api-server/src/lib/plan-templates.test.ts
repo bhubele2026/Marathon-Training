@@ -752,6 +752,15 @@ describe("Marathon-Specific recipe — Wed Steady Run (Task #172)", () => {
 // 26.2 mi long run mid-plan, three weeks before race day. The fix
 // drops that branch so the MS block's final week reads as a normal
 // late-MS long run instead.
+//
+// Task #184 — entries-mode marathon plans whose LAST entry is a
+// marathon template MUST still end on a real RACE DAY Sunday
+// (26.2 mi). The contract therefore split into "no 26.2 mid-plan"
+// (Task #185) AND "26.2 on the campaign-final Sunday iff the trailing
+// entry is marathon-classified" (Task #184). The assertions below
+// pin both pieces in lock-step: weeks 1..raceWeek-1 must be < 26.2
+// (no phantom mid-plan spike), and the campaign-final week (raceWeek)
+// MUST be 26.2 because the trailing entry is a marathon template.
 describe("Marathon-Specific recipe — no phantom 26.2 mi long run mid-plan (Task #185)", () => {
   function entriesMarathon(templateId: string, weeks: number): PlannerConfig {
     // Mon 2026-05-04 → Sun (weeks*7 - 1) days later.
@@ -772,7 +781,7 @@ describe("Marathon-Specific recipe — no phantom 26.2 mi long run mid-plan (Tas
     } as unknown as PlannerConfig;
   }
 
-  it("18w entries-mode 'marathon' plan has no 26.2 mi long run anywhere (race-day mileage owned by template Taper)", () => {
+  it("18w entries-mode 'marathon' plan only emits 26.2 mi on the campaign-final Sunday (Task #184)", () => {
     const cfg = entriesMarathon("marathon", 18);
     const { daily, weekly } = generatePlanFromConfig(cfg);
     const raceWeek = weekly.length; // Final generated week.
@@ -787,17 +796,22 @@ describe("Marathon-Specific recipe — no phantom 26.2 mi long run mid-plan (Tas
       }
     }
 
-    // Entries-mode marathon templates own their own Taper — the
-    // race-day override in `buildWeekDays` is gated on
-    // `isMarathonCampaign` (blocks-mode only, Task #182), so NO
-    // generated Sunday should report a 26.2 mi long run. The pre-fix
-    // bug surfaced as 26.2 on week 15 (last week of the 7-week MS
-    // block in an 18-week 4+4+7+3 plan), three weeks before race day.
-    for (let w = 1; w <= raceWeek; w += 1) {
+    // Task #185: NO mid-plan 26.2 mi spike. The pre-fix bug surfaced
+    // as 26.2 on week 15 (last week of the 7-week MS block in an
+    // 18-week 4+4+7+3 plan), three weeks before race day — that
+    // short-circuit was removed.
+    // Task #184: the campaign-final Sunday MUST be 26.2 mi because
+    // the trailing entry is a marathon template — runners need a
+    // real RACE DAY Sunday, not the Taper recipe's natural ~4 mi
+    // long. The race-day branch in `buildWeekDays` re-fires for
+    // entries-mode plans whose last entry classifies as marathon.
+    for (let w = 1; w < raceWeek; w += 1) {
       const mi = longRunByWeek.get(w);
       expect(mi, `week ${w} long run mi`).toBeDefined();
       expect(mi, `week ${w} long run mi`).toBeLessThan(26.2);
     }
+    expect(longRunByWeek.get(raceWeek), `race week ${raceWeek} long run mi`)
+      .toBe(26.2);
 
     // Pin the full late-MS long-run sequence (weeks 12-15, the last
     // four Marathon-Specific weeks) to the tapered ramp the recipe
@@ -825,7 +839,7 @@ describe("Marathon-Specific recipe — no phantom 26.2 mi long run mid-plan (Tas
     expect(longRunByWeek.get(15)!).toBeLessThanOrEqual(14);
   });
 
-  it("18w entries-mode 'marathon_pfitz_18_70' plan has no 26.2 mi long run anywhere", () => {
+  it("18w entries-mode 'marathon_pfitz_18_70' plan only emits 26.2 mi on the campaign-final Sunday (Task #184)", () => {
     const cfg = entriesMarathon("marathon_pfitz_18_70", 18);
     const { daily, weekly } = generatePlanFromConfig(cfg);
     const raceWeek = weekly.length;
@@ -838,11 +852,16 @@ describe("Marathon-Specific recipe — no phantom 26.2 mi long run mid-plan (Tas
       }
     }
 
-    for (let w = 1; w <= raceWeek; w += 1) {
+    // Task #185 + Task #184: no mid-plan 26.2, but the trailing
+    // Sunday MUST be 26.2 because the entries-mode last entry is a
+    // marathon template.
+    for (let w = 1; w < raceWeek; w += 1) {
       const mi = longRunByWeek.get(w);
       expect(mi, `week ${w} long run mi`).toBeDefined();
       expect(mi, `week ${w} long run mi`).toBeLessThan(26.2);
     }
+    expect(longRunByWeek.get(raceWeek), `race week ${raceWeek} long run mi`)
+      .toBe(26.2);
   });
 
   it("blocks-mode marathon plans still emit a 26.2 mi marathon on the final Sunday", () => {
