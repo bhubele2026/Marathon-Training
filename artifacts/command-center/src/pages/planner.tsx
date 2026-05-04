@@ -30,7 +30,6 @@ import {
   HYBRID_DEFAULT_DAYS_PER_WEEK,
   HYBRID_MIN_DAYS_PER_WEEK,
   HYBRID_MAX_DAYS_PER_WEEK,
-  previewHybridWeek,
   type FocusType,
   type HybridFitnessLevel,
   type HybridMixPosition,
@@ -40,6 +39,7 @@ import {
   type WeekMileagePreview,
 } from "@workspace/plan-generator";
 import { useQueryClient } from "@tanstack/react-query";
+import { HybridWeekPreview } from "@/components/hybrid-week-preview";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2708,69 +2708,22 @@ export default function Planner() {
                           Live structured preview of week 1 — re-rendered
                           on every slider / days-per-week / level change.
                           Driven by `previewHybridWeek` in the generator
-                          so it can never drift from what the runner
-                          will actually get when they hit "Build". Shows
-                          a Mon..Sun strip with each day's session label
-                          (and miles for runs), plus a totals line.
+                          (via the dedicated <HybridWeekPreview /> child)
+                          so it can never drift from what the runner will
+                          actually get when they hit "Build". Shows a
+                          Mon..Sun strip with each day's session label
+                          (and miles for runs), an intensity tag below
+                          each non-rest slot, a Cutback badge on
+                          deload weeks, and a totals line.
                         */}
-                        {(() => {
-                          const blockWeeks =
-                            tplWeeks["custom_hybrid"] ?? tpl.defaultWeeks;
-                          const preview = previewHybridWeek(
-                            {
-                              position: hybridPosition,
-                              daysPerWeek: hybridDaysPerWeek,
-                              level: hybridLevel,
-                            },
-                            { weekInBlock: 1, blockWeeks },
-                          );
-                          return (
-                            <div
-                              className="space-y-1.5 rounded-md border bg-muted/20 p-2"
-                              data-testid="planner-hybrid-preview"
-                            >
-                              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                                Typical week (week 1 of {blockWeeks})
-                              </div>
-                              <div className="grid grid-cols-7 gap-1">
-                                {preview.slots.map((s) => (
-                                  <div
-                                    key={s.day}
-                                    className="rounded border bg-background p-1 text-center"
-                                    data-testid={`planner-hybrid-preview-${s.day.toLowerCase()}`}
-                                  >
-                                    <div className="text-[9px] font-mono uppercase text-muted-foreground">
-                                      {s.day}
-                                    </div>
-                                    <div
-                                      className={
-                                        "mt-0.5 text-[10px] font-medium leading-tight " +
-                                        (s.kind === "rest"
-                                          ? "text-muted-foreground"
-                                          : s.kind === "lift"
-                                            ? "text-amber-600 dark:text-amber-400"
-                                            : "text-sky-600 dark:text-sky-400")
-                                      }
-                                    >
-                                      {s.label}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                              <div
-                                className="text-[10px] text-muted-foreground"
-                                data-testid="planner-hybrid-preview-totals"
-                              >
-                                {preview.totals.sessions} sessions ·{" "}
-                                {preview.totals.lifts} lift
-                                {preview.totals.lifts === 1 ? "" : "s"} ·{" "}
-                                {preview.totals.runs} run
-                                {preview.totals.runs === 1 ? "" : "s"} ·{" "}
-                                {preview.totals.miles.toFixed(1)} mi
-                              </div>
-                            </div>
-                          );
-                        })()}
+                        <HybridWeekPreview
+                          position={hybridPosition}
+                          daysPerWeek={hybridDaysPerWeek}
+                          level={hybridLevel}
+                          blockWeeks={
+                            tplWeeks["custom_hybrid"] ?? tpl.defaultWeeks
+                          }
+                        />
                         <div className="grid grid-cols-2 gap-2">
                           <div className="space-y-1">
                             <Label

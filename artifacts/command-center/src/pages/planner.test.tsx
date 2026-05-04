@@ -2245,6 +2245,43 @@ describe("Custom hybrid builder card (Task #136)", () => {
     ).toContain("Long Run");
   });
 
+  it("renders an intensity tag below each non-rest slot in the preview", () => {
+    renderPlanner();
+    // Sun is the long run on Balanced/5/Beginner — its tag must read LONG.
+    expect(
+      screen.getByTestId("planner-hybrid-preview-sun-tag").textContent,
+    ).toContain("LONG");
+    // The lift days carry HEAVY or ACC tags depending on the slot's
+    // `heavy` flag. At least one of the seven days must be a lift with a
+    // tag of HEAVY or ACC so the runner can tell the lift days apart
+    // from the run days at a glance.
+    const liftTags = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+      .map((d) => {
+        const el = screen.queryByTestId(`planner-hybrid-preview-${d}-tag`);
+        return el?.textContent ?? "";
+      })
+      .filter((t) => t === "HEAVY" || t === "ACC");
+    expect(liftTags.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("does not render an intensity tag on rest day cells", () => {
+    renderPlanner();
+    // Balanced/5/Beginner pins Mon as a rest day. Rest cells must NOT
+    // emit a tag element so the strip stays visually quiet on off days.
+    expect(
+      screen.queryByTestId("planner-hybrid-preview-mon-tag"),
+    ).toBeNull();
+  });
+
+  it("does not show the Cutback badge for week 1 of the block", () => {
+    renderPlanner();
+    // Default preview is week 1 of the block — never a cutback. The
+    // badge must be absent so we don't mislabel the typical week.
+    expect(
+      screen.queryByTestId("planner-hybrid-preview-cutback"),
+    ).toBeNull();
+  });
+
   it("encodes slider/days/level into customNotes when the runner clicks Build", () => {
     // Start from a blank config so the new entry is the first one and
     // the Composition badge is unambiguous.
