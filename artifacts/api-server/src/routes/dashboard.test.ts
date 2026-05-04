@@ -488,7 +488,52 @@ describe("GET /api/dashboard/weekly-mileage", () => {
       // breakdown (Task #144) is empty for this week. The headline
       // plannedMiles still comes from plan_weeks, which is correct.
       programs: [],
+      // Task #183: no Wed plan day in this fixture, so wedSteady is null.
+      wedSteady: null,
     });
+  });
+
+  it("flags wedSteady weeks from plan_days.session_type (Task #183)", async () => {
+    // Two weeks: one with a Steady Run + Accessory Wed, one with a plain
+    // Run + Accessory Wed. The dashboard mileage chart consumes this flag
+    // to overlay the amber Z3 marker, mirroring what /plan/weeks already
+    // exposes.
+    const steadyWeek = 8421;
+    const easyWeek = 8422;
+    const phase = "Marathon-Specific";
+    await insertWeek(steadyWeek, {
+      startDate: "2099-08-03",
+      endDate: "2099-08-09",
+      phase,
+      plannedMiles: 30,
+    });
+    await insertWeek(easyWeek, {
+      startDate: "2099-08-10",
+      endDate: "2099-08-16",
+      phase,
+      plannedMiles: 22,
+    });
+    await insertPlanDay(steadyWeek, phase, {
+      date: "2099-08-05",
+      day: "Wed",
+      sessionType: "Steady Run + Accessory",
+      equipment: "Tonal",
+      distanceMi: 6,
+    });
+    await insertPlanDay(easyWeek, phase, {
+      date: "2099-08-12",
+      day: "Wed",
+      sessionType: "Run + Accessory",
+      equipment: "Tonal",
+      distanceMi: 5,
+    });
+
+    const res = await request(app).get("/api/dashboard/weekly-mileage");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetWeeklyMileageResponse, res.body);
+    const rows = res.body as Array<{ week: number; wedSteady: boolean | null }>;
+    expect(rows.find((r) => r.week === steadyWeek)?.wedSteady).toBe(true);
+    expect(rows.find((r) => r.week === easyWeek)?.wedSteady).toBe(false);
   });
 
   it("surfaces cardio minutes and dominant equipment for bike/row weeks", async () => {

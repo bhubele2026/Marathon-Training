@@ -12,7 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  BarChart, Bar, Legend, AreaChart, Area, Cell, ReferenceLine
+  BarChart, Bar, Legend, AreaChart, Area, Cell, ReferenceLine, ReferenceDot
 } from "recharts";
 import { formatDistance, formatLoad, formatWeight, formatDate, formatDuration } from "@/lib/format";
 import { PrimaryMetricDisplay } from "@/components/primary-metric-display";
@@ -528,6 +528,15 @@ export default function Dashboard() {
                     Bike / row weeks plot cross-train minutes on the right
                     axis so cardio-only weeks aren't zero-height bars.
                   </p>
+                  {/* Task #183: amber Z3 markers on the dashboard mileage
+                      chart, mirroring BlockSparkline / MileageCurve in the
+                      planner. The dot rides the planned-miles bar top of
+                      each Steady-Wed week so a runner can see at a glance
+                      which weeks earn the Z3 stimulus without opening
+                      planner. `wedSteady` comes from
+                      `plan_days.session_type` so customizations that swap
+                      Wed away from steady drop the marker on the next
+                      refetch. */}
                   <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={mileage}>
@@ -645,6 +654,51 @@ export default function Dashboard() {
                             label={{ value: "Now", position: "top", fill: "hsl(var(--primary))", fontSize: 10, fontWeight: 700 }}
                           />
                         )}
+                        {/* Task #183: amber Z3 marker per Steady-Wed week,
+                            sitting at the top of the planned-miles bar.
+                            Recharts ReferenceDot renders inside the chart
+                            coordinate space so the dot tracks bar height
+                            on cardio-only and tapered weeks alike. We use
+                            a custom `shape` so the SVG circle carries a
+                            stable data-testid for the per-week marker
+                            assertion (Recharts' built-in dot strips
+                            arbitrary props). */}
+                        {(mileage ?? [])
+                          .filter((row) => row.wedSteady === true)
+                          .map((row) => (
+                            <ReferenceDot
+                              key={`steady-${row.week}`}
+                              yAxisId="miles"
+                              x={row.week}
+                              y={Math.max(row.plannedMiles, row.actualMiles)}
+                              ifOverflow="extendDomain"
+                              isFront
+                              shape={(props) => {
+                                const { cx, cy } = props as {
+                                  cx?: number;
+                                  cy?: number;
+                                };
+                                if (cx == null || cy == null) {
+                                  return (
+                                    <g
+                                      data-testid={`mileage-chart-steady-w${row.week}`}
+                                    />
+                                  );
+                                }
+                                return (
+                                  <circle
+                                    cx={cx}
+                                    cy={cy}
+                                    r={4}
+                                    fill="rgb(251 191 36)"
+                                    stroke="hsl(var(--card))"
+                                    strokeWidth={1}
+                                    data-testid={`mileage-chart-steady-w${row.week}`}
+                                  />
+                                );
+                              }}
+                            />
+                          ))}
                         <Bar yAxisId="miles" dataKey="plannedMiles" name="Planned" fill="hsl(var(--muted-foreground))" opacity={0.3} radius={[2, 2, 0, 0]} />
                         <Bar yAxisId="miles" dataKey="actualMiles" name="Actual" radius={[2, 2, 0, 0]}>
                           {(mileage ?? []).map((row, i) => (
@@ -673,6 +727,33 @@ export default function Dashboard() {
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
+                  {/* Task #183: amber-400 "Steady Wed · N wks" legend that
+                      mirrors BlockSparkline / MileageCurve in the planner.
+                      Only renders when at least one week earns the Z3
+                      stimulus, matching the per-block sparkline behavior. */}
+                  {(() => {
+                    const steadyCount =
+                      mileage?.filter((m) => m.wedSteady === true).length ?? 0;
+                    if (steadyCount === 0) return null;
+                    return (
+                      <div
+                        className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground mt-2"
+                        data-testid="mileage-chart-steady-legend"
+                      >
+                        <span
+                          className="h-2 w-2 rounded-full bg-amber-400"
+                          aria-hidden
+                        />
+                        <span>
+                          Steady Wed ·{" "}
+                          <span className="font-semibold tabular-nums">
+                            {steadyCount}
+                          </span>{" "}
+                          wk{steadyCount === 1 ? "" : "s"}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </>
               )}
             </CardContent>

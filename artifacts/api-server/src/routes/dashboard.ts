@@ -309,6 +309,22 @@ router.get("/dashboard/weekly-mileage", async (_req, res) => {
     programsByWeek.set(r.week, list);
   }
 
+  // Task #183: per-week flag indicating whether the Wednesday plan day is
+  // a Steady (Z3) Run + Accessory session. Mirrors the same SQL the
+  // /plan/weeks aggregation uses (Task #175), so a runner who customizes
+  // Wed off Steady sees the dashboard amber marker drop on the next
+  // refetch. BOOL_OR handles concurrent overlapping programs (Task #135)
+  // that may put multiple rows on the same Wed.
+  const wedSteadyRows = await db.execute<{ week: number; wed_steady: boolean }>(
+    sql`SELECT week, BOOL_OR(session_type = 'Steady Run + Accessory') AS wed_steady
+        FROM plan_days
+        WHERE day = 'Wed'
+        GROUP BY week`,
+  );
+  const wedSteadyByWeek = new Map(
+    wedSteadyRows.rows.map((r) => [r.week, r.wed_steady]),
+  );
+
   res.json(rows.rows.map((r) => ({
     week: r.week,
     startDate: r.start_date,
@@ -319,6 +335,7 @@ router.get("/dashboard/weekly-mileage", async (_req, res) => {
     actualCardioMin: r.actual_cardio_min,
     dominantCardioEquipment: dominantByWeek.get(r.week) ?? null,
     programs: programsByWeek.get(r.week) ?? [],
+    wedSteady: wedSteadyByWeek.get(r.week) ?? null,
   })));
 });
 

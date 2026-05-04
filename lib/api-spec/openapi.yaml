@@ -1593,6 +1593,20 @@ components:
             carry synthetic filler rows). Programs are ordered by
             sourceEntryIndex ascending.
           items: { $ref: "#/components/schemas/WeeklyMileageProgram" }
+        wedSteady:
+          type: boolean
+          nullable: true
+          description: |
+            Task #183. True when this week's Wednesday plan day is a
+            Steady (Z3) Run + Accessory session — i.e. the same gating
+            the Plan Calendar week strip and the Plan Preview
+            MileageCurve already use (sourced from
+            `plan_days.session_type`, so customizations that swap Wed
+            away from steady drop the flag immediately). Drives the
+            amber-400 "Steady Wed" marker on the dashboard mileage
+            chart so a runner sees at a glance which weeks earn the
+            Z3 stimulus. Null on weeks with no Wed plan day yet
+            (freshly seeded / legacy data).
 
     WeeklyMileageProgram:
       type: object

@@ -556,6 +556,18 @@ export interface WeeklyMileagePoint {
   /** Task #144. Per-program breakdown of this week's planned miles and cardio minutes. The headline `plannedMiles` / `plannedCardioMin` above are the COMBINED totals across overlapping programs (a Tonal lift program stacked with a 5K running program for example); this array lets the chart tooltip drill in to per- program contributions. Empty for weeks where no program contributes plan_days (e.g. interior recovery gaps that only carry synthetic filler rows). Programs are ordered by sourceEntryIndex ascending.
    */
   programs: WeeklyMileageProgram[];
+  /** Task #183. True when this week's Wednesday plan day is a
+Steady (Z3) Run + Accessory session — i.e. the same gating
+the Plan Calendar week strip and the Plan Preview
+MileageCurve already use (sourced from
+`plan_days.session_type`, so customizations that swap Wed
+away from steady drop the flag immediately). Drives the
+amber-400 "Steady Wed" marker on the dashboard mileage
+chart so a runner sees at a glance which weeks earn the
+Z3 stimulus. Null on weeks with no Wed plan day yet
+(freshly seeded / legacy data).
+ */
+  wedSteady?: boolean | null;
 }
 
 export interface EquipmentUsageProgram {
