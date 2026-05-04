@@ -516,6 +516,187 @@ describe("previewWeeklyMileage matches generatePlanFromConfig", () => {
     expect(monFriLoad).toBeLessThanOrEqual(150);
   });
 
+  // Task #214: race-eve Saturday's strength minutes, cardio minutes,
+  // total load, session type, description, and bike/row alternation
+  // all read from a single shared `RACE_EVE_SAT_SPEC` constant in
+  // `lib/plan-generator/src/templates.ts` (Task #211). The race-week
+  // Sat row is built in three different branches inside
+  // `lib/plan-generator/src/index.ts` — recipe-driven `buildWeekDays`
+  // (used by marathon Pfitz, half-marathon, etc.) and hybrid
+  // `buildHybridWeekDays` (used by `marathon_hybrid` and other
+  // hybrid race templates) — and each branch consumes the shared
+  // constant independently. Without a direct parity test, a future
+  // tweak that goes around the constant in just one branch (e.g.
+  // inlining a tweaked description string for marathon plans only)
+  // would silently re-introduce the very drift the constant was added
+  // to prevent.
+  //
+  // Pin parity by generating the campaign-final week from a marathon
+  // (recipe-driven), a half-marathon (recipe-driven), and a marathon-
+  // hybrid plan that ALL start on the SAME Monday. The Sat row's
+  // `strength_min`, `cardio_min`, `session_type`, `description`
+  // (modulo the hybrid Custom-block suffix), `equipment_list`, and
+  // `total_load` must be identical across all three. Run the
+  // assertion on both an odd-week race week (cardio = Peloton Bike)
+  // and an even-week race week (cardio = Peloton Row) so the
+  // bike/row alternation is locked too. A future regression that
+  // drifts ANY one branch off `RACE_EVE_SAT_SPEC` fails loudly here.
+  describe.each([
+    {
+      // Race week numbers are odd → `RACE_EVE_SAT_SPEC.cardioMachineForWeek`
+      // returns Peloton Bike. Mon 2026-05-04 + 11 wk = Sun 2026-07-19;
+      // + 19 wk = Sun 2026-09-13.
+      parity: "odd",
+      marathonWeeks: 19,
+      halfWeeks: 11,
+      hybridWeeks: 19,
+      marathonRaceDate: "2026-09-13",
+      halfRaceDate: "2026-07-19",
+      expectedCardio: "Peloton Bike",
+    },
+    {
+      // Race week numbers are even → cardio = Peloton Row. Mon
+      // 2026-05-04 + 12 wk = Sun 2026-07-26; + 18 wk = Sun 2026-09-06.
+      parity: "even",
+      marathonWeeks: 18,
+      halfWeeks: 12,
+      hybridWeeks: 18,
+      marathonRaceDate: "2026-09-06",
+      halfRaceDate: "2026-07-26",
+      expectedCardio: "Peloton Row",
+    },
+  ])(
+    "race-eve Sat parity across recipe + hybrid branches ($parity-week race week)",
+    (tc) => {
+      it(`marathon / half / marathon-hybrid emit identical Sat rows (cardio = ${tc.expectedCardio})`, () => {
+        const start = "2026-05-04";
+
+        const buildSat = (
+          templateId: string,
+          weeks: number,
+          raceDate: string,
+        ) => {
+          const entries: TemplateEntry[] = [
+            {
+              templateId,
+              weeks,
+              customName: null,
+              customNotes: null,
+            },
+          ];
+          const blocks = expandEntriesToBlocksWithGaps(entries, start);
+          const generated = generatePlanFromConfig({
+            startDate: start,
+            marathonDate: raceDate,
+            blocks,
+            entries,
+          });
+          // Campaign-final week == `weeks` (1-based). Sat row is the
+          // race-eve row owned by `RACE_EVE_SAT_SPEC`.
+          const sat = generated.daily.find(
+            (d) => d.week === weeks && d.day === "Sat",
+          );
+          expect(sat, `${templateId} w${weeks} Sat row`).toBeDefined();
+          // Sanity: the row must have actually flipped to the race-week
+          // override (session_type = "Race Prep"). If the campaign-final
+          // week somehow lost its `isRaceWeek` flag, the parity check
+          // below would still pass on identical non-race Sat rows — pin
+          // the override here so that failure mode is caught explicitly.
+          expect(sat!.session_type, `${templateId} session_type`).toBe(
+            "Race Prep",
+          );
+          return sat!;
+        };
+
+        const marathonSat = buildSat(
+          "marathon_pfitz_18_70",
+          tc.marathonWeeks,
+          tc.marathonRaceDate,
+        );
+        const halfSat = buildSat(
+          "half_marathon",
+          tc.halfWeeks,
+          tc.halfRaceDate,
+        );
+        const hybridSat = buildSat(
+          "marathon_hybrid",
+          tc.hybridWeeks,
+          tc.marathonRaceDate,
+        );
+
+        // Bike/row alternation rule lives on `RACE_EVE_SAT_SPEC` too —
+        // pin the per-week cardio machine across all three branches so
+        // a future regression that hard-codes Bike (or Row) in one
+        // branch only fails here.
+        expect(marathonSat.equipment_list).toEqual([
+          "Tonal",
+          tc.expectedCardio,
+        ]);
+        expect(halfSat.equipment_list).toEqual(["Tonal", tc.expectedCardio]);
+        expect(hybridSat.equipment_list).toEqual([
+          "Tonal",
+          tc.expectedCardio,
+        ]);
+
+        // Strict per-field parity for everything that flows through the
+        // shared `RACE_EVE_SAT_SPEC` constant. A future tweak that
+        // bumps strength_min from 15 → 20 (or cardio_min, total_load,
+        // session_type) in just one branch desyncs the three rows and
+        // fails loudly here.
+        for (const field of [
+          "strength_min",
+          "cardio_min",
+          "session_type",
+          "total_load",
+        ] as const) {
+          expect(halfSat[field], `half vs marathon: ${field}`).toEqual(
+            marathonSat[field],
+          );
+          expect(hybridSat[field], `hybrid vs marathon: ${field}`).toEqual(
+            marathonSat[field],
+          );
+        }
+
+        // Description parity is "modulo any Custom-block suffix":
+        // recipe-driven plans (marathon Pfitz, half-marathon) end in a
+        // non-Custom Taper block, so their `customSuffix` is the empty
+        // string and their descriptions must be byte-identical. The
+        // hybrid plan's trailing Custom block appends a
+        // ` [<customName>: <customNotes>]` suffix to every day's
+        // description, so its Sat description must START WITH the
+        // recipe description and contain ONLY the Custom-block suffix
+        // beyond that — a future regression that rewrites the race-eve
+        // copy in just one branch fails the prefix check.
+        expect(halfSat.description).toBe(marathonSat.description);
+        expect(hybridSat.description.startsWith(marathonSat.description)).toBe(
+          true,
+        );
+        // The remainder of the hybrid description (everything past the
+        // shared race-eve copy) must be ONLY the Custom-block bracket
+        // suffix — pinned via prefix `" ["` and trailing `]` — so a
+        // future regression that sneaks a non-suffix tweak into the
+        // hybrid branch only (e.g. extra "(hybrid)" parenthetical
+        // before the bracket) is also caught.
+        const hybridSuffix = hybridSat.description.slice(
+          marathonSat.description.length,
+        );
+        expect(hybridSuffix.startsWith(" [")).toBe(true);
+        expect(hybridSuffix.endsWith("]")).toBe(true);
+
+        // Sanity: the recipe description must be the canonical race-eve
+        // copy from `RACE_EVE_SAT_SPEC.describe`. Pin a substring +
+        // the per-week cardio machine name so a future regression that
+        // rewrites the description in ALL THREE branches in lock-step
+        // (defeating the cross-branch parity check above) is still
+        // caught.
+        expect(marathonSat.description).toContain(
+          "Race-eve: light Tonal mobility",
+        );
+        expect(marathonSat.description).toContain(tc.expectedCardio);
+      });
+    },
+  );
+
   // Task #184 regression: a multi-entry campaign whose marathon entry
   // is NOT the trailing entry (e.g. a marathon followed by a recovery
   // 5K) must NOT inject a stray 26.2 mi RACE DAY Sunday at the
