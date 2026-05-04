@@ -288,6 +288,95 @@ describe("previewWeeklyMileage matches generatePlanFromConfig", () => {
     expect(sun!.session_type).toBe("Race");
   });
 
+  // Task #192: an entries-mode plan whose LAST entry is a hybrid
+  // marathon template (`marathon_hybrid` — raceKind === "marathon"
+  // after #192 flips it from "none") must end on the SAME race-day
+  // pattern as the recipe-driven Pfitz marathon above: trailing Sat
+  // = "Race Prep", trailing Sun = 26.2 mi "Race". Before #192 the
+  // hybrid pipeline (`buildHybridWeekDays`) ignored the `isRaceWeek`
+  // flag entirely, so a marathon_hybrid plan ended on whatever its
+  // schedule slotted for the trailing Sun (a hybrid long run, a
+  // lift, or even rest depending on slider position) — runners who
+  // chose the hybrid path trained for a marathon but never saw a
+  // 26.2 mi RACE DAY on their calendar.
+  //
+  // Strict per-week parity (preview vs generator) covers the entire
+  // span — including the race week — so any future regression that
+  // either (a) drops the Sat/Sun race-week override in
+  // `buildHybridWeekDays`, (b) flips `marathon_hybrid` raceKind back
+  // to "none", or (c) breaks the race-week branch in
+  // `previewWeeklyMileage`'s hybrid path fails loudly here.
+  it("ends an entries-mode hybrid marathon plan on a 26.2 mi RACE DAY Sunday", () => {
+    // Mon 2026-05-04 → Sun 2026-09-06 is exactly 18 weeks: a vanilla
+    // marathon_hybrid template at its `defaultWeeks` of 18.
+    const entries: TemplateEntry[] = [
+      {
+        templateId: "marathon_hybrid",
+        weeks: 18,
+        customName: null,
+        customNotes: null,
+      },
+    ];
+    const expandedBlocks = expandEntriesToBlocksWithGaps(
+      entries,
+      "2026-05-04",
+    );
+    const config = {
+      startDate: "2026-05-04",
+      marathonDate: "2026-09-06",
+      blocks: expandedBlocks,
+      entries,
+    };
+    const preview = previewWeeklyMileage(expandedBlocks, {
+      appendMarathonTail: false,
+      entriesEndOnMarathonRace: true,
+    });
+    const generated = generatePlanFromConfig(config);
+    expect(preview.length).toBe(18);
+    expect(generated.weekly.length).toBe(18);
+    // Strict per-week parity for EVERY week, race week included. The
+    // preview helper's hybrid mileage MUST match what the generator's
+    // `buildHybridWeekDays` pipeline emits via the same schedule.
+    for (let i = 0; i < preview.length; i++) {
+      const p = preview[i]!;
+      const g = generated.weekly[i]!;
+      expect(p.week).toBe(g.week);
+      expect(p.totalMi).toBe(g.planned_miles);
+      expect(p.longRunMi).toBe(g.long_run_mi);
+    }
+    // Pin the campaign-final week's race-day expectations directly.
+    // Both preview and generator must agree on a 26.2 mi marathon
+    // long-run on the trailing Sunday and flip `isRaceWeek` true.
+    const lastPreview = preview[preview.length - 1]!;
+    const lastGenerated = generated.weekly[generated.weekly.length - 1]!;
+    expect(lastPreview.isRaceWeek).toBe(true);
+    expect(lastPreview.longRunMi).toBe(26.2);
+    expect(lastGenerated.long_run_mi).toBe(26.2);
+    // The generator's daily rows expose the actual session_type chips
+    // shown in the calendar — Sat must be "Race Prep" and Sun must
+    // be "Race", regardless of what the hybrid schedule's canonical
+    // Sat/Sun slot would have been (lift, run, or rest). Lock both
+    // directly so a future regression that breaks the
+    // `buildHybridWeekDays` race-week override (or drops it for one
+    // of the two days) also fails this test.
+    const lastWeekDays = generated.daily.filter(
+      (d) => d.week === lastGenerated.week,
+    );
+    const sat = lastWeekDays.find((d) => d.day === "Sat");
+    const sun = lastWeekDays.find((d) => d.day === "Sun");
+    expect(sat).toBeDefined();
+    expect(sun).toBeDefined();
+    expect(sat!.session_type).toBe("Race Prep");
+    expect(sun!.session_type).toBe("Race");
+    // Pin the marathon distance and the absence of any run miles on
+    // race-eve Saturday so a future regression that swaps the order
+    // (Sat = marathon, Sun = race prep) or shrinks the marathon
+    // distance also fails here.
+    expect(sun!.distance_mi).toBe(26.2);
+    expect(sat!.distance_mi).toBeNull();
+    expect(sat!.run_min).toBe(0);
+  });
+
   // Task #184 regression: a multi-entry campaign whose marathon entry
   // is NOT the trailing entry (e.g. a marathon followed by a recovery
   // 5K) must NOT inject a stray 26.2 mi RACE DAY Sunday at the

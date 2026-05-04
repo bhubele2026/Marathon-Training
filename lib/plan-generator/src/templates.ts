@@ -49,10 +49,12 @@ export type PlanTemplateLevel = "Beginner" | "Intermediate" | "Advanced";
 // half-marathon race-day Sunday) can opt in by reading this field.
 //
 // `"none"` is used for templates that have no race-day event at all
-// (custom_hybrid, marathon_hybrid — the hybrid generator does NOT
-// honor the race-day branch in `buildWeekDays` because hybrid weeks
-// flow through `buildHybridWeekDays` instead, which doesn't read
-// `isRaceWeek`. See task #184 for context.).
+// (custom_hybrid is the hybrid builder — it has no fixed race
+// distance, so the trailing Sunday stays a hybrid long-run / lift /
+// rest depending on the slider position. As of task #192 the hybrid
+// pipeline DOES honor `isRaceWeek` — `buildHybridWeekDays` overrides
+// the trailing Sat/Sun for marathon-classified hybrid templates like
+// `marathon_hybrid` — but `custom_hybrid` opts out via this field).
 export type PlanRaceKind = "marathon" | "half" | "10k" | "5k" | "none";
 
 export interface PlanTemplate {
@@ -70,7 +72,7 @@ export interface PlanTemplate {
   // `templateRaceKind()` derives a reasonable default from
   // `goalDistance` so older templates that haven't been updated still
   // classify correctly. Set explicitly to `"none"` to opt out (e.g.
-  // `marathon_hybrid` whose hybrid pipeline doesn't honor isRaceWeek).
+  // `custom_hybrid` whose runner-built plan has no fixed race day).
   raceKind?: PlanRaceKind;
   source: string;
   citation: string;
@@ -690,16 +692,17 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
     name: "Marathon — Balanced Hybrid",
     level: "Advanced",
     goalDistance: "26.2 mi",
-    // Explicit opt-out from the campaign-final marathon race-day
-    // branch (task #184). marathon_hybrid expands to a single Custom
-    // hybrid block whose week-by-week generation flows through
-    // `buildHybridWeekDays`, which doesn't honor the `isRaceWeek`
-    // parameter — the trailing taper is handled internally via the
-    // hybrid phase scalar instead. Adding race-day support here would
-    // require teaching the hybrid pipeline to override its Saturday
-    // and Sunday slots on the campaign-final week, which is out of
-    // scope for #184.
-    raceKind: "none",
+    // Hybrid marathon plans now end on a true RACE DAY Sunday too
+    // (task #192). `buildHybridWeekDays` honors `isRaceWeek` by
+    // force-overriding the trailing Saturday to Race Prep and the
+    // trailing Sunday to a 26.2 mi marathon, while Mon-Fri keep the
+    // schedule's normal lift/run/rest layout (the trailing taper is
+    // still owned by the hybrid phase scalar). Flipping raceKind to
+    // "marathon" routes this template through `entriesEndOnMarathonRace`
+    // so the campaign-final week's `isRaceWeek` flag fires, mirroring
+    // what every other marathon-classified template (Pfitz, Higdon,
+    // etc.) gets at the end of its campaign.
+    raceKind: "marathon",
     source: "Alex Viada",
     citation:
       "Alex Viada, The Hybrid Athlete — marathon-distance concurrent training for runners and lifters.",

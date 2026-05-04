@@ -1783,6 +1783,16 @@ function buildHybridWeekDays(opts: {
   // hybrid (full load, full ramp) — preserves v1 behavior for short
   // (<12w) custom_hybrid plans and saved hybrid campaigns.
   hybridPhase: HybridPhase | null;
+  // Campaign-final race week (Task #192). When true, the trailing
+  // Saturday of this hybrid week is force-overridden to a "Race Prep"
+  // shake-out (15 min Tonal mobility + 15 min easy Bike/Row spin) and
+  // the trailing Sunday is force-overridden to a 26.2 mi RACE DAY,
+  // regardless of what the canonical schedule slots for those days.
+  // Mon-Fri are left to the schedule's normal lift/run/rest layout —
+  // the trailing taper is still owned by the hybrid phase scalar
+  // (base 0.85x / build 1.0x / taper 0.7x), this only flips the last
+  // two days so a hybrid marathon plan ends on a true marathon Sunday.
+  isRaceWeek: boolean;
 }): DailyRow[] {
   const {
     weekNumber,
@@ -1794,6 +1804,7 @@ function buildHybridWeekDays(opts: {
     wkStart,
     customSuffix,
     hybridPhase: hPhase,
+    isRaceWeek,
   } = opts;
 
   const schedule = pickHybridSchedule(spec.position, spec.daysPerWeek);
@@ -1835,6 +1846,66 @@ function buildHybridWeekDays(opts: {
   return schedule.map((slot, dayOffset) => {
     const day = HYBRID_DAY_LABELS[dayOffset]!;
     const date = fmt(addDays(wkStart, dayOffset));
+
+    // ---------- RACE WEEK OVERRIDES (Task #192) ----------
+    // Force the trailing Saturday and Sunday into the canonical
+    // race-eve / race-day pattern regardless of what the schedule
+    // would have emitted (lift, run, or rest). Mon-Fri stay on the
+    // schedule's normal layout — the trailing taper is handled by
+    // the hybrid phase scalar (build → taper drops loads ~30%).
+    if (isRaceWeek && dayOffset === 5) {
+      // Race-eve Saturday: 15-min Tonal mobility flush + 15-min easy
+      // bike/row spin. Mirrors the non-hybrid `buildWeekDays` race-week
+      // Sat so a hybrid marathon plan emits the same race-eve protocol
+      // as a non-hybrid marathon plan.
+      const satCardioName =
+        weekNumber % 2 === 0 ? "Peloton Row" : "Peloton Bike";
+      return {
+        week: weekNumber,
+        phase,
+        date,
+        day,
+        strength_load: 0,
+        equipment: "Tonal",
+        equipment_list: ["Tonal", satCardioName],
+        description:
+          `Race-eve: light Tonal mobility (15 min) + 15 min easy ${satCardioName} spin. Stay loose, hydrate, fuel well.` +
+          customSuffix,
+        strength_min: 15,
+        cardio_min: 15,
+        run_min: 0,
+        distance_mi: null,
+        pace: null,
+        session_type: "Race Prep",
+        is_rest: false,
+        total_load: 30,
+      };
+    }
+    if (isRaceWeek && dayOffset === 6) {
+      // Race day Sunday: 26.2 mi marathon. Mirrors the non-hybrid
+      // race-day branch in `buildWeekDays` (same description, distance,
+      // pace, run_min, session_type, total_load).
+      const raceMin = Math.round(MARATHON_DISTANCE_MI * 11);
+      return {
+        week: weekNumber,
+        phase,
+        date,
+        day,
+        strength_load: 0,
+        equipment: "Outdoor",
+        equipment_list: ["Outdoor"],
+        description:
+          "RACE DAY — Marathon (26.2 mi). Execute race plan, fuel every 4 mi, finish strong.",
+        strength_min: 0,
+        cardio_min: 0,
+        run_min: raceMin,
+        distance_mi: MARATHON_DISTANCE_MI,
+        pace: qualityPace,
+        session_type: "Race",
+        is_rest: false,
+        total_load: 350,
+      };
+    }
 
     if (slot.kind === "rest") {
       return {
@@ -2043,6 +2114,7 @@ function buildWeekDays(opts: {
       wkStart,
       customSuffix,
       hybridPhase: blockHybridPhase,
+      isRaceWeek,
     });
   }
 
@@ -2570,9 +2642,37 @@ export function previewWeeklyMileage(
           isCutback,
           hybridPhaseForPreview,
         );
-        easyMi = mi.easy * hybridScheduleCounts.easy;
-        qualityMi = mi.quality * hybridScheduleCounts.quality;
-        longMi = mi.long * hybridScheduleCounts.long;
+        if (isRaceWeek) {
+          // Race-week override (Task #192): the hybrid week builder
+          // force-overrides the trailing Saturday to Race Prep (no
+          // run miles) and the trailing Sunday to a 26.2 mi RACE DAY
+          // regardless of what the schedule slots for those days.
+          // Mirror that here so the Phase Planner sparkline matches
+          // what the generator emits on the campaign-final week of a
+          // hybrid marathon plan: drop any Sat run miles, ignore the
+          // schedule's Sun slot, and add a flat marathon distance.
+          const schedule = pickHybridSchedule(
+            hybridSpecForPreview.position,
+            hybridSpecForPreview.daysPerWeek,
+          );
+          let e = 0;
+          let q = 0;
+          let l = 0;
+          schedule.forEach((slot, idx) => {
+            if (slot.kind !== "run") return;
+            if (idx === 5 || idx === 6) return; // Sat/Sun overridden
+            if (slot.intensity === "easy") e += mi.easy;
+            else if (slot.intensity === "quality") q += mi.quality;
+            else l += mi.long;
+          });
+          easyMi = e;
+          qualityMi = q;
+          longMi = l + MARATHON_DISTANCE_MI;
+        } else {
+          easyMi = mi.easy * hybridScheduleCounts.easy;
+          qualityMi = mi.quality * hybridScheduleCounts.quality;
+          longMi = mi.long * hybridScheduleCounts.long;
+        }
       } else {
         easyMi = zeroRuns ? 0 : recipe.easyRunMi(weekInBlock, w, isCutback);
         // Recovery blocks turn Friday into a rest day in `buildWeekDays`, so
