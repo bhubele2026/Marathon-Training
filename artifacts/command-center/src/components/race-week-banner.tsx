@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Trophy, Flag, ListChecks } from "lucide-react";
 import { formatDistance } from "@/lib/format";
+import { raceDayLabel } from "@/lib/race-day-label";
 
 export function RaceWeekBanner() {
   const { data, isLoading } = useGetRaceWeek({
@@ -165,6 +166,14 @@ function PostRaceRecovery({ data }: { data: RaceWeekStatus }) {
 
 function RaceDayHero({ data }: { data: RaceWeekStatus }) {
   const plan = data.racePlan;
+  // Task #201: surface the per-kind label ("5K Day" / "10K Day" /
+  // "Half Marathon Day" / "Marathon Day") in the eyebrow above the
+  // race-day headline so the dashboard hero matches the actual
+  // distance the runner is racing today, not a hardcoded "Race Day".
+  // Falls back to the generic "Race Day" eyebrow only when the plan
+  // row is missing or its distance doesn't match a real race kind.
+  const race = plan ? raceDayLabel(plan.distanceMi, plan.description) : null;
+  const eyebrow = race ? race.label : "Race Day";
   return (
     <Card
       className="border-primary bg-gradient-to-br from-primary/30 via-primary/10 to-background overflow-hidden"
@@ -176,8 +185,12 @@ function RaceDayHero({ data }: { data: RaceWeekStatus }) {
             <Trophy className="h-6 w-6 text-primary" />
           </div>
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] font-bold text-primary">
-              Race Day
+            <p
+              className="text-xs uppercase tracking-[0.2em] font-bold text-primary"
+              data-testid="race-day-hero-eyebrow"
+              data-race-kind={race?.kind ?? "unknown"}
+            >
+              {eyebrow}
             </p>
             <h2 className="text-2xl md:text-3xl font-black uppercase tracking-wider">
               Today is the day. Execute.

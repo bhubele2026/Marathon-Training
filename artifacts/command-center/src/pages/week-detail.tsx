@@ -56,6 +56,7 @@ import { useMissionActions } from "@/hooks/use-mission-actions";
 import { cn } from "@/lib/utils";
 import { phaseColor } from "@/lib/phase-colors";
 import { adherenceStatus, adherenceTextClass } from "@/lib/adherence";
+import { raceDayLabel } from "@/lib/race-day-label";
 import { PlanDayForm } from "@/components/plan-day-form";
 import { MoveDayPicker } from "@/components/move-day-picker";
 import { sortWorkoutsByTimeOfDay } from "@/lib/time-of-day";
@@ -726,19 +727,17 @@ export default function WeekDetail() {
                           disclosure to keep the rail at title + status. */}
                       {programBadge}
                       <CustomizedBadge day={day} />
-                      {/* Task #199: explicit RACE DAY pill on the
-                          campaign-final marathon Sunday. Triggered by
-                          session_type === "Race" so it lights up the
-                          same way for hybrid (Task #192) and for
-                          non-hybrid (Pfitz / Higdon) marathon plans. */}
-                      {isRaceDay && (
-                        <span
-                          className="text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-300 px-2 py-1 rounded font-bold uppercase tracking-wider flex items-center gap-1"
-                          data-testid={`badge-race-day-${day.date}`}
-                        >
-                          <Trophy className="h-3 w-3" /> Race Day
-                        </span>
-                      )}
+                      {/* Task #199 originally added a generic "Race Day"
+                          pill here keyed off sessionType === "Race".
+                          Task #201 supersedes that pill with a per-kind
+                          badge ("5K Day" / "10K Day" / "Half Marathon
+                          Day" / "Marathon Day") rendered from
+                          raceDayLabel below. The amber Card accent +
+                          data-race-day attribute (set on the Card
+                          above) still owns the visual "this is the
+                          race" treatment, so half / 10K / 5K race-day
+                          Sundays light up the same way without a
+                          duplicate testid here. */}
                       {hasSessions && (
                         <span className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider flex items-center gap-1">
                           <CheckCircle2 className="h-3 w-3" />
@@ -757,6 +756,32 @@ export default function WeekDetail() {
                   </div>
                   <div className="flex-1 p-6 space-y-4">
                     <div className="space-y-3">
+                      {/* Task #201: per-kind race-day badge derived
+                          from Sunday's distance_mi / description
+                          prefix so 5K / 10K / Half / Marathon Sundays
+                          each get the right runner-facing headline
+                          ("5K Day", "Marathon Day", etc.) instead of
+                          the generic "Race" session type alone. This
+                          chip ALSO subsumes Task #199's old "Race Day"
+                          pill (same data-testid) — the Card amber
+                          accent + data-race-day attribute above still
+                          carry the visual treatment. raceDayLabel
+                          returns null on non-race-day rows so the
+                          chip stays absent on Long Run / Easy Run. */}
+                      {(() => {
+                        const race = raceDayLabel(day.distanceMi, day.description, day.sessionType);
+                        if (!race) return null;
+                        return (
+                          <span
+                            className="inline-flex items-center gap-1 text-[10px] bg-primary/15 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider w-fit"
+                            data-testid={`badge-race-day-${day.date}`}
+                            data-race-kind={race.kind}
+                          >
+                            <Activity className="h-3 w-3" />
+                            {race.label}
+                          </span>
+                        );
+                      })()}
                       <h4 className="text-xl font-black uppercase tracking-tight">{day.sessionType}</h4>
                       <p className="text-sm text-muted-foreground line-clamp-2">{day.description}</p>
                       {/* Slim day card (Task #133): show just the one

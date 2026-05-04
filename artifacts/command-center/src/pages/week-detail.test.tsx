@@ -457,13 +457,21 @@ describe("Week detail — every HR zone bucket renders the matching swatch (task
   );
 });
 
-// Task #199: pin the race-day badge + amber accent on the Week Detail
-// day card whenever a day's `sessionType` is "Race". Both hybrid
-// (Task #192) and non-hybrid (Pfitz / Higdon) marathon plans emit
-// `session_type: "Race"` on the campaign-final Sunday, so a single
-// rendered scenario covers both plan shapes uniformly. A negative case
-// on a Long Run day in the same payload guards against the badge
-// leaking onto non-race days.
+// Task #199: pin the race-day Card accent + badge presence on the Week
+// Detail day card whenever a day's `sessionType` is "Race". Both
+// hybrid (Task #192) and non-hybrid (Pfitz / Higdon) marathon plans
+// emit `session_type: "Race"` on the campaign-final Sunday, so a
+// single rendered scenario covers both plan shapes uniformly. A
+// negative case on a Long Run day in the same payload guards against
+// the visual treatment leaking onto non-race days.
+//
+// NOTE: Task #201 superseded the old generic "Race Day" pill with a
+// per-kind label chip ("Marathon Day" / "Half Marathon Day" / etc.)
+// rendered off the same `badge-race-day-${date}` testid. The Task
+// #199 assertions below have been retargeted to expect the per-kind
+// label so this suite stays green alongside the dedicated Task #201
+// per-kind suite further down. The amber Card accent + data-race-day
+// attribute are still owned by Task #199's wiring on the <Card>.
 describe("Week detail — race-day badge on the marathon Sunday (task #199)", () => {
   function makeRaceWeekPayload() {
     const base = {
@@ -545,14 +553,16 @@ describe("Week detail — race-day badge on the marathon Sunday (task #199)", ()
     vi.clearAllMocks();
   });
 
-  it("renders the RACE DAY badge and amber accent on the Sunday with sessionType=Race", () => {
+  it("renders the race-day badge and amber accent on the Sunday with sessionType=Race", () => {
     renderWith(makeRaceWeekPayload());
 
     // The pill itself: testid keyed on the day date so the assertion
-    // pins the exact day card that should carry the marker.
+    // pins the exact day card that should carry the marker. Task
+    // #201 replaced the generic "Race Day" copy with a per-kind
+    // label, so the marathon Sunday surfaces "Marathon Day" here.
     const badge = screen.getByTestId("badge-race-day-2026-06-28");
     expect(badge).toBeTruthy();
-    expect(badge.textContent).toContain("Race Day");
+    expect(badge.textContent).toContain("Marathon Day");
 
     // The Card's amber accent — pinned via the data-race-day hook so
     // the test stays robust to Tailwind class re-shuffles, with a
@@ -564,15 +574,182 @@ describe("Week detail — race-day badge on the marathon Sunday (task #199)", ()
     expect(card.className).toContain("amber");
   });
 
-  it("does NOT render the RACE DAY badge on non-race days in the same week", () => {
+  it("does NOT render the race-day badge on non-race days in the same week", () => {
     renderWith(makeRaceWeekPayload());
 
     // The Saturday Long Run shares the same week payload but must not
     // pick up the race-day treatment — the badge is keyed strictly on
-    // sessionType === "Race", not on long-run distance or proximity to
+    // sessionType === "Race" (and the generator's "RACE DAY — "
+    // description prefix), not on long-run distance or proximity to
     // the marathon Sunday.
     expect(screen.queryByTestId("badge-race-day-2026-06-27")).toBeNull();
     const satCard = screen.getByTestId("day-card-2026-06-27");
     expect(satCard.getAttribute("data-race-day")).toBeNull();
   });
+});
+
+// Task #201: per-kind race-day Sunday badge on the Week Detail day
+// card. Task #191 already updates the generator to emit per-kind
+// race-day Sundays at the right distance / description prefix
+// ("RACE DAY — 5K (3.1 mi). ...", etc.) and `week-detail.tsx`
+// already renders `day.distanceMi` and `day.description` straight
+// from the API. This suite pins the per-kind LABEL chip
+// (raceDayLabel → "5K Day" / "10K Day" / "Half Marathon Day" /
+// "Marathon Day") that headlines the day card so a half / 10K / 5K
+// race-day Sunday no longer reads as a generic "Race" row.
+//
+// One case per real race kind so a regression in either the
+// raceDayLabel mapping OR the JSX badge wiring is caught at the
+// rendered-DOM level. Non-race-day rows are also covered so the
+// badge stays absent on regular Long Run / Easy Run cards.
+describe("Week detail — per-kind race-day Sunday badge (task #201)", () => {
+  function makeRaceDay(distanceMi: number, description: string) {
+    return {
+      id: 7,
+      week: 16,
+      phase: "Marathon-Specific",
+      date: "2026-08-30",
+      day: "Sun",
+      sessionType: "Race",
+      description,
+      equipment: "Outdoor",
+      equipmentList: ["Outdoor"],
+      isRest: false,
+      isCustomized: false,
+      customizedFields: [],
+      customizedDiff: [],
+      strengthLoad: 0,
+      strengthMin: 0,
+      cardioMin: 0,
+      runMin: Math.round(distanceMi * 11),
+      distanceMi,
+      pace: null,
+      totalMin: Math.round(distanceMi * 11),
+      totalLoad: 100,
+      sourceEntryIndex: 0,
+      sourceEntryLabel: null,
+      suggestions: null,
+    };
+  }
+
+  function makeRaceWeekPayload(distanceMi: number, description: string) {
+    return {
+      week: 16,
+      phase: "Marathon-Specific",
+      startDate: "2026-08-24",
+      endDate: "2026-08-30",
+      plannedStrength: 0,
+      plannedCardio: 0,
+      plannedTotalLoad: 100,
+      plannedMiles: distanceMi,
+      longRunMi: distanceMi,
+      actualMiles: 0,
+      actualCardio: 0,
+      completedSessions: 0,
+      totalSessions: 1,
+      missedSessions: 0,
+      dominantCardioEquipment: null,
+      days: [makeRaceDay(distanceMi, description)],
+    };
+  }
+
+  const cases: Array<{
+    kind: "5k" | "10k" | "half" | "marathon";
+    distanceMi: number;
+    description: string;
+    label: string;
+  }> = [
+    {
+      kind: "5k",
+      distanceMi: 3.1,
+      description:
+        "RACE DAY — 5K (3.1 mi). Execute race plan at VO2 effort, go hard from the gun, finish strong.",
+      label: "5K Day",
+    },
+    {
+      kind: "10k",
+      distanceMi: 6.2,
+      description:
+        "RACE DAY — 10K (6.2 mi). Execute race plan at threshold effort, hold form, finish strong.",
+      label: "10K Day",
+    },
+    {
+      kind: "half",
+      distanceMi: 13.1,
+      description:
+        "RACE DAY — Half (13.1 mi). Execute race plan, fuel every 4 mi, finish strong.",
+      label: "Half Marathon Day",
+    },
+    {
+      kind: "marathon",
+      distanceMi: 26.2,
+      description:
+        "RACE DAY — Marathon (26.2 mi). Execute race plan, fuel every 4 mi, finish strong.",
+      label: "Marathon Day",
+    },
+  ];
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it.each(cases)(
+    "$kind race-day Sunday renders the $label badge with the right distance",
+    ({ kind, distanceMi, description, label }) => {
+      renderWith(makeRaceWeekPayload(distanceMi, description));
+
+      const badge = screen.getByTestId("badge-race-day-2026-08-30");
+      expect(badge.textContent).toContain(label);
+      expect(badge.getAttribute("data-race-kind")).toBe(kind);
+
+      // Description body still surfaces the generator's per-kind copy
+      // verbatim so the runner sees the full prescription beneath the
+      // badge. Asserted on the rendered card so a regression in the
+      // <p>{day.description}</p> wiring is caught here, not just at
+      // the API contract level.
+      const card = screen.getByTestId("day-card-2026-08-30");
+      expect(card.textContent).toContain(description);
+    },
+  );
+
+  it("does NOT render the race-day badge on a regular Long Run row", () => {
+    const longRunDay = {
+      ...makeRaceDay(8, "Long aerobic effort"),
+      sessionType: "Long Run",
+    };
+    renderWith({
+      ...makeRaceWeekPayload(8, "Long aerobic effort"),
+      days: [longRunDay],
+    });
+    expect(screen.queryByTestId("badge-race-day-2026-08-30")).toBeNull();
+  });
+
+  // Regression for a real classification bug caught in code review:
+  // an early version of `raceDayLabel` fell back to distance-only
+  // matching, which would mis-paint a "Half Marathon Day" badge onto
+  // a 13.1 mi long run (and similarly for 3.1 / 6.2 / 26.2 mi rows
+  // that aren't races). Pin every canonical race distance against a
+  // non-race sessionType + non-race description so a future
+  // regression is caught at the rendered-DOM level, not just inside
+  // the helper's unit tests.
+  it.each([
+    { distanceMi: 3.1, sessionType: "Recovery Run", description: "Easy shakeout" },
+    { distanceMi: 6.2, sessionType: "Steady Run", description: "Steady aerobic effort" },
+    { distanceMi: 13.1, sessionType: "Long Run", description: "Long aerobic effort — fuel practice" },
+    { distanceMi: 26.2, sessionType: "Long Run", description: "Peak training day" },
+  ])(
+    "does NOT mis-paint the race-day badge on a $sessionType at canonical race distance $distanceMi mi",
+    ({ distanceMi, sessionType, description }) => {
+      const day = {
+        ...makeRaceDay(distanceMi, description),
+        sessionType,
+      };
+      renderWith({
+        ...makeRaceWeekPayload(distanceMi, description),
+        days: [day],
+      });
+      expect(screen.queryByTestId("badge-race-day-2026-08-30")).toBeNull();
+    },
+  );
 });
