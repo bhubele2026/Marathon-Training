@@ -1289,6 +1289,61 @@ export const HYBRID_RACE_WEEK_TAPER: Readonly<{
   },
 };
 
+// Race-eve Saturday: shared single source of truth (Task #211).
+//
+// The campaign-final Saturday's race-prep shape (light Tonal mobility flush
+// plus a short easy Bike/Row spin alternating by week parity) is identical
+// across every race-week branch in `index.ts`:
+//
+//   - `buildWeekDays` race-week Sat (recipe-driven; emitted twice — once for
+//     the half-marathon-style early branch and once for the general-recipe
+//     branch).
+//   - `buildHybridWeekDays` race-week Sat (hybrid pipeline).
+//
+// Co-locating the constant here (next to `HYBRID_RACE_WEEK_TAPER` and
+// `RACE_DAY_SPECS`) means a future tweak — swapping the cardio block,
+// changing the minutes, dropping the alternation rule — lands in one place
+// instead of drifting across three branches that have to stay in lock-step.
+//
+// Sun race-day already has its single source of truth in
+// `RACE_DAY_SPECS[raceKind]`; `strength_load` is intentionally NOT covered
+// here because the three call sites differ on whether to keep the heavy
+// Saturday lift load or zero it out (preserved as-is per branch).
+const RACE_EVE_SAT_STRENGTH_MIN = 15;
+const RACE_EVE_SAT_CARDIO_MIN = 15;
+
+export interface RaceEveSatSpec {
+  // Tonal mobility-flush minutes on race-eve Saturday.
+  strengthMin: number;
+  // Easy Bike/Row spin minutes paired with the mobility flush.
+  cardioMin: number;
+  // Static `total_load` for the race-eve Sat row. Equal to
+  // strengthMin + cardioMin (15 + 15 = 30).
+  totalLoad: number;
+  // Daily row `session_type` label.
+  sessionType: string;
+  // Returns the cardio machine label for a given week number. Even
+  // weeks alternate to Peloton Row, odd weeks to Peloton Bike — the
+  // same parity rule the non-race-week Sat uses for its short cardio
+  // finisher.
+  cardioMachineForWeek: (weekNumber: number) => string;
+  // Builds the race-eve description for a given cardio machine. Embeds
+  // the minutes from `strengthMin` / `cardioMin` so a future bump to
+  // either propagates to the description automatically.
+  describe: (cardioMachineName: string) => string;
+}
+
+export const RACE_EVE_SAT_SPEC: Readonly<RaceEveSatSpec> = {
+  strengthMin: RACE_EVE_SAT_STRENGTH_MIN,
+  cardioMin: RACE_EVE_SAT_CARDIO_MIN,
+  totalLoad: RACE_EVE_SAT_STRENGTH_MIN + RACE_EVE_SAT_CARDIO_MIN,
+  sessionType: "Race Prep",
+  cardioMachineForWeek: (weekNumber) =>
+    weekNumber % 2 === 0 ? "Peloton Row" : "Peloton Bike",
+  describe: (cardioMachineName) =>
+    `Race-eve: light Tonal mobility (${RACE_EVE_SAT_STRENGTH_MIN} min) + ${RACE_EVE_SAT_CARDIO_MIN} min easy ${cardioMachineName} spin. Stay loose, hydrate, fuel well.`,
+};
+
 export const RACE_DAY_SPECS: Readonly<
   Record<Exclude<PlanRaceKind, "none">, RaceDaySpec>
 > = {
