@@ -942,13 +942,11 @@ export function projectEntries(
     const e = entries[i]!;
     let startISO = cursorISO;
     let gapWeeksBefore = 0;
-    let overrode = false;
     // Task #135: allow overlapping entries — accept any Monday on or
     // after the config startDate. If the override is BEFORE the
     // sequential cursor we treat gapWeeksBefore as 0 (overlap with the
     // previous entry); if AFTER, gapWeeksBefore measures the bridge
-    // gap as before. The sequential cursor only advances for entries
-    // that didn't set an explicit override.
+    // gap as before.
     if (e.startDate && _ISO_DATE_RE.test(e.startDate)) {
       const cursorMs = _parseUTC(cursorISO)!;
       const eMs = _parseUTC(e.startDate);
@@ -957,15 +955,24 @@ export function projectEntries(
         if (days % 7 === 0) {
           gapWeeksBefore = days > 0 ? days / 7 : 0;
           startISO = e.startDate;
-          overrode = true;
         }
       }
     }
     const weeks = Math.max(0, Math.floor(e.weeks));
     const endISO = _addDaysISO(startISO, weeks * 7 - 1) ?? startISO;
     out.push({ entryIndex: i, startDateISO: startISO, endDateISO: endISO, gapWeeksBefore });
-    if (!overrode) {
-      cursorISO = _addDaysISO(startISO, weeks * 7) ?? cursorISO;
+    // Always advance the cursor to the end of this entry, but never
+    // regress (so an explicit overlap startDate before the running
+    // cursor doesn't pull subsequent entries backward). This keeps
+    // back-to-back entries with explicit Monday startDates from
+    // double-counting their span as a phantom gap on the next entry.
+    const candidateCursor = _addDaysISO(startISO, weeks * 7);
+    if (candidateCursor !== null) {
+      const candMs = _parseUTC(candidateCursor);
+      const curMs = _parseUTC(cursorISO);
+      if (candMs !== null && (curMs === null || candMs > curMs)) {
+        cursorISO = candidateCursor;
+      }
     }
   }
   return out;
