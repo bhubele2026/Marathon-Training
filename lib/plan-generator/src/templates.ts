@@ -14,7 +14,7 @@
 // template, concatenates the blocks, and feeds them through the same
 // recipes pipeline that generates every workout.
 
-import type { FocusType, PhaseBlock } from "./index.js";
+import type { DailyRow, FocusType, PhaseBlock } from "./index.js";
 
 export interface PlanTemplateMetadata {
   // Polarized / pyramidal / threshold-heavy / tempo-heavy / strength-priority
@@ -1289,26 +1289,26 @@ export const HYBRID_RACE_WEEK_TAPER: Readonly<{
   },
 };
 
-// Race-eve Saturday: shared single source of truth (Task #211).
+// Race-eve Saturday: shared single source of truth (Task #211, Task #215).
 //
 // The campaign-final Saturday's race-prep shape (light Tonal mobility flush
 // plus a short easy Bike/Row spin alternating by week parity) is identical
 // across every race-week branch in `index.ts`:
 //
-//   - `buildWeekDays` race-week Sat (recipe-driven; emitted twice — once for
-//     the half-marathon-style early branch and once for the general-recipe
-//     branch).
+//   - `generatePlan` race-week Sat (canonical 52-week plan).
+//   - `buildWeekDays` race-week Sat (recipe-driven path).
 //   - `buildHybridWeekDays` race-week Sat (hybrid pipeline).
 //
-// Co-locating the constant here (next to `HYBRID_RACE_WEEK_TAPER` and
-// `RACE_DAY_SPECS`) means a future tweak — swapping the cardio block,
-// changing the minutes, dropping the alternation rule — lands in one place
-// instead of drifting across three branches that have to stay in lock-step.
+// Task #215 promoted the per-field `RACE_EVE_SAT_SPEC` to a full
+// `buildRaceEveSatRow` row builder so every field (strength_load,
+// equipment_list, description, minutes, session_type, total_load, …) is
+// emitted from the same helper. All three call sites now delegate to
+// `buildRaceEveSatRow` instead of repeating `isRaceWeek ? RACE_EVE_SAT_SPEC.x
+// : recipeValue` ternaries inline — the same drift Task #213 had to fix
+// (`strength_load` had silently fallen out of sync in one branch) is now
+// impossible by construction.
 //
-// Sun race-day already has its single source of truth in
-// `RACE_DAY_SPECS[raceKind]`; `strength_load` is intentionally NOT covered
-// here because the three call sites differ on whether to keep the heavy
-// Saturday lift load or zero it out (preserved as-is per branch).
+// Sun race-day has its own single source of truth in `RACE_DAY_SPECS[raceKind]`.
 const RACE_EVE_SAT_STRENGTH_MIN = 15;
 const RACE_EVE_SAT_CARDIO_MIN = 15;
 
@@ -1343,6 +1343,53 @@ export const RACE_EVE_SAT_SPEC: Readonly<RaceEveSatSpec> = {
   describe: (cardioMachineName) =>
     `Race-eve: light Tonal mobility (${RACE_EVE_SAT_STRENGTH_MIN} min) + ${RACE_EVE_SAT_CARDIO_MIN} min easy ${cardioMachineName} spin. Stay loose, hydrate, fuel well.`,
 };
+
+// Build the entire race-eve Saturday `DailyRow` from the shared
+// `RACE_EVE_SAT_SPEC`. All three race-week Sat branches in `index.ts`
+// (generatePlan canonical 52-week, buildWeekDays recipe-driven,
+// buildHybridWeekDays hybrid pipeline) call this helper so every field —
+// strength_load (always 0 on race-eve; the heavy Sat lift is dropped to
+// prioritize freshness), equipment_list, description, minutes, session_type,
+// total_load — has exactly one source of truth and cannot drift across
+// branches (Task #215; see Task #213 for the regression this prevents).
+//
+// Inputs:
+//   - weekNumber: drives the Bike/Row alternation (even → Row, odd → Bike).
+//   - phase: phase label for the row (race-week phase string set by caller).
+//   - date: pre-formatted ISO date string for the Saturday row. Callers
+//     compute this themselves (`fmt(addDays(wkStart, 5))` or the recipe's
+//     own per-day date) so this helper stays free of date arithmetic.
+//   - customSuffix: optional trailing text appended to the description (used
+//     by `buildWeekDays` / `buildHybridWeekDays` to carry the recipe's
+//     custom-notes suffix; defaults to "" for the canonical generator
+//     branch which has no suffix).
+export function buildRaceEveSatRow(args: {
+  weekNumber: number;
+  phase: string;
+  date: string;
+  customSuffix?: string;
+}): DailyRow {
+  const { weekNumber, phase, date, customSuffix = "" } = args;
+  const cardioMachine = RACE_EVE_SAT_SPEC.cardioMachineForWeek(weekNumber);
+  return {
+    week: weekNumber,
+    phase,
+    date,
+    day: "Sat",
+    strength_load: 0,
+    equipment: "Tonal",
+    equipment_list: ["Tonal", cardioMachine],
+    description: RACE_EVE_SAT_SPEC.describe(cardioMachine) + customSuffix,
+    strength_min: RACE_EVE_SAT_SPEC.strengthMin,
+    cardio_min: RACE_EVE_SAT_SPEC.cardioMin,
+    run_min: 0,
+    distance_mi: null,
+    pace: null,
+    session_type: RACE_EVE_SAT_SPEC.sessionType,
+    is_rest: false,
+    total_load: RACE_EVE_SAT_SPEC.totalLoad,
+  };
+}
 
 export const RACE_DAY_SPECS: Readonly<
   Record<Exclude<PlanRaceKind, "none">, RaceDaySpec>

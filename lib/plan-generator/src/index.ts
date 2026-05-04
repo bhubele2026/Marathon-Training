@@ -16,8 +16,8 @@ import {
   liftPrimaryKind,
   primaryMachineKind,
   projectEntries,
+  buildRaceEveSatRow,
   RACE_DAY_SPECS,
-  RACE_EVE_SAT_SPEC,
   type HybridFitnessLevel,
   type HybridMixPosition,
   type HybridMixSpec,
@@ -381,56 +381,46 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
     };
 
     // ---------- SAT: HEAVY LIFT + SHORT BIKE/ROW (alternate) ----------
-    // Race-eve Sat (race week) reads its shape from `RACE_EVE_SAT_SPEC`
-    // (Task #211) — the single shared constant that all three race-week
-    // Sat branches pull from. Non-race weeks keep the recipe-driven
-    // heavy lift + short cardio finisher; the bike/row alternation rule
-    // is the same in both modes.
-    const satCardioName = isRaceWeek
-      ? RACE_EVE_SAT_SPEC.cardioMachineForWeek(w)
-      : w % 2 === 0
-      ? "Peloton Row"
-      : "Peloton Bike";
-    const satCardioVerb = w % 2 === 0 ? "steady row" : "steady bike";
-    const satStrengthMin = isRaceWeek
-      ? RACE_EVE_SAT_SPEC.strengthMin
-      : heavyTonalMin;
-    const satCardioMin = isRaceWeek
-      ? RACE_EVE_SAT_SPEC.cardioMin
-      : shortCardioMin;
-    const satDay: DailyRow = {
-      week: w,
-      phase,
-      date: fmt(addDays(wkStart, 5)),
-      day: "Sat",
-      // Race-eve Sat is a 15-min mobility flush + 15-min easy spin, NOT
-      // a heavy lift, so `strength_load` zeroes out alongside the other
-      // race-week Sat shape values. Matches the second `buildWeekDays`
-      // branch (line ~2588) and the hybrid race-week branch (line ~2129)
-      // so weekly intensity / load summaries no longer spike on race-eve
-      // for marathon plans whose campaign-final week flows through this
-      // branch (Task #213).
-      strength_load: isRaceWeek ? 0 : heavyStrengthLoad,
-      equipment: "Tonal",
-      equipment_list: ["Tonal", satCardioName],
-      description: isRaceWeek
-        ? RACE_EVE_SAT_SPEC.describe(satCardioName)
-        : isCutback
-        ? `Heavy full-body Tonal (${heavyTonalMin} min, mixed push/pull/squat), then ${shortCardioMin} min ${satCardioVerb}`
-        : `Heavy full-body Tonal (${heavyTonalMin} min, mixed push/pull/squat at 80-85% effort), then ${shortCardioMin} min ${satCardioVerb} on ${satCardioName}`,
-      strength_min: satStrengthMin,
-      cardio_min: satCardioMin,
-      run_min: 0,
-      distance_mi: null,
-      pace: null,
-      session_type: isRaceWeek
-        ? RACE_EVE_SAT_SPEC.sessionType
-        : "Strength + Cardio",
-      is_rest: false,
-      total_load: isRaceWeek
-        ? RACE_EVE_SAT_SPEC.totalLoad
-        : heavyStrengthLoad + shortCardioMin,
-    };
+    // Race-eve Sat (race week) is built end-to-end by the shared
+    // `buildRaceEveSatRow` helper (Task #215) so every field — minutes,
+    // cardio machine alternation, description, session_type, total_load,
+    // and the zeroed-out strength_load (the heavy Sat lift is dropped to
+    // prioritize freshness; Task #213) — is read from the same source as
+    // the other two race-week Sat branches in `buildWeekDays` (line ~2583)
+    // and `buildHybridWeekDays` (line ~2124). Non-race weeks keep the
+    // recipe-driven heavy lift + short cardio finisher inline; the bike/
+    // row alternation rule is the same in both modes.
+    let satDay: DailyRow;
+    if (isRaceWeek) {
+      satDay = buildRaceEveSatRow({
+        weekNumber: w,
+        phase,
+        date: fmt(addDays(wkStart, 5)),
+      });
+    } else {
+      const satCardioName = w % 2 === 0 ? "Peloton Row" : "Peloton Bike";
+      const satCardioVerb = w % 2 === 0 ? "steady row" : "steady bike";
+      satDay = {
+        week: w,
+        phase,
+        date: fmt(addDays(wkStart, 5)),
+        day: "Sat",
+        strength_load: heavyStrengthLoad,
+        equipment: "Tonal",
+        equipment_list: ["Tonal", satCardioName],
+        description: isCutback
+          ? `Heavy full-body Tonal (${heavyTonalMin} min, mixed push/pull/squat), then ${shortCardioMin} min ${satCardioVerb}`
+          : `Heavy full-body Tonal (${heavyTonalMin} min, mixed push/pull/squat at 80-85% effort), then ${shortCardioMin} min ${satCardioVerb} on ${satCardioName}`,
+        strength_min: heavyTonalMin,
+        cardio_min: shortCardioMin,
+        run_min: 0,
+        distance_mi: null,
+        pace: null,
+        session_type: "Strength + Cardio",
+        is_rest: false,
+        total_load: heavyStrengthLoad + shortCardioMin,
+      };
+    }
 
     // ---------- SUN: LONG RUN (no lift) or RACE ----------
     let sunDay: DailyRow;
@@ -2122,30 +2112,18 @@ function buildHybridWeekDays(opts: {
       };
     }
     if (isRaceWeek && dayOffset === 5 && raceKind !== "none") {
-      // Race-eve Saturday: shape (mobility-flush minutes, easy spin
-      // minutes, bike/row alternation, description, session_type,
-      // total_load) all read from `RACE_EVE_SAT_SPEC` (Task #211) so a
-      // hybrid race plan emits the same race-eve protocol as a non-
-      // hybrid race plan, regardless of race distance.
-      const satCardioName = RACE_EVE_SAT_SPEC.cardioMachineForWeek(weekNumber);
-      return {
-        week: weekNumber,
+      // Race-eve Saturday: the entire `DailyRow` is emitted by the shared
+      // `buildRaceEveSatRow` helper (Task #215) so a hybrid race plan
+      // emits the same race-eve protocol — minutes, cardio machine
+      // alternation, description, session_type, total_load,
+      // strength_load — as the other two race-week Sat branches in
+      // `generatePlan` and `buildWeekDays`, regardless of race distance.
+      return buildRaceEveSatRow({
+        weekNumber,
         phase,
         date,
-        day,
-        strength_load: 0,
-        equipment: "Tonal",
-        equipment_list: ["Tonal", satCardioName],
-        description: RACE_EVE_SAT_SPEC.describe(satCardioName) + customSuffix,
-        strength_min: RACE_EVE_SAT_SPEC.strengthMin,
-        cardio_min: RACE_EVE_SAT_SPEC.cardioMin,
-        run_min: 0,
-        distance_mi: null,
-        pace: null,
-        session_type: RACE_EVE_SAT_SPEC.sessionType,
-        is_rest: false,
-        total_load: RACE_EVE_SAT_SPEC.totalLoad,
-      };
+        customSuffix,
+      });
     }
     if (isRaceWeek && dayOffset === 6 && raceKind !== "none") {
       // Race day Sunday: pull the per-kind race-day spec (Task #200).
@@ -2570,51 +2548,46 @@ function buildWeekDays(opts: {
   };
 
   // ---------- SAT: HEAVY LIFT + CARDIO ----------
-  // Race-eve Sat (race week) reads its shape from `RACE_EVE_SAT_SPEC`
-  // (Task #211) — the single shared constant that all three race-week
-  // Sat branches pull from. Non-race weeks keep the recipe-driven
-  // heavy lift + cardio finisher; the bike/row alternation rule is the
-  // same in both modes.
-  const satCardioName = isRaceWeek
-    ? RACE_EVE_SAT_SPEC.cardioMachineForWeek(weekNumber)
-    : weekNumber % 2 === 0
-    ? "Peloton Row"
-    : "Peloton Bike";
-  const satCardioVerb = weekNumber % 2 === 0 ? "steady row" : "steady bike";
-  const satStrengthMin = isRaceWeek
-    ? RACE_EVE_SAT_SPEC.strengthMin
-    : heavyTonalMin;
-  const satFinalCardioMin = isRaceWeek
-    ? RACE_EVE_SAT_SPEC.cardioMin
-    : satCardioMin;
-  const satDay: DailyRow = {
-    week: weekNumber,
-    phase,
-    date: fmt(addDays(wkStart, 5)),
-    day: "Sat",
-    strength_load: isRaceWeek ? 0 : heavyStrengthLoad,
-    equipment: "Tonal",
-    equipment_list: ["Tonal", satCardioName],
-    description:
-      (isRaceWeek
-        ? RACE_EVE_SAT_SPEC.describe(satCardioName)
-        : isCutback
-        ? `Heavy full-body Tonal (${heavyTonalMin} min, mixed push/pull/squat), then ${satCardioMin} min ${satCardioVerb}`
-        : `Heavy full-body Tonal (${heavyTonalMin} min, mixed push/pull/squat at 80-85% effort), then ${satCardioMin} min ${satCardioVerb} on ${satCardioName}`) +
+  // Race-eve Sat (race week) is built end-to-end by the shared
+  // `buildRaceEveSatRow` helper (Task #215) so every field stays in
+  // lock-step with the other two race-week Sat branches (`generatePlan`
+  // line ~401 and `buildHybridWeekDays` line ~2124). Non-race weeks keep
+  // the recipe-driven heavy lift + cardio finisher inline; the bike/row
+  // alternation rule is the same in both modes.
+  let satDay: DailyRow;
+  if (isRaceWeek) {
+    satDay = buildRaceEveSatRow({
+      weekNumber,
+      phase,
+      date: fmt(addDays(wkStart, 5)),
       customSuffix,
-    strength_min: satStrengthMin,
-    cardio_min: satFinalCardioMin,
-    run_min: 0,
-    distance_mi: null,
-    pace: null,
-    session_type: isRaceWeek
-      ? RACE_EVE_SAT_SPEC.sessionType
-      : "Strength + Cardio",
-    is_rest: false,
-    total_load: isRaceWeek
-      ? RACE_EVE_SAT_SPEC.totalLoad
-      : heavyStrengthLoad + satCardioMin,
-  };
+    });
+  } else {
+    const satCardioName = weekNumber % 2 === 0 ? "Peloton Row" : "Peloton Bike";
+    const satCardioVerb = weekNumber % 2 === 0 ? "steady row" : "steady bike";
+    satDay = {
+      week: weekNumber,
+      phase,
+      date: fmt(addDays(wkStart, 5)),
+      day: "Sat",
+      strength_load: heavyStrengthLoad,
+      equipment: "Tonal",
+      equipment_list: ["Tonal", satCardioName],
+      description:
+        (isCutback
+          ? `Heavy full-body Tonal (${heavyTonalMin} min, mixed push/pull/squat), then ${satCardioMin} min ${satCardioVerb}`
+          : `Heavy full-body Tonal (${heavyTonalMin} min, mixed push/pull/squat at 80-85% effort), then ${satCardioMin} min ${satCardioVerb} on ${satCardioName}`) +
+        customSuffix,
+      strength_min: heavyTonalMin,
+      cardio_min: satCardioMin,
+      run_min: 0,
+      distance_mi: null,
+      pace: null,
+      session_type: "Strength + Cardio",
+      is_rest: false,
+      total_load: heavyStrengthLoad + satCardioMin,
+    };
+  }
 
   // ---------- PRIMARY MACHINE ROUTING (bike-only / row-only) ----------
   // Templates that pin a `[primary-machine:bike|row]` sentinel in their
