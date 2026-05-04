@@ -120,6 +120,16 @@
   --chart-4: 260 35% 55%;
   --chart-5: 30 60% 55%;
 
+  /* Phase colors are exposed as CSS custom properties so the active
+     visual theme (task #188) can re-skin them without forcing every
+     consumer to re-render. Defaults here match the Arctic Performance
+     palette so static markup looks right before the provider mounts. */
+  --phase-foundation: hsl(215 50% 52%);
+  --phase-aerobic: hsl(178 65% 42%);
+  --phase-tempo: hsl(160 55% 48%);
+  --phase-race-specific: hsl(260 40% 58%);
+  --phase-taper: hsl(30 65% 55%);
+
   --app-font-sans: 'Inter', sans-serif;
   --app-font-serif: Georgia, serif;
   --app-font-mono: Menlo, monospace;

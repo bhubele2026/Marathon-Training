@@ -55,7 +55,16 @@ vi.mock("@/hooks/use-toast", () => ({
 }));
 
 import { HR_ZONE_COLORS } from "@/lib/run-target";
+import { VisualThemeProvider } from "@/lib/visual-theme";
 import Settings from "./settings";
+
+function renderSettings() {
+  return render(
+    <VisualThemeProvider>
+      <Settings />
+    </VisualThemeProvider>,
+  );
+}
 
 describe("Settings — HR zone swatch coverage on the Run Targeting preview (task #167)", () => {
   afterEach(() => {
@@ -68,7 +77,7 @@ describe("Settings — HR zone swatch coverage on the Run Targeting preview (tas
   it("renders all five zone-preview swatches when the active mode is hr_zones", () => {
     runTargetingModeRef.current = "hr_zones";
     maxHrRef.current = 200;
-    render(<Settings />);
+    renderSettings();
 
     // Reach for the public testIds rather than scraping classnames so
     // the assertion stays robust to Tailwind / styling changes as long
@@ -94,7 +103,7 @@ describe("Settings — HR zone swatch coverage on the Run Targeting preview (tas
         | "pace"
         | "hr_zones";
       maxHrRef.current = 200;
-      render(<Settings />);
+      renderSettings();
 
       // Swatches gated on hr_zones — absent in every other mode.
       for (const bucket of [1, 2, 3, 4, 5] as const) {
@@ -118,7 +127,7 @@ describe("Settings — HR zone swatch coverage on the Run Targeting preview (tas
     // shouldn't appear either even when the user is on hr_zones mode.
     runTargetingModeRef.current = "hr_zones";
     maxHrRef.current = null;
-    render(<Settings />);
+    renderSettings();
 
     for (const bucket of [1, 2, 3, 4, 5] as const) {
       expect(
@@ -154,7 +163,7 @@ describe("Settings — every HR zone bucket renders the matching preview swatch 
     ({ bucket }) => {
       runTargetingModeRef.current = "hr_zones";
       maxHrRef.current = 200;
-      render(<Settings />);
+      renderSettings();
 
       // Grab the row first so the "Zone N" prefix and the swatch we
       // assert on are unambiguously the ones for this bucket — not

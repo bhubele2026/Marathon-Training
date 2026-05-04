@@ -1,20 +1,18 @@
-// Arctic Performance phase palette (task #186):
-//   Foundation Build → slate-blue
-//   Aerobic Build    → teal
-//   Tempo/Threshold  → mint
-//   Race-Specific    → soft plum
-//   Taper & Race     → warm amber
-// The trailing entries are theme-coordinated fallbacks for any
-// non-canonical phase name (hashed deterministically below).
+// Phase colors are theme-driven (task #188). Each canonical phase
+// resolves to a CSS custom property that the active visual theme
+// rewrites on the fly (see `visual-theme.tsx`). Returning `var(...)`
+// strings means components don't need to re-render when the theme
+// changes — the browser repaints automatically.
+//
+// Default values for these vars are seeded by `index.css` to the
+// Arctic Performance palette, so server-rendered or
+// pre-provider markup still gets a coherent, themed color.
 const PHASE_PALETTE = [
-  "hsl(215 50% 52%)",
-  "hsl(178 65% 42%)",
-  "hsl(160 55% 48%)",
-  "hsl(260 40% 58%)",
-  "hsl(30 65% 55%)",
-  "hsl(195 70% 50%)",
-  "hsl(140 45% 50%)",
-  "hsl(245 45% 60%)",
+  "var(--phase-foundation)",
+  "var(--phase-aerobic)",
+  "var(--phase-tempo)",
+  "var(--phase-race-specific)",
+  "var(--phase-taper)",
 ];
 
 const CANONICAL_PHASE_COLORS: Record<string, string> = {

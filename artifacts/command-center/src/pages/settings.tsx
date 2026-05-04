@@ -15,6 +15,8 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { hrZoneBpmRange, HR_ZONE_COLORS } from "@/lib/run-target";
+import { useVisualTheme } from "@/lib/visual-theme";
+import { type ThemeKey } from "@/lib/visual-themes";
 
 interface ModeOption {
   value: RunTargetingMode;
@@ -74,6 +76,7 @@ export default function Settings() {
   const { data, isLoading } = useGetUserPreferences();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { themeKey, setThemeKey, themes } = useVisualTheme();
   const update = useUpdateUserPreferences({
     mutation: {
       onSuccess: () => {
@@ -177,6 +180,84 @@ export default function Settings() {
           App-wide preferences
         </p>
       </div>
+
+      <Card data-testid="card-visual-theme">
+        <CardHeader>
+          <CardTitle className="text-lg uppercase tracking-wider">Visual theme</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Pick the palette that powers the entire Command Center. Your choice
+            applies instantly across light and dark mode, including phase colors
+            and chart accents, and is remembered on this device next time you
+            sign in.
+          </p>
+          <RadioGroup
+            value={themeKey}
+            onValueChange={(next) => setThemeKey(next as ThemeKey)}
+            className="grid gap-3 sm:grid-cols-2"
+            data-testid="radio-group-visual-theme"
+          >
+            {themes.map((theme) => {
+              const id = `visual-theme-${theme.key}`;
+              return (
+                <Label
+                  key={theme.key}
+                  htmlFor={id}
+                  className="flex items-start gap-3 rounded-md border border-border p-4 cursor-pointer hover:border-primary/40 has-[:checked]:border-primary has-[:checked]:bg-primary/5 transition-colors"
+                  data-testid={`option-visual-theme-${theme.key}`}
+                >
+                  <RadioGroupItem
+                    value={theme.key}
+                    id={id}
+                    className="mt-1"
+                    data-testid={`radio-visual-theme-${theme.key}`}
+                  />
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-bold uppercase tracking-wider text-sm">
+                        {theme.name}
+                      </div>
+                      <span className="text-[10px] uppercase tracking-widest font-mono text-muted-foreground">
+                        {theme.number}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-snug">
+                      {theme.tagline}
+                    </p>
+                    <div
+                      className="flex items-center gap-1.5"
+                      aria-hidden="true"
+                      data-testid={`swatches-visual-theme-${theme.key}`}
+                    >
+                      {[
+                        theme.light.primary,
+                        theme.light.accent,
+                        theme.phaseColors.foundation,
+                        theme.phaseColors.aerobic,
+                        theme.phaseColors.taper,
+                      ].map((token, idx) => {
+                        // The first two come straight from the light
+                        // tokens block (raw "H S% L%"), the phase
+                        // colors are already wrapped in `hsl(...)`.
+                        const isHsl = token.startsWith("hsl");
+                        const background = isHsl ? token : `hsl(${token})`;
+                        return (
+                          <span
+                            key={idx}
+                            className="h-4 w-4 rounded-full ring-1 ring-inset ring-black/10 dark:ring-white/15"
+                            style={{ background }}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                </Label>
+              );
+            })}
+          </RadioGroup>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
