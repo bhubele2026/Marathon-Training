@@ -1140,21 +1140,96 @@ export function templateRaceKindById(id: string): PlanRaceKind {
   return templateRaceKind(getTemplateById(id));
 }
 
-// True when the LAST entry in an entries-mode plan is a marathon
-// template — i.e. the campaign's trailing Sunday is a real marathon
-// race day (task #184). Drives the entries-mode race-day branch in
-// `generatePlanFromConfig` (re-enables the 26.2 mi marathon Sunday +
-// race-prep Saturday for marathon entries plans without forcing it
-// onto 5K / 10K / half / hybrid entries plans). An empty entries
-// array, an unknown last templateId, or a non-marathon last template
-// returns false.
+// Classify the LAST entry's race-day kind for an entries-mode plan
+// (task #191). Drives the entries-mode race-day branch in
+// `generatePlanFromConfig` so that marathon / half / 10K / 5K
+// templates each end on a real race-day Sunday with the correct
+// distance — instead of whatever the trailing recipe (usually Taper)
+// happens to emit. An empty entries array or an unknown last
+// templateId returns "none" so the campaign-final week falls through
+// to the recipe's natural taper Sunday. Non-race templates (Hybrid,
+// lifting-only, archived) also return "none" via `templateRaceKind`.
+export function entriesRaceKind(
+  entries: ReadonlyArray<{ templateId: string }>,
+): PlanRaceKind {
+  if (!entries || entries.length === 0) return "none";
+  const last = entries[entries.length - 1]!;
+  return templateRaceKindById(last.templateId);
+}
+
+// Backwards-compatible specialization of `entriesRaceKind`. Predates
+// task #191 (when only marathon entries plans had a real race-day
+// Sunday). Retained because the planner UI / preview also need a
+// boolean for legacy callers that haven't been migrated to the
+// per-kind API. New callers should prefer `entriesRaceKind` so the
+// planner can light up half / 10K / 5K race-day Sundays too.
 export function entriesEndOnMarathonRace(
   entries: ReadonlyArray<{ templateId: string }>,
 ): boolean {
-  if (!entries || entries.length === 0) return false;
-  const last = entries[entries.length - 1]!;
-  return templateRaceKindById(last.templateId) === "marathon";
+  return entriesRaceKind(entries) === "marathon";
 }
+
+// Per-race-kind metadata used by the campaign-final race-day branch
+// in `buildWeekDays` and by the Phase Planner mileage preview (task
+// #191). Source of truth for the trailing Sunday's distance, label,
+// description, run-minutes-per-mile estimate, and total_load — so
+// half / 10K / 5K entries plans get a real race-day Sunday at the
+// correct distance instead of the trailing Taper recipe's natural
+// ~4 mi long run. Marathon values are pinned to preserve the exact
+// numbers task #184 / earlier tests already locked in.
+export interface RaceDaySpec {
+  distanceMi: number;
+  // Short label (e.g. "Half (13.1 mi)") used inside the description.
+  label: string;
+  // Full Sunday `description` string the generator writes onto the
+  // plan_day row. Always begins with "RACE DAY — <label>." so the
+  // dashboard / week strip can highlight the campaign-final Sunday.
+  description: string;
+  // Per-mile run-minute estimate used to compute `run_min`. Slower
+  // events (marathon / half) use 11 min/mi; shorter / faster races
+  // (10K / 5K) use 10 min/mi. Calibrated with `Math.round`.
+  runMinPerMi: number;
+  // Race-day `total_load` written onto the Sunday plan_day row. The
+  // dashboard uses this to color the daily load chip.
+  totalLoad: number;
+}
+
+export const RACE_DAY_SPECS: Readonly<
+  Record<Exclude<PlanRaceKind, "none">, RaceDaySpec>
+> = {
+  marathon: {
+    distanceMi: 26.2,
+    label: "Marathon (26.2 mi)",
+    description:
+      "RACE DAY — Marathon (26.2 mi). Execute race plan, fuel every 4 mi, finish strong.",
+    runMinPerMi: 11,
+    totalLoad: 350,
+  },
+  half: {
+    distanceMi: 13.1,
+    label: "Half (13.1 mi)",
+    description:
+      "RACE DAY — Half (13.1 mi). Execute race plan, fuel every 4 mi, finish strong.",
+    runMinPerMi: 11,
+    totalLoad: 200,
+  },
+  "10k": {
+    distanceMi: 6.2,
+    label: "10K (6.2 mi)",
+    description:
+      "RACE DAY — 10K (6.2 mi). Execute race plan at threshold effort, hold form, finish strong.",
+    runMinPerMi: 10,
+    totalLoad: 110,
+  },
+  "5k": {
+    distanceMi: 3.1,
+    label: "5K (3.1 mi)",
+    description:
+      "RACE DAY — 5K (3.1 mi). Execute race plan at VO2 effort, go hard from the gun, finish strong.",
+    runMinPerMi: 10,
+    totalLoad: 60,
+  },
+};
 
 // Opinionated starter shortcuts surfaced as one-click "Use this starter"
 // buttons. Each starter is a COMPOSITION of TemplateEntry objects — an

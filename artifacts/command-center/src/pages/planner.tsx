@@ -23,7 +23,7 @@ import {
   projectEntries,
   getTemplateById,
   isArchivedTemplateId,
-  entriesEndOnMarathonRace,
+  entriesRaceKind,
   previewWeeklyMileage,
   HYBRID_POSITIONS_ORDERED,
   HYBRID_POSITION_LABEL,
@@ -1711,21 +1711,22 @@ export default function Planner() {
   // 16-week Marathon-Specific tail so the curve matches what regenerating
   // would produce. The helper doesn't validate dates/sums so the preview
   // updates live as the runner edits block weeks.
-  // Task #184: an entries-mode plan whose LAST entry is a marathon
-  // template (e.g. Pfitz 18w / `marathon`) ends on a real RACE DAY
-  // Sunday — the trailing week's long-run jumps to the 26.2 mi
-  // marathon distance instead of the Taper recipe's natural ~4 mi
-  // Sunday. Mirror `generatePlanFromConfig`'s `endsOnMarathonRaceDay`
-  // gate here so the Phase Planner sparkline / mileage curve agrees
-  // with what Apply emits. Non-marathon entries plans (5K / 10K /
-  // half / hybrid / lifting) still preview their template's natural
-  // taper Sunday — and blocks-mode is unaffected (the appended 16w
-  // Marathon-Specific tail handles its own race-week math).
-  const entriesMarathonRace = useMemo(
+  // Task #191 (extends #184): an entries-mode plan whose LAST entry
+  // classifies as a real race (marathon / half / 10K / 5K) ends on a
+  // true RACE DAY Sunday — the trailing week's long-run jumps to the
+  // matching race distance (26.2 / 13.1 / 6.2 / 3.1) instead of the
+  // Taper recipe's natural ~4 mi Sunday. Mirror
+  // `generatePlanFromConfig`'s race-day gate here so the Phase
+  // Planner sparkline / mileage curve agrees with what Apply emits.
+  // Non-race entries plans (Hybrid, lifting-only) still preview
+  // their template's natural taper Sunday — and blocks-mode is
+  // unaffected (the appended 16w Marathon-Specific tail handles its
+  // own race-week math).
+  const entriesRaceKindForPreview = useMemo(
     () =>
       isEntriesMode && entries != null
-        ? entriesEndOnMarathonRace(entries)
-        : false,
+        ? entriesRaceKind(entries)
+        : ("none" as const),
     [isEntriesMode, entries],
   );
   const mileagePreview = useMemo<WeekMileagePreview[]>(() => {
@@ -1734,12 +1735,12 @@ export default function Planner() {
       // append the auto-pinned 16w Marathon-Specific tail to the preview.
       return previewWeeklyMileage(draftToBlocks(draft), {
         appendMarathonTail: !isEntriesMode && isMarathonMode,
-        entriesEndOnMarathonRace: entriesMarathonRace,
+        entriesRaceKind: entriesRaceKindForPreview,
       });
     } catch {
       return [];
     }
-  }, [draft, isEntriesMode, isMarathonMode, entriesMarathonRace]);
+  }, [draft, isEntriesMode, isMarathonMode, entriesRaceKindForPreview]);
 
   // Per-block slices keyed by blockIndex (user blocks are 0..draft.length-1,
   // the auto-pinned tail is draft.length).
