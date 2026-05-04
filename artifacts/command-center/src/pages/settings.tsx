@@ -14,7 +14,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { hrZoneBpmRange } from "@/lib/run-target";
+import { hrZoneBpmRange, HR_ZONE_COLORS } from "@/lib/run-target";
 
 interface ModeOption {
   value: RunTargetingMode;
@@ -305,8 +305,15 @@ export default function Settings() {
                           className="flex items-center justify-between gap-4 text-xs"
                           data-testid={`zone-preview-row-${bucket}`}
                         >
-                          <span className="font-bold uppercase tracking-wider">
-                            Zone {bucket}
+                          <span className="flex items-center gap-2">
+                            <span
+                              aria-hidden="true"
+                              className={`inline-block h-3 w-3 rounded-sm ring-1 ring-inset ring-black/10 dark:ring-white/15 ${HR_ZONE_COLORS[bucket].swatchClass}`}
+                              data-testid={`zone-preview-swatch-${bucket}`}
+                            />
+                            <span className="font-bold uppercase tracking-wider">
+                              Zone {bucket}
+                            </span>
                           </span>
                           <span
                             className="font-mono tabular-nums text-muted-foreground"

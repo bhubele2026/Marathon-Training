@@ -87,6 +87,26 @@ const HR_ZONE_LABELS: Record<1 | 2 | 3 | 4 | 5, string> = {
   5: "Zone 5",
 };
 
+// Standard 5-zone color ramp used by watches and most popular training
+// apps (Garmin, Polar, COROS): Zone 1 cool/grey, Zone 2 green, Zone 3
+// yellow, Zone 4 orange, Zone 5 red. The mid-saturation 500-shade
+// Tailwind tokens stay legible against both the light (~90% L muted)
+// and dark (~15% L muted) preview backgrounds we render swatches on,
+// so a single class string works in both themes without an explicit
+// `dark:` variant. Anything that color-codes HR zones (Settings
+// preview, Today's run target chip, expanded plan card detail) should
+// pull from this map rather than hard-coding hex values.
+export const HR_ZONE_COLORS: Record<
+  1 | 2 | 3 | 4 | 5,
+  { swatchClass: string }
+> = {
+  1: { swatchClass: "bg-slate-400" },
+  2: { swatchClass: "bg-emerald-500" },
+  3: { swatchClass: "bg-amber-400" },
+  4: { swatchClass: "bg-orange-500" },
+  5: { swatchClass: "bg-red-500" },
+};
+
 // Standard 5-zone "% of max heart rate" model (Task #141). Each zone is
 // a [low, high] fraction of the user's max HR. Zone 1 starts at 50% so
 // that a fully personalized "Zone 1 · 100-120 bpm" line still
