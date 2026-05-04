@@ -23,6 +23,20 @@ export const GetPlanOverviewResponse = zod.object({
   goalWeight: zod.number(),
   weeklyMilesTarget: zod.number().optional(),
   longRunTarget: zod.number().optional(),
+  programs: zod
+    .array(
+      zod.object({
+        sourceEntryIndex: zod.number(),
+        label: zod.string(),
+        startDate: zod.string(),
+        endDate: zod.string(),
+        weeks: zod.number(),
+      }),
+    )
+    .optional()
+    .describe(
+      'Task #135. Every program (TemplateEntry) currently contributing rows to plan_days, ordered by sourceEntryIndex. The \/plan overview renders this as a parallel-tracks panel so a runner can see at a glance which concurrent programs are stacked. Aggregated from plan_days so the panel always reflects the applied state. For legacy single-program campaigns this is a one-element array labelled \"Marathon Plan\".\n',
+    ),
 });
 
 export const ListPlanWeeksResponseItem = zod.object({
@@ -167,6 +181,17 @@ export const GetPlanWeekResponse = zod
               .describe(
                 'Per-field before\/after diff for the \"Edited\" badge popover. One entry per item in customizedFields (same order). Empty when isCustomized is false. Values are stringified — the UI applies field-specific formatting (e.g. distanceMi gets a \"mi\" suffix). null values mean the field had no seeded value or has been cleared.',
               ),
+            sourceEntryIndex: zod
+              .number()
+              .describe(
+                "Task #135. Identifies which TemplateEntry within the active planner config produced this row. 0 for legacy single-program campaigns and for blocks-mode configs; 0..N-1 for entries-mode configs (one row per entry that overlaps the date). The composite UNIQUE(date, sourceEntryIndex) on plan_days lets two concurrent overlapping programs each emit a row on the same calendar date.\n",
+              ),
+            sourceEntryLabel: zod
+              .string()
+              .nullish()
+              .describe(
+                "Task #135. Human-readable program name (entry.customName or template name) shown as a badge in \/today and \/plan when concurrent programs are running. Null on legacy blocks-mode rows.\n",
+              ),
           })
           .and(
             zod.object({
@@ -277,6 +302,17 @@ export const UpdatePlanDayResponse = zod.object({
     .describe(
       'Per-field before\/after diff for the \"Edited\" badge popover. One entry per item in customizedFields (same order). Empty when isCustomized is false. Values are stringified — the UI applies field-specific formatting (e.g. distanceMi gets a \"mi\" suffix). null values mean the field had no seeded value or has been cleared.',
     ),
+  sourceEntryIndex: zod
+    .number()
+    .describe(
+      "Task #135. Identifies which TemplateEntry within the active planner config produced this row. 0 for legacy single-program campaigns and for blocks-mode configs; 0..N-1 for entries-mode configs (one row per entry that overlaps the date). The composite UNIQUE(date, sourceEntryIndex) on plan_days lets two concurrent overlapping programs each emit a row on the same calendar date.\n",
+    ),
+  sourceEntryLabel: zod
+    .string()
+    .nullish()
+    .describe(
+      "Task #135. Human-readable program name (entry.customName or template name) shown as a badge in \/today and \/plan when concurrent programs are running. Null on legacy blocks-mode rows.\n",
+    ),
 });
 
 export const SwapPlanDayParams = zod.object({
@@ -357,6 +393,17 @@ export const SwapPlanDayResponse = zod.object({
       .describe(
         'Per-field before\/after diff for the \"Edited\" badge popover. One entry per item in customizedFields (same order). Empty when isCustomized is false. Values are stringified — the UI applies field-specific formatting (e.g. distanceMi gets a \"mi\" suffix). null values mean the field had no seeded value or has been cleared.',
       ),
+    sourceEntryIndex: zod
+      .number()
+      .describe(
+        "Task #135. Identifies which TemplateEntry within the active planner config produced this row. 0 for legacy single-program campaigns and for blocks-mode configs; 0..N-1 for entries-mode configs (one row per entry that overlaps the date). The composite UNIQUE(date, sourceEntryIndex) on plan_days lets two concurrent overlapping programs each emit a row on the same calendar date.\n",
+      ),
+    sourceEntryLabel: zod
+      .string()
+      .nullish()
+      .describe(
+        "Task #135. Human-readable program name (entry.customName or template name) shown as a badge in \/today and \/plan when concurrent programs are running. Null on legacy blocks-mode rows.\n",
+      ),
   }),
   to: zod.object({
     id: zod.number(),
@@ -422,6 +469,17 @@ export const SwapPlanDayResponse = zod.object({
       )
       .describe(
         'Per-field before\/after diff for the \"Edited\" badge popover. One entry per item in customizedFields (same order). Empty when isCustomized is false. Values are stringified — the UI applies field-specific formatting (e.g. distanceMi gets a \"mi\" suffix). null values mean the field had no seeded value or has been cleared.',
+      ),
+    sourceEntryIndex: zod
+      .number()
+      .describe(
+        "Task #135. Identifies which TemplateEntry within the active planner config produced this row. 0 for legacy single-program campaigns and for blocks-mode configs; 0..N-1 for entries-mode configs (one row per entry that overlaps the date). The composite UNIQUE(date, sourceEntryIndex) on plan_days lets two concurrent overlapping programs each emit a row on the same calendar date.\n",
+      ),
+    sourceEntryLabel: zod
+      .string()
+      .nullish()
+      .describe(
+        "Task #135. Human-readable program name (entry.customName or template name) shown as a badge in \/today and \/plan when concurrent programs are running. Null on legacy blocks-mode rows.\n",
       ),
   }),
   weeksAffected: zod
@@ -516,6 +574,17 @@ export const ResetPlanDayResponse = zod.object({
     )
     .describe(
       'Per-field before\/after diff for the \"Edited\" badge popover. One entry per item in customizedFields (same order). Empty when isCustomized is false. Values are stringified — the UI applies field-specific formatting (e.g. distanceMi gets a \"mi\" suffix). null values mean the field had no seeded value or has been cleared.',
+    ),
+  sourceEntryIndex: zod
+    .number()
+    .describe(
+      "Task #135. Identifies which TemplateEntry within the active planner config produced this row. 0 for legacy single-program campaigns and for blocks-mode configs; 0..N-1 for entries-mode configs (one row per entry that overlaps the date). The composite UNIQUE(date, sourceEntryIndex) on plan_days lets two concurrent overlapping programs each emit a row on the same calendar date.\n",
+    ),
+  sourceEntryLabel: zod
+    .string()
+    .nullish()
+    .describe(
+      "Task #135. Human-readable program name (entry.customName or template name) shown as a badge in \/today and \/plan when concurrent programs are running. Null on legacy blocks-mode rows.\n",
     ),
 });
 
@@ -723,8 +792,105 @@ export const GetTodayPlanResponse = zod.object({
         .describe(
           'Per-field before\/after diff for the \"Edited\" badge popover. One entry per item in customizedFields (same order). Empty when isCustomized is false. Values are stringified — the UI applies field-specific formatting (e.g. distanceMi gets a \"mi\" suffix). null values mean the field had no seeded value or has been cleared.',
         ),
+      sourceEntryIndex: zod
+        .number()
+        .describe(
+          "Task #135. Identifies which TemplateEntry within the active planner config produced this row. 0 for legacy single-program campaigns and for blocks-mode configs; 0..N-1 for entries-mode configs (one row per entry that overlaps the date). The composite UNIQUE(date, sourceEntryIndex) on plan_days lets two concurrent overlapping programs each emit a row on the same calendar date.\n",
+        ),
+      sourceEntryLabel: zod
+        .string()
+        .nullish()
+        .describe(
+          "Task #135. Human-readable program name (entry.customName or template name) shown as a badge in \/today and \/plan when concurrent programs are running. Null on legacy blocks-mode rows.\n",
+        ),
     })
-    .nullish(),
+    .nullish()
+    .describe(
+      "Back-compat single-plan field — the lowest-sourceEntryIndex plan_day for today, or null if there is none. New clients should iterate `plans[]` to render concurrent program sessions side-by-side; this field stays populated so legacy clients still work when only one program is active.\n",
+    ),
+  plans: zod
+    .array(
+      zod.object({
+        id: zod.number(),
+        week: zod.number(),
+        phase: zod.string(),
+        date: zod.string(),
+        day: zod.string(),
+        strengthLoad: zod.number().nullish(),
+        equipment: zod.string(),
+        equipmentList: zod
+          .array(zod.string())
+          .nullish()
+          .describe(
+            'Ordered chip rail of every machine the runner will use that day. The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". Per the task #77 contract the scalar `equipment` field above always equals `equipmentList[0]` (the \*primary\* machine for the day) so any back-compat code path that still reads the scalar — dashboard equipment usage, suggestions pairKey, `\/equipment` page — agrees with the chip rail\'s lead chip. Nullable to match the underlying DB column on legacy rows that predate the task #77 backfill, but in practice the server normalizes both NULL and empty arrays to `[equipment]` before responding so this field is always present and non-empty in API responses; clients should still tolerate `null` defensively (e.g. `equipmentList ?? [equipment]`).\n',
+          ),
+        description: zod.string(),
+        strengthMin: zod
+          .number()
+          .nullish()
+          .describe(
+            "Prescribed Tonal \/ lift minutes for this day (heavy block plus accessory work). Null on rows that pre-date the breakdown columns and have not yet been backfilled.",
+          ),
+        cardioMin: zod
+          .number()
+          .nullish()
+          .describe(
+            "Prescribed non-running cross-train minutes (bike, row, spin). Does NOT include treadmill or outdoor running minutes — those live in `runMin`.",
+          ),
+        runMin: zod
+          .number()
+          .nullish()
+          .describe(
+            "Prescribed treadmill or outdoor running minutes for this day. Null on rows that pre-date the breakdown columns and have not yet been backfilled.",
+          ),
+        totalMin: zod
+          .number()
+          .nullish()
+          .describe(
+            "Sum of strengthMin, cardioMin, and runMin. Null when ALL three buckets are null (ambiguous legacy row that backfill couldn't classify); otherwise nulls in individual buckets are treated as 0. Server-computed so the UI's TOTAL · LIFT · CARDIO · RUN tile is consistent across pages.",
+          ),
+        distanceMi: zod.number().nullish(),
+        pace: zod.string().nullish(),
+        sessionType: zod.string(),
+        isRest: zod.boolean(),
+        totalLoad: zod.number(),
+        isCustomized: zod
+          .boolean()
+          .describe(
+            "True when this day's prescription differs from the originally-seeded snapshot (i.e. it has been edited or swapped).",
+          ),
+        customizedFields: zod
+          .array(zod.string())
+          .describe(
+            "camelCase field names whose current value differs from the seeded snapshot. Empty when isCustomized is false.",
+          ),
+        customizedDiff: zod
+          .array(
+            zod.object({
+              field: zod.string(),
+              before: zod.string().nullable(),
+              after: zod.string().nullable(),
+            }),
+          )
+          .describe(
+            'Per-field before\/after diff for the \"Edited\" badge popover. One entry per item in customizedFields (same order). Empty when isCustomized is false. Values are stringified — the UI applies field-specific formatting (e.g. distanceMi gets a \"mi\" suffix). null values mean the field had no seeded value or has been cleared.',
+          ),
+        sourceEntryIndex: zod
+          .number()
+          .describe(
+            "Task #135. Identifies which TemplateEntry within the active planner config produced this row. 0 for legacy single-program campaigns and for blocks-mode configs; 0..N-1 for entries-mode configs (one row per entry that overlaps the date). The composite UNIQUE(date, sourceEntryIndex) on plan_days lets two concurrent overlapping programs each emit a row on the same calendar date.\n",
+          ),
+        sourceEntryLabel: zod
+          .string()
+          .nullish()
+          .describe(
+            "Task #135. Human-readable program name (entry.customName or template name) shown as a badge in \/today and \/plan when concurrent programs are running. Null on legacy blocks-mode rows.\n",
+          ),
+      }),
+    )
+    .describe(
+      "Task #135. Every plan_day on today's date, ordered by sourceEntryIndex ascending. Concurrent overlapping programs each contribute one row so the UI can render program-attributed cards (lift program + run program) side-by-side. Empty when no plan day exists for today (pre-launch or post-marathon).\n",
+    ),
   loggedWorkouts: zod
     .array(
       zod.object({
@@ -874,6 +1040,17 @@ export const GetTodayPlanResponse = zod.object({
         )
         .describe(
           'Per-field before\/after diff for the \"Edited\" badge popover. One entry per item in customizedFields (same order). Empty when isCustomized is false. Values are stringified — the UI applies field-specific formatting (e.g. distanceMi gets a \"mi\" suffix). null values mean the field had no seeded value or has been cleared.',
+        ),
+      sourceEntryIndex: zod
+        .number()
+        .describe(
+          "Task #135. Identifies which TemplateEntry within the active planner config produced this row. 0 for legacy single-program campaigns and for blocks-mode configs; 0..N-1 for entries-mode configs (one row per entry that overlaps the date). The composite UNIQUE(date, sourceEntryIndex) on plan_days lets two concurrent overlapping programs each emit a row on the same calendar date.\n",
+        ),
+      sourceEntryLabel: zod
+        .string()
+        .nullish()
+        .describe(
+          "Task #135. Human-readable program name (entry.customName or template name) shown as a badge in \/today and \/plan when concurrent programs are running. Null on legacy blocks-mode rows.\n",
         ),
     })
     .nullish()

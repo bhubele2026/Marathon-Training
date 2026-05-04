@@ -778,26 +778,37 @@ export function projectEntries(
 ): EntryProjection[] {
   const out: EntryProjection[] = [];
   let cursorISO = configStartDate;
-  if (_parseUTC(cursorISO) === null) return out;
+  const startMs = _parseUTC(configStartDate);
+  if (startMs === null) return out;
   for (let i = 0; i < entries.length; i++) {
     const e = entries[i]!;
     let startISO = cursorISO;
     let gapWeeksBefore = 0;
+    let overrode = false;
+    // Task #135: allow overlapping entries — accept any Monday on or
+    // after the config startDate. If the override is BEFORE the
+    // sequential cursor we treat gapWeeksBefore as 0 (overlap with the
+    // previous entry); if AFTER, gapWeeksBefore measures the bridge
+    // gap as before. The sequential cursor only advances for entries
+    // that didn't set an explicit override.
     if (e.startDate && _ISO_DATE_RE.test(e.startDate)) {
       const cursorMs = _parseUTC(cursorISO)!;
       const eMs = _parseUTC(e.startDate);
-      if (eMs !== null && eMs >= cursorMs) {
+      if (eMs !== null && eMs >= startMs) {
         const days = Math.round((eMs - cursorMs) / 86400000);
         if (days % 7 === 0) {
-          gapWeeksBefore = days / 7;
+          gapWeeksBefore = days > 0 ? days / 7 : 0;
           startISO = e.startDate;
+          overrode = true;
         }
       }
     }
     const weeks = Math.max(0, Math.floor(e.weeks));
     const endISO = _addDaysISO(startISO, weeks * 7 - 1) ?? startISO;
     out.push({ entryIndex: i, startDateISO: startISO, endDateISO: endISO, gapWeeksBefore });
-    cursorISO = _addDaysISO(startISO, weeks * 7) ?? cursorISO;
+    if (!overrode) {
+      cursorISO = _addDaysISO(startISO, weeks * 7) ?? cursorISO;
+    }
   }
   return out;
 }

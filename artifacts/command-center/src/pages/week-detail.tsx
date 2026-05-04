@@ -220,6 +220,26 @@ export default function WeekDetail() {
   const isMissedDay = (day: PlanDayWithSuggestions) =>
     !day.isRest && day.date < today && (workoutsByDate.get(day.date)?.length ?? 0) === 0;
 
+  // Task #135: with concurrent overlapping programs, the same calendar
+  // date may have multiple plan_days (one per TemplateEntry). Group them
+  // so we can render the first as the "primary" card (which owns the
+  // logged-workout sessions and the Crushed/Log/Skip buttons) and any
+  // additional concurrent rows as supplementary cards labelled with the
+  // owning program name. Logged workouts are attributed only once per
+  // date — they live on the primary so they don't duplicate across every
+  // concurrent program card. Server orders rows by (date, sourceEntryIndex)
+  // so the first row in iteration order is always the lowest-index program.
+  const planDayCountByDate = new Map<string, number>();
+  for (const d of week.days) {
+    planDayCountByDate.set(d.date, (planDayCountByDate.get(d.date) ?? 0) + 1);
+  }
+  const renderedPrimaryDates = new Set<string>();
+  const isPrimaryAtDate = (day: PlanDayWithSuggestions) => {
+    if (renderedPrimaryDates.has(day.date)) return false;
+    renderedPrimaryDates.add(day.date);
+    return true;
+  };
+
   const ctxFor = (day: PlanDayWithSuggestions, loggedWorkout: Workout | null) => ({
     date: day.date,
     plan: day,
@@ -443,7 +463,30 @@ export default function WeekDetail() {
 
       <div className="space-y-4">
         {week.days.map((day) => {
-          const sessions = workoutsByDate.get(day.date) ?? [];
+          // Concurrent programs: primary card owns the logged-workout
+          // sessions and the Crushed/Log/Skip buttons; supplementary
+          // cards get a program label badge but no session list (so
+          // logged workouts aren't duplicated across every program card)
+          // and disambiguate their testids with the sourceEntryIndex
+          // suffix so tests can target the correct concurrent program.
+          const primary = isPrimaryAtDate(day);
+          const concurrentCount = planDayCountByDate.get(day.date) ?? 1;
+          const showProgramBadge = concurrentCount > 1 && day.sourceEntryLabel != null;
+          const sessions = primary ? workoutsByDate.get(day.date) ?? [] : [];
+          const cardTestId = primary
+            ? `day-card-${day.date}`
+            : `day-card-${day.date}-${day.sourceEntryIndex}`;
+          const chipTestIdSuffix = primary
+            ? `${day.date}`
+            : `${day.date}-${day.sourceEntryIndex}`;
+          const programBadge = showProgramBadge ? (
+            <span
+              className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider"
+              data-testid={`badge-program-${day.date}-${day.sourceEntryIndex}`}
+            >
+              {day.sourceEntryLabel}
+            </span>
+          ) : null;
           // Plan-edit actions are rendered on every day card (rest or not) so
           // the runner can edit / swap / reset the prescription regardless of
           // whether anything has been logged yet.
@@ -454,7 +497,7 @@ export default function WeekDetail() {
                 size="sm"
                 className="h-7 px-2 text-[10px] uppercase font-bold tracking-wider hover:text-foreground"
                 onClick={() => setEditPlanDay(day)}
-                data-testid={`button-edit-plan-${day.date}`}
+                data-testid={`button-edit-plan-${chipTestIdSuffix}`}
                 title="Edit planned session"
               >
                 <Settings2 className="h-3 w-3 mr-1" /> Edit Plan
@@ -464,7 +507,7 @@ export default function WeekDetail() {
                 size="sm"
                 className="h-7 px-2 text-[10px] uppercase font-bold tracking-wider hover:text-foreground"
                 onClick={() => setMovePlanDay(day)}
-                data-testid={`button-move-plan-${day.date}`}
+                data-testid={`button-move-plan-${chipTestIdSuffix}`}
                 title="Swap with another day"
               >
                 <ArrowLeftRight className="h-3 w-3 mr-1" /> Move Day
@@ -474,7 +517,7 @@ export default function WeekDetail() {
                 size="sm"
                 className="h-7 px-2 text-[10px] uppercase font-bold tracking-wider hover:text-foreground"
                 onClick={() => setResetPlanDayCtx(day)}
-                data-testid={`button-reset-plan-${day.date}`}
+                data-testid={`button-reset-plan-${chipTestIdSuffix}`}
                 title="Reset to original prescription"
               >
                 <Undo2 className="h-3 w-3 mr-1" /> Reset
@@ -487,7 +530,7 @@ export default function WeekDetail() {
               <Card
                 key={day.id}
                 className="border-dashed border-2 bg-muted/20"
-                data-testid={`day-card-${day.date}`}
+                data-testid={cardTestId}
               >
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-center justify-between gap-3">
@@ -499,7 +542,10 @@ export default function WeekDetail() {
                       {/* Task #133: equipment chips moved into the
                           disclosure below so the rest-day card surface
                           stays slim. CustomizedBadge stays as a status
-                          marker (not a metric/equipment chip). */}
+                          marker (not a metric/equipment chip). Task #135
+                          program-name badge is shown here when multiple
+                          concurrent programs share the same date. */}
+                      {programBadge}
                       <CustomizedBadge day={day} />
                     </div>
                     <div className="text-sm text-muted-foreground font-medium uppercase tracking-wider flex items-center gap-2">
@@ -512,19 +558,19 @@ export default function WeekDetail() {
                         size="sm"
                         className="text-xs uppercase font-bold"
                         onClick={() => openLog({ date: day.date, plan: day })}
-                        data-testid={`button-log-${day.date}`}
+                        data-testid={`button-log-${chipTestIdSuffix}`}
                       >
                         <Play className="h-3 w-3 mr-1" /> Log
                       </Button>
                     </div>
                   </div>
-                  <SessionDetailDisclosure testId={`toggle-day-plan-detail-${day.date}`}>
+                  <SessionDetailDisclosure testId={`toggle-day-plan-detail-${chipTestIdSuffix}`}>
                     <div className="flex flex-wrap gap-2">
                       {(day.equipmentList ?? [day.equipment]).map((eq, idx) => (
                         <span
                           key={`${day.date}-eq-${idx}`}
                           className="text-[10px] bg-secondary text-secondary-foreground px-2 py-1 rounded font-bold uppercase tracking-wider"
-                          data-testid={`chip-equipment-${day.date}-${idx}`}
+                          data-testid={`chip-equipment-${chipTestIdSuffix}-${idx}`}
                         >
                           {eq}
                         </span>
@@ -616,7 +662,7 @@ export default function WeekDetail() {
                   ? "border-destructive/40 bg-destructive/5 hover:border-destructive/60"
                   : "border-border hover:border-primary/30",
               )}
-              data-testid={`day-card-${day.date}`}
+              data-testid={cardTestId}
             >
               <CardContent className="p-0">
                 <div className="flex flex-col md:flex-row">
@@ -632,6 +678,12 @@ export default function WeekDetail() {
                         right-column disclosure so the always-visible
                         left rail stays at title + status only. */}
                     <div className="mt-auto flex flex-wrap items-center gap-2">
+                      {/* Task #135: program-name badge in the rail when
+                          multiple concurrent programs share the same date.
+                          Equipment chips are intentionally NOT in the rail —
+                          Task #133 moved them into the right-column
+                          disclosure to keep the rail at title + status. */}
+                      {programBadge}
                       <CustomizedBadge day={day} />
                       {hasSessions && (
                         <span className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider flex items-center gap-1">
@@ -662,14 +714,14 @@ export default function WeekDetail() {
                         variant="compact"
                         testIdPrefix={`day-${day.date}`}
                       />
-                      <SessionDetailDisclosure testId={`toggle-day-plan-detail-${day.date}`}>
+                      <SessionDetailDisclosure testId={`toggle-day-plan-detail-${chipTestIdSuffix}`}>
                         <div className="space-y-3">
                           <div className="flex flex-wrap gap-2">
                             {(day.equipmentList ?? [day.equipment]).map((eq, idx) => (
                               <span
                                 key={`${day.date}-eq-${idx}`}
                                 className="text-[10px] bg-secondary text-secondary-foreground px-2 py-1 rounded font-bold uppercase tracking-wider"
-                                data-testid={`chip-equipment-${day.date}-${idx}`}
+                                data-testid={`chip-equipment-${chipTestIdSuffix}-${idx}`}
                               >
                                 {eq}
                               </span>
@@ -805,7 +857,7 @@ export default function WeekDetail() {
                         className="uppercase font-black text-xs bg-primary hover:bg-primary/90"
                         onClick={() => crushIt(ctxFor(day, null))}
                         disabled={isCrushing}
-                        data-testid={`button-crush-${day.date}`}
+                        data-testid={`button-crush-${chipTestIdSuffix}`}
                       >
                         <Zap className="h-3 w-3 mr-2" />
                         {hasSessions ? "Crushed Another" : "Crushed It"}
@@ -815,7 +867,7 @@ export default function WeekDetail() {
                         className="uppercase font-bold text-xs"
                         onClick={() => openLog(ctxFor(day, null))}
                         disabled={isCrushing}
-                        data-testid={`button-log-${day.date}`}
+                        data-testid={`button-log-${chipTestIdSuffix}`}
                       >
                         <Pencil className="h-3 w-3 mr-2" />
                         {hasSessions ? "Log Another" : "Log Actual"}
@@ -826,7 +878,7 @@ export default function WeekDetail() {
                           className="uppercase font-bold text-xs text-destructive hover:text-destructive border-destructive/30"
                           onClick={() => requestSkip(ctxFor(day, null))}
                           disabled={isCrushing}
-                          data-testid={`button-skip-${day.date}`}
+                          data-testid={`button-skip-${chipTestIdSuffix}`}
                         >
                           <XCircle className="h-3 w-3 mr-2" /> Skipped
                         </Button>

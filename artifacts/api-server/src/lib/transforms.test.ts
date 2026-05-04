@@ -44,6 +44,8 @@ function makeRow(overrides: Partial<PlanDayRow> = {}): PlanDayRow {
     seedStrengthLoad: null,
     seedTotalLoad: null,
     seedIsRest: null,
+    sourceEntryIndex: 0,
+    sourceEntryLabel: null,
     ...overrides,
   };
 }

@@ -67,6 +67,12 @@ export interface PlanDay {
   customizedFields: string[];
   /** Per-field before/after diff for the "Edited" badge popover. One entry per item in customizedFields (same order). Empty when isCustomized is false. Values are stringified — the UI applies field-specific formatting (e.g. distanceMi gets a "mi" suffix). null values mean the field had no seeded value or has been cleared. */
   customizedDiff: PlanDayCustomizedDiffItem[];
+  /** Task #135. Identifies which TemplateEntry within the active planner config produced this row. 0 for legacy single-program campaigns and for blocks-mode configs; 0..N-1 for entries-mode configs (one row per entry that overlaps the date). The composite UNIQUE(date, sourceEntryIndex) on plan_days lets two concurrent overlapping programs each emit a row on the same calendar date.
+   */
+  sourceEntryIndex: number;
+  /** Task #135. Human-readable program name (entry.customName or template name) shown as a badge in /today and /plan when concurrent programs are running. Null on legacy blocks-mode rows.
+   */
+  sourceEntryLabel?: string | null;
 }
 
 /**
@@ -220,6 +226,14 @@ export type PlanWeekDetail = PlanWeek & {
   days: PlanDayWithSuggestions[];
 };
 
+export type PlanOverviewProgramsItem = {
+  sourceEntryIndex: number;
+  label: string;
+  startDate: string;
+  endDate: string;
+  weeks: number;
+};
+
 export interface PlanOverview {
   currentWeek: number;
   currentPhase: string;
@@ -232,6 +246,9 @@ export interface PlanOverview {
   goalWeight: number;
   weeklyMilesTarget?: number;
   longRunTarget?: number;
+  /** Task #135. Every program (TemplateEntry) currently contributing rows to plan_days, ordered by sourceEntryIndex. The /plan overview renders this as a parallel-tracks panel so a runner can see at a glance which concurrent programs are stacked. Aggregated from plan_days so the panel always reflects the applied state. For legacy single-program campaigns this is a one-element array labelled "Marathon Plan".
+   */
+  programs?: PlanOverviewProgramsItem[];
 }
 
 /**
@@ -295,7 +312,12 @@ export interface Workout {
 export interface TodayPlan {
   date: string;
   hasPlan: boolean;
+  /** Back-compat single-plan field — the lowest-sourceEntryIndex plan_day for today, or null if there is none. New clients should iterate `plans[]` to render concurrent program sessions side-by-side; this field stays populated so legacy clients still work when only one program is active.
+   */
   plan?: PlanDay | null;
+  /** Task #135. Every plan_day on today's date, ordered by sourceEntryIndex ascending. Concurrent overlapping programs each contribute one row so the UI can render program-attributed cards (lift program + run program) side-by-side. Empty when no plan day exists for today (pre-launch or post-marathon).
+   */
+  plans: PlanDay[];
   /** All workouts logged for today, ordered by timeOfDay (AM, PM, Other, then untagged) and then createdAt ascending. Empty when nothing has been logged yet. */
   loggedWorkouts: Workout[];
   suggestions?: WorkoutSuggestions | null;

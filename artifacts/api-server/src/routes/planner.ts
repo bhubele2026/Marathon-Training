@@ -14,7 +14,7 @@ import {
   DuplicatePlannerConfigBody,
 } from "@workspace/api-zod";
 import {
-  generatePlanFromConfig,
+  expandConfigToPlanRows,
   validatePlannerConfig,
   expandEntriesToBlocksWithGaps,
   PLAN_TEMPLATES,
@@ -594,8 +594,15 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
   };
 
   // Generate OUTSIDE the transaction so a generator bug (e.g. validation
-  // mismatch) can't leave us with truncated plan tables.
-  const plan = generatePlanFromConfig(config);
+  // mismatch) can't leave us with truncated plan tables. Task #135:
+  // expandConfigToPlanRows runs the per-entry generator (so each
+  // TemplateEntry produces its own tagged plan_days), aggregates weekly
+  // totals across overlapping entries, AND gap-fills any uncovered
+  // campaign week with synthetic Recovery rows from the projected
+  // single-track fallback so the calendar stays continuous between
+  // non-adjacent entries.
+  const { weekly: aggregatedWeekly, taggedDaily } =
+    expandConfigToPlanRows(config);
 
   const result = await db.transaction(async (tx) => {
     await tx.execute(
@@ -631,7 +638,7 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
     );
 
     await tx.insert(planWeeksTable).values(
-      plan.weekly.map((w) => ({
+      aggregatedWeekly.map((w) => ({
         week: w.week,
         phase: w.phase,
         startDate: w.start,
@@ -645,10 +652,10 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
     );
 
     const chunk = 100;
-    for (let i = 0; i < plan.daily.length; i += chunk) {
-      const slice = plan.daily.slice(i, i + chunk);
+    for (let i = 0; i < taggedDaily.length; i += chunk) {
+      const slice = taggedDaily.slice(i, i + chunk);
       await tx.insert(planDaysTable).values(
-        slice.map((d) => {
+        slice.map(({ row: d, sourceEntryIndex, sourceEntryLabel }) => {
           const equipment = d.equipment ?? "Rest";
           const equipmentList = d.equipment_list ?? [equipment];
           const description = d.description ?? "";
@@ -660,6 +667,8 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
             phase: d.phase,
             date: d.date,
             day: d.day,
+            sourceEntryIndex,
+            sourceEntryLabel,
             strengthLoad: d.strength_load,
             equipment,
             equipmentList,
@@ -714,12 +723,12 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
       .where(eq(plannerConfigsTable.id, row.id));
 
     return {
-      weeksSeeded: plan.weekly.length,
-      daysSeeded: plan.daily.length,
+      weeksSeeded: aggregatedWeekly.length,
+      daysSeeded: taggedDaily.length,
       workoutsPreserved: workoutsBefore,
       measurementsPreserved: measurementsBefore,
       undoSnapshotsWiped: snapshotsBefore,
-      totalWeeks: plan.weekly.length,
+      totalWeeks: aggregatedWeekly.length,
     };
   });
 

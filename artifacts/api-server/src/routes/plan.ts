@@ -14,7 +14,11 @@ import {
   SwapPlanDayBody,
   UndoPlanResetBody,
 } from "@workspace/api-zod";
-import { generatePlan, generatePlanFromConfig } from "@workspace/plan-generator";
+import {
+  generatePlan,
+  generatePlanFromConfig,
+  expandConfigToPlanRows,
+} from "@workspace/plan-generator";
 import { readLastAppliedPlannerConfig } from "./planner";
 import { toPlanDay, toPlanWeek, toWorkout } from "../lib/transforms";
 import {
@@ -62,6 +66,38 @@ router.get("/plan/overview", async (_req, res) => {
     sql`SELECT weight FROM measurements WHERE weight IS NOT NULL ORDER BY date DESC LIMIT 1`,
   );
   const currentWeight = lastMeasurement.rows[0]?.weight ?? null;
+
+  // Task #135: surface every program (TemplateEntry) currently
+  // contributing rows to plan_days so the /plan overview can render a
+  // "Programs" panel as parallel tracks. Aggregated directly from
+  // plan_days rather than from the planner config so the panel always
+  // reflects what was actually applied (and so legacy single-program
+  // campaigns naturally show as a single "Marathon Plan" track even
+  // when the config was authored in blocks-mode with no entry label).
+  const programRows = await db.execute<{
+    source_entry_index: number;
+    source_entry_label: string | null;
+    start_date: string;
+    end_date: string;
+    week_count: number;
+  }>(
+    sql`SELECT source_entry_index,
+               MAX(source_entry_label) AS source_entry_label,
+               MIN(date) AS start_date,
+               MAX(date) AS end_date,
+               COUNT(DISTINCT week)::int AS week_count
+        FROM plan_days
+        GROUP BY source_entry_index
+        ORDER BY source_entry_index`,
+  );
+  const programs = programRows.rows.map((r) => ({
+    sourceEntryIndex: r.source_entry_index,
+    label: r.source_entry_label ?? "Marathon Plan",
+    startDate: r.start_date,
+    endDate: r.end_date,
+    weeks: r.week_count,
+  }));
+
   res.json({
     currentWeek: week,
     currentPhase: phase,
@@ -74,6 +110,7 @@ router.get("/plan/overview", async (_req, res) => {
     goalWeight: GOAL_WEIGHT,
     weeklyMilesTarget: weekRow?.plannedMiles ?? 0,
     longRunTarget: weekRow?.longRunMi ?? 0,
+    programs,
   });
 });
 
@@ -160,7 +197,17 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
     res.status(404).json({ error: "week not found" });
     return;
   }
-  const days = await db.select().from(planDaysTable).where(eq(planDaysTable.week, week)).orderBy(asc(planDaysTable.date));
+  // Order by date ascending and then by source_entry_index ascending so
+  // concurrent overlapping programs (Task #135) on the same calendar
+  // date are returned in a stable program order. The week-detail UI
+  // groups by date and renders the lowest-index row as the primary card
+  // so logged workouts are attributed once instead of duplicated across
+  // every concurrent program card on that date.
+  const days = await db
+    .select()
+    .from(planDaysTable)
+    .where(eq(planDaysTable.week, week))
+    .orderBy(asc(planDaysTable.date), asc(planDaysTable.sourceEntryIndex));
   const actuals = await db.execute<{
     actual_miles: number;
     actual_cardio: number;
@@ -413,7 +460,17 @@ async function fetchFirstSessionDay(): Promise<PlanDayRow | null> {
 
 router.get("/plan/today", async (_req, res) => {
   const today = todayISO();
-  const planRow = (await db.select().from(planDaysTable).where(eq(planDaysTable.date, today)).limit(1))[0];
+  // Task #135: load ALL plan_days for today (concurrent overlapping
+  // programs each contribute one row keyed by sourceEntryIndex). The
+  // legacy `plan` field returns the lowest-index row for back-compat;
+  // the new `plans[]` array exposes every concurrent session so the UI
+  // can render program-attributed cards side-by-side.
+  const planRows = await db
+    .select()
+    .from(planDaysTable)
+    .where(eq(planDaysTable.date, today))
+    .orderBy(asc(planDaysTable.sourceEntryIndex));
+  const planRow = planRows[0];
   // Order same-day sessions by their time-of-day tag (AM, PM, Other, then
   // untagged) and then by createdAt ascending so tagged AM workouts logged
   // late in the evening still surface above PM ones.
@@ -439,8 +496,9 @@ router.get("/plan/today", async (_req, res) => {
 
   res.json({
     date: today,
-    hasPlan: !!planRow,
+    hasPlan: planRows.length > 0,
     plan: planRow ? toPlanDay(planRow) : null,
+    plans: planRows.map(toPlanDay),
     loggedWorkouts: loggedRows.map(toWorkout),
     suggestions,
     daysUntilStart,
@@ -908,9 +966,26 @@ router.post("/plan/full-reset", async (req, res): Promise<void> => {
   // change what Full Reset reseeds. With no applied config, fall back to
   // the canonical hard-coded plan.
   const appliedConfig = await readLastAppliedPlannerConfig();
+  // For plan_weeks/plan_days seeding we use expandConfigToPlanRows so a
+  // concurrent / overlapping entries-mode config reseeds with the same
+  // per-entry tagged rows + gap-fill behavior as /planner/apply (Task #135).
+  // generatePlanFromConfig is still used to source the body baseline row
+  // (week-1 measurements) because that's a single-track concept that
+  // doesn't change when programs run concurrently. Falls back to the
+  // canonical hard-coded plan when nothing has been applied yet.
   const plan = appliedConfig
     ? generatePlanFromConfig(appliedConfig)
     : generatePlan();
+  const seedRows = appliedConfig
+    ? expandConfigToPlanRows(appliedConfig)
+    : {
+        weekly: plan.weekly,
+        taggedDaily: plan.daily.map((d) => ({
+          sourceEntryIndex: 0,
+          sourceEntryLabel: null as string | null,
+          row: d,
+        })),
+      };
 
   const result = await db.transaction(async (tx) => {
     // Take ACCESS EXCLUSIVE locks on every table we're about to wipe BEFORE
@@ -956,9 +1031,12 @@ router.post("/plan/full-reset", async (req, res): Promise<void> => {
       sql`TRUNCATE TABLE workouts, plan_days, plan_weeks, measurements, race_week_checklist, reset_undo_snapshots RESTART IDENTITY CASCADE`,
     );
 
-    // Reseed plan_weeks first so the plan_days FK targets exist.
+    // Reseed plan_weeks first so the plan_days FK targets exist. Use
+    // the per-entry-aware seedRows so concurrent overlapping programs
+    // get aggregated weekly totals (sum loads/miles, max long_run) just
+    // like /planner/apply produces them.
     await tx.insert(planWeeksTable).values(
-      plan.weekly.map((w) => ({
+      seedRows.weekly.map((w) => ({
         week: w.week,
         phase: w.phase,
         startDate: w.start,
@@ -973,12 +1051,15 @@ router.post("/plan/full-reset", async (req, res): Promise<void> => {
 
     // Chunk plan_days inserts to keep parameter counts well under the
     // postgres bind-parameter limit; mirrors the chunk size used by the
-    // CLI seeder so the two reseed paths stay aligned.
+    // CLI seeder so the two reseed paths stay aligned. Each row is
+    // tagged with its source TemplateEntry (sourceEntryIndex 0 + null
+    // label for legacy single-program campaigns and synthetic Recovery
+    // gap-fill rows).
     const chunk = 100;
-    for (let i = 0; i < plan.daily.length; i += chunk) {
-      const slice = plan.daily.slice(i, i + chunk);
+    for (let i = 0; i < seedRows.taggedDaily.length; i += chunk) {
+      const slice = seedRows.taggedDaily.slice(i, i + chunk);
       await tx.insert(planDaysTable).values(
-        slice.map((d) => {
+        slice.map(({ row: d, sourceEntryIndex, sourceEntryLabel }) => {
           const equipment = d.equipment ?? "Rest";
           const equipmentList = d.equipment_list ?? [equipment];
           const description = d.description ?? "";
@@ -990,6 +1071,8 @@ router.post("/plan/full-reset", async (req, res): Promise<void> => {
             phase: d.phase,
             date: d.date,
             day: d.day,
+            sourceEntryIndex,
+            sourceEntryLabel,
             strengthLoad: d.strength_load,
             equipment,
             equipmentList,
@@ -1053,8 +1136,8 @@ router.post("/plan/full-reset", async (req, res): Promise<void> => {
     }
 
     return {
-      weeksSeeded: plan.weekly.length,
-      daysSeeded: plan.daily.length,
+      weeksSeeded: seedRows.weekly.length,
+      daysSeeded: seedRows.taggedDaily.length,
       workoutsWiped: workoutsBefore,
       measurementsWiped: measurementsBefore,
       measurementsSeeded,

@@ -153,6 +153,13 @@ export function toPlanDay(r: PlanDayRow) {
     isCustomized: customizedFields.length > 0,
     customizedFields,
     customizedDiff,
+    // Task #135: program attribution. `sourceEntryIndex` identifies
+    // which TemplateEntry within the active planner config produced
+    // this row (0 for legacy single-program campaigns); `sourceEntryLabel`
+    // is the human-readable program name shown as a badge in /today and
+    // /plan when concurrent programs are running.
+    sourceEntryIndex: r.sourceEntryIndex,
+    sourceEntryLabel: r.sourceEntryLabel,
   };
 }
 

@@ -871,6 +871,7 @@ components:
           isCustomized,
           customizedFields,
           customizedDiff,
+          sourceEntryIndex,
         ]
       properties:
         id: { type: integer }
@@ -925,6 +926,15 @@ components:
               field: { type: string }
               before: { type: string, nullable: true }
               after: { type: string, nullable: true }
+        sourceEntryIndex:
+          type: integer
+          description: |
+            Task #135. Identifies which TemplateEntry within the active planner config produced this row. 0 for legacy single-program campaigns and for blocks-mode configs; 0..N-1 for entries-mode configs (one row per entry that overlaps the date). The composite UNIQUE(date, sourceEntryIndex) on plan_days lets two concurrent overlapping programs each emit a row on the same calendar date.
+        sourceEntryLabel:
+          type: string
+          nullable: true
+          description: |
+            Task #135. Human-readable program name (entry.customName or template name) shown as a badge in /today and /plan when concurrent programs are running. Null on legacy blocks-mode rows.
 
     UpdatePlanDayBody:
       type: object
@@ -1165,10 +1175,23 @@ components:
         goalWeight: { type: number }
         weeklyMilesTarget: { type: number }
         longRunTarget: { type: number }
+        programs:
+          type: array
+          description: |
+            Task #135. Every program (TemplateEntry) currently contributing rows to plan_days, ordered by sourceEntryIndex. The /plan overview renders this as a parallel-tracks panel so a runner can see at a glance which concurrent programs are stacked. Aggregated from plan_days so the panel always reflects the applied state. For legacy single-program campaigns this is a one-element array labelled "Marathon Plan".
+          items:
+            type: object
+            required: [sourceEntryIndex, label, startDate, endDate, weeks]
+            properties:
+              sourceEntryIndex: { type: integer }
+              label: { type: string }
+              startDate: { type: string }
+              endDate: { type: string }
+              weeks: { type: integer }
 
     TodayPlan:
       type: object
-      required: [date, hasPlan, loggedWorkouts]
+      required: [date, hasPlan, loggedWorkouts, plans]
       properties:
         date: { type: string }
         hasPlan: { type: boolean }
@@ -1176,6 +1199,13 @@ components:
           allOf:
             - $ref: "#/components/schemas/PlanDay"
           nullable: true
+          description: |
+            Back-compat single-plan field — the lowest-sourceEntryIndex plan_day for today, or null if there is none. New clients should iterate `plans[]` to render concurrent program sessions side-by-side; this field stays populated so legacy clients still work when only one program is active.
+        plans:
+          type: array
+          description: |
+            Task #135. Every plan_day on today's date, ordered by sourceEntryIndex ascending. Concurrent overlapping programs each contribute one row so the UI can render program-attributed cards (lift program + run program) side-by-side. Empty when no plan day exists for today (pre-launch or post-marathon).
+          items: { $ref: "#/components/schemas/PlanDay" }
         loggedWorkouts:
           type: array
           description: All workouts logged for today, ordered by timeOfDay (AM, PM, Other, then untagged) and then createdAt ascending. Empty when nothing has been logged yet.

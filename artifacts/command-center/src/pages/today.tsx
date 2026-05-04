@@ -179,131 +179,171 @@ export default function Today() {
 
       {today.hasPlan && !showCountdown && (
         <div className="grid gap-6">
-          <Card className="border-primary/20 bg-primary/5">
-            <CardHeader>
-              <CardTitle className="text-lg uppercase tracking-wider text-primary">Mission Brief</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="bg-background p-6 rounded-md border border-border">
-                <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
-                  <div className="space-y-4 flex-1">
-                    {/* Slim collapsed view (Task #133): title + the one
-                        headline number. Equipment chips, planned minute
-                        breakdown, distance, strength load and total load
-                        all live in the "Show details" disclosure below. */}
-                    <div className="flex flex-wrap items-baseline gap-3">
-                      <span className="font-black text-2xl uppercase tracking-tight">{today.plan?.sessionType}</span>
-                    </div>
+          {/* Task #135: render one Mission Brief card per concurrent
+              program. `plans[]` is ordered by sourceEntryIndex so the
+              lowest-index program (typically the legacy run program)
+              renders first. When multiple programs overlap each card
+              shows its program name as a header badge ("TONAL LIFT",
+              "5K IMPROVER") so the runner can tell which session
+              belongs to which template. The mission-action buttons
+              still target `today.plan` (the lowest-index program) for
+              the legacy single-log workflow — logging multiple
+              concurrent programs separately is a deferred follow-up.
 
-                    {today.plan?.description && (
-                      <p className="text-foreground text-lg leading-relaxed">{today.plan.description}</p>
-                    )}
+              Each card uses the slim collapsed view (Task #133): title +
+              the one headline number via PrimaryMetricDisplay. Equipment
+              chips, planned minute breakdown, distance, strength load
+              and total load all live in the "Show details" disclosure
+              below so the card stays scannable. */}
+          {(today.plans && today.plans.length > 0
+            ? today.plans
+            : today.plan
+              ? [today.plan]
+              : []
+          ).map((plan, planIdx) => {
+            const isPrimary = planIdx === 0;
+            return (
+            <Card
+              key={`today-plan-${plan.id}`}
+              className="border-primary/20 bg-primary/5"
+              data-testid={`card-mission-brief-${plan.sourceEntryIndex}`}
+            >
+              <CardHeader>
+                <CardTitle className="text-lg uppercase tracking-wider text-primary flex items-center gap-3 flex-wrap">
+                  <span>Mission Brief</span>
+                  {plan.sourceEntryLabel && (today.plans?.length ?? 0) > 1 && (
+                    <span
+                      className="px-2 py-0.5 text-xs bg-primary/15 text-primary rounded font-bold tracking-wider"
+                      data-testid={`badge-program-${plan.sourceEntryIndex}`}
+                    >
+                      {plan.sourceEntryLabel}
+                    </span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-background p-6 rounded-md border border-border">
+                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+                    <div className="space-y-4 flex-1">
+                      <div className="flex flex-wrap items-baseline gap-3">
+                        <span className="font-black text-2xl uppercase tracking-tight">{plan.sessionType}</span>
+                      </div>
 
-                    <PrimaryMetricDisplay
-                      metric={getPrimaryMetric(today.plan)}
-                      variant="prominent"
-                      testIdPrefix="today-plan"
-                    />
+                      {plan.description && (
+                        <p className="text-foreground text-lg leading-relaxed">{plan.description}</p>
+                      )}
 
-                    <SessionDetailDisclosure testId="toggle-today-plan-detail">
-                      <div className="space-y-4">
-                        {today.plan && (
+                      <PrimaryMetricDisplay
+                        metric={getPrimaryMetric(plan)}
+                        variant="prominent"
+                        testIdPrefix={`today-plan-${plan.sourceEntryIndex}`}
+                      />
+
+                      <SessionDetailDisclosure
+                        testId={`toggle-today-plan-detail-${plan.sourceEntryIndex}`}
+                      >
+                        <div className="space-y-4">
                           <div className="flex flex-wrap gap-2">
-                            {(today.plan.equipmentList ?? [today.plan.equipment]).map((eq, idx) => (
+                            {(plan.equipmentList ?? [plan.equipment]).map((eq, idx) => (
                               <span
-                                key={`today-eq-${idx}`}
+                                key={`today-eq-${plan.id}-${idx}`}
                                 className="px-3 py-1 bg-secondary text-secondary-foreground rounded text-sm uppercase font-bold tracking-wider"
-                                data-testid={`chip-equipment-${today.plan!.date}-${idx}`}
+                                data-testid={`chip-equipment-${plan.date}-${idx}`}
                               >
                                 {eq}
                               </span>
                             ))}
                           </div>
-                        )}
-                        {today.plan && (
+                          {/* Task #135 + RunTargetLine: per-plan run-pace
+                              target line so each concurrent program's
+                              run target stands on its own. testId is
+                              keyed by sourceEntryIndex to disambiguate
+                              when multiple programs render on the same
+                              day. */}
                           <RunTargetLine
-                            sessionType={today.plan.sessionType}
-                            week={today.plan.week}
-                            runMin={today.plan.runMin}
-                            distanceMi={today.plan.distanceMi}
-                            pace={today.plan.pace}
+                            sessionType={plan.sessionType}
+                            week={plan.week}
+                            runMin={plan.runMin}
+                            distanceMi={plan.distanceMi}
+                            pace={plan.pace}
                             variant="prominent"
-                            testId="today-plan-run-target"
+                            testId={`today-plan-${plan.sourceEntryIndex}-run-target`}
                           />
-                        )}
-                        {today.plan && (
                           <PlannedBreakdown
-                            totalMin={today.plan.totalMin}
-                            strengthMin={today.plan.strengthMin}
-                            cardioMin={today.plan.cardioMin}
-                            runMin={today.plan.runMin}
-                            runDistanceMi={today.plan.distanceMi}
+                            totalMin={plan.totalMin}
+                            strengthMin={plan.strengthMin}
+                            cardioMin={plan.cardioMin}
+                            runMin={plan.runMin}
+                            runDistanceMi={plan.distanceMi}
                             variant="prominent"
-                            testIdPrefix="today-plan"
+                            testIdPrefix={`today-plan-${plan.sourceEntryIndex}`}
                           />
-                        )}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                          {today.plan?.distanceMi && (
-                            <div>
-                              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Distance</p>
-                              <p className="text-xl font-black">{formatDistance(today.plan.distanceMi)}</p>
-                            </div>
-                          )}
-                          {today.plan?.strengthLoad && (
-                            <div>
-                              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Strength Load</p>
-                              <p className="text-xl font-black">{today.plan.strengthLoad}</p>
-                            </div>
-                          )}
-                          {today.plan?.totalLoad && (
-                            <div>
-                              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Total Load</p>
-                              <p className="text-xl font-black">{formatLoad(today.plan.totalLoad)}</p>
-                            </div>
-                          )}
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                            {plan.distanceMi != null && plan.distanceMi > 0 && (
+                              <div>
+                                <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Distance</p>
+                                <p className="text-xl font-black">{formatDistance(plan.distanceMi)}</p>
+                              </div>
+                            )}
+                            {plan.strengthLoad != null && plan.strengthLoad > 0 && (
+                              <div>
+                                <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Strength Load</p>
+                                <p className="text-xl font-black">{plan.strengthLoad}</p>
+                              </div>
+                            )}
+                            {plan.totalLoad > 0 && (
+                              <div>
+                                <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Total Load</p>
+                                <p className="text-xl font-black">{formatLoad(plan.totalLoad)}</p>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </SessionDetailDisclosure>
-                  </div>
+                      </SessionDetailDisclosure>
+                    </div>
 
-                  <div className="shrink-0 flex flex-col items-stretch justify-center gap-3 border-t md:border-t-0 md:border-l border-border pt-6 md:pt-0 md:pl-6 md:w-56">
-                    <Button
-                      size="lg"
-                      className="h-14 px-6 text-base uppercase font-black tracking-widest group"
-                      onClick={() => baseCtx && crushIt({ ...baseCtx, loggedWorkout: null })}
-                      disabled={isCrushing}
-                      data-testid="button-crush-today"
-                    >
-                      <Zap className="mr-2 h-5 w-5 group-hover:scale-110 transition-transform" />
-                      {hasSessions ? "Crushed Another" : "Crushed It"}
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      className="uppercase font-bold tracking-wider"
-                      onClick={() => baseCtx && openLog({ ...baseCtx, loggedWorkout: null })}
-                      disabled={isCrushing}
-                      data-testid="button-log-today"
-                    >
-                      <Pencil className="mr-2 h-4 w-4" />
-                      {hasSessions ? "Log Another" : "Log Mission"}
-                    </Button>
-                    {!hasSessions && (
-                      <Button
-                        variant="outline"
-                        className="uppercase font-bold tracking-wider text-destructive hover:text-destructive border-destructive/40"
-                        onClick={() => baseCtx && requestSkip({ ...baseCtx, loggedWorkout: null })}
-                        disabled={isCrushing}
-                        data-testid="button-skip-today"
-                      >
-                        <XCircle className="mr-2 h-4 w-4" />
-                        Skipped
-                      </Button>
+                    {isPrimary && (
+                      <div className="shrink-0 flex flex-col items-stretch justify-center gap-3 border-t md:border-t-0 md:border-l border-border pt-6 md:pt-0 md:pl-6 md:w-56">
+                        <Button
+                          size="lg"
+                          className="h-14 px-6 text-base uppercase font-black tracking-widest group"
+                          onClick={() => baseCtx && crushIt({ ...baseCtx, loggedWorkout: null })}
+                          disabled={isCrushing}
+                          data-testid="button-crush-today"
+                        >
+                          <Zap className="mr-2 h-5 w-5 group-hover:scale-110 transition-transform" />
+                          {hasSessions ? "Crushed Another" : "Crushed It"}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          className="uppercase font-bold tracking-wider"
+                          onClick={() => baseCtx && openLog({ ...baseCtx, loggedWorkout: null })}
+                          disabled={isCrushing}
+                          data-testid="button-log-today"
+                        >
+                          <Pencil className="mr-2 h-4 w-4" />
+                          {hasSessions ? "Log Another" : "Log Mission"}
+                        </Button>
+                        {!hasSessions && (
+                          <Button
+                            variant="outline"
+                            className="uppercase font-bold tracking-wider text-destructive hover:text-destructive border-destructive/40"
+                            onClick={() => baseCtx && requestSkip({ ...baseCtx, loggedWorkout: null })}
+                            disabled={isCrushing}
+                            data-testid="button-skip-today"
+                          >
+                            <XCircle className="mr-2 h-4 w-4" />
+                            Skipped
+                          </Button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+            );
+          })}
 
           {sessions.map((session) => (
             <Card key={session.id} className="border-border" data-testid={`session-today-${session.id}`}>

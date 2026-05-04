@@ -10,6 +10,7 @@ import {
   getTemplateById,
   liftPrimaryKind,
   primaryMachineKind,
+  projectEntries,
   type PrimaryMachineKind,
   type TemplateEntry,
 } from "./templates.js";
@@ -707,16 +708,20 @@ export function validatePlannerConfig(
         entriesSum += e.weeks;
       }
     }
-    // Second pass: per-entry startDate must be a Monday, on or after
-    // the running cursor, and (for the first entry) equal to the
-    // config startDate. The cursor advances by the entry's weeks; if
-    // a later entry sets startDate beyond the cursor that gap is
-    // counted as filler weeks toward the totalWeeks invariant.
+    // Second pass: per-entry startDate must be a Monday on or after
+    // the config startDate AND a whole number of weeks after it. Task
+    // #135: entries are now allowed to OVERLAP with one another so a
+    // runner can stack a Tonal lifting program concurrently with a 5K
+    // running program. The campaign's logical span is the latest entry
+    // end minus the earliest entry start, and the campaign must end on
+    // marathonDate (Sunday).
     const startMs = Date.parse(`${config.startDate}T00:00:00Z`);
-    let cursorMs = startMs;
-    let gapWeeks = 0;
+    let cursorMs = startMs; // sequential cursor (used only when no entries declare overrides)
+    let earliestStartMs = Number.POSITIVE_INFINITY;
+    let latestEndMs = Number.NEGATIVE_INFINITY;
     for (let i = 0; i < config.entries!.length; i++) {
       const e = config.entries![i]!;
+      let entryStartMs = cursorMs;
       const overrideRaw = e.startDate;
       if (overrideRaw != null && overrideRaw !== "") {
         if (!ISO_DATE_RE.test(overrideRaw)) {
@@ -724,48 +729,60 @@ export function validatePlannerConfig(
             field: `entries[${i}].startDate`,
             message: "must be a yyyy-mm-dd date",
           });
+          continue;
         } else if (!isMonday(overrideRaw)) {
           issues.push({
             field: `entries[${i}].startDate`,
             message: "must be a Monday so the Mon..Sun week pattern lines up",
           });
-        } else {
-          const eMs = Date.parse(`${overrideRaw}T00:00:00Z`);
-          const cursorISO = new Date(cursorMs).toISOString().slice(0, 10);
-          if (i === 0 && eMs !== startMs) {
-            issues.push({
-              field: `entries[0].startDate`,
-              message: `first entry's startDate must equal the config startDate (${config.startDate})`,
-            });
-          } else if (eMs < cursorMs) {
-            issues.push({
-              field: `entries[${i}].startDate`,
-              message: `must be on or after ${cursorISO} (the end of the previous entry); overlapping templates are not allowed`,
-            });
-          } else {
-            const days = Math.round((eMs - cursorMs) / 86400000);
-            if (days % 7 !== 0) {
-              issues.push({
-                field: `entries[${i}].startDate`,
-                message: `must be a whole number of weeks (got ${days} days) after ${cursorISO}`,
-              });
-            } else {
-              gapWeeks += days / 7;
-              cursorMs = eMs;
-            }
-          }
+          continue;
         }
+        const eMs = Date.parse(`${overrideRaw}T00:00:00Z`);
+        if (eMs < startMs) {
+          issues.push({
+            field: `entries[${i}].startDate`,
+            message: `must be on or after the config startDate (${config.startDate})`,
+          });
+          continue;
+        }
+        const daysFromStart = Math.round((eMs - startMs) / 86400000);
+        if (daysFromStart % 7 !== 0) {
+          issues.push({
+            field: `entries[${i}].startDate`,
+            message: `must be a whole number of weeks after the config startDate (${config.startDate}); got ${daysFromStart} days`,
+          });
+          continue;
+        }
+        entryStartMs = eMs;
       }
       if (Number.isInteger(e.weeks) && e.weeks >= 1) {
-        cursorMs += e.weeks * 7 * 86400000;
+        const entryEndMs = entryStartMs + e.weeks * 7 * 86400000;
+        if (entryStartMs < earliestStartMs) earliestStartMs = entryStartMs;
+        if (entryEndMs > latestEndMs) latestEndMs = entryEndMs;
+        // Sequential cursor only advances when this entry didn't set
+        // an explicit override — back-compat with non-overlapping
+        // chains where each entry follows the previous.
+        if (overrideRaw == null || overrideRaw === "") {
+          cursorMs = entryEndMs;
+        }
       }
     }
-    const projectedWeeks = entriesSum + gapWeeks;
-    if (projectedWeeks !== totalWeeks) {
+    if (Number.isFinite(earliestStartMs) && earliestStartMs !== startMs) {
       issues.push({
-        field: "entries",
-        message: `template entry weeks (${entriesSum}) plus ${gapWeeks} gap week(s) total ${projectedWeeks}, but need exactly ${totalWeeks}; each template owns its own taper, so entries (with any gaps) must cover the full plan span — no auto-pinned tail`,
+        field: "entries[0].startDate",
+        message: `the earliest entry must start on the config startDate (${config.startDate})`,
       });
+    }
+    if (Number.isFinite(latestEndMs)) {
+      const projectedSpanWeeks = Math.round(
+        (latestEndMs - startMs) / (7 * 86400000),
+      );
+      if (projectedSpanWeeks !== totalWeeks) {
+        issues.push({
+          field: "entries",
+          message: `template entries span ${projectedSpanWeeks} week(s) end-to-end, but need exactly ${totalWeeks} (config startDate → marathonDate). The latest entry must end on marathonDate.`,
+        });
+      }
     }
     return issues;
   }
@@ -1908,6 +1925,177 @@ export function generatePlanFromConfig(
   }
 
   return { daily, weekly, body };
+}
+
+// ===========================================================================
+// PER-ENTRY GENERATION (Task #135). Concurrent overlapping programs need
+// per-template-entry plan_days so the campaign can host two simultaneous
+// templates (e.g. a Tonal lifting program running in parallel with a 5K
+// running program). Each TemplateEntry is expanded as its own standalone
+// plan anchored at the entry's effective startDate, and rows are tagged
+// with the source entry's index/label so /today and /plan/:week can show
+// concurrent sessions side-by-side and removing one program leaves the
+// other intact.
+// ===========================================================================
+
+export interface PerEntryPlan {
+  entryIndex: number;
+  // Human-readable program name (entry.customName fallback to template name).
+  // For legacy blocks-only configs this is null.
+  label: string | null;
+  startDate: string;
+  endDate: string;
+  daily: DailyRow[];
+  weekly: WeeklyRow[];
+}
+
+export function generatePlanFromConfigPerEntry(
+  config: PlannerConfig,
+): PerEntryPlan[] {
+  const issues = validatePlannerConfig(config);
+  if (issues.length > 0) {
+    const summary = issues.map((i) => `${i.field}: ${i.message}`).join("; ");
+    throw new Error(`invalid planner config: ${summary}`);
+  }
+
+  // Blocks-mode (legacy single-program campaign): one virtual entry
+  // covering the whole config.
+  if (!Array.isArray(config.entries)) {
+    const plan = generatePlanFromConfig(config);
+    return [
+      {
+        entryIndex: 0,
+        label: null,
+        startDate: config.startDate,
+        endDate: config.marathonDate,
+        daily: plan.daily,
+        weekly: plan.weekly,
+      },
+    ];
+  }
+
+  const projections = projectEntries(config.entries, config.startDate);
+  const out: PerEntryPlan[] = [];
+  const startMs = Date.parse(`${config.startDate}T00:00:00Z`);
+  for (let i = 0; i < config.entries.length; i++) {
+    const e = config.entries[i]!;
+    const proj = projections.find((p) => p.entryIndex === i);
+    if (!proj) continue;
+    const tpl = getTemplateById(e.templateId);
+    if (!tpl) continue;
+    const weekOffset = Math.round(
+      (Date.parse(`${proj.startDateISO}T00:00:00Z`) - startMs) /
+        (7 * 86400000),
+    );
+    // Build a single-entry synthetic config: this entry's template
+    // expanded standalone, anchored at the entry's startDate. Use
+    // entries-mode so the validator runs the entries-mode codepath
+    // (template-owned taper, no auto-pinned 16-week tail).
+    const synthetic: PlannerConfig = {
+      startDate: proj.startDateISO,
+      marathonDate: proj.endDateISO,
+      blocks: [],
+      entries: [
+        {
+          templateId: e.templateId,
+          weeks: e.weeks,
+          customName: e.customName ?? null,
+          customNotes: e.customNotes ?? null,
+        },
+      ],
+    };
+    const sub = generatePlanFromConfig(synthetic);
+    // Remap week numbers from entry-local (1..N) to campaign-relative
+    // so plan_days.week matches the position of the date in the
+    // overall campaign timeline.
+    const daily = sub.daily.map((d) => ({ ...d, week: d.week + weekOffset }));
+    const weekly = sub.weekly.map((w) => ({ ...w, week: w.week + weekOffset }));
+    out.push({
+      entryIndex: i,
+      label: e.customName?.trim() || tpl.name,
+      startDate: proj.startDateISO,
+      endDate: proj.endDateISO,
+      daily,
+      weekly,
+    });
+  }
+  return out;
+}
+
+// Tagged daily row used by the apply / full-reset codepaths to attribute
+// each plan_day back to a TemplateEntry. sourceEntryIndex=0 with a null
+// label is used both for legacy single-program campaigns AND for synthetic
+// Recovery filler rows that cover gap weeks (interior weeks no entry
+// touches) so calendar continuity is preserved.
+export interface TaggedDailyRow {
+  sourceEntryIndex: number;
+  sourceEntryLabel: string | null;
+  row: DailyRow;
+}
+
+// Expand a planner config into the rows the apply / full-reset routes
+// need to seed plan_weeks + plan_days for concurrent overlapping
+// programs. Iterates per-entry to produce per-program tagged daily rows,
+// aggregates weekly totals across overlapping entries (sum
+// loads/miles/cardio, max long_run), AND gap-fills any uncovered campaign
+// week with the canonical projected fallback (Recovery filler from
+// expandEntriesToBlocksWithGaps) so dates between non-adjacent entries
+// still get plan rows. Legacy blocks-mode configs collapse to a single
+// untagged track via generatePlanFromConfigPerEntry.
+export function expandConfigToPlanRows(
+  config: PlannerConfig,
+): { weekly: WeeklyRow[]; taggedDaily: TaggedDailyRow[] } {
+  const perEntry = generatePlanFromConfigPerEntry(config);
+  const weeklyByWeek = new Map<number, WeeklyRow>();
+  const taggedDaily: TaggedDailyRow[] = [];
+  const coveredWeeks = new Set<number>();
+  for (const sub of perEntry) {
+    for (const w of sub.weekly) {
+      coveredWeeks.add(w.week);
+      const existing = weeklyByWeek.get(w.week);
+      if (!existing) {
+        weeklyByWeek.set(w.week, { ...w });
+      } else {
+        existing.planned_strength += w.planned_strength;
+        existing.planned_cardio += w.planned_cardio;
+        existing.planned_total_load += w.planned_total_load;
+        existing.planned_miles =
+          Math.round((existing.planned_miles + w.planned_miles) * 10) / 10;
+        existing.long_run_mi = Math.max(existing.long_run_mi, w.long_run_mi);
+      }
+    }
+    for (const d of sub.daily) {
+      taggedDaily.push({
+        sourceEntryIndex: sub.entryIndex,
+        sourceEntryLabel: sub.label,
+        row: d,
+      });
+    }
+  }
+  // Gap-fill: if any campaign week is NOT covered by an entry (interior
+  // gap between non-adjacent entries), pull that week's rows from the
+  // projected single-track fallback so the calendar stays continuous.
+  // Skip this for legacy blocks-mode configs (entries === null) — the
+  // per-entry path already returns the full single-track plan there.
+  if (Array.isArray(config.entries)) {
+    const fallback = generatePlanFromConfig(config);
+    for (const w of fallback.weekly) {
+      if (!coveredWeeks.has(w.week)) {
+        weeklyByWeek.set(w.week, { ...w });
+      }
+    }
+    for (const d of fallback.daily) {
+      if (!coveredWeeks.has(d.week)) {
+        taggedDaily.push({
+          sourceEntryIndex: 0,
+          sourceEntryLabel: null,
+          row: d,
+        });
+      }
+    }
+  }
+  const weekly = [...weeklyByWeek.values()].sort((a, b) => a.week - b.week);
+  return { weekly, taggedDaily };
 }
 
 // ===========================================================================

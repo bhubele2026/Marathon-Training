@@ -278,6 +278,70 @@ export default function Plan() {
         </Card>
       </div>
 
+      {/* Task #135: parallel-tracks Programs panel. Renders one bar per
+          concurrent program (TemplateEntry) with its date range so a
+          runner stacking a Tonal lift program alongside a 5K running
+          program can see at a glance how the two campaigns overlap. The
+          bar's left/width are positioned proportionally across the
+          overall campaign span so true overlap is visible. Hidden when
+          there's only one program (the legacy single-program campaign)
+          to avoid noise. */}
+      {overview.programs && overview.programs.length > 1 && (() => {
+        const startMs = Date.parse(`${overview.startDate}T00:00:00Z`);
+        const endMs = Date.parse(`${overview.raceDate}T00:00:00Z`);
+        const span = Math.max(1, endMs - startMs);
+        return (
+          <Card data-testid="card-programs">
+            <CardContent className="p-6 space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                  Programs ({overview.programs.length})
+                </h3>
+                <span className="text-xs font-mono text-muted-foreground">
+                  {overview.startDate} → {overview.raceDate}
+                </span>
+              </div>
+              <div className="space-y-3">
+                {overview.programs.map((p) => {
+                  const pStart = Date.parse(`${p.startDate}T00:00:00Z`);
+                  const pEnd = Date.parse(`${p.endDate}T00:00:00Z`);
+                  const leftPct = Math.max(0, ((pStart - startMs) / span) * 100);
+                  const widthPct = Math.max(
+                    2,
+                    ((pEnd - pStart) / span) * 100,
+                  );
+                  return (
+                    <div
+                      key={`program-${p.sourceEntryIndex}`}
+                      className="space-y-1"
+                      data-testid={`row-program-${p.sourceEntryIndex}`}
+                    >
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold uppercase tracking-wider">
+                          {p.label}
+                        </span>
+                        <span className="font-mono text-muted-foreground">
+                          {p.startDate} → {p.endDate} · {p.weeks} wk
+                        </span>
+                      </div>
+                      <div className="relative h-3 bg-muted rounded-sm overflow-hidden">
+                        <div
+                          className="absolute top-0 bottom-0 bg-primary/70 rounded-sm"
+                          style={{
+                            left: `${leftPct}%`,
+                            width: `${widthPct}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       <div className="space-y-12">
         {Object.entries(groupedWeeks).map(([phase, phaseWeeks]) => {
           const color = phaseColor(phase);

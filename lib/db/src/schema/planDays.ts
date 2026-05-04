@@ -1,11 +1,24 @@
-import { pgTable, serial, integer, text, date, doublePrecision, boolean, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, date, doublePrecision, boolean, index, uniqueIndex } from "drizzle-orm/pg-core";
 
 export const planDaysTable = pgTable("plan_days", {
   id: serial("id").primaryKey(),
   week: integer("week").notNull(),
   phase: text("phase").notNull(),
-  date: date("date").notNull().unique(),
+  date: date("date").notNull(),
   day: text("day").notNull(),
+  // Task #135: program/entry attribution for concurrent overlapping
+  // programs. Each plan_day belongs to one TemplateEntry within the
+  // active planner config. For legacy single-program campaigns and for
+  // blocks-mode configs every row has sourceEntryIndex=0; with multiple
+  // overlapping entries each entry gets its own index (0, 1, 2…) so two
+  // sessions on the same date are distinguishable. The composite UNIQUE
+  // (date, source_entry_index) replaces the old UNIQUE(date) so multiple
+  // rows can share a calendar date as long as they come from different
+  // entries. `sourceEntryLabel` is the human-readable program name shown
+  // in the UI badge ("Tonal Lift", "5K Improver"); falls back to the
+  // template's name when the entry has no customName set.
+  sourceEntryIndex: integer("source_entry_index").notNull().default(0),
+  sourceEntryLabel: text("source_entry_label"),
   strengthLoad: doublePrecision("strength_load"),
   equipment: text("equipment").notNull(),
   // Ordered list of every machine the runner will use that day (e.g. a Tue
@@ -68,6 +81,14 @@ export const planDaysTable = pgTable("plan_days", {
 }, (t) => ({
   weekIdx: index("plan_days_week_idx").on(t.week),
   dateIdx: index("plan_days_date_idx").on(t.date),
+  // Task #135: composite unique replaces the old UNIQUE(date) so
+  // overlapping concurrent programs can each emit a row on the same
+  // calendar date (one per entry).
+  dateEntryUnique: uniqueIndex("plan_days_date_entry_unique").on(
+    t.date,
+    t.sourceEntryIndex,
+  ),
+  sourceEntryIdx: index("plan_days_source_entry_idx").on(t.sourceEntryIndex),
 }));
 
 export type PlanDayRow = typeof planDaysTable.$inferSelect;
