@@ -25,6 +25,7 @@ import {
   HYBRID_MAX_DAYS_PER_WEEK,
   HYBRID_MIN_DAYS_PER_WEEK,
   HYBRID_POSITIONS_ORDERED,
+  RACE_DAY_SPECS,
   expandCustomHybrid,
   expandEntriesToBlocks,
   generatePlanFromConfig,
@@ -38,6 +39,7 @@ import {
   type HybridFitnessLevel,
   type HybridMixPosition,
   type PhaseBlock,
+  type PlanRaceKind,
   type PlannerConfig,
 } from "@workspace/plan-generator";
 
@@ -672,6 +674,114 @@ describe("hybridMileage phase ramp — build > base, taper < build at the same w
         ).totals.miles;
         expect(explicitNull, `${position} week ${w}`).toBe(noPhase);
       }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------
+// Task #208 — race-week preview branch (Task #203) generator-level
+// regression. Pins the contract that `previewHybridWeek` honors when
+// called with `isRaceWeek: true`: the trailing Saturday is forced to a
+// `race-prep` slot, the trailing Sunday is forced to a `race` slot at
+// the matching `RACE_DAY_SPECS[raceKind].distanceMi`, totals.miles
+// includes the race-day mileage, and the override is suppressed when
+// `isRaceWeek` is false. Independent of the React UI test in Task #203
+// so future refactors of `buildHybridWeekDays` (the runtime sibling
+// the preview mirrors) cannot drift the preview without breaking a
+// generator-level test.
+describe("previewHybridWeek race-week branch — Sat race-prep, Sun race day", () => {
+  // Use a balanced 5-day/week intermediate spec so the trailing Sat/Sun
+  // slots are normally a lift / long-run pair — that way the override
+  // visibly replaces real session content (not rest days).
+  const baseSpec = {
+    position: "balanced" as HybridMixPosition,
+    daysPerWeek: 5,
+    level: "intermediate" as HybridFitnessLevel,
+  };
+
+  // RACE_DAY_SPECS covers every non-"none" PlanRaceKind. Iterate them
+  // all so a future race kind addition forces a deliberate test update
+  // instead of silently skipping coverage.
+  const raceKinds: Exclude<PlanRaceKind, "none">[] = [
+    "marathon",
+    "half",
+    "10k",
+    "5k",
+  ];
+
+  for (const raceKind of raceKinds) {
+    it(`${raceKind}: trailing Sat → race-prep, Sun → race at ${RACE_DAY_SPECS[raceKind].distanceMi} mi`, () => {
+      const preview = previewHybridWeek(baseSpec, {
+        blockWeeks: 8,
+        isRaceWeek: true,
+        raceKind,
+      });
+      expect(preview.isRaceWeek).toBe(true);
+
+      // HYBRID_DAY_LABELS goes Mon..Sun, so idx 5 = Sat, idx 6 = Sun.
+      const sat = preview.slots[5]!;
+      const sun = preview.slots[6]!;
+      expect(sat.day).toBe("Sat");
+      expect(sun.day).toBe("Sun");
+      expect(sat.kind).toBe("race-prep");
+      expect(sun.kind).toBe("race");
+
+      // Sun race slot must carry the matching distance from RACE_DAY_SPECS,
+      // not a generated easy/long-run mileage.
+      if (sun.kind !== "race") throw new Error("expected race slot");
+      expect(sun.miles).toBe(RACE_DAY_SPECS[raceKind].distanceMi);
+
+      // Totals.miles must include the race distance (lower-bound: even
+      // if every other slot was a rest, totals.miles is at least the
+      // race day's distance). Real previews add easy-run mileage on
+      // top, so use a `>=` assertion to stay robust to future schedule
+      // tweaks while still catching a missing race-day contribution.
+      expect(preview.totals.miles).toBeGreaterThanOrEqual(
+        RACE_DAY_SPECS[raceKind].distanceMi,
+      );
+      // Race day counts as one of `runs` so the summary line stays
+      // meaningful for the campaign-final week.
+      expect(preview.totals.runs).toBeGreaterThanOrEqual(1);
+    });
+  }
+
+  it("isRaceWeek: false suppresses the override (canonical typical-week shape)", () => {
+    // Same spec, marathon raceKind, but isRaceWeek explicitly false.
+    // Trailing Sat/Sun must NOT be race-prep / race — they fall back
+    // to the schedule's normal slots (balanced 5d/wk lands a long run
+    // on Sun) and `isRaceWeek` on the returned preview must be false.
+    const preview = previewHybridWeek(baseSpec, {
+      blockWeeks: 8,
+      isRaceWeek: false,
+      raceKind: "marathon",
+    });
+    expect(preview.isRaceWeek).toBe(false);
+    for (const slot of preview.slots) {
+      expect(slot.kind).not.toBe("race-prep");
+      expect(slot.kind).not.toBe("race");
+    }
+    // Sunday is the long run for run-leaning blends — totals.miles
+    // must therefore stay well below a marathon distance. (Pin a
+    // generous ceiling that still rules out a stray race-day overlay.)
+    expect(preview.totals.miles).toBeLessThan(
+      RACE_DAY_SPECS.marathon.distanceMi,
+    );
+  });
+
+  it("raceKind: 'none' suppresses the override even when isRaceWeek is true", () => {
+    // The doc-string for opts.raceKind says "none" gates off the
+    // override (mirrors `buildHybridWeekDays`'s race-week guard).
+    // `previewHybridWeek` resolves `isRaceWeek` to false in this case
+    // so the trailing Sat/Sun stay in their canonical schedule slots.
+    const preview = previewHybridWeek(baseSpec, {
+      blockWeeks: 8,
+      isRaceWeek: true,
+      raceKind: "none",
+    });
+    expect(preview.isRaceWeek).toBe(false);
+    for (const slot of preview.slots) {
+      expect(slot.kind).not.toBe("race-prep");
+      expect(slot.kind).not.toBe("race");
     }
   });
 });
