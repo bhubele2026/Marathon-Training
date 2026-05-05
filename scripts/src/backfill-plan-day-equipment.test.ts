@@ -6,10 +6,19 @@
 // seed_equipment_list when the row carries an "edited" marker.
 
 import { describe, expect, it } from "vitest";
+import { RACE_DAY_SPECS } from "@workspace/plan-generator";
 import {
   computeEquipmentBackfillUpdates,
   parseEquipmentList,
 } from "./backfill-plan-day-equipment";
+
+// Pull the race-day half-marathon prose from the same `RACE_DAY_SPECS["half"]`
+// table the canonical 52-week generator, the entries-mode pipeline, and the
+// hybrid pipeline all read from (Task #217). Hand-rolling the literal here
+// would silently drift the moment the half-marathon copy changes — exactly
+// the kind of fixture the centralization in #217 was meant to eliminate.
+// Mirrors the drift-proofing applied to `race-week.test.ts` in Task #220.
+const HALF_RACE_DAY_DESCRIPTION = RACE_DAY_SPECS.half.description;
 
 describe("parseEquipmentList", () => {
   it("emits scalar Tonal first then the cardio machine for a Tue heavy + bike day", () => {
@@ -50,8 +59,7 @@ describe("parseEquipmentList", () => {
   it("returns a single Outdoor chip for race day", () => {
     expect(
       parseEquipmentList({
-        description:
-          "RACE DAY — Half Marathon (13.1 mi). Execute race plan, fuel every 4 mi, finish strong.",
+        description: HALF_RACE_DAY_DESCRIPTION,
         equipment: "Outdoor",
       }),
     ).toEqual(["Outdoor"]);
@@ -114,8 +122,7 @@ describe("parseEquipmentList", () => {
   it("DOES add Outdoor for the literal RACE DAY banner", () => {
     expect(
       parseEquipmentList({
-        description:
-          "RACE DAY — Half Marathon (13.1 mi). Execute race plan, fuel every 4 mi, finish strong.",
+        description: HALF_RACE_DAY_DESCRIPTION,
         equipment: "Outdoor",
       }),
     ).toEqual(["Outdoor"]);
