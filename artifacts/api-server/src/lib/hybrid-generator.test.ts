@@ -25,6 +25,7 @@ import {
   HYBRID_MAX_DAYS_PER_WEEK,
   HYBRID_MIN_DAYS_PER_WEEK,
   HYBRID_POSITIONS_ORDERED,
+  HYBRID_TAPER_WEEK_OPTIONS,
   RACE_DAY_SPECS,
   expandCustomHybrid,
   expandEntriesToBlocks,
@@ -32,6 +33,7 @@ import {
   getTemplateById,
   hybridMixSpec,
   hybridPhase,
+  hybridTaperWeeks,
   previewHybridWeek,
   previewWeeklyMileage,
   validatePlannerConfig,
@@ -643,6 +645,162 @@ describe("expandCustomHybrid — phased mesocycle expansion", () => {
     expect(tpl!.expand(8)).toEqual(expandCustomHybrid(8));
     expect(tpl!.expand(12)).toEqual(expandCustomHybrid(12));
     expect(tpl!.expand(18)).toEqual(expandCustomHybrid(18));
+  });
+});
+
+// Task #164: hybrid taper length is now runner-customizable via the
+// `[hybrid-taper:N]` sentinel on the entry's customNotes. The picker
+// in the planner builder card emits this sentinel when the runner picks
+// a non-Auto option (None / 1w / 2w / 3w); `expandCustomHybrid` honors
+// the override whenever the plan is long enough to keep at least 6
+// weeks of base+build budget.
+describe("hybridTaperWeeks sentinel parser", () => {
+  it("parses each of the four supported taper widths", () => {
+    expect(hybridTaperWeeks("[hybrid-taper:0]")).toBe(0);
+    expect(hybridTaperWeeks("[hybrid-taper:1]")).toBe(1);
+    expect(hybridTaperWeeks("[hybrid-taper:2]")).toBe(2);
+    expect(hybridTaperWeeks("[hybrid-taper:3]")).toBe(3);
+  });
+
+  it("extracts the taper tag when merged with the other hybrid sentinels", () => {
+    const merged =
+      "[hybrid-mix:balanced] [hybrid-days:5] [hybrid-level:intermediate] [hybrid-taper:3]";
+    expect(hybridTaperWeeks(merged)).toBe(3);
+    // Mix parser must still see its own values without colliding.
+    expect(hybridMixSpec(merged)?.position).toBe("balanced");
+    expect(hybridMixSpec(merged)?.daysPerWeek).toBe(5);
+  });
+
+  it("returns null for missing / blank / out-of-range / non-numeric values", () => {
+    expect(hybridTaperWeeks(null)).toBeNull();
+    expect(hybridTaperWeeks(undefined)).toBeNull();
+    expect(hybridTaperWeeks("")).toBeNull();
+    expect(hybridTaperWeeks("[hybrid-mix:balanced]")).toBeNull();
+    expect(hybridTaperWeeks("[hybrid-taper:4]")).toBeNull();
+    expect(hybridTaperWeeks("[hybrid-taper:-1]")).toBeNull();
+    expect(hybridTaperWeeks("[hybrid-taper:foo]")).toBeNull();
+  });
+
+  it("HYBRID_TAPER_WEEK_OPTIONS exposes exactly 0/1/2/3", () => {
+    expect([...HYBRID_TAPER_WEEK_OPTIONS]).toEqual([0, 1, 2, 3]);
+  });
+});
+
+describe("expandCustomHybrid — taper length override (Task #164)", () => {
+  it("3-week taper extends the trailing taper block on long plans", () => {
+    const blocks = expandCustomHybrid(20, 3);
+    expect(blocks).toHaveLength(3);
+    expect(blocks.map((b) => b.customName)).toEqual([
+      "Hybrid Base",
+      "Hybrid Build",
+      "Hybrid Taper",
+    ]);
+    expect(blocks[2]!.weeks).toBe(3);
+    expect(hybridPhase(blocks[2]!.customNotes ?? null)).toBe("taper");
+    // Total weeks still sum to the requested input.
+    expect(blocks.reduce((s, b) => s + b.weeks, 0)).toBe(20);
+  });
+
+  it("1-week sharpening taper trims the standard 2-week default", () => {
+    const blocks = expandCustomHybrid(18, 1);
+    expect(blocks).toHaveLength(3);
+    expect(blocks[2]!.customName).toBe("Hybrid Taper");
+    expect(blocks[2]!.weeks).toBe(1);
+    expect(blocks.reduce((s, b) => s + b.weeks, 0)).toBe(18);
+  });
+
+  it("0-week taper drops the trailing taper block entirely (non-event hybrid)", () => {
+    const blocks = expandCustomHybrid(18, 0);
+    expect(blocks).toHaveLength(2);
+    expect(blocks.map((b) => b.customName)).toEqual([
+      "Hybrid Base",
+      "Hybrid Build",
+    ]);
+    expect(hybridPhase(blocks[0]!.customNotes ?? null)).toBe("base");
+    expect(hybridPhase(blocks[1]!.customNotes ?? null)).toBe("build");
+    expect(blocks.reduce((s, b) => s + b.weeks, 0)).toBe(18);
+  });
+
+  it("opt-in taper on a 12-15w plan adds a taper that the default would skip", () => {
+    // 14 weeks defaults to base+build (no taper). A 1-week sharpening
+    // override carves out a real Hybrid Taper block at the end.
+    const defaultBlocks = expandCustomHybrid(14);
+    expect(defaultBlocks).toHaveLength(2);
+    const overridden = expandCustomHybrid(14, 1);
+    expect(overridden).toHaveLength(3);
+    expect(overridden[2]!.customName).toBe("Hybrid Taper");
+    expect(overridden[2]!.weeks).toBe(1);
+    expect(overridden.reduce((s, b) => s + b.weeks, 0)).toBe(14);
+  });
+
+  it("falls back to the default when the override would leave <6 weeks of base+build", () => {
+    // 12 weeks with a 3-week taper would only leave 9w of base+build,
+    // which is fine (>=6) — but 7 weeks with a 3-week taper would
+    // collapse the periodization. 7w is below the phase threshold so
+    // it stays a single Custom block regardless.
+    const tiny = expandCustomHybrid(7, 3);
+    expect(tiny).toHaveLength(1);
+    expect(tiny[0]!.customName).toBe("Custom Hybrid");
+    // 12w with 3-week taper IS allowed (12 - 3 = 9 >= 6).
+    const ok = expandCustomHybrid(12, 3);
+    expect(ok).toHaveLength(3);
+    expect(ok[2]!.weeks).toBe(3);
+    // 16w + null override == legacy 2w default.
+    const legacy = expandCustomHybrid(16, null);
+    expect(legacy).toHaveLength(3);
+    expect(legacy[2]!.weeks).toBe(2);
+  });
+
+  it("entry-level [hybrid-taper:N] is honored by expandEntriesToBlocks", () => {
+    // The runner picks "3 weeks — key event" in the planner card; the
+    // sentinel rides on the entry's customNotes alongside the mix
+    // sentinels. expandEntriesToBlocks must route through
+    // expandCustomHybrid so the override reaches the phase split.
+    const blocks = expandEntriesToBlocks([
+      {
+        templateId: "custom_hybrid",
+        weeks: 18,
+        customName: "Key-event Hybrid",
+        customNotes:
+          "[hybrid-mix:balanced] [hybrid-days:5] [hybrid-level:intermediate] [hybrid-taper:3]",
+      },
+    ]);
+    expect(blocks).toHaveLength(3);
+    expect(blocks[2]!.customName).toBe("Hybrid Taper");
+    expect(blocks[2]!.weeks).toBe(3);
+    // Mix sentinel survives the merge onto every phase block.
+    for (const b of blocks) {
+      const spec = hybridMixSpec(b.customNotes ?? null);
+      expect(spec?.position).toBe("balanced");
+    }
+  });
+
+  it("entry-level [hybrid-taper:0] drops the taper block via expandEntriesToBlocks", () => {
+    const blocks = expandEntriesToBlocks([
+      {
+        templateId: "custom_hybrid",
+        weeks: 18,
+        customName: "Non-event Hybrid",
+        customNotes:
+          "[hybrid-mix:balanced] [hybrid-days:5] [hybrid-level:intermediate] [hybrid-taper:0]",
+      },
+    ]);
+    expect(blocks).toHaveLength(2);
+    expect(blocks.map((b) => b.customName)).toEqual([
+      "Non-event Hybrid",
+      "Hybrid Build",
+    ]);
+    expect(blocks.reduce((s, b) => s + b.weeks, 0)).toBe(18);
+  });
+
+  it("week counts always sum back to the requested input n for every override", () => {
+    for (const taper of HYBRID_TAPER_WEEK_OPTIONS) {
+      for (let n = 0; n <= 26; n++) {
+        const blocks = expandCustomHybrid(n, taper);
+        const sum = blocks.reduce((s, b) => s + b.weeks, 0);
+        expect(sum, `n=${n} taper=${taper} blocks sum`).toBe(n);
+      }
+    }
   });
 });
 

@@ -32,6 +32,7 @@ import {
   HYBRID_DEFAULT_DAYS_PER_WEEK,
   HYBRID_MIN_DAYS_PER_WEEK,
   HYBRID_MAX_DAYS_PER_WEEK,
+  HYBRID_TAPER_WEEK_OPTIONS,
   type FocusType,
   type HybridFitnessLevel,
   type HybridMixPosition,
@@ -783,6 +784,13 @@ export default function Planner() {
   );
   const [hybridLevel, setHybridLevel] =
     useState<HybridFitnessLevel>("beginner");
+  // Task #164: optional taper-length override for the phased custom_hybrid
+  // expansion. `null` = let `expandCustomHybrid` use its length-based
+  // default (2 weeks for n>=16, 0 for shorter plans). 0/1/2/3 = explicit
+  // override that rides on the entry's customNotes via `[hybrid-taper:N]`.
+  const [hybridTaperWeeks, setHybridTaperWeeks] = useState<number | null>(
+    null,
+  );
   // Optional event date — when set, we trim the block weeks so the
   // hybrid block ends exactly the Sunday before the event Monday.
   // Empty string = no event, runner picks weeks directly via Weeks input.
@@ -1554,8 +1562,16 @@ export default function Planner() {
     position: HybridMixPosition,
     daysPerWeek: number,
     level: HybridFitnessLevel,
+    taperWeeks: number | null,
   ): string {
-    return `[hybrid-mix:${position}] [hybrid-days:${daysPerWeek}] [hybrid-level:${level}]`;
+    const base = `[hybrid-mix:${position}] [hybrid-days:${daysPerWeek}] [hybrid-level:${level}]`;
+    // Task #164: only stamp the taper sentinel when the runner picks an
+    // explicit override. A null choice keeps the legacy length-based
+    // default (2 weeks for n>=16, 0 for shorter plans) and avoids
+    // mutating saved configs that never opted in.
+    return taperWeeks === null
+      ? base
+      : `${base} [hybrid-taper:${taperWeeks}]`;
   }
 
   // Apply the custom_hybrid template as a TemplateEntry. Encodes the
@@ -1597,6 +1613,7 @@ export default function Planner() {
       hybridPosition,
       hybridDaysPerWeek,
       hybridLevel,
+      hybridTaperWeeks,
     );
     const existing = entries ?? [];
     const isFirst = existing.length === 0;
@@ -3123,6 +3140,63 @@ export default function Planner() {
                               </SelectContent>
                             </Select>
                           </div>
+                        </div>
+                        {/*
+                          Task #164: optional taper-length override.
+                          Auto = length-based default (2w for n>=16,
+                          0 otherwise). 0/1/2/3 = explicit override
+                          stamped on the entry's customNotes via
+                          `[hybrid-taper:N]` and honored by
+                          `expandCustomHybrid` whenever there's room
+                          for a 6-week base+build remainder.
+                        */}
+                        <div className="space-y-1">
+                          <Label
+                            htmlFor="planner-hybrid-taper"
+                            className="text-xs"
+                          >
+                            Taper length
+                          </Label>
+                          <Select
+                            value={
+                              hybridTaperWeeks === null
+                                ? "auto"
+                                : String(hybridTaperWeeks)
+                            }
+                            onValueChange={(v) =>
+                              setHybridTaperWeeks(
+                                v === "auto" ? null : parseInt(v, 10),
+                              )
+                            }
+                          >
+                            <SelectTrigger
+                              id="planner-hybrid-taper"
+                              className="h-8"
+                              data-testid="planner-hybrid-taper-select"
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="auto">
+                                Auto (default)
+                              </SelectItem>
+                              {HYBRID_TAPER_WEEK_OPTIONS.map((n) => (
+                                <SelectItem key={n} value={String(n)}>
+                                  {n === 0
+                                    ? "None — no taper"
+                                    : n === 1
+                                      ? "1 week — sharpening"
+                                      : n === 2
+                                        ? "2 weeks — standard"
+                                        : `${n} weeks — key event`}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[10px] text-muted-foreground">
+                            Auto = 2 weeks on plans 16w+, none on shorter
+                            plans. Phased plans only (12w+).
+                          </p>
                         </div>
                         <div className="space-y-1">
                           <Label

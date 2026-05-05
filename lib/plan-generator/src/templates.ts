@@ -932,27 +932,52 @@ export function hybridPhase(
   return HYBRID_PHASES.has(raw) ? raw : null;
 }
 
-// Phased expansion of the custom_hybrid template (Task #154). Splits a
-// hybrid plan into mesocycles based on its length:
+// Allowed `[hybrid-taper:N]` overrides (Task #164). 0 skips the taper
+// (e.g. a non-event hybrid block); 1 is a sharpening taper for tune-up
+// races; 2 is the legacy default; 3 is a longer key-event taper.
+export const HYBRID_TAPER_WEEK_OPTIONS: ReadonlyArray<number> = [0, 1, 2, 3];
+
+// Parses the `[hybrid-taper:N]` sentinel out of a block's merged
+// customNotes. Returns null when the tag is absent or unparseable so
+// callers fall back to the length-based default (2w for n>=16, 0 for
+// shorter plans). Allowed values are 0..3 inclusive.
+export function hybridTaperWeeks(
+  notes: string | null | undefined,
+): number | null {
+  if (!notes) return null;
+  const m = /\[hybrid-taper:(\d+)\]/.exec(notes);
+  if (!m) return null;
+  const n = parseInt(m[1] ?? "", 10);
+  if (!Number.isFinite(n)) return null;
+  if (!HYBRID_TAPER_WEEK_OPTIONS.includes(n)) return null;
+  return n;
+}
+
+// Phased expansion of the custom_hybrid template (Task #154 / #164).
+// Splits a hybrid plan into mesocycles based on its length:
 //
 //   - n <  12 weeks: one Custom block, no phase sentinel. Matches the
 //                    v1 single-block layout exactly so saved short
-//                    hybrid campaigns regenerate identically.
-//   - 12-15 weeks:  base + build (no taper). Base owns roughly half
-//                    the weeks, build owns the rest. Mileage and lift
-//                    load progress from base into build instead of
-//                    restarting at baseline.
-//   - 16+ weeks:    base + build + 2-week taper. Same base/build
-//                    split applied to (n - 2) weeks; the trailing
-//                    2 weeks are a Hybrid Taper that descends from
-//                    peak volume into a recovered race week.
+//                    hybrid campaigns regenerate identically. Per-entry
+//                    taper overrides do not apply here — there isn't
+//                    enough budget to phase the block.
+//   - 12-15 weeks:   base + build by default (no taper). Runners can
+//                    opt in to a 1/2/3-week taper via `[hybrid-taper:N]`
+//                    on the entry's customNotes (Task #164) when the
+//                    base+build remainder still has at least 6 weeks.
+//   - 16+ weeks:     base + build + 2-week taper by default. Runners
+//                    can override the taper to 0/1/3 weeks via
+//                    `[hybrid-taper:N]`; same 6-week base+build floor.
 //
 // Each phase block carries its own `customName` so the entry-merge
 // in `expandEntriesToBlocks` only overrides block 1's name with the
 // runner's entry-level label (e.g. "Custom Hybrid (Balanced)") —
 // blocks 2/3 keep "Hybrid Build" / "Hybrid Taper" so the runner can
 // see the periodization at a glance in /plan and on the dashboard.
-export function expandCustomHybrid(weeks: number): PhaseBlock[] {
+export function expandCustomHybrid(
+  weeks: number,
+  taperWeeksOverride?: number | null,
+): PhaseBlock[] {
   const w = Math.max(0, Math.floor(weeks));
   if (w === 0) return [];
   if (w < 12) {
@@ -962,25 +987,24 @@ export function expandCustomHybrid(weeks: number): PhaseBlock[] {
       }),
     ];
   }
-  if (w < 16) {
-    const base = Math.floor(w / 2);
-    const build = w - base;
-    return [
-      makeBlock("Custom", base, {
-        customName: "Hybrid Base",
-        customNotes: "[hybrid-phase:base]",
-      }),
-      makeBlock("Custom", build, {
-        customName: "Hybrid Build",
-        customNotes: "[hybrid-phase:build]",
-      }),
-    ];
+  // Resolve the trailing taper length. The runner-supplied override
+  // (0..3) wins as long as the base+build remainder is still at least
+  // 6 weeks of real periodization budget; otherwise we silently fall
+  // back to the length-based default so a tiny plan can't get cut to
+  // ribbons by an aggressive override.
+  const defaultTaper = w >= 16 ? 2 : 0;
+  let taper = defaultTaper;
+  if (
+    typeof taperWeeksOverride === "number" &&
+    HYBRID_TAPER_WEEK_OPTIONS.includes(taperWeeksOverride) &&
+    w - taperWeeksOverride >= 6
+  ) {
+    taper = taperWeeksOverride;
   }
-  const taper = 2;
   const remaining = w - taper;
   const base = Math.floor(remaining / 2);
   const build = remaining - base;
-  return [
+  const blocks: PhaseBlock[] = [
     makeBlock("Custom", base, {
       customName: "Hybrid Base",
       customNotes: "[hybrid-phase:base]",
@@ -989,11 +1013,16 @@ export function expandCustomHybrid(weeks: number): PhaseBlock[] {
       customName: "Hybrid Build",
       customNotes: "[hybrid-phase:build]",
     }),
-    makeBlock("Custom", taper, {
-      customName: "Hybrid Taper",
-      customNotes: "[hybrid-phase:taper]",
-    }),
   ];
+  if (taper > 0) {
+    blocks.push(
+      makeBlock("Custom", taper, {
+        customName: "Hybrid Taper",
+        customNotes: "[hybrid-phase:taper]",
+      }),
+    );
+  }
+  return blocks;
 }
 
 // Parses the custom-hybrid sentinels out of a block's merged customNotes.
@@ -1744,8 +1773,18 @@ export function expandEntriesToBlocks(
   for (const entry of entries) {
     const tpl = getTemplateById(entry.templateId);
     if (!tpl) continue;
-    const blocks = tpl.expand(Math.max(0, Math.floor(entry.weeks)));
     const note = entry.customNotes?.trim() || null;
+    // Task #164: custom_hybrid lets the runner pick a 0/1/2/3-week
+    // taper override on the entry's customNotes. Route directly to
+    // expandCustomHybrid so the override reaches the phase split —
+    // tpl.expand() can't see entry-level notes by itself.
+    const blocks =
+      entry.templateId === "custom_hybrid"
+        ? expandCustomHybrid(
+            Math.max(0, Math.floor(entry.weeks)),
+            hybridTaperWeeks(note),
+          )
+        : tpl.expand(Math.max(0, Math.floor(entry.weeks)));
     const label = entry.customName?.trim() || null;
     for (let i = 0; i < blocks.length; i++) {
       const b = blocks[i]!;
@@ -1878,8 +1917,17 @@ export function expandEntriesToBlocksWithGaps(
         customNotes: "Gap between templates",
       });
     }
-    const blocks = tpl.expand(Math.max(0, Math.floor(entry.weeks)));
     const note = entry.customNotes?.trim() || null;
+    // Task #164: same custom_hybrid taper-override routing as the
+    // gap-less path above so the runner's override survives whether
+    // entries stack back-to-back or have explicit Monday gaps.
+    const blocks =
+      entry.templateId === "custom_hybrid"
+        ? expandCustomHybrid(
+            Math.max(0, Math.floor(entry.weeks)),
+            hybridTaperWeeks(note),
+          )
+        : tpl.expand(Math.max(0, Math.floor(entry.weeks)));
     const label = entry.customName?.trim() || null;
     for (let j = 0; j < blocks.length; j++) {
       const b = blocks[j]!;
