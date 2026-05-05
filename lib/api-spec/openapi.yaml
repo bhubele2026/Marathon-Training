@@ -1751,7 +1751,9 @@ components:
             across all programs; this array lets the dashboard drill in to
             per-program totals. Always present — for legacy single-program
             campaigns it contains exactly one element labelled "Marathon Plan".
-            Programs are ordered by sourceEntryIndex ascending.
+            Task #159: programs are ordered by `endDate` ascending (closest race
+            date first), with `sourceEntryIndex` ascending as the tiebreaker, so
+            the most-imminent program surfaces at the top of the Week Snapshot.
           items: { $ref: "#/components/schemas/DashboardSummaryProgram" }
         raceKind:
           type: string
@@ -1873,8 +1875,10 @@ components:
             example); this array lets the chart tooltip drill in to per-
             program contributions. Empty for weeks where no program
             contributes plan_days (e.g. interior recovery gaps that only
-            carry synthetic filler rows). Programs are ordered by
-            sourceEntryIndex ascending.
+            carry synthetic filler rows). Task #159: programs are ordered by
+            their campaign-wide end date ascending (closest race date first),
+            with `sourceEntryIndex` ascending as the tiebreaker, so the
+            chart tooltip surfaces the most-imminent program at the top.
           items: { $ref: "#/components/schemas/WeeklyMileageProgram" }
         wedSteady:
           type: boolean

@@ -586,6 +586,16 @@ export default function Dashboard() {
                   {summary.programs.map((p) => {
                     const programEndsEarly =
                       p.endDate < new Date(new Date().getTime() + summary.daysToRace * 24 * 3600 * 1000).toISOString().slice(0, 10);
+                    // Task #159: per-program "Race in N days" countdown so a
+                    // runner with overlapping blocks can see at a glance how
+                    // imminent each program's race is. Computed from the
+                    // program endDate vs today (UTC, matching daysToRace).
+                    const todayMs = new Date(new Date().toISOString().slice(0, 10)).getTime();
+                    const endMs = new Date(p.endDate).getTime();
+                    const programDaysToRace = Math.max(
+                      0,
+                      Math.ceil((endMs - todayMs) / (24 * 3600 * 1000)),
+                    );
                     return (
                       <div
                         key={`snapshot-program-${p.sourceEntryIndex}`}
@@ -596,14 +606,22 @@ export default function Dashboard() {
                           <span className="font-bold text-sm uppercase tracking-wider">
                             {p.label}
                           </span>
-                          {programEndsEarly && (
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span
-                              className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-background px-2 py-0.5 rounded"
-                              data-testid={`snapshot-program-end-${p.sourceEntryIndex}`}
+                              className="text-[10px] font-bold uppercase tracking-wider text-primary bg-background px-2 py-0.5 rounded"
+                              data-testid={`snapshot-program-race-in-${p.sourceEntryIndex}`}
                             >
-                              Ends {p.endDate}
+                              Race in {programDaysToRace} {programDaysToRace === 1 ? "day" : "days"}
                             </span>
-                          )}
+                            {programEndsEarly && (
+                              <span
+                                className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-background px-2 py-0.5 rounded"
+                                data-testid={`snapshot-program-end-${p.sourceEntryIndex}`}
+                              >
+                                Ends {p.endDate}
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <div className="grid grid-cols-3 gap-2 text-xs">
                           <div>

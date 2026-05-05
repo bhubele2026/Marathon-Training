@@ -2266,7 +2266,7 @@ export const GetDashboardSummaryResponse = zod.object({
       }),
     )
     .describe(
-      'Task #144. Per-program breakdown of the current week\'s planned and actual training load for runners stacking concurrent programs (e.g. a Tonal lift program alongside a 5K running program). Each program corresponds to one TemplateEntry currently contributing rows to plan_days. Headline weekly\* fields above are the COMBINED totals across all programs; this array lets the dashboard drill in to per-program totals. Always present — for legacy single-program campaigns it contains exactly one element labelled \"Marathon Plan\". Programs are ordered by sourceEntryIndex ascending.\n',
+      'Task #144. Per-program breakdown of the current week\'s planned and actual training load for runners stacking concurrent programs (e.g. a Tonal lift program alongside a 5K running program). Each program corresponds to one TemplateEntry currently contributing rows to plan_days. Headline weekly\* fields above are the COMBINED totals across all programs; this array lets the dashboard drill in to per-program totals. Always present — for legacy single-program campaigns it contains exactly one element labelled \"Marathon Plan\". Task #159: programs are ordered by `endDate` ascending (closest race date first), with `sourceEntryIndex` ascending as the tiebreaker, so the most-imminent program surfaces at the top of the Week Snapshot.\n',
     ),
   raceKind: zod
     .enum(["marathon", "half", "10k", "5k"])
@@ -2318,7 +2318,7 @@ export const GetWeeklyMileageResponseItem = zod.object({
       }),
     )
     .describe(
-      "Task #144. Per-program breakdown of this week's planned miles and cardio minutes. The headline `plannedMiles` \/ `plannedCardioMin` above are the COMBINED totals across overlapping programs (a Tonal lift program stacked with a 5K running program for example); this array lets the chart tooltip drill in to per- program contributions. Empty for weeks where no program contributes plan_days (e.g. interior recovery gaps that only carry synthetic filler rows). Programs are ordered by sourceEntryIndex ascending.\n",
+      "Task #144. Per-program breakdown of this week's planned miles and cardio minutes. The headline `plannedMiles` \/ `plannedCardioMin` above are the COMBINED totals across overlapping programs (a Tonal lift program stacked with a 5K running program for example); this array lets the chart tooltip drill in to per- program contributions. Empty for weeks where no program contributes plan_days (e.g. interior recovery gaps that only carry synthetic filler rows). Task #159: programs are ordered by their campaign-wide end date ascending (closest race date first), with `sourceEntryIndex` ascending as the tiebreaker, so the chart tooltip surfaces the most-imminent program at the top.\n",
     ),
   wedSteady: zod
     .boolean()

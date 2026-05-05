@@ -104,7 +104,7 @@ router.get("/dashboard/summary", async (_req, res) => {
             FROM program_planned pp
             LEFT JOIN program_actuals pa
               ON pa.source_entry_index = pp.source_entry_index
-            ORDER BY pp.source_entry_index ASC
+            ORDER BY pp.program_end_date ASC, pp.source_entry_index ASC
           `,
         )
       ).rows
@@ -318,6 +318,20 @@ router.get("/dashboard/weekly-mileage", async (_req, res) => {
       ORDER BY week ASC, source_entry_index ASC
     `,
   );
+  // Task #159: per-program end date (latest plan_day across the WHOLE
+  // campaign) so the per-week breakdown can be sorted by closest race
+  // date ascending — same ordering /dashboard/summary uses, so the
+  // chart tooltip lists the most-imminent program first.
+  const programEndDates = await db.execute<{ source_entry_index: number; end_date: string }>(
+    sql`
+      SELECT source_entry_index, TO_CHAR(MAX(date), 'YYYY-MM-DD') AS end_date
+      FROM plan_days
+      GROUP BY source_entry_index
+    `,
+  );
+  const endDateByIndex = new Map(
+    programEndDates.rows.map((r) => [r.source_entry_index, r.end_date]),
+  );
   const programsByWeek = new Map<number, Array<{
     sourceEntryIndex: number;
     label: string;
@@ -333,6 +347,14 @@ router.get("/dashboard/weekly-mileage", async (_req, res) => {
       plannedCardioMin: r.planned_cardio_min,
     });
     programsByWeek.set(r.week, list);
+  }
+  for (const list of programsByWeek.values()) {
+    list.sort((a, b) => {
+      const ae = endDateByIndex.get(a.sourceEntryIndex) ?? "9999-12-31";
+      const be = endDateByIndex.get(b.sourceEntryIndex) ?? "9999-12-31";
+      if (ae !== be) return ae < be ? -1 : 1;
+      return a.sourceEntryIndex - b.sourceEntryIndex;
+    });
   }
 
   // Task #183: per-week flag indicating whether the Wednesday plan day is

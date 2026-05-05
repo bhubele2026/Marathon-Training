@@ -264,6 +264,85 @@ describe("GET /api/dashboard/summary programs breakdown (Task #144)", () => {
     });
   });
 
+  it("orders programs by endDate ascending (closest race date first) when 3+ overlap (Task #159)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-09-04T12:00:00.000Z"));
+
+    const week = 8350;
+    const phase = "Triple Stack";
+    await insertWeek(week, {
+      startDate: "2099-09-01",
+      endDate: "2099-09-07",
+      phase,
+      plannedMiles: 30,
+    });
+    // Insert programs in arbitrary sourceEntryIndex order with end dates
+    // that intentionally do NOT line up with sourceEntryIndex order so we
+    // can prove the sort is by endDate, not by index.
+    // Program 0 — ends FAR future (2099-12-15).
+    await insertPlanDay(week, phase, {
+      date: "2099-09-02", day: "Tue", sessionType: T_STRENGTH, equipment: E_GYM,
+      sourceEntryIndex: 0, sourceEntryLabel: "Marathon Block",
+    });
+    await insertPlanDay(week + 14, phase, {
+      date: "2099-12-15", day: "Mon", sessionType: T_STRENGTH, equipment: E_GYM,
+      sourceEntryIndex: 0, sourceEntryLabel: "Marathon Block",
+    });
+    // Program 1 — ends MIDDLE (2099-10-20).
+    await insertPlanDay(week, phase, {
+      date: "2099-09-03", day: "Wed", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 5,
+      sourceEntryIndex: 1, sourceEntryLabel: "10K Improver",
+    });
+    await insertPlanDay(week + 6, phase, {
+      date: "2099-10-20", day: "Tue", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 6,
+      sourceEntryIndex: 1, sourceEntryLabel: "10K Improver",
+    });
+    // Program 2 — ends SOONEST (2099-09-21).
+    await insertPlanDay(week, phase, {
+      date: "2099-09-04", day: "Thu", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 3,
+      sourceEntryIndex: 2, sourceEntryLabel: "5K Sprint",
+    });
+    await insertPlanDay(week + 2, phase, {
+      date: "2099-09-21", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 3.1,
+      sourceEntryIndex: 2, sourceEntryLabel: "5K Sprint",
+    });
+
+    const summaryRes = await request(app).get("/api/dashboard/summary");
+    expect(summaryRes.status).toBe(200);
+    expectMatchesSchema(GetDashboardSummaryResponse, summaryRes.body);
+    const summary = summaryRes.body as {
+      programs: Array<{ sourceEntryIndex: number; label: string; endDate: string }>;
+    };
+    // Closest endDate must come first regardless of sourceEntryIndex.
+    expect(summary.programs.map((p) => p.label)).toEqual([
+      "5K Sprint",
+      "10K Improver",
+      "Marathon Block",
+    ]);
+    expect(summary.programs.map((p) => p.endDate)).toEqual([
+      "2099-09-21",
+      "2099-10-20",
+      "2099-12-15",
+    ]);
+
+    // /weekly-mileage must use the same closest-race-first ordering on
+    // each week's per-program breakdown.
+    const wmRes = await request(app).get("/api/dashboard/weekly-mileage");
+    expect(wmRes.status).toBe(200);
+    expectMatchesSchema(GetWeeklyMileageResponse, wmRes.body);
+    const wmRows = wmRes.body as Array<{
+      week: number;
+      programs: Array<{ sourceEntryIndex: number; label: string }>;
+    }>;
+    const ours = wmRows.find((r) => r.week === week);
+    expect(ours).toBeDefined();
+    expect(ours!.programs.map((p) => p.label)).toEqual([
+      "5K Sprint",
+      "10K Improver",
+      "Marathon Block",
+    ]);
+  });
+
   it("returns a single fallback program for legacy single-program campaigns", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2099-06-04T12:00:00.000Z"));
