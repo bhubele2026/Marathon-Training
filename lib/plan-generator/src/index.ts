@@ -1155,7 +1155,21 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
     isRecovery: true,
   },
   Custom: {
-    phaseLabel: (b) => (b.customName?.trim() ? b.customName.trim() : "Custom"),
+    phaseLabel: (b) => {
+      // Task #163: when the block carries a `[hybrid-phase:...]` sentinel
+      // (custom_hybrid expansion at 12+ weeks), prefer the mesocycle
+      // label so the dashboard / /plan timeline always read "Hybrid
+      // Base" / "Hybrid Build" / "Hybrid Taper" — even on block 0
+      // whose customName has been overridden by the entry-level label
+      // in `expandEntriesToBlocks`. The runner's entry-level label is
+      // still preserved on the block (and surfaced in the per-day
+      // customSuffix tag) — it just doesn't masquerade as the phase.
+      const hp = hybridPhase(b.customNotes);
+      if (hp === "base") return "Hybrid Base";
+      if (hp === "build") return "Hybrid Build";
+      if (hp === "taper") return "Hybrid Taper";
+      return b.customName?.trim() ? b.customName.trim() : "Custom";
+    },
     longRunMi: (w, _bw, isCutback) => {
       const base = Math.min(10, 4 + (w - 1) * 0.5);
       return r1(isCutback ? base * 0.7 : base);

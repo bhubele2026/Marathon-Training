@@ -589,6 +589,51 @@ describe("expandCustomHybrid — phased mesocycle expansion", () => {
     }
   });
 
+  it("entry-merged custom_hybrid plan_weeks expose hybrid-phase mesocycle labels", () => {
+    // Task #163: even when block 0's customName is overridden by the
+    // entry-level label, the generated plan_weeks must still surface
+    // "Hybrid Base" / "Hybrid Build" / "Hybrid Taper" as the phase so
+    // the dashboard chip + /plan timeline group / color-band the
+    // hybrid mesocycles distinctly. The phase label is derived from
+    // the `[hybrid-phase:...]` sentinel that survives the entry merge.
+    const entryBlocks = expandEntriesToBlocks([
+      {
+        templateId: "custom_hybrid",
+        weeks: 18,
+        customName: "My Hybrid Build",
+        customNotes:
+          "[hybrid-mix:balanced] [hybrid-days:5] [hybrid-level:intermediate]",
+      },
+    ]);
+    expect(entryBlocks[0]!.customName).toBe("My Hybrid Build");
+    // Feed those merged blocks through the generator in legacy
+    // blocks-mode — same shape the server persists after entries-mode
+    // expansion — and check what phase the plan_weeks rows end up with.
+    const total = 18 + 16; // 18-week hybrid + 16-week marathon tail
+    const startMs = Date.parse("2026-01-05T00:00:00Z");
+    const endMs = startMs + (total * 7 - 1) * 86400000;
+    const marathonDate = new Date(endMs).toISOString().slice(0, 10);
+    const plan = generatePlanFromConfig({
+      startDate: "2026-01-05",
+      marathonDate,
+      blocks: entryBlocks,
+    });
+    const phases = plan.weekly.slice(0, 18).map((w) => w.phase);
+    // First chunk → Hybrid Base (NOT "My Hybrid Build"), then Build, then Taper.
+    const distinct = Array.from(new Set(phases));
+    expect(distinct).toEqual(["Hybrid Base", "Hybrid Build", "Hybrid Taper"]);
+    // 18-week split: base = floor((18 - 2) / 2) = 8, build = 8, taper = 2
+    expect(phases.filter((p) => p === "Hybrid Base")).toHaveLength(8);
+    expect(phases.filter((p) => p === "Hybrid Build")).toHaveLength(8);
+    expect(phases.filter((p) => p === "Hybrid Taper")).toHaveLength(2);
+    // Per-day descriptions on the first block still carry the runner's
+    // entry-level customName tag so the customSuffix isn't lost.
+    const week1Days = plan.daily.filter((d) => d.week === 1);
+    expect(week1Days.length).toBeGreaterThan(0);
+    const tagged = week1Days.some((d) => d.description.includes("[My Hybrid Build"));
+    expect(tagged).toBe(true);
+  });
+
   it("custom_hybrid template's expand() routes through expandCustomHybrid", () => {
     // Template registry layer wires the phased expansion in. Pulling
     // the template by id and calling expand() must produce the same

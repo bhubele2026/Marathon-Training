@@ -21,6 +21,13 @@ const CANONICAL_PHASE_COLORS: Record<string, string> = {
   "tempo/threshold": PHASE_PALETTE[2],
   "race-specific": PHASE_PALETTE[3],
   "taper & race": PHASE_PALETTE[4],
+  // Task #163: custom_hybrid mesocycle phases share the canonical
+  // marathon palette so a hybrid plan's Base / Build / Taper bands on
+  // /plan and the dashboard chip read with the same color language as
+  // the marathon Foundation / Aerobic / Taper phases.
+  "hybrid base": PHASE_PALETTE[0],
+  "hybrid build": PHASE_PALETTE[1],
+  "hybrid taper": PHASE_PALETTE[4],
 };
 
 function normalizePhase(phase: string): string {
