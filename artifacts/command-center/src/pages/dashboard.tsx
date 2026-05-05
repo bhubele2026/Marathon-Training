@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Activity, CalendarDays, CheckCircle2, TrendingDown, TrendingUp, ArrowRight, Target, Zap, Edit, Trash2, ExternalLink, Pencil, XCircle } from "lucide-react";
 import { useMissionActions } from "@/hooks/use-mission-actions";
 import { QuickLogActivity } from "@/components/quick-log-activity";
+import { RunTargetLine } from "@/components/run-target-line";
 import { RaceWeekBanner, ChecklistNudge } from "@/components/race-week-banner";
 import { TimeOfDayBadge } from "@/components/time-of-day-badge";
 import { phaseColor } from "@/lib/phase-colors";
@@ -1043,6 +1044,27 @@ export default function Dashboard() {
                           {act.distanceMi ? <span>{formatDistance(act.distanceMi)}</span> : null}
                           {act.durationMin ? <span>{formatDuration(act.durationMin)}</span> : null}
                         </div>
+                        {/* Task #147: surface the prescribed run-target
+                            snapshot alongside the actuals so a runner
+                            glancing at Recent Logs sees what the plan
+                            asked for without bouncing to /log. The
+                            component no-ops on rest / strength / cardio
+                            sessions and on rows that have no plan-day
+                            join (off-plan / quick-logged Lifestyle), so
+                            we can render it unconditionally. */}
+                        {act.prescribedRunTarget && (
+                          <div className="mt-1">
+                            <RunTargetLine
+                              sessionType={act.prescribedRunTarget.sessionType}
+                              week={act.prescribedRunTarget.week}
+                              runMin={act.prescribedRunTarget.runMin}
+                              distanceMi={act.prescribedRunTarget.distanceMi}
+                              pace={act.prescribedRunTarget.pace}
+                              variant="compact"
+                              testId={`recent-activity-${act.id}-run-target`}
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}

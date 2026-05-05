@@ -25,6 +25,15 @@ vi.mock("@workspace/api-client-react", () => ({
   useGetLongRunProgression: vi.fn(),
   useGetRecentActivity: vi.fn(),
   useGetTodayPlan: vi.fn(),
+  // RunTargetLine reads the active mode + HR settings off the user
+  // preferences hook (Task #147 wires it into the Recent Logs widget).
+  useGetUserPreferences: () => ({
+    data: {
+      runTargetingMode: "effort",
+      maxHr: 200,
+      restingHr: null,
+    },
+  }),
 }));
 
 vi.mock("@/hooks/use-mission-actions", () => ({
@@ -602,5 +611,93 @@ describe("Dashboard — primary metric rendering on Today's Mission card (task #
     expect(
       screen.queryByTestId("session-dashboard-888-primary-metric-planned"),
     ).toBeNull();
+  });
+});
+
+// Task #147: the Recent Logs widget on the dashboard renders a compact
+// RunTargetLine next to each row whose joined plan day is run-shaped,
+// so a runner glancing at the dashboard sees the prescribed target
+// alongside the actuals without bouncing to /log. Rest / strength /
+// cardio rows and off-plan quick-logged rows have no
+// `prescribedRunTarget` snapshot and render the legacy actuals-only
+// row unchanged.
+describe("Dashboard — prescribed run target on Recent Logs (task #147)", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  function makeRecent(over: Record<string, unknown> = {}) {
+    return {
+      id: 100,
+      planDayId: 42,
+      date: "2026-04-01",
+      sessionType: "Long Run",
+      equipment: "Outdoor Run",
+      equipmentList: ["Outdoor Run"],
+      durationMin: 60,
+      strengthMin: null,
+      cardioMin: null,
+      runMin: 60,
+      totalMin: 60,
+      distanceMi: 6,
+      pace: "10:00",
+      avgHr: 145,
+      rpe: 6,
+      strengthLoad: null,
+      totalLoad: 100,
+      notes: null,
+      timeOfDay: null,
+      modality: null,
+      prescribedRunTarget: null,
+      createdAt: "2026-04-01T12:00:00Z",
+      ...over,
+    };
+  }
+
+  function setupActivity(rows: ReadonlyArray<ReturnType<typeof makeRecent>>) {
+    setupHooks([]);
+    mockActivity.mockReturnValue({
+      data: rows,
+      isLoading: false,
+    } as unknown as ReturnType<typeof useGetRecentActivity>);
+  }
+
+  it("renders a compact RunTargetLine on a run-shaped row that carries a prescribed target snapshot", () => {
+    setupActivity([
+      makeRecent({
+        id: 700,
+        prescribedRunTarget: {
+          sessionType: "Long Run",
+          week: 4,
+          runMin: 60,
+          distanceMi: 6,
+          pace: "10:00",
+        },
+      }),
+    ]);
+    render(<Dashboard />);
+
+    const target = screen.getByTestId("recent-activity-700-run-target");
+    expect(target.getAttribute("data-run-targeting-mode")).toBe("effort");
+    expect(target.textContent).toContain("Effort");
+  });
+
+  it("does NOT render a RunTargetLine on a non-run row (rest / strength / cardio or off-plan with no snapshot)", () => {
+    setupActivity([
+      makeRecent({
+        id: 701,
+        sessionType: "Tonal Lift",
+        equipment: "Tonal",
+        equipmentList: ["Tonal"],
+        runMin: null,
+        distanceMi: null,
+        pace: null,
+        prescribedRunTarget: null,
+      }),
+    ]);
+    render(<Dashboard />);
+
+    expect(screen.queryByTestId("recent-activity-701-run-target")).toBeNull();
   });
 });
