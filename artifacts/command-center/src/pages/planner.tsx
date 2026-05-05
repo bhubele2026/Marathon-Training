@@ -33,9 +33,13 @@ import {
   HYBRID_MIN_DAYS_PER_WEEK,
   HYBRID_MAX_DAYS_PER_WEEK,
   HYBRID_TAPER_WEEK_OPTIONS,
+  LIFT_PRIMARY_STARTERS,
+  DEFAULT_LIFT_PRIMARY_STARTER,
+  getLiftPrimaryStarter,
   type FocusType,
   type HybridFitnessLevel,
   type HybridMixPosition,
+  type LiftPrimaryStarterKind,
   type PlanRaceKind,
   type PlanTemplate,
   type StarterShortcut,
@@ -208,7 +212,14 @@ function totalWeeksBetween(startISO: string, raceISO: string): number {
 // is satisfied by the blank payload.
 const DEFAULT_BLANK_USER_WEEKS = 4;
 
-export function defaultBlankConfig(): {
+// `defaultBlankConfig` seeds the first composition block from a Tonal
+// starter (upper / lower / PPL / conditioning). The starter list itself
+// lives in `@workspace/plan-generator` next to `liftPrimaryKind` and the
+// `buildLiftPrimaryWeekDays` rotations so the dropdown options and the
+// generator's supported kinds can never drift.
+export function defaultBlankConfig(
+  starterKind: LiftPrimaryStarterKind = DEFAULT_LIFT_PRIMARY_STARTER,
+): {
   startDate: string;
   marathonDate: string;
   blocks: PhaseBlock[];
@@ -216,6 +227,7 @@ export function defaultBlankConfig(): {
   const start = nextMondayISO();
   const totalWeeks = DEFAULT_BLANK_USER_WEEKS + MARATHON_TAIL_WEEKS;
   const marathon = computeRaceDateForTotalWeeks(start, totalWeeks);
+  const starter = getLiftPrimaryStarter(starterKind);
   return {
     startDate: start,
     marathonDate: marathon,
@@ -223,8 +235,8 @@ export function defaultBlankConfig(): {
       {
         focusType: "Custom",
         weeks: DEFAULT_BLANK_USER_WEEKS,
-        customName: "Tonal Strength — Upper",
-        customNotes: "[lift-primary:upper]",
+        customName: starter.customName,
+        customNotes: `[lift-primary:${starter.kind}]`,
       },
     ],
   };
@@ -422,6 +434,13 @@ export default function Planner() {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState("");
+  // Starting Tonal template for the new config. Pre-populates the
+  // first composition block via `defaultBlankConfig(kind)` so a runner
+  // landing on a fresh config immediately has the right lift focus
+  // (upper/lower/PPL/conditioning) without having to swap the block.
+  const [createStarter, setCreateStarter] = useState<LiftPrimaryStarterKind>(
+    DEFAULT_LIFT_PRIMARY_STARTER,
+  );
   // Tracks whether the local edit form has been hydrated for the
   // currently selected config. Reset whenever selectedId changes so we
   // re-pull the form values from the server response, but stable while
@@ -2031,7 +2050,7 @@ export default function Planner() {
   }
 
   function handleCreateConfig() {
-    const blank = defaultBlankConfig();
+    const blank = defaultBlankConfig(createStarter);
     const newName = createName.trim() || `Config ${configs.length + 1}`;
     createMutation.mutate(
       {
@@ -2049,6 +2068,7 @@ export default function Planner() {
           setHydratedForId(null);
           setCreateOpen(false);
           setCreateName("");
+          setCreateStarter(DEFAULT_LIFT_PRIMARY_STARTER);
           invalidatePlannerLists();
         },
         onError: (err: unknown) => {
@@ -2168,6 +2188,30 @@ export default function Planner() {
               data-testid="planner-empty-name"
               className="max-w-sm"
             />
+            <Select
+              value={createStarter}
+              onValueChange={(v) =>
+                setCreateStarter(v as LiftPrimaryStarterKind)
+              }
+            >
+              <SelectTrigger
+                className="max-w-sm"
+                data-testid="planner-empty-starter"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LIFT_PRIMARY_STARTERS.map((s) => (
+                  <SelectItem
+                    key={s.kind}
+                    value={s.kind}
+                    data-testid={`planner-empty-starter-${s.kind}`}
+                  >
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button
               onClick={handleCreateConfig}
               data-testid="planner-empty-create"
@@ -4559,17 +4603,52 @@ export default function Planner() {
           <AlertDialogHeader>
             <AlertDialogTitle>New Planner config</AlertDialogTitle>
             <AlertDialogDescription>
-              Starts from the default 8-week Tonal upper-body block. You can
-              rename it, edit the dates, swap in a template, or toggle marathon
-              mode after creating it.
+              Pick a starting Tonal template — it pre-populates the first
+              4-week block. You can rename, edit dates, add more blocks, or
+              toggle marathon mode after creating it.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <Input
-            placeholder="Config name (e.g. Fall 2027)"
-            value={createName}
-            onChange={(e) => setCreateName(e.target.value)}
-            data-testid="planner-new-config-name"
-          />
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="planner-new-config-name">Name</Label>
+              <Input
+                id="planner-new-config-name"
+                placeholder="Config name (e.g. Fall 2027)"
+                value={createName}
+                onChange={(e) => setCreateName(e.target.value)}
+                data-testid="planner-new-config-name"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="planner-new-config-starter">
+                Starting template
+              </Label>
+              <Select
+                value={createStarter}
+                onValueChange={(v) =>
+                  setCreateStarter(v as LiftPrimaryStarterKind)
+                }
+              >
+                <SelectTrigger
+                  id="planner-new-config-starter"
+                  data-testid="planner-new-config-starter"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LIFT_PRIMARY_STARTERS.map((s) => (
+                    <SelectItem
+                      key={s.kind}
+                      value={s.kind}
+                      data-testid={`planner-new-config-starter-${s.kind}`}
+                    >
+                      {s.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction

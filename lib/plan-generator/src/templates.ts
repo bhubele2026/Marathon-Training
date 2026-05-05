@@ -831,6 +831,66 @@ export function liftPrimaryKind(notes: string | null | undefined): string | null
   return m ? (m[1] ?? "").trim() || null : null;
 }
 
+// Canonical set of Tonal "starting templates" the planner offers in the
+// new-config dialog. The kinds map 1:1 to the rotations defined in
+// `buildLiftPrimaryWeekDays` (lib/plan-generator/src/index.ts) — the
+// daily-recipes pipeline reads the `[lift-primary:<kind>]` customNotes
+// sentinel and dispatches to the matching 4-day Mon/Wed/Fri/Sat lift
+// rotation. Kept here (next to `liftPrimaryKind`) so the planner UI,
+// the seed default, and any future consumer share one source of truth
+// — adding a rotation here AND a rotation in `buildLiftPrimaryWeekDays`
+// is a single coordinated change.
+export type LiftPrimaryStarterKind =
+  | "upper"
+  | "lower"
+  | "ppl"
+  | "conditioning";
+
+export interface LiftPrimaryStarter {
+  kind: LiftPrimaryStarterKind;
+  // Runner-facing label (shown in the new-config dropdown).
+  label: string;
+  // Default `customName` written to the seeded Custom block. The
+  // generator does not depend on this — it only reads the kind from
+  // the `[lift-primary:<kind>]` sentinel — but it surfaces in the
+  // composition editor and the /plan headers.
+  customName: string;
+}
+
+export const LIFT_PRIMARY_STARTERS: ReadonlyArray<LiftPrimaryStarter> = [
+  {
+    kind: "upper",
+    label: "Tonal Strength — Upper",
+    customName: "Tonal Strength — Upper",
+  },
+  {
+    kind: "lower",
+    label: "Tonal Strength — Lower",
+    customName: "Tonal Strength — Lower",
+  },
+  {
+    kind: "ppl",
+    label: "Push / Pull / Legs",
+    customName: "Tonal Push / Pull / Legs",
+  },
+  {
+    kind: "conditioning",
+    label: "Tonal Conditioning",
+    customName: "Tonal Conditioning",
+  },
+];
+
+export const DEFAULT_LIFT_PRIMARY_STARTER: LiftPrimaryStarterKind = "upper";
+
+export function getLiftPrimaryStarter(
+  kind: LiftPrimaryStarterKind,
+): LiftPrimaryStarter {
+  return (
+    LIFT_PRIMARY_STARTERS.find((s) => s.kind === kind) ??
+    LIFT_PRIMARY_STARTERS[0]!
+  );
+}
+
 // Returns the primary-machine "kind" parsed out of a block's customNotes
 // sentinel (e.g. `[primary-machine:bike] ...` → `"bike"`,
 // `[primary-machine:row] ...` → `"row"`), or null when the block does
