@@ -49,6 +49,7 @@ import type {
   ResetPlanWeekResponse,
   SetRaceResultBody,
   SetRaceWeekChecklistItemBody,
+  SuggestedRestingHr,
   SwapPlanDayBody,
   SwapPlanDayResponse,
   TodayPlan,
@@ -3081,6 +3082,86 @@ export const useUpdateUserPreferences = <
 > => {
   return useMutation(getUpdateUserPreferencesMutationOptions(options));
 };
+
+/**
+ * Suggest a resting heart rate derived from recently logged workouts so
+runners who never type one in still get the more accurate Karvonen
+zones (Task #146). The server scans the last 90 days of workouts that
+have an `avg_hr` value, takes the lowest steady-state average, and
+subtracts a fixed 35 bpm offset to approximate true resting HR (an
+easy walk/cooldown averages well above resting). The result is
+clamped to [30, 110] bpm, the same range the input accepts. A
+suggestion is only returned when at least 5 qualifying workouts
+exist; otherwise `value` is null and the UI hides the affordance.
+
+ */
+export const getGetSuggestedRestingHrUrl = () => {
+  return `/api/preferences/suggested-resting-hr`;
+};
+
+export const getSuggestedRestingHr = async (
+  options?: RequestInit,
+): Promise<SuggestedRestingHr> => {
+  return customFetch<SuggestedRestingHr>(getGetSuggestedRestingHrUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSuggestedRestingHrQueryKey = () => {
+  return [`/api/preferences/suggested-resting-hr`] as const;
+};
+
+export const getGetSuggestedRestingHrQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSuggestedRestingHr>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSuggestedRestingHr>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSuggestedRestingHrQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getSuggestedRestingHr>>
+  > = ({ signal }) => getSuggestedRestingHr({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSuggestedRestingHr>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSuggestedRestingHrQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSuggestedRestingHr>>
+>;
+export type GetSuggestedRestingHrQueryError = ErrorType<unknown>;
+
+export function useGetSuggestedRestingHr<
+  TData = Awaited<ReturnType<typeof getSuggestedRestingHr>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSuggestedRestingHr>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSuggestedRestingHrQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 export const getGetRaceWeekUrl = () => {
   return `/api/race-week`;

@@ -2,10 +2,24 @@ import { Router, type IRouter } from "express";
 import {
   db,
   userPreferencesTable,
+  workoutsTable,
   type UserPreferencesRow,
 } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq, gte, isNotNull, sql } from "drizzle-orm";
 import { UpdateUserPreferencesBody } from "@workspace/api-zod";
+
+// Heuristic constants for the suggested resting HR endpoint (Task #157).
+// We scan the last SUGGESTION_WINDOW_DAYS of workouts that carry an
+// `avg_hr` value, take the lowest steady-state average, and subtract a
+// fixed offset because even an easy walk / cooldown averages well above
+// true resting. Requires a minimum sample size so a single fluky low HR
+// doesn't drive the suggestion. Final value is clamped to the same range
+// the input accepts.
+const SUGGESTION_WINDOW_DAYS = 90;
+const SUGGESTION_MIN_SAMPLES = 5;
+const SUGGESTION_OFFSET_BPM = 35;
+const SUGGESTION_MIN_BPM = 30;
+const SUGGESTION_MAX_BPM = 110;
 
 const router: IRouter = Router();
 
@@ -94,6 +108,49 @@ router.put("/preferences", async (req, res) => {
     .where(eq(userPreferencesTable.id, SINGLETON_ID))
     .returning();
   res.json(toApi(updated[0]!));
+});
+
+router.get("/preferences/suggested-resting-hr", async (_req, res) => {
+  const cutoff = new Date();
+  cutoff.setUTCDate(cutoff.getUTCDate() - SUGGESTION_WINDOW_DAYS);
+  const cutoffDate = cutoff.toISOString().slice(0, 10);
+
+  const rows = await db
+    .select({
+      minHr: sql<number | null>`min(${workoutsTable.avgHr})`,
+      sampleCount: sql<number>`count(${workoutsTable.avgHr})`,
+    })
+    .from(workoutsTable)
+    .where(
+      and(
+        isNotNull(workoutsTable.avgHr),
+        gte(workoutsTable.date, cutoffDate),
+      ),
+    );
+
+  const row = rows[0];
+  const sampleCount = Number(row?.sampleCount ?? 0);
+  const minHr = row?.minHr == null ? null : Number(row.minHr);
+
+  let value: number | null = null;
+  if (
+    sampleCount >= SUGGESTION_MIN_SAMPLES &&
+    minHr != null &&
+    Number.isFinite(minHr)
+  ) {
+    const raw = Math.round(minHr - SUGGESTION_OFFSET_BPM);
+    const clamped = Math.max(
+      SUGGESTION_MIN_BPM,
+      Math.min(SUGGESTION_MAX_BPM, raw),
+    );
+    value = clamped;
+  }
+
+  res.json({
+    value,
+    sampleCount,
+    windowDays: SUGGESTION_WINDOW_DAYS,
+  });
 });
 
 export default router;

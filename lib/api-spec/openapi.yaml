@@ -810,6 +810,27 @@ paths:
                   - $ref: "#/components/schemas/Error"
                   - $ref: "#/components/schemas/ValidationError"
 
+  /preferences/suggested-resting-hr:
+    get:
+      operationId: getSuggestedRestingHr
+      tags: [preferences]
+      description: |
+        Suggest a resting heart rate derived from recently logged workouts so
+        runners who never type one in still get the more accurate Karvonen
+        zones (Task #146). The server scans the last 90 days of workouts that
+        have an `avg_hr` value, takes the lowest steady-state average, and
+        subtracts a fixed 35 bpm offset to approximate true resting HR (an
+        easy walk/cooldown averages well above resting). The result is
+        clamped to [30, 110] bpm, the same range the input accepts. A
+        suggestion is only returned when at least 5 qualifying workouts
+        exist; otherwise `value` is null and the UI hides the affordance.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SuggestedRestingHr" }
+
   /race-week:
     get:
       operationId: getRaceWeek
@@ -2503,6 +2524,30 @@ components:
         updatedAt:
           type: string
           format: date-time
+
+    SuggestedRestingHr:
+      type: object
+      required: [value, sampleCount, windowDays]
+      description: |
+        Server-derived resting HR suggestion based on recently logged
+        workouts. The Settings page uses this to render a one-click
+        "Use N bpm" affordance below the resting HR input when the user
+        hasn't set one manually yet.
+      properties:
+        value:
+          type: integer
+          nullable: true
+          minimum: 30
+          maximum: 110
+          description: Suggested resting HR in BPM, or null when there isn't enough recent HR data to make a confident suggestion.
+        sampleCount:
+          type: integer
+          minimum: 0
+          description: Number of recent workouts with an `avg_hr` value that fed into the suggestion.
+        windowDays:
+          type: integer
+          minimum: 1
+          description: Lookback window (in days) used to gather workouts for the suggestion.
 
     UpdateUserPreferencesBody:
       type: object

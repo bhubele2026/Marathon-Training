@@ -34,6 +34,10 @@ vi.mock("@workspace/api-client-react", () => ({
     },
     isLoading: false,
   }),
+  useGetSuggestedRestingHr: () => ({
+    data: { value: null, sampleCount: 0, windowDays: 90 },
+    isLoading: false,
+  }),
   useUpdateUserPreferences: () => ({
     mutate: vi.fn(),
     isPending: false,

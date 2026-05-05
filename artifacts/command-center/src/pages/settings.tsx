@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   useGetUserPreferences,
+  useGetSuggestedRestingHr,
   useUpdateUserPreferences,
   getGetUserPreferencesQueryKey,
   UserPreferencesRunTargetingMode,
@@ -89,6 +90,7 @@ function maxHrFromAge(age: number): number | null {
 
 export default function Settings() {
   const { data, isLoading } = useGetUserPreferences();
+  const { data: restingHrSuggestion } = useGetSuggestedRestingHr();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { themeKey, setThemeKey, themes } = useVisualTheme();
@@ -578,6 +580,41 @@ export default function Settings() {
                       Resting HR must be below your max HR. Zones will use the
                       % of max model until this is fixed.
                     </p>
+                  )}
+                {/* Task #157: server-derived "Use N bpm" suggestion. Only
+                    shown when the runner hasn't saved a resting HR yet (so
+                    we never overwrite a manual value silently) AND the API
+                    has enough HR data to make a confident suggestion.
+                    Mirrors the "Fill from age" affordance — clicking only
+                    fills the input; the runner still has to press Save. */}
+                {savedRestingHr == null &&
+                  restingHrSuggestion?.value != null && (
+                    <div
+                      className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
+                      data-testid="resting-hr-suggestion"
+                    >
+                      <span>
+                        From your last {restingHrSuggestion.sampleCount}{" "}
+                        workout
+                        {restingHrSuggestion.sampleCount === 1 ? "" : "s"}{" "}
+                        with HR data, we'd guess around{" "}
+                        <span className="font-bold text-foreground">
+                          {restingHrSuggestion.value} bpm
+                        </span>
+                        .
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={() =>
+                          setRestingHrInput(String(restingHrSuggestion.value))
+                        }
+                        data-testid="button-apply-suggested-resting-hr"
+                      >
+                        Use {restingHrSuggestion.value} bpm
+                      </Button>
+                    </div>
                   )}
                 <p className="text-xs text-muted-foreground italic">
                   When set alongside max HR, zones use the Karvonen / heart-rate-

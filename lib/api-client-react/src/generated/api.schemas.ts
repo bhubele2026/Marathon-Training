@@ -1256,6 +1256,32 @@ Defaults to "five_zone_max" on new accounts.
   updatedAt: string;
 }
 
+/**
+ * Server-derived resting HR suggestion based on recently logged
+workouts. The Settings page uses this to render a one-click
+"Use N bpm" affordance below the resting HR input when the user
+hasn't set one manually yet.
+
+ */
+export interface SuggestedRestingHr {
+  /**
+   * Suggested resting HR in BPM, or null when there isn't enough recent HR data to make a confident suggestion.
+   * @minimum 30
+   * @maximum 110
+   */
+  value: number | null;
+  /**
+   * Number of recent workouts with an `avg_hr` value that fed into the suggestion.
+   * @minimum 0
+   */
+  sampleCount: number;
+  /**
+   * Lookback window (in days) used to gather workouts for the suggestion.
+   * @minimum 1
+   */
+  windowDays: number;
+}
+
 export type UpdateUserPreferencesBodyRunTargetingMode =
   (typeof UpdateUserPreferencesBodyRunTargetingMode)[keyof typeof UpdateUserPreferencesBodyRunTargetingMode];
 

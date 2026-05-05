@@ -3365,6 +3365,50 @@ export const UpdateUserPreferencesResponse = zod
     "Single-user preferences applied across the app. Exposes the run targeting mode (Task",
   );
 
+/**
+ * Suggest a resting heart rate derived from recently logged workouts so
+runners who never type one in still get the more accurate Karvonen
+zones (Task #146). The server scans the last 90 days of workouts that
+have an `avg_hr` value, takes the lowest steady-state average, and
+subtracts a fixed 35 bpm offset to approximate true resting HR (an
+easy walk/cooldown averages well above resting). The result is
+clamped to [30, 110] bpm, the same range the input accepts. A
+suggestion is only returned when at least 5 qualifying workouts
+exist; otherwise `value` is null and the UI hides the affordance.
+
+ */
+export const getSuggestedRestingHrResponseValueMin = 30;
+export const getSuggestedRestingHrResponseValueMax = 110;
+
+export const getSuggestedRestingHrResponseSampleCountMin = 0;
+
+export const GetSuggestedRestingHrResponse = zod
+  .object({
+    value: zod
+      .number()
+      .min(getSuggestedRestingHrResponseValueMin)
+      .max(getSuggestedRestingHrResponseValueMax)
+      .nullable()
+      .describe(
+        "Suggested resting HR in BPM, or null when there isn't enough recent HR data to make a confident suggestion.",
+      ),
+    sampleCount: zod
+      .number()
+      .min(getSuggestedRestingHrResponseSampleCountMin)
+      .describe(
+        "Number of recent workouts with an `avg_hr` value that fed into the suggestion.",
+      ),
+    windowDays: zod
+      .number()
+      .min(1)
+      .describe(
+        "Lookback window (in days) used to gather workouts for the suggestion.",
+      ),
+  })
+  .describe(
+    'Server-derived resting HR suggestion based on recently logged\nworkouts. The Settings page uses this to render a one-click\n\"Use N bpm\" affordance below the resting HR input when the user\nhasn\'t set one manually yet.\n',
+  );
+
 export const getRaceWeekResponseRaceResultOneFeltRatingMax = 5;
 
 export const getRaceWeekResponseUncheckedCountMin = 0;
