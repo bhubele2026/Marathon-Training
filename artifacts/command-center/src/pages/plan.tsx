@@ -287,19 +287,13 @@ export default function Plan() {
   // presupposing a race.
   const raceKind = overview.raceKind ?? null;
   const hasRace = raceKind !== null || weeks.some((w) => w.phase === "Marathon-Specific");
-  // Per-kind campaign label (Task #204) for symmetry with the new
-  // dashboard / week-detail per-kind badges from task #201. The
-  // marathon variant intentionally collapses to plain "Race Campaign"
-  // so the header copy stays unchanged on the existing flagship
-  // marathon plan; the shorter races each get their own headline so
-  // a 5K block doesn't read as a marathon by accident.
-  const RACE_CAMPAIGN_LABELS: Record<NonNullable<typeof raceKind>, string> = {
-    marathon: "Race Campaign",
-    half: "Half Marathon Campaign",
-    "10k": "10K Campaign",
-    "5k": "5K Campaign",
-  };
-  const raceCampaignLabel = raceKind ? RACE_CAMPAIGN_LABELS[raceKind] : "Race Campaign";
+  // Task #244: the header title is now driven by the active planner
+  // config's `name` (server-side `overview.activeConfigName`) so the
+  // /plan header reads whatever the runner named their plan instead of
+  // a hardcoded "Race Campaign" / "Workout Plan" pair. `raceKind` still
+  // gates the subtitle ("Weeks to Race Day" vs "Weeks Remaining") so
+  // race-anchored campaigns keep their countdown framing.
+  const headerTitle = overview.activeConfigName?.trim() || "Workout Plan";
   const totalMissed = weeks.reduce((sum, w) => sum + (w.missedSessions ?? 0), 0);
   const totalCustomized = weeks.reduce((sum, w) => sum + (w.customizedDays ?? 0), 0);
   const nextMissedWeek = weeks.find((w) => (w.missedSessions ?? 0) > 0);
@@ -322,7 +316,7 @@ export default function Plan() {
             data-testid="plan-header-title"
             data-race-kind={raceKind ?? ""}
           >
-            {hasRace ? raceCampaignLabel : "Workout Plan"}
+            {headerTitle}
           </h2>
           <p
             className="text-muted-foreground uppercase font-medium tracking-widest mt-1"

@@ -3,6 +3,7 @@ import {
   db,
   planDaysTable,
   planWeeksTable,
+  plannerConfigsTable,
   workoutsTable,
   measurementsTable,
   type PlanDayRow,
@@ -15,12 +16,14 @@ import {
   UndoPlanResetBody,
 } from "@workspace/api-zod";
 import {
-  generatePlan,
   generatePlanFromConfig,
   expandConfigToPlanRows,
   detectRaceKind,
+  buildDefaultSeedConfig,
+  type PlannerConfig,
+  type TemplateEntry,
 } from "@workspace/plan-generator";
-import { readLastAppliedPlannerConfig } from "./planner";
+import { readActiveConfigName, readLastAppliedPlannerConfig } from "./planner";
 import { toPlanDay, toPlanWeek, toWorkout } from "../lib/transforms";
 import {
   consumeResetSnapshot,
@@ -166,6 +169,8 @@ router.get("/plan/overview", async (_req, res) => {
   );
   const nextMissed = nextMissedRows.rows[0];
 
+  const activeConfigName = await readActiveConfigName();
+
   res.json({
     currentWeek: week,
     currentPhase: phase,
@@ -183,6 +188,7 @@ router.get("/plan/overview", async (_req, res) => {
     nextMissedDate: nextMissed?.date ?? null,
     nextMissedWeek: nextMissed?.week ?? null,
     nextMissedPlanDayId: nextMissed?.id ?? null,
+    activeConfigName,
   });
 });
 
@@ -1336,29 +1342,31 @@ router.post("/plan/full-reset", async (req, res): Promise<void> => {
   // Generate plan rows OUTSIDE the transaction so a generator bug can't
   // leave us with truncated tables. Pivot off the most recently APPLIED
   // Planner config so a saved-but-never-applied draft does not silently
-  // change what Full Reset reseeds. With no applied config, fall back to
-  // the canonical hard-coded plan.
+  // change what Full Reset reseeds. Task #244: when nothing has ever
+  // been applied, fall back to the SAME default stacked config the CLI
+  // seed script inserts (Tonal-first 8-week non-running) so a Full
+  // Reset on a fresh DB lands on the same baseline as `pnpm seed` and
+  // the /plan, /dashboard, and sidebar surfaces all read the default
+  // "Tonal Upper 8wk" as `activeConfigName` instead of the legacy
+  // 52-week canonical campaign.
   const appliedConfig = await readLastAppliedPlannerConfig();
+  let configToSeed: PlannerConfig;
+  let configNameToPersist: string | null = null;
+  if (appliedConfig) {
+    configToSeed = appliedConfig;
+  } else {
+    const def = buildDefaultSeedConfig();
+    configToSeed = def.config;
+    configNameToPersist = def.name;
+  }
   // For plan_weeks/plan_days seeding we use expandConfigToPlanRows so a
   // concurrent / overlapping entries-mode config reseeds with the same
   // per-entry tagged rows + gap-fill behavior as /planner/apply (Task #135).
   // generatePlanFromConfig is still used to source the body baseline row
   // (week-1 measurements) because that's a single-track concept that
-  // doesn't change when programs run concurrently. Falls back to the
-  // canonical hard-coded plan when nothing has been applied yet.
-  const plan = appliedConfig
-    ? generatePlanFromConfig(appliedConfig)
-    : generatePlan();
-  const seedRows = appliedConfig
-    ? expandConfigToPlanRows(appliedConfig)
-    : {
-        weekly: plan.weekly,
-        taggedDaily: plan.daily.map((d) => ({
-          sourceEntryIndex: 0,
-          sourceEntryLabel: null as string | null,
-          row: d,
-        })),
-      };
+  // doesn't change when programs run concurrently.
+  const plan = generatePlanFromConfig(configToSeed);
+  const seedRows = expandConfigToPlanRows(configToSeed);
 
   const result = await db.transaction(async (tx) => {
     // Take ACCESS EXCLUSIVE locks on every table we're about to wipe BEFORE
@@ -1506,6 +1514,49 @@ router.post("/plan/full-reset", async (req, res): Promise<void> => {
         notes: baseline.notes,
       });
       measurementsSeeded = 1;
+    }
+
+    // Task #244: when there was no applied planner config, the reseed
+    // above pulled rows from a freshly-built default stacked config.
+    // Persist that config into planner_configs so /plan/overview's
+    // `activeConfigName` immediately reads the default name (instead
+    // of the generic "Workout Plan" fallback) AND a follow-up Full
+    // Reset reuses the same applied snapshot. Done inside the
+    // transaction so the planner_configs row only lands if every
+    // other reseed step also commits.
+    if (configNameToPersist) {
+      const def = configToSeed;
+      const entries = (def.entries ?? []) as TemplateEntry[];
+      const now = new Date();
+      // Non-destructive: preserve any saved planner drafts. Compute
+      // the next available manual integer PK (mirrors nextConfigId in
+      // routes/planner.ts), deactivate any currently active row to
+      // honor the single-active invariant, then insert the default as
+      // the new active applied config.
+      const maxRow = await tx.execute<{ max: number | null }>(
+        sql`SELECT COALESCE(MAX(id), 0) AS max FROM planner_configs`,
+      );
+      const nextId = (maxRow.rows[0]?.max ?? 0) + 1;
+      await tx
+        .update(plannerConfigsTable)
+        .set({ isActive: false })
+        .where(eq(plannerConfigsTable.isActive, true));
+      await tx.insert(plannerConfigsTable).values({
+        id: nextId,
+        name: configNameToPersist,
+        isActive: true,
+        startDate: def.startDate,
+        marathonDate: def.marathonDate,
+        blocks: [],
+        entries,
+        createdAt: now,
+        updatedAt: now,
+        lastAppliedAt: now,
+        appliedStartDate: def.startDate,
+        appliedMarathonDate: def.marathonDate,
+        appliedBlocks: [],
+        appliedEntries: entries,
+      });
     }
 
     return {

@@ -380,6 +380,15 @@ export interface PlanOverview {
   goalWeight: number;
   weeklyMilesTarget?: number;
   longRunTarget?: number;
+  /** Task #244. Display name of the currently-active planner
+config (the row in `planner_configs` with the most recent
+`last_applied_at`). Drives the /plan page header title and
+the sidebar nav label so the UI follows whatever the runner
+named their plan instead of hardcoding "Half Marathon
+Campaign". Falls back to "Workout Plan" when no config has
+ever been applied.
+ */
+  activeConfigName: string;
   /** Task #135. Every program (TemplateEntry) currently contributing rows to plan_days, ordered by sourceEntryIndex. The /plan overview renders this as a parallel-tracks panel so a runner can see at a glance which concurrent programs are stacked. Aggregated from plan_days so the panel always reflects the applied state. For legacy single-program campaigns this is a one-element array labelled "Marathon Plan".
    */
   programs?: PlanOverviewProgramsItem[];
@@ -711,6 +720,14 @@ export interface DashboardSummary {
   weightToGoal: number;
   adherencePct: number;
   daysToRace: number;
+  /** Task #244. Display name of the currently-active planner
+config (mirrors `PlanOverview.activeConfigName`). Drives
+the dashboard header title so the runner sees their own
+plan name instead of a hardcoded "Half Marathon Campaign".
+Falls back to "Workout Plan" when no config has ever been
+applied.
+ */
+  activeConfigName: string;
   /** Task #144. Per-program breakdown of the current week's planned and actual training load for runners stacking concurrent programs (e.g. a Tonal lift program alongside a 5K running program). Each program corresponds to one TemplateEntry currently contributing rows to plan_days. Headline weekly* fields above are the COMBINED totals across all programs; this array lets the dashboard drill in to per-program totals. Always present — for legacy single-program campaigns it contains exactly one element labelled "Marathon Plan". Programs are ordered by sourceEntryIndex ascending.
    */
   programs: DashboardSummaryProgram[];

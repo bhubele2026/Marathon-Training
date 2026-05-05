@@ -3,7 +3,7 @@ import { db, planWeeksTable, planDaysTable, workoutsTable, measurementsTable } f
 import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { LIFESTYLE_EQUIPMENT, detectRaceKind } from "@workspace/plan-generator";
 import { toWorkout } from "../lib/transforms";
-import { readActiveRaceDate } from "./planner";
+import { readActiveConfigName, readActiveRaceDate } from "./planner";
 
 const router: IRouter = Router();
 const START_WEIGHT = 281.6;
@@ -236,6 +236,7 @@ router.get("/dashboard/summary", async (_req, res) => {
     daysToRace,
     programs,
     raceKind,
+    activeConfigName: await readActiveConfigName(),
   });
 });
 

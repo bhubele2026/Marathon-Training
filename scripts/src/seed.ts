@@ -9,71 +9,126 @@ import {
 } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import {
+  buildDefaultSeedConfig,
   generatePlanFromConfig,
   type PhaseBlock,
   type PlannerConfig,
+  type TemplateEntry,
 } from "@workspace/plan-generator";
-import { generatePlan, writePlanJson, type DailyRow, type WeeklyRow, type BodyRow } from "./generate-plan.js";
-
-function loadPlanData(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: BodyRow[] } {
-  const file = resolve(import.meta.dirname, "../../.local/data/plan.json");
-  if (!existsSync(file)) {
-    console.log(`No plan.json at ${file} — generating fresh from generate-plan.ts`);
-    writePlanJson();
-  }
-  const data = JSON.parse(readFileSync(file, "utf-8")) as {
-    daily: DailyRow[];
-    weekly: WeeklyRow[];
-    body: BodyRow[];
-  };
-  // Defensive fallback: if the on-disk file is somehow malformed/empty, fall back to in-memory generation.
-  if (!data.weekly?.length || !data.daily?.length) {
-    console.log("plan.json was empty or malformed — regenerating in memory");
-    return generatePlan();
-  }
-  return data;
-}
+import { writePlanJson, type DailyRow, type WeeklyRow, type BodyRow } from "./generate-plan.js";
 
 // If the runner has already applied a custom Planner config (Task #80),
-// reseed from THAT instead of the canonical hard-coded plan so a "campaign
-// reset" via this CLI matches what they configured. Returns null when no
-// config has ever been applied (i.e. fresh installs / never customized).
-async function loadLastAppliedPlan(): Promise<
-  { daily: DailyRow[]; weekly: WeeklyRow[]; body: BodyRow[] } | null
-> {
-  const rows = await db.select().from(plannerConfigsTable).limit(1);
+// reseed from THAT instead of inserting a fresh default so a "campaign
+// reset" via this CLI matches what they configured. When no config has
+// ever been applied (fresh install / never customized) we insert the
+// Task #244 default stacked config and return its generated rows.
+async function loadOrSeedActivePlan(): Promise<{
+  daily: DailyRow[];
+  weekly: WeeklyRow[];
+  body: BodyRow[];
+  reused: boolean;
+  configName: string;
+}> {
+  const rows = await db
+    .select()
+    .from(plannerConfigsTable)
+    .where(sql`${plannerConfigsTable.lastAppliedAt} IS NOT NULL`)
+    .orderBy(sql`${plannerConfigsTable.lastAppliedAt} DESC`)
+    .limit(1);
   const row = rows[0];
   if (
-    !row ||
-    row.lastAppliedAt === null ||
-    !row.appliedStartDate ||
-    !row.appliedMarathonDate ||
-    !row.appliedBlocks
+    row &&
+    row.appliedStartDate &&
+    row.appliedMarathonDate &&
+    row.appliedBlocks
   ) {
-    return null;
+    const config: PlannerConfig = {
+      startDate: row.appliedStartDate,
+      marathonDate: row.appliedMarathonDate,
+      blocks: row.appliedBlocks as PhaseBlock[],
+      entries: (row.appliedEntries as TemplateEntry[] | null) ?? null,
+    };
+    const generated = generatePlanFromConfig(config);
+    return {
+      daily: generated.daily as DailyRow[],
+      weekly: generated.weekly as WeeklyRow[],
+      body: generated.body as BodyRow[],
+      reused: true,
+      configName: row.name,
+    };
   }
-  const config: PlannerConfig = {
-    startDate: row.appliedStartDate,
-    marathonDate: row.appliedMarathonDate,
-    blocks: row.appliedBlocks as PhaseBlock[],
-  };
+
+  // Fresh install: insert a default planner config and use it as the
+  // applied baseline so /plan/overview's `activeConfigName` reads
+  // "Tonal Upper 8wk" out of the box instead of falling back to a
+  // generic "Workout Plan".
+  const { name, config } = buildDefaultSeedConfig();
+  const entries = (config.entries ?? []) as TemplateEntry[];
   const generated = generatePlanFromConfig(config);
+  // Non-destructive: preserve any saved planner drafts. Compute the
+  // next available manual integer PK, deactivate the currently active
+  // row (single-active invariant), then insert the default as the new
+  // active applied config.
+  const maxRow = await db.execute<{ max: number | null }>(
+    sql`SELECT COALESCE(MAX(id), 0) AS max FROM planner_configs`,
+  );
+  const nextId = (maxRow.rows[0]?.max ?? 0) + 1;
+  await db.execute(
+    sql`UPDATE planner_configs SET is_active = false WHERE is_active = true`,
+  );
+  const now = new Date();
+  await db.insert(plannerConfigsTable).values({
+    id: nextId,
+    name,
+    isActive: true,
+    startDate: config.startDate,
+    marathonDate: config.marathonDate,
+    blocks: [],
+    entries,
+    createdAt: now,
+    updatedAt: now,
+    lastAppliedAt: now,
+    appliedStartDate: config.startDate,
+    appliedMarathonDate: config.marathonDate,
+    appliedBlocks: [],
+    appliedEntries: entries,
+  });
   return {
     daily: generated.daily as DailyRow[],
     weekly: generated.weekly as WeeklyRow[],
     body: generated.body as BodyRow[],
+    reused: false,
+    configName: name,
   };
 }
 
 async function main() {
-  const fileData = loadPlanData();
-  const applied = await loadLastAppliedPlan();
-  const data = applied ?? fileData;
-  if (applied) {
+  // Keep the on-disk plan.json fresh for any out-of-band consumer that
+  // still reads it (preview tooling, debug scripts), but the actual
+  // seeded campaign now comes from a planner config — either the
+  // last-applied one or a freshly inserted Task #244 default.
+  const planJsonPath = resolve(
+    import.meta.dirname,
+    "../../.local/data/plan.json",
+  );
+  if (!existsSync(planJsonPath)) {
     console.log(
-      `Using last-applied Planner config (${applied.weekly.length} weeks, ${applied.daily.length} days).`,
+      `No plan.json at ${planJsonPath} — generating one for out-of-band tooling`,
     );
+    writePlanJson();
   }
+  // The variable is intentionally unused in the main flow; the read is
+  // kept so a malformed file is surfaced loudly during development.
+  void readFileSync(planJsonPath, "utf-8");
+
+  const { daily, weekly, body, reused, configName } =
+    await loadOrSeedActivePlan();
+  const data = { daily, weekly, body };
+  console.log(
+    reused
+      ? `Using last-applied Planner config "${configName}" (${weekly.length} weeks, ${daily.length} days).`
+      : `Seeded default Planner config "${configName}" (${weekly.length} weeks, ${daily.length} days).`,
+  );
 
   console.log(
     `Seeding ${data.weekly.length} weeks, ${data.daily.length} days, ${data.body.length} body rows`,

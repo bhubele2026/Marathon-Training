@@ -3485,6 +3485,59 @@ export {
   type PlanRaceKind,
 } from "./templates.js";
 export { detectRaceKind, type RaceDayKind } from "./race-day.js";
+
+// Task #244. Default stacked planner config used by fresh installs (no
+// applied config row in `planner_configs` yet). The CLI seed script and
+// the in-app /plan/full-reset route both share this so a brand-new
+// install AND a reset-with-no-applied-config land on the same Tonal-
+// first 8-week non-running default — instead of the legacy 52-week
+// canonical campaign — keeping the task #244 contract that the active
+// config name drives every header.
+export const DEFAULT_SEED_CONFIG_NAME = "Tonal Upper 8wk";
+export const DEFAULT_SEED_CONFIG_WEEKS = 8;
+export const DEFAULT_SEED_CONFIG_TEMPLATE_ID = "tonal_strength_upper";
+
+function computeNextMondayISO(now: Date = new Date()): string {
+  const utcMidnight = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+  );
+  const todayDow = new Date(utcMidnight).getUTCDay(); // 0=Sun..6=Sat
+  const daysUntilMonday = todayDow === 1 ? 0 : (8 - todayDow) % 7 || 7;
+  return new Date(utcMidnight + daysUntilMonday * 86400000)
+    .toISOString()
+    .slice(0, 10);
+}
+
+export interface DefaultSeedConfig {
+  name: string;
+  config: PlannerConfig;
+}
+
+// Build the default stacked planner config a fresh install lands on.
+// Anchored on the next Monday so the campaign starts on the canonical
+// Mon→Sun week boundary the rest of the planner assumes. The
+// `entries`-mode payload deliberately avoids triggering the legacy
+// MARATHON_TAIL auto-pin so the default plan stays a pure lift block.
+export function buildDefaultSeedConfig(now?: Date): DefaultSeedConfig {
+  const startDate = computeNextMondayISO(now);
+  const startMs = Date.parse(`${startDate}T00:00:00Z`);
+  const marathonDate = new Date(
+    startMs + (DEFAULT_SEED_CONFIG_WEEKS * 7 - 1) * 86400000,
+  )
+    .toISOString()
+    .slice(0, 10);
+  const config: PlannerConfig = {
+    startDate,
+    marathonDate,
+    blocks: [],
+    entries: [
+      { templateId: DEFAULT_SEED_CONFIG_TEMPLATE_ID, weeks: DEFAULT_SEED_CONFIG_WEEKS },
+    ],
+  };
+  return { name: DEFAULT_SEED_CONFIG_NAME, config };
+}
 // Note: previewHybridWeek + HybridPreview* types are exported inline
 // at their declaration site above (line ~1557). They live here in
 // index.ts (not templates.ts) because they reuse pickHybridSchedule

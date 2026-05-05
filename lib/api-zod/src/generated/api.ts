@@ -23,6 +23,11 @@ export const GetPlanOverviewResponse = zod.object({
   goalWeight: zod.number(),
   weeklyMilesTarget: zod.number().optional(),
   longRunTarget: zod.number().optional(),
+  activeConfigName: zod
+    .string()
+    .describe(
+      'Task #244. Display name of the currently-active planner\nconfig (the row in `planner_configs` with the most recent\n`last_applied_at`). Drives the \/plan page header title and\nthe sidebar nav label so the UI follows whatever the runner\nnamed their plan instead of hardcoding \"Half Marathon\nCampaign\". Falls back to \"Workout Plan\" when no config has\never been applied.\n',
+    ),
   programs: zod
     .array(
       zod.object({
@@ -2225,6 +2230,11 @@ export const GetDashboardSummaryResponse = zod.object({
   weightToGoal: zod.number(),
   adherencePct: zod.number(),
   daysToRace: zod.number(),
+  activeConfigName: zod
+    .string()
+    .describe(
+      'Task #244. Display name of the currently-active planner\nconfig (mirrors `PlanOverview.activeConfigName`). Drives\nthe dashboard header title so the runner sees their own\nplan name instead of a hardcoded \"Half Marathon Campaign\".\nFalls back to \"Workout Plan\" when no config has ever been\napplied.\n',
+    ),
   programs: zod
     .array(
       zod.object({

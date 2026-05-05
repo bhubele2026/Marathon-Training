@@ -80,6 +80,21 @@ export async function readActiveRaceDate(): Promise<string> {
   return cfg?.marathonDate ?? RACE_DATE_ISO;
 }
 
+// Task #244. Display name of the currently-active planner config (the
+// row with the most recent last_applied_at). Falls back to "Workout
+// Plan" when no config has ever been applied so fresh installs / legacy
+// campaigns keep a sensible generic header instead of a hardcoded
+// "Half Marathon Campaign".
+export async function readActiveConfigName(): Promise<string> {
+  const rows = await db
+    .select({ name: plannerConfigsTable.name })
+    .from(plannerConfigsTable)
+    .where(sql`${plannerConfigsTable.lastAppliedAt} IS NOT NULL`)
+    .orderBy(desc(plannerConfigsTable.lastAppliedAt))
+    .limit(1);
+  return rows[0]?.name ?? "Workout Plan";
+}
+
 // Most-recently-APPLIED planner config across ALL saved configs — read from
 // the immutable applied_* snapshot columns. We pick the row with the
 // largest last_applied_at so activating-but-not-applying a different

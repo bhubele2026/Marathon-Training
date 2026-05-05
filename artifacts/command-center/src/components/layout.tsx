@@ -11,6 +11,7 @@ import {
   Settings as SettingsIcon,
   SlidersHorizontal,
 } from "lucide-react";
+import { useGetPlanOverview } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./theme-toggle";
 import { QuickLogFab } from "./quick-log-fab";
@@ -21,11 +22,17 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
+  // Task #244: the /plan nav label follows the active planner config's
+  // name so the sidebar reads the same label the runner sees on the
+  // /plan and /dashboard headers, instead of a hardcoded "Half Marathon
+  // Plan" that doesn't match Tonal-first / non-running campaigns.
+  const { data: overview } = useGetPlanOverview();
+  const planLabel = overview?.activeConfigName?.trim() || "Workout Plan";
 
   const navItems = [
     { href: "/", label: "Command Center", icon: Home },
     { href: "/today", label: "Today's Mission", icon: Activity },
-    { href: "/plan", label: "Half Marathon Plan", icon: CalendarDays },
+    { href: "/plan", label: planLabel, icon: CalendarDays },
     { href: "/log", label: "Training Log", icon: ListOrdered },
     { href: "/measurements", label: "Body Metrics", icon: Scale },
     { href: "/equipment", label: "Equipment", icon: Dumbbell },

@@ -169,34 +169,34 @@ export default function Dashboard() {
   // plain "Race Campaign" so the long-running flagship copy stays
   // unchanged after this task.
   const raceKind = summary.raceKind ?? null;
-  const RACE_CAMPAIGN_LABELS: Record<NonNullable<typeof raceKind>, string> = {
-    marathon: "Race Campaign",
-    half: "Half Marathon Campaign",
-    "10k": "10K Campaign",
-    "5k": "5K Campaign",
-  };
-  const raceCampaignLabel = raceKind ? RACE_CAMPAIGN_LABELS[raceKind] : null;
+  // Task #244: header title is driven by the active planner config's
+  // `name` so the dashboard reads the same label as the sidebar nav
+  // and /plan header instead of a hardcoded per-raceKind label. The
+  // countdown subtitle is still gated on `raceKind` so non-race plans
+  // (lift_primary blocks, ad-hoc Custom blocks) don't presuppose a
+  // race day.
+  const headerTitle = summary.activeConfigName?.trim() || "Workout Plan";
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-      {raceCampaignLabel && (
-        <div data-testid="dashboard-header" className="flex flex-col gap-1">
-          <h2
-            className="text-3xl font-black uppercase tracking-tight text-primary"
-            data-testid="dashboard-header-title"
-            data-race-kind={raceKind ?? ""}
-          >
-            {raceCampaignLabel}
-          </h2>
+      <div data-testid="dashboard-header" className="flex flex-col gap-1">
+        <h2
+          className="text-3xl font-black uppercase tracking-tight text-primary"
+          data-testid="dashboard-header-title"
+          data-race-kind={raceKind ?? ""}
+        >
+          {headerTitle}
+        </h2>
+        {raceKind !== null && (
           <p
             className="text-muted-foreground uppercase font-medium tracking-widest text-sm"
             data-testid="dashboard-header-subtitle"
           >
             {summary.daysToRace} Days to Race Day
           </p>
-        </div>
-      )}
+        )}
+      </div>
 
       <RaceWeekBanner raceKind={raceKind} />
 

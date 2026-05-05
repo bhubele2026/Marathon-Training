@@ -26,14 +26,29 @@ import { expectMatchesSchema } from "../test-helpers";
 
 // Re-seed the canonical baseline before and after each test so any plan
 // regeneration this suite triggers can't bleed into other suites.
-beforeEach(async () => {
+// Task #244: /plan/full-reset now seeds a default Tonal-first planner
+// config when planner_configs is empty, which means the resulting
+// plan_days carry a non-null source_entry_label like "(Archived)
+// tonal_strength_upper". Other suites (dashboard.test.ts in particular)
+// were written against the pre-#244 legacy baseline where the seeded
+// plan_days had a NULL source_entry_label. To keep this suite's
+// "no applied config" baseline AND avoid bleeding labeled rows into
+// downstream suites, we (a) wipe the auto-seeded planner_configs row
+// after every full-reset and (b) NULL out source_entry_label on the
+// freshly seeded plan_days so they look legacy-style to other tests.
+async function resetToLegacyBaseline(): Promise<void> {
   await db.delete(plannerConfigsTable);
   await request(app).post("/api/plan/full-reset");
+  await db.delete(plannerConfigsTable);
+  await db.execute(sql`UPDATE plan_days SET source_entry_label = NULL`);
+}
+
+beforeEach(async () => {
+  await resetToLegacyBaseline();
 });
 
 afterEach(async () => {
-  await db.delete(plannerConfigsTable);
-  await request(app).post("/api/plan/full-reset");
+  await resetToLegacyBaseline();
 });
 
 // A minimal block list whose weeks sum to (TOTAL_WEEKS - 16) using the
@@ -492,5 +507,58 @@ describe("POST /api/planner/apply", () => {
 
     // Cleanup: re-activate A so subsequent suites have a sane state.
     await request(app).post(`/api/planner/configs/${a.id}/activate`);
+  });
+});
+
+// Task #244. /plan/overview and /dashboard/summary surface the active
+// planner config's display name so the UI can label the /plan header,
+// /dashboard header, and sidebar nav with whatever the runner named
+// their plan instead of a hardcoded "Half Marathon Campaign".
+describe("activeConfigName surfacing (task #244)", () => {
+  it("returns the most-recently-applied planner config's name on /plan/overview", async () => {
+    await createCanonicalConfig("Spring Build");
+    await request(app).post("/api/planner/apply").expect(200);
+    const ov = await request(app).get("/api/plan/overview");
+    expect(ov.status).toBe(200);
+    expect(ov.body.activeConfigName).toBe("Spring Build");
+  });
+
+  it("returns the most-recently-applied planner config's name on /dashboard/summary", async () => {
+    await createCanonicalConfig("Spring Build");
+    await request(app).post("/api/planner/apply").expect(200);
+    const sum = await request(app).get("/api/dashboard/summary");
+    expect(sum.status).toBe(200);
+    expect(sum.body.activeConfigName).toBe("Spring Build");
+  });
+
+  it("falls back to 'Workout Plan' when no planner config has ever been applied", async () => {
+    // Wipe everything: no applied row in planner_configs so the helper
+    // must hit the generic fallback. The plan_days are still populated
+    // from the canonical /plan/full-reset path, but the overview's
+    // activeConfigName must read "Workout Plan" because no row carries
+    // a last_applied_at timestamp.
+    await db.delete(plannerConfigsTable);
+    await request(app).post("/api/plan/full-reset");
+    await db.delete(plannerConfigsTable);
+
+    const ov = await request(app).get("/api/plan/overview");
+    expect(ov.status).toBe(200);
+    expect(ov.body.activeConfigName).toBe("Workout Plan");
+
+    const sum = await request(app).get("/api/dashboard/summary");
+    expect(sum.status).toBe(200);
+    expect(sum.body.activeConfigName).toBe("Workout Plan");
+  });
+
+  it("follows the most-recent last_applied_at when a different config gets applied", async () => {
+    await createCanonicalConfig("Alpha");
+    await request(app).post("/api/planner/apply").expect(200);
+
+    const b = await createCanonicalConfig("Bravo");
+    await request(app).post(`/api/planner/configs/${b.id}/activate`).expect(200);
+    await request(app).post("/api/planner/apply").expect(200);
+
+    const ov = await request(app).get("/api/plan/overview");
+    expect(ov.body.activeConfigName).toBe("Bravo");
   });
 });

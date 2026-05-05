@@ -483,6 +483,11 @@ describe("GET /api/dashboard/summary daysToRace anchored on applied Planner conf
     // validator would reject. Skip apply and instead write the config row
     // directly with last_applied_at set so we exercise the dashboard
     // anchor without exercising the full apply pipeline.
+    // Some prior suites (e.g. full-reset.test.ts) leave applied
+    // planner_configs rows behind, so wipe before inserting our
+    // hardcoded id=1 fixture and exercising the dashboard anchor in
+    // isolation.
+    await db.delete(plannerConfigsTable);
     await db.insert(plannerConfigsTable).values({
       id: 1,
       name: "Dashboard test config",

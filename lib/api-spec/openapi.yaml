@@ -1369,6 +1369,7 @@ components:
           startWeight,
           currentWeight,
           goalWeight,
+          activeConfigName,
         ]
       properties:
         currentWeek: { type: integer }
@@ -1382,6 +1383,16 @@ components:
         goalWeight: { type: number }
         weeklyMilesTarget: { type: number }
         longRunTarget: { type: number }
+        activeConfigName:
+          type: string
+          description: |
+            Task #244. Display name of the currently-active planner
+            config (the row in `planner_configs` with the most recent
+            `last_applied_at`). Drives the /plan page header title and
+            the sidebar nav label so the UI follows whatever the runner
+            named their plan instead of hardcoding "Half Marathon
+            Campaign". Falls back to "Workout Plan" when no config has
+            ever been applied.
         programs:
           type: array
           description: |
@@ -1694,6 +1705,7 @@ components:
           adherencePct,
           daysToRace,
           programs,
+          activeConfigName,
         ]
       properties:
         currentWeek: { type: integer }
@@ -1719,6 +1731,15 @@ components:
         weightToGoal: { type: number }
         adherencePct: { type: number }
         daysToRace: { type: integer }
+        activeConfigName:
+          type: string
+          description: |
+            Task #244. Display name of the currently-active planner
+            config (mirrors `PlanOverview.activeConfigName`). Drives
+            the dashboard header title so the runner sees their own
+            plan name instead of a hardcoded "Half Marathon Campaign".
+            Falls back to "Workout Plan" when no config has ever been
+            applied.
         programs:
           type: array
           description: >

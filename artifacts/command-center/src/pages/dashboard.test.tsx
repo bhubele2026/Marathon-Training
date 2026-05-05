@@ -114,6 +114,7 @@ const SUMMARY: {
   daysToRace: number;
   programs: Array<unknown>;
   raceKind: "marathon" | "half" | "10k" | "5k" | null;
+  activeConfigName: string;
 } = {
   currentWeek: 34,
   currentPhase: "Marathon-Specific",
@@ -140,6 +141,7 @@ const SUMMARY: {
   daysToRace: 120,
   programs: [],
   raceKind: "marathon",
+  activeConfigName: "Race Campaign",
 };
 
 function setupHooks(
@@ -347,63 +349,53 @@ describe("Dashboard mileage chart — Steady Wed marker (Task #183)", () => {
   });
 });
 
-describe("Dashboard header — race-campaign framing (task #209)", () => {
-  // The dashboard used to default to marathon framing everywhere
-  // (race week banner, charts, copy) regardless of which race the
-  // active campaign was actually anchored on. Task #209 reuses the
-  // server-side `summary.raceKind` (mirrors /plan/overview from
-  // task #204) so the dashboard header reads the same per-kind
-  // "<X> Campaign" label as /plan. Tonal-first / non-race plans
-  // (raceKind === null) keep the generic dashboard surface — no
-  // header — so we don't presuppose a race.
+describe("Dashboard header — title from active planner config name (task #244)", () => {
+  // Task #244 stops hardcoding the dashboard title from raceKind and
+  // reads it from `summary.activeConfigName` — the runner's own
+  // planner config name. The countdown subtitle is still gated on
+  // raceKind so non-race plans don't presuppose a race day, but the
+  // title is always shown so the runner sees what they named their
+  // plan.
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
   });
 
-  it("uses '5K Campaign · Days to Race Day' on a 5K campaign", () => {
-    setupHooks([], { raceKind: "5k", daysToRace: 21 });
+  it("uses the active planner config's name verbatim as the title", () => {
+    setupHooks([], {
+      raceKind: "5k",
+      daysToRace: 21,
+      activeConfigName: "Spring 5K Build",
+    });
     render(<Dashboard />);
     const title = screen.getByTestId("dashboard-header-title");
-    expect(title.textContent).toBe("5K Campaign");
+    expect(title.textContent).toBe("Spring 5K Build");
     expect(title.getAttribute("data-race-kind")).toBe("5k");
     const subtitle = screen.getByTestId("dashboard-header-subtitle");
     expect(subtitle.textContent).toContain("21 Days to Race Day");
   });
 
-  it("uses 'Half Marathon Campaign' on a half campaign", () => {
-    setupHooks([], { raceKind: "half" });
+  it("renders the title even on tonal-first / non-race plans (raceKind null)", () => {
+    // No race signal → the countdown subtitle is omitted, but the
+    // title still surfaces the runner's planner config name so the
+    // dashboard reads "Tonal Upper 8wk" (not a hardcoded "Race
+    // Campaign") on lift-primary blocks.
+    setupHooks([], {
+      raceKind: null,
+      activeConfigName: "Tonal Upper 8wk",
+    });
     render(<Dashboard />);
     const title = screen.getByTestId("dashboard-header-title");
-    expect(title.textContent).toBe("Half Marathon Campaign");
-    expect(title.getAttribute("data-race-kind")).toBe("half");
+    expect(title.textContent).toBe("Tonal Upper 8wk");
+    expect(title.getAttribute("data-race-kind")).toBe("");
+    expect(screen.queryByTestId("dashboard-header-subtitle")).toBeNull();
   });
 
-  it("uses '10K Campaign' on a 10K campaign", () => {
-    setupHooks([], { raceKind: "10k" });
+  it("falls back to 'Workout Plan' when the active config name is empty", () => {
+    setupHooks([], { raceKind: null, activeConfigName: "" });
     render(<Dashboard />);
-    const title = screen.getByTestId("dashboard-header-title");
-    expect(title.textContent).toBe("10K Campaign");
-    expect(title.getAttribute("data-race-kind")).toBe("10k");
-  });
-
-  it("keeps marathon plans on plain 'Race Campaign' so flagship copy is unchanged", () => {
-    setupHooks([], { raceKind: "marathon" });
-    render(<Dashboard />);
-    const title = screen.getByTestId("dashboard-header-title");
-    expect(title.textContent).toBe("Race Campaign");
-    expect(title.getAttribute("data-race-kind")).toBe("marathon");
-  });
-
-  it("hides the campaign header on tonal-first / non-race plans (raceKind null)", () => {
-    // No race signal → the dashboard MUST NOT presuppose a race day.
-    // The campaign header is omitted entirely so the runner sees the
-    // generic dashboard surface (Mission Status / Days to Race / etc.)
-    // without a misleading "Race Campaign" framing on a lift_primary
-    // block / ad-hoc Custom block.
-    setupHooks([], { raceKind: null });
-    render(<Dashboard />);
-    expect(screen.queryByTestId("dashboard-header")).toBeNull();
-    expect(screen.queryByTestId("dashboard-header-title")).toBeNull();
+    expect(screen.getByTestId("dashboard-header-title").textContent).toBe(
+      "Workout Plan",
+    );
   });
 });
