@@ -46,6 +46,7 @@ vi.mock("@/components/quick-log-activity", () => ({
 
 import { useGetTodayPlan } from "@workspace/api-client-react";
 import { HR_ZONE_COLORS } from "@/lib/run-target";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import Today from "./today";
 
 const mockedUseToday = vi.mocked(useGetTodayPlan);
@@ -88,7 +89,16 @@ function renderWithData(payload: Record<string, unknown>) {
     data: payload,
     isLoading: false,
   } as unknown as ReturnType<typeof useGetTodayPlan>);
-  return render(<Today />);
+  // Wrap in TooltipProvider so the race-day personalized pace chip
+  // (Task #235) can mount its Radix Tooltip without throwing
+  // "Tooltip must be used within TooltipProvider". The real app
+  // mounts a single TooltipProvider at the App root, so this is
+  // just standing in for that for the unit test render.
+  return render(
+    <TooltipProvider>
+      <Today />
+    </TooltipProvider>,
+  );
 }
 
 describe("Today page — pre-launch countdown", () => {
@@ -917,4 +927,145 @@ describe("Today page — every HR zone bucket renders the matching swatch on the
       expect(swatch.getAttribute("aria-hidden")).toBe("true");
     },
   );
+});
+
+// Task #235: parity coverage for the personalized vs catalog race-day
+// pace chip on the daily Today card. Task #228 already wired the same
+// chip on the weekly /plan view (week-detail.tsx) and the API now
+// returns `personalizedRacePace` on /plan/today as well — these tests
+// pin down that the Today Mission Brief (and the post-log Mission
+// Accomplished card) actually render the chip + override the headline
+// run-target pace with the personalized value, so the morning of the
+// race the runner sees the same recommendation they saw on /plan.
+describe("Today page — race-day personalized pace chip (task #235)", () => {
+  // Marathon race-day Sun row. raceDayLabel(distanceMi=26.2) classifies
+  // this as a marathon race and the IIFE in today.tsx will render both
+  // the race-day badge and the personalized chip.
+  const racePlanBase = {
+    id: 7001,
+    week: 18,
+    phase: "Race Week",
+    date: "2026-09-13",
+    day: "Sun",
+    sessionType: "Race",
+    equipment: "Outdoor",
+    description: "RACE DAY — Marathon",
+    strengthLoad: 0,
+    strengthMin: 0,
+    cardioMin: 0,
+    runMin: 240,
+    distanceMi: 26.2,
+    pace: "10:30",
+    isRest: false,
+    totalLoad: 0,
+    isCustomized: false,
+    customizedFields: [],
+    sourceEntryIndex: 0,
+  };
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    runTargetingModeRef.current = "effort";
+  });
+
+  it("renders the Personalized chip and overrides the headline pace when personalizedRacePace.source = 'personalized'", () => {
+    runTargetingModeRef.current = "pace";
+    const racePlan = {
+      ...racePlanBase,
+      personalizedRacePace: {
+        pace: "10:55",
+        source: "personalized",
+        sampleSize: 5,
+        lookbackWeeks: 6,
+        basisPaceSeconds: 630,
+      },
+    };
+    renderWithData({
+      date: racePlan.date,
+      hasPlan: true,
+      plan: racePlan,
+      loggedWorkouts: [],
+      suggestions: null,
+      daysUntilStart: null,
+      firstSession: null,
+    });
+
+    // Race-day badge alongside the personalized chip — same pair as
+    // week-detail.tsx so visual parity is enforced.
+    expect(screen.getByTestId(`badge-race-day-today-${racePlan.date}`)).toBeTruthy();
+    const chip = screen.getByTestId(`badge-race-pace-source-today-${racePlan.date}`);
+    expect(chip.getAttribute("data-pace-source")).toBe("personalized");
+    expect(chip.getAttribute("data-personalized-pace")).toBe("10:55");
+    expect(chip.textContent).toContain("10:55/mi");
+    expect(chip.textContent).toContain("Personalized");
+
+    // Headline run-target pace on the Mission Brief reflects the
+    // personalized value (10:55), NOT the seeded catalog `plan.pace`
+    // (10:30).
+    const target = screen.getByTestId("today-plan-0-run-target");
+    expect(target.textContent).toContain("10:55");
+    expect(target.textContent).not.toContain("10:30");
+  });
+
+  it("renders the From catalog chip and falls back to the catalog pace when personalizedRacePace.source = 'catalog'", () => {
+    runTargetingModeRef.current = "pace";
+    const racePlan = {
+      ...racePlanBase,
+      personalizedRacePace: {
+        pace: "10:30",
+        source: "catalog",
+        sampleSize: 0,
+        lookbackWeeks: 6,
+        basisPaceSeconds: null,
+      },
+    };
+    renderWithData({
+      date: racePlan.date,
+      hasPlan: true,
+      plan: racePlan,
+      loggedWorkouts: [],
+      suggestions: null,
+      daysUntilStart: null,
+      firstSession: null,
+    });
+
+    const chip = screen.getByTestId(`badge-race-pace-source-today-${racePlan.date}`);
+    expect(chip.getAttribute("data-pace-source")).toBe("catalog");
+    expect(chip.textContent).toContain("10:30/mi");
+    expect(chip.textContent).toContain("From catalog");
+
+    const target = screen.getByTestId("today-plan-0-run-target");
+    expect(target.textContent).toContain("10:30");
+  });
+
+  it("does NOT render the race-day chip on a non-race weekday plan", () => {
+    runTargetingModeRef.current = "pace";
+    const easyRunPlan = {
+      ...firstSession,
+      sourceEntryIndex: 0,
+      sessionType: "Easy Run",
+      description: "Easy aerobic shakeout",
+      runMin: 40,
+      distanceMi: 4,
+      pace: "10:30",
+      personalizedRacePace: null,
+    };
+    renderWithData({
+      date: "2026-05-05",
+      hasPlan: true,
+      plan: easyRunPlan,
+      loggedWorkouts: [],
+      suggestions: null,
+      daysUntilStart: null,
+      firstSession: null,
+    });
+
+    expect(
+      screen.queryByTestId("badge-race-day-today-2026-05-05"),
+    ).toBeNull();
+    expect(
+      screen.queryByTestId("badge-race-pace-source-today-2026-05-05"),
+    ).toBeNull();
+  });
 });

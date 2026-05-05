@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistance, formatLoad } from "@/lib/format";
-import { CheckCircle2, Activity, Trash2, Edit, Zap, Pencil, XCircle, Rocket } from "lucide-react";
+import { CheckCircle2, Activity, Trash2, Edit, Zap, Pencil, XCircle, Rocket, Sparkles } from "lucide-react";
 import { useMissionActions } from "@/hooks/use-mission-actions";
 import { QuickLogActivity } from "@/components/quick-log-activity";
 import { TimeOfDayBadge } from "@/components/time-of-day-badge";
@@ -12,11 +12,17 @@ import { ActualBreakdown } from "@/components/actual-breakdown";
 import { PrimaryMetricDisplay } from "@/components/primary-metric-display";
 import { SessionDetailDisclosure } from "@/components/session-detail-disclosure";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   getPrimaryMetric,
   getPrimaryMetricCompare,
 } from "@/lib/primary-metric";
 import { RunTargetLine } from "@/components/run-target-line";
 import { raceDayLabel } from "@/lib/race-day-label";
+import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 
 export default function Today() {
@@ -120,7 +126,13 @@ export default function Today() {
                       week={today.firstSession.week}
                       runMin={today.firstSession.runMin}
                       distanceMi={today.firstSession.distanceMi}
-                      pace={today.firstSession.pace}
+                      // Task #235: when the first scheduled session
+                      // happens to be a race-day Sun (campaign-final
+                      // week edge case), prefer the personalized pace
+                      // overlay over the seeded catalog value so the
+                      // pre-launch preview matches the race-day chip
+                      // the runner will see on /plan and /today.
+                      pace={today.firstSession.personalizedRacePace?.pace ?? today.firstSession.pace}
                       variant="prominent"
                       testId="first-session-run-target"
                       // Task #227: when the first scheduled session
@@ -251,6 +263,80 @@ export default function Today() {
                 <div className="bg-background p-6 rounded-md border border-border">
                   <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
                     <div className="space-y-4 flex-1">
+                      {/* Task #235: mirror the race-day badge + personalized
+                          vs catalog pace chip pair from week-detail.tsx so
+                          a runner who saw the chip on /plan yesterday
+                          sees the same explainer on /today the morning
+                          of the race. The IIFE returns null on every
+                          non-race row, so this is a no-op for normal
+                          weekday plans. */}
+                      {(() => {
+                        const race = raceDayLabel(plan.distanceMi, plan.description, plan.sessionType);
+                        if (!race) return null;
+                        const prp = plan.personalizedRacePace ?? null;
+                        return (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span
+                              className="inline-flex items-center gap-1 text-[10px] bg-primary/15 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider w-fit"
+                              data-testid={`badge-race-day-today-${plan.date}`}
+                              data-race-kind={race.kind}
+                            >
+                              <Activity className="h-3 w-3" />
+                              {race.label}
+                            </span>
+                            {prp && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span
+                                    className={cn(
+                                      "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wider w-fit cursor-help",
+                                      prp.source === "personalized"
+                                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                                        : "bg-muted text-muted-foreground",
+                                    )}
+                                    data-testid={`badge-race-pace-source-today-${plan.date}`}
+                                    data-pace-source={prp.source}
+                                    data-personalized-pace={prp.pace}
+                                  >
+                                    <Sparkles className="h-3 w-3" />
+                                    {prp.source === "personalized"
+                                      ? `${prp.pace}/mi · Personalized`
+                                      : `${prp.pace}/mi · From catalog`}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent
+                                  side="top"
+                                  align="start"
+                                  className="max-w-xs text-xs"
+                                >
+                                  {prp.source === "personalized" && prp.basisPaceSeconds != null ? (
+                                    <span>
+                                      Personalized from {prp.sampleSize} quality run
+                                      {prp.sampleSize === 1 ? "" : "s"} (tempo / threshold /
+                                      interval / VO2 / race) in the last {prp.lookbackWeeks} weeks.
+                                      Avg training pace{" "}
+                                      <span className="font-mono font-bold">
+                                        {Math.floor(prp.basisPaceSeconds / 60)}:
+                                        {String(prp.basisPaceSeconds % 60).padStart(2, "0")}
+                                      </span>
+                                      /mi → race-day target{" "}
+                                      <span className="font-mono font-bold">{prp.pace}</span>/mi.
+                                    </span>
+                                  ) : (
+                                    <span>
+                                      Showing the catalog {race.label.toLowerCase()} pace —
+                                      not enough recent quality runs in the last{" "}
+                                      {prp.lookbackWeeks} weeks to personalize. Log a few
+                                      tempo / threshold / interval workouts and this chip
+                                      will retune to your training.
+                                    </span>
+                                  )}
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                          </div>
+                        );
+                      })()}
                       <div className="flex flex-wrap items-baseline gap-3">
                         <span className="font-black text-2xl uppercase tracking-tight">{plan.sessionType}</span>
                       </div>
@@ -291,7 +377,18 @@ export default function Today() {
                             week={plan.week}
                             runMin={plan.runMin}
                             distanceMi={plan.distanceMi}
-                            pace={plan.pace}
+                            // Task #235: when a personalized race-day
+                            // pace is available, override the seeded
+                            // catalog `plan.pace` so the headline run
+                            // target reflects the live recommendation
+                            // derived from the runner's training. Falls
+                            // back to `plan.pace` on every non-race day
+                            // (and on race days where there isn't yet
+                            // enough quality history to personalize, in
+                            // which case `personalizedRacePace.pace` IS
+                            // the catalog value anyway). Mirrors the
+                            // override in week-detail.tsx.
+                            pace={plan.personalizedRacePace?.pace ?? plan.pace}
                             variant="prominent"
                             testId={`today-plan-${plan.sourceEntryIndex}-run-target`}
                             // Task #227: tone the chip per race-kind on
@@ -486,7 +583,12 @@ export default function Today() {
                         week={today.plan.week}
                         runMin={today.plan.runMin}
                         distanceMi={today.plan.distanceMi}
-                        pace={today.plan.pace}
+                        // Task #235: same personalized-pace override as
+                        // the Mission Brief above so the post-log
+                        // target line shown next to the actuals
+                        // reflects the live race-day recommendation
+                        // rather than the seeded catalog value.
+                        pace={today.plan.personalizedRacePace?.pace ?? today.plan.pace}
                         variant="prominent"
                         testId={`session-today-${session.id}-run-target`}
                         // Task #227: race-kind zone tone on race day so
