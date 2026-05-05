@@ -6,6 +6,7 @@ import {
   SetRaceWeekChecklistItemResponse,
 } from "@workspace/api-zod";
 import { db, planDaysTable, plannerConfigsTable } from "@workspace/db";
+import { RACE_DAY_SPECS } from "@workspace/plan-generator";
 import app from "../app";
 import { expectMatchesSchema } from "../test-helpers";
 
@@ -51,6 +52,13 @@ describe("GET /api/race-week", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2027-04-25T12:00:00.000Z"));
 
+    // Pull the race-day prescription from the same `RACE_DAY_SPECS["half"]`
+    // table the canonical 52-week generator, the entries-mode pipeline, and
+    // the hybrid pipeline all read from (Task #217). The fixture would
+    // otherwise drift the moment the spec changes — exactly the kind of
+    // hand-rolled "looks like real data" literal centralization was meant
+    // to eliminate.
+    const halfSpec = RACE_DAY_SPECS.half;
     await db.insert(planDaysTable).values({
       week: 52,
       phase: "Taper & Race",
@@ -58,14 +66,13 @@ describe("GET /api/race-week", () => {
       day: "Sun",
       strengthLoad: 0,
       equipment: "Outdoor",
-      description:
-        "RACE DAY — Half Marathon (13.1 mi). Execute race plan, fuel every 4 mi, finish strong.",
-      cardioMin: 157,
-      distanceMi: 13.1,
+      description: halfSpec.description,
+      cardioMin: Math.round(halfSpec.distanceMi * halfSpec.runMinPerMi),
+      distanceMi: halfSpec.distanceMi,
       pace: "12:00",
       sessionType: "Race",
       isRest: false,
-      totalLoad: 260,
+      totalLoad: halfSpec.totalLoad,
     });
 
     const res = await request(app).get("/api/race-week");
