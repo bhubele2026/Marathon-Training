@@ -24,6 +24,7 @@ import {
   getTemplateById,
   isArchivedTemplateId,
   entriesRaceKind,
+  templateRaceKindById,
   previewWeeklyMileage,
   HYBRID_POSITIONS_ORDERED,
   HYBRID_POSITION_LABEL,
@@ -289,6 +290,78 @@ const TEMPLATE_SEARCH_STORAGE_KEY = "planner.templateSearch.v1";
 // later without colliding with stale entries.
 const SELECTED_TEMPLATE_TAGS_STORAGE_KEY = "planner.selectedTemplateTags.v1";
 
+// localStorage key for the planner starter rail's race-distance quick
+// filter (task #229). Persists the chip selection ("all" | "5k" | "10k"
+// | "half" | "marathon") so the rail re-opens with the runner's last
+// pick already narrowed. Versioned so we can change the shape later
+// without colliding with stale entries.
+const STARTER_DISTANCE_FILTER_STORAGE_KEY =
+  "planner.starterDistanceFilter.v1";
+
+// Race-distance quick-filter values for the starter rail. "all" is the
+// default and matches every starter regardless of its last entry's
+// race kind. The other values map 1:1 onto the non-"none" values of
+// `PlanRaceKind` from `@workspace/plan-generator` so a starter passes
+// the filter when `templateRaceKindById(lastEntry.templateId)` equals
+// the selected value.
+type StarterDistanceFilter = "all" | "5k" | "10k" | "half" | "marathon";
+
+const STARTER_DISTANCE_FILTERS: ReadonlyArray<{
+  value: StarterDistanceFilter;
+  label: string;
+}> = [
+  { value: "all", label: "All" },
+  { value: "5k", label: "5K" },
+  { value: "10k", label: "10K" },
+  { value: "half", label: "Half" },
+  { value: "marathon", label: "Marathon" },
+];
+
+// Map from a starter's last-entry race kind to its
+// `StarterDistanceFilter` bucket. Starters whose final template is
+// non-racing (`"none"`) are NOT placed in any distance bucket and are
+// therefore hidden whenever a non-"all" filter is active.
+function starterDistanceBucket(
+  s: StarterShortcut,
+): StarterDistanceFilter | null {
+  if (s.entries.length === 0) return null;
+  const last = s.entries[s.entries.length - 1]!;
+  const kind = templateRaceKindById(last.templateId);
+  switch (kind) {
+    case "marathon":
+      return "marathon";
+    case "half":
+      return "half";
+    case "10k":
+      return "10k";
+    case "5k":
+      return "5k";
+    default:
+      return null;
+  }
+}
+
+function readStarterDistanceFilter(): StarterDistanceFilter {
+  if (typeof window === "undefined") return "all";
+  try {
+    const raw = window.localStorage.getItem(
+      STARTER_DISTANCE_FILTER_STORAGE_KEY,
+    );
+    if (
+      raw === "all" ||
+      raw === "5k" ||
+      raw === "10k" ||
+      raw === "half" ||
+      raw === "marathon"
+    ) {
+      return raw;
+    }
+  } catch {
+    // Ignore corrupt storage and fall through to default.
+  }
+  return "all";
+}
+
 // localStorage keys for the per-surface tag-cloud sort mode toggle
 // (alphabetical vs. by template count). Each surface persists its
 // own choice so the runner's preference sticks per cloud.
@@ -478,6 +551,31 @@ export default function Planner() {
       return next;
     });
   }
+  // Race-distance quick filter applied to the starter shortcuts rail
+  // (task #229). Sits above the Run-only / Hybrid groups and narrows
+  // visible cards to those whose composed templates END on the
+  // selected race distance (5K / 10K / Half / Marathon). "All" is the
+  // default and matches every starter regardless of race kind. The
+  // distance bucket is derived from the LAST entry's templateId via
+  // `templateRaceKindById`, so the rail stays self-describing without
+  // adding a new field to the OpenAPI contract.
+  const [selectedStarterDistance, setSelectedStarterDistance] =
+    useState<StarterDistanceFilter>(() => readStarterDistanceFilter());
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (selectedStarterDistance === "all") {
+        window.localStorage.removeItem(STARTER_DISTANCE_FILTER_STORAGE_KEY);
+      } else {
+        window.localStorage.setItem(
+          STARTER_DISTANCE_FILTER_STORAGE_KEY,
+          selectedStarterDistance,
+        );
+      }
+    } catch {
+      // Storage may be full or disabled; ignore.
+    }
+  }, [selectedStarterDistance]);
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -2270,18 +2368,71 @@ export default function Planner() {
             <h3 className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
               <Sparkles className="h-3 w-3" /> Starter shortcuts
             </h3>
-            {(
-              [
-                { style: "run_only" as const, label: "Run-only" },
-                { style: "hybrid" as const, label: "Hybrid" },
-              ]
-            )
-              .map((g) => ({
-                ...g,
-                items: starters.filter((s) => s.style === g.style),
-              }))
-              .filter((g) => g.items.length > 0)
-              .map((g) => (
+            {/* Race-distance quick filter (task #229). Chips above the
+                grouped Run-only / Hybrid sections narrow the rail to
+                starters whose composed templates END on the selected
+                race distance. The bucket for each starter is derived
+                from the LAST entry's templateId via
+                `templateRaceKindById` — so the filter signal stays
+                self-describing and doesn't require a new field on the
+                OpenAPI contract. "All" is the default. */}
+            <div
+              className="flex flex-wrap items-center gap-1.5"
+              data-testid="planner-starter-distance-filter"
+              role="radiogroup"
+              aria-label="Filter starters by race distance"
+            >
+              {STARTER_DISTANCE_FILTERS.map((f) => {
+                const active = selectedStarterDistance === f.value;
+                return (
+                  <button
+                    key={f.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => setSelectedStarterDistance(f.value)}
+                    data-testid={`planner-starter-distance-${f.value}`}
+                    data-active={active ? "true" : "false"}
+                    className={
+                      active
+                        ? "text-[11px] px-2 py-0.5 rounded-full border border-primary bg-primary text-primary-foreground"
+                        : "text-[11px] px-2 py-0.5 rounded-full border border-border bg-background text-muted-foreground hover:bg-muted"
+                    }
+                  >
+                    {f.label}
+                  </button>
+                );
+              })}
+            </div>
+            {(() => {
+              const filteredStarters =
+                selectedStarterDistance === "all"
+                  ? starters
+                  : starters.filter(
+                      (s) => starterDistanceBucket(s) === selectedStarterDistance,
+                    );
+              const groups = (
+                [
+                  { style: "run_only" as const, label: "Run-only" },
+                  { style: "hybrid" as const, label: "Hybrid" },
+                ]
+              )
+                .map((g) => ({
+                  ...g,
+                  items: filteredStarters.filter((s) => s.style === g.style),
+                }))
+                .filter((g) => g.items.length > 0);
+              if (groups.length === 0) {
+                return (
+                  <div
+                    className="text-xs text-muted-foreground italic"
+                    data-testid="planner-starter-empty"
+                  >
+                    No starter shortcuts for this distance yet.
+                  </div>
+                );
+              }
+              return groups.map((g) => (
                 <div
                   key={g.style}
                   className="space-y-2"
@@ -2313,7 +2464,8 @@ export default function Planner() {
                     ))}
                   </div>
                 </div>
-              ))}
+              ));
+            })()}
           </div>
 
           {/* Tag-cloud filter (chips) — clickable AND-semantics filter

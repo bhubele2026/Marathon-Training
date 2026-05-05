@@ -570,6 +570,158 @@ describe("Planner template library (entries-mode)", () => {
     ).toBeNull();
   });
 
+  it("starter rail's race-distance filter narrows visible cards by the last entry's race kind", () => {
+    // Clear any persisted filter from a previous run so this test
+    // boots into the default "All" state.
+    try {
+      window.localStorage.removeItem("planner.starterDistanceFilter.v1");
+    } catch {
+      // ignore
+    }
+    renderPlanner();
+    const rail = screen.getByTestId("planner-starter-rail");
+    const filter = within(rail).getByTestId(
+      "planner-starter-distance-filter",
+    );
+    // All five chips render in canonical order (All, 5K, 10K, Half,
+    // Marathon) and "All" is the default active selection.
+    for (const v of ["all", "5k", "10k", "half", "marathon"] as const) {
+      expect(
+        within(filter).getByTestId(`planner-starter-distance-${v}`),
+      ).toBeTruthy();
+    }
+    expect(
+      within(filter)
+        .getByTestId("planner-starter-distance-all")
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+    // Default "All" shows every starter card.
+    expect(
+      within(rail).getByTestId("planner-starter-hm_beginner_16w"),
+    ).toBeTruthy();
+    expect(
+      within(rail).getByTestId("planner-starter-hm_hybrid_18w"),
+    ).toBeTruthy();
+    expect(
+      within(rail).getByTestId("planner-starter-marathon_first_timer_24w"),
+    ).toBeTruthy();
+    expect(
+      within(rail).getByTestId("planner-starter-get_faster_5k_14w"),
+    ).toBeTruthy();
+    expect(
+      within(rail).getByTestId("planner-starter-couch_to_hm_24w"),
+    ).toBeTruthy();
+
+    // Click "Half": only starters whose last entry ends on the half-
+    // marathon survive (hm_beginner_16w + hm_hybrid_18w + couch_to_hm_24w).
+    fireEvent.click(within(filter).getByTestId("planner-starter-distance-half"));
+    expect(
+      within(filter)
+        .getByTestId("planner-starter-distance-half")
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+    expect(
+      within(rail).getByTestId("planner-starter-hm_beginner_16w"),
+    ).toBeTruthy();
+    expect(
+      within(rail).getByTestId("planner-starter-hm_hybrid_18w"),
+    ).toBeTruthy();
+    expect(
+      within(rail).getByTestId("planner-starter-couch_to_hm_24w"),
+    ).toBeTruthy();
+    expect(
+      within(rail).queryByTestId("planner-starter-marathon_first_timer_24w"),
+    ).toBeNull();
+    expect(
+      within(rail).queryByTestId("planner-starter-get_faster_5k_14w"),
+    ).toBeNull();
+
+    // Click "Marathon": only the Pfitz first-timer marathon survives.
+    fireEvent.click(
+      within(filter).getByTestId("planner-starter-distance-marathon"),
+    );
+    expect(
+      within(rail).getByTestId("planner-starter-marathon_first_timer_24w"),
+    ).toBeTruthy();
+    expect(
+      within(rail).queryByTestId("planner-starter-hm_beginner_16w"),
+    ).toBeNull();
+    expect(
+      within(rail).queryByTestId("planner-starter-get_faster_5k_14w"),
+    ).toBeNull();
+
+    // Click "5K": only the get_faster_5k_14w shortcut survives.
+    fireEvent.click(
+      within(filter).getByTestId("planner-starter-distance-5k"),
+    );
+    expect(
+      within(rail).getByTestId("planner-starter-get_faster_5k_14w"),
+    ).toBeTruthy();
+    expect(
+      within(rail).queryByTestId("planner-starter-marathon_first_timer_24w"),
+    ).toBeNull();
+
+    // "10K": no starters today — empty-state placeholder renders so the
+    // rail doesn't silently collapse.
+    fireEvent.click(
+      within(filter).getByTestId("planner-starter-distance-10k"),
+    );
+    expect(within(rail).getByTestId("planner-starter-empty")).toBeTruthy();
+    expect(
+      within(rail).queryByTestId("planner-starter-group-run_only"),
+    ).toBeNull();
+    expect(
+      within(rail).queryByTestId("planner-starter-group-hybrid"),
+    ).toBeNull();
+
+    // Back to "All" restores the full rail (and clears the empty state).
+    fireEvent.click(
+      within(filter).getByTestId("planner-starter-distance-all"),
+    );
+    expect(within(rail).queryByTestId("planner-starter-empty")).toBeNull();
+    expect(
+      within(rail).getByTestId("planner-starter-group-run_only"),
+    ).toBeTruthy();
+    expect(
+      within(rail).getByTestId("planner-starter-group-hybrid"),
+    ).toBeTruthy();
+  });
+
+  it("starter distance filter persists the runner's selection across renders", () => {
+    try {
+      window.localStorage.removeItem("planner.starterDistanceFilter.v1");
+    } catch {
+      // ignore
+    }
+    const first = renderPlanner();
+    fireEvent.click(
+      within(screen.getByTestId("planner-starter-distance-filter")).getByTestId(
+        "planner-starter-distance-half",
+      ),
+    );
+    first.unmount();
+    renderPlanner();
+    // Half remains selected after re-mounting; only HM cards visible.
+    const rail = screen.getByTestId("planner-starter-rail");
+    expect(
+      within(screen.getByTestId("planner-starter-distance-filter"))
+        .getByTestId("planner-starter-distance-half")
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+    expect(
+      within(rail).getByTestId("planner-starter-hm_beginner_16w"),
+    ).toBeTruthy();
+    expect(
+      within(rail).queryByTestId("planner-starter-marathon_first_timer_24w"),
+    ).toBeNull();
+    // Reset for downstream tests.
+    fireEvent.click(
+      within(screen.getByTestId("planner-starter-distance-filter")).getByTestId(
+        "planner-starter-distance-all",
+      ),
+    );
+  });
+
   it("applying a one-click starter loads its full multi-entry composition", () => {
     renderPlanner();
     fireEvent.click(screen.getByTestId("planner-starter-apply-hm_beginner_16w"));
