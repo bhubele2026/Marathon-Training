@@ -1239,6 +1239,15 @@ export interface RaceDaySpec {
   // Race-day `total_load` written onto the Sunday plan_day row. The
   // dashboard uses this to color the daily load chip.
   totalLoad: number;
+  // Pace target (mm:ss / mi) written onto the race-day Sun row's
+  // `pace` chip. Promoted into the shared spec (Task #221) so all
+  // three race-day Sun branches in `index.ts` — legacy
+  // `generatePlan`, recipe-driven `buildWeekDays`, and hybrid
+  // `buildHybridWeekDays` — read race-day pace from one source
+  // instead of three independent locals (`tempoPace`,
+  // `recipe.tempoPace`, `qualityPace`) that could silently drift
+  // apart for the same race kind.
+  pace: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -1448,6 +1457,10 @@ export const RACE_DAY_SPECS: Readonly<
       "RACE DAY — Marathon (26.2 mi). Execute race plan, fuel every 4 mi, finish strong.",
     runMinPerMi: 11,
     totalLoad: 350,
+    // Matches the Marathon-Specific / Taper recipe `tempoPace` and the
+    // hybrid `qualityPace` constant — the values both branches were
+    // already emitting before Task #221 promoted pace into the spec.
+    pace: "11:30",
   },
   half: {
     distanceMi: 13.1,
@@ -1456,6 +1469,12 @@ export const RACE_DAY_SPECS: Readonly<
       "RACE DAY — Half (13.1 mi). Execute race plan, fuel every 4 mi, finish strong.",
     runMinPerMi: 11,
     totalLoad: 200,
+    // Matches the Taper recipe `tempoPace` (recipe-driven half) and
+    // the hybrid `qualityPace` constant. The legacy 52-week
+    // `generatePlan` previously emitted "11:00" here (its local
+    // `tempoPace` for w>32); routing all three branches through this
+    // spec aligns the legacy plan onto the same value.
+    pace: "11:30",
   },
   "10k": {
     distanceMi: 6.2,
@@ -1464,6 +1483,7 @@ export const RACE_DAY_SPECS: Readonly<
       "RACE DAY — 10K (6.2 mi). Execute race plan at threshold effort, hold form, finish strong.",
     runMinPerMi: 10,
     totalLoad: 110,
+    pace: "11:30",
   },
   "5k": {
     distanceMi: 3.1,
@@ -1472,6 +1492,7 @@ export const RACE_DAY_SPECS: Readonly<
       "RACE DAY — 5K (3.1 mi). Execute race plan at VO2 effort, go hard from the gun, finish strong.",
     runMinPerMi: 10,
     totalLoad: 60,
+    pace: "11:30",
   },
 };
 
@@ -1482,11 +1503,18 @@ export const RACE_DAY_SPECS: Readonly<
 // strength_load (always 0; the heavy weekend lift is dropped on race day),
 // equipment / equipment_list (always Outdoor on race day), description,
 // minutes (strength_min / cardio_min always 0; run_min derived from the
-// spec's distance × per-mile pace estimate), distance_mi, session_type
-// ("Race"), is_rest, total_load — has exactly one source of truth and
-// cannot drift across branches (Task #217). Mirrors the race-eve Sat
-// helper (`buildRaceEveSatRow`, Task #215) so the campaign-final weekend
-// is fully centralized.
+// spec's distance × per-mile pace estimate), distance_mi, pace,
+// session_type ("Race"), is_rest, total_load — has exactly one source of
+// truth and cannot drift across branches (Task #217 + Task #221).
+// Mirrors the race-eve Sat helper (`buildRaceEveSatRow`, Task #215) so
+// the campaign-final weekend is fully centralized.
+//
+// Task #221: `pace` is no longer a caller-supplied input — it is read
+// from `spec.pace`. Before #221 each caller passed its own local
+// (`tempoPace`, `recipe.tempoPace`, `qualityPace`), which could
+// silently drift apart for the same race kind. Reading `pace` from
+// the same spec the rest of the row already comes from is the whole
+// point of #221's "one shared source" goal.
 //
 // Inputs:
 //   - weekNumber: written to the row's `week` field.
@@ -1497,10 +1525,6 @@ export const RACE_DAY_SPECS: Readonly<
 //   - raceKind: which `RACE_DAY_SPECS` entry to pull. Must be a
 //     non-"none" race kind (the caller's race-day gate has already
 //     verified `raceKind !== "none"`).
-//   - pace: the runner-facing pace string surfaced on the row. Each
-//     caller picks its own (canonical 52-week plan uses the legacy
-//     "12:00", `buildWeekDays` uses `recipe.tempoPace`,
-//     `buildHybridWeekDays` uses the resolved hybrid quality pace).
 //   - customSuffix: optional trailing text appended to the description.
 //     Currently unused by all three callers (the spec description owns
 //     the full race-day prose), but accepted for symmetry with
@@ -1511,10 +1535,9 @@ export function buildRaceDaySunRow(args: {
   phase: string;
   date: string;
   raceKind: Exclude<PlanRaceKind, "none">;
-  pace: string | null;
   customSuffix?: string;
 }): DailyRow {
-  const { weekNumber, phase, date, raceKind, pace, customSuffix = "" } = args;
+  const { weekNumber, phase, date, raceKind, customSuffix = "" } = args;
   const spec = RACE_DAY_SPECS[raceKind];
   const raceMin = Math.round(spec.distanceMi * spec.runMinPerMi);
   return {
@@ -1530,7 +1553,7 @@ export function buildRaceDaySunRow(args: {
     cardio_min: 0,
     run_min: raceMin,
     distance_mi: spec.distanceMi,
-    pace,
+    pace: spec.pace,
     session_type: "Race",
     is_rest: false,
     total_load: spec.totalLoad,

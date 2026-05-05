@@ -424,24 +424,25 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
     }
 
     // ---------- SUN: LONG RUN (no lift) or RACE ----------
-    // Race-day Sun (race week, w === TOTAL_WEEKS) is built end-to-end by
-    // the shared `buildRaceDaySunRow` helper (Task #217) so every field —
-    // distance / description / run_min / total_load / equipment list /
-    // session_type — is read from the same `RACE_DAY_SPECS[raceKind]`
-    // table the other two race-week Sun branches in `buildWeekDays`
-    // (recipe-driven) and `buildHybridWeekDays` (hybrid-driven) consume.
-    // The canonical 52-week plan classifies as `raceKind: "half"` (the
-    // template ends on a half marathon), so it pulls the half spec
-    // here. Before the Task #217/#218 consolidation, this branch inlined
-    // "Half Marathon (13.1 mi)" copy, `run_min = round(13.1 * 12) = 157`,
-    // and `total_load = 260`, which silently disagreed with the spec
-    // table's "Half (13.1 mi)" copy, `runMinPerMi = 11` (→ run_min 144),
-    // and `totalLoad = 200`; the helper now drives all of those from
-    // `RACE_DAY_SPECS.half`. Pace is caller-owned (parity with
-    // `buildRaceEveSatRow`); we pass the legacy generator's local
-    // `tempoPace` (Task #218) so the race-day pace chip stays consistent
-    // with the other run rows shown that week, mirroring what the
-    // templated branch does with `recipe.tempoPace`.
+    // Race-day Sun (race week, w === TOTAL_WEEKS) is built end-to-end
+    // by the shared `buildRaceDaySunRow` helper (Task #217) so every
+    // field — distance / description / run_min / total_load /
+    // equipment list / session_type / pace — is read from the same
+    // `RACE_DAY_SPECS[raceKind]` table the other two race-week Sun
+    // branches in `buildWeekDays` (recipe-driven) and
+    // `buildHybridWeekDays` (hybrid-driven) consume. The canonical
+    // 52-week plan classifies as `raceKind: "half"` (the template
+    // ends on a half marathon), so it pulls the half spec here.
+    // Before Task #217/#218, this branch inlined "Half Marathon
+    // (13.1 mi)" copy, `run_min = round(13.1 * 12) = 157`, and
+    // `total_load = 260`, which silently disagreed with the spec
+    // table's "Half (13.1 mi)" copy, `runMinPerMi = 11` (→ run_min
+    // 144), and `totalLoad = 200`. Task #221 also promoted `pace`
+    // into the spec — the post-#218 branch still read the local
+    // `tempoPace` (= "11:00" for w=52) and the recipe / hybrid
+    // branches read `recipe.tempoPace` / `qualityPace`, which could
+    // drift; the helper now reads `pace` from `spec.pace` too so all
+    // three callers share a single per-kind source.
     let sunDay: DailyRow;
     if (isRaceWeek) {
       sunDay = buildRaceDaySunRow({
@@ -449,7 +450,6 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
         phase,
         date: fmt(addDays(wkStart, 6)),
         raceKind: "half",
-        pace: tempoPace,
       });
     } else {
       const longEquipment = w % 2 === 0 ? "Outdoor" : "Peloton Tread";
@@ -2135,17 +2135,19 @@ function buildHybridWeekDays(opts: {
       // Race day Sunday: built end-to-end by the shared
       // `buildRaceDaySunRow` helper (Task #217) so every field reads
       // from the same `RACE_DAY_SPECS[raceKind]` table the canonical
-      // 52-week (`generatePlan`, line ~441) and recipe-driven
-      // (`buildWeekDays`, line ~2614) race-day Sun branches consume.
-      // marathon → 26.2, half → 13.1, 10K → 6.2, 5K → 3.1 — distance,
-      // description, run_min, total_load all come from the spec; this
-      // branch supplies the hybrid quality pace.
+      // 52-week (`generatePlan`) and recipe-driven (`buildWeekDays`)
+      // race-day Sun branches consume. marathon → 26.2, half → 13.1,
+      // 10K → 6.2, 5K → 3.1 — distance, description, run_min,
+      // total_load, AND pace all come from the spec. Task #221
+      // dropped the per-caller `pace` argument so this branch no
+      // longer reads the local `qualityPace`; all three race-day Sun
+      // branches now share a single per-kind pace value via the
+      // helper.
       return buildRaceDaySunRow({
         weekNumber,
         phase,
         date,
         raceKind,
-        pace: qualityPace,
       });
     }
 
@@ -2609,12 +2611,19 @@ function buildWeekDays(opts: {
   // instead of the trailing Taper recipe's natural ~4 mi long run.
   let sunDay: DailyRow;
   if (isRaceWeek && raceKind !== "none") {
+    // Race day Sunday: built end-to-end by `buildRaceDaySunRow`
+    // (Task #217) so every field — distance, description, run_min,
+    // total_load, equipment list, session_type, AND pace — comes
+    // from `RACE_DAY_SPECS[raceKind]`. Task #221 dropped the
+    // per-caller `pace` argument so this branch no longer reads the
+    // local `recipe.tempoPace`; the recipe / hybrid / legacy
+    // race-day Sun branches now share one per-kind pace value via
+    // the helper.
     sunDay = buildRaceDaySunRow({
       weekNumber,
       phase,
       date: fmt(addDays(wkStart, 6)),
       raceKind,
-      pace: recipe.tempoPace,
     });
   } else {
     const longRun = recipe.longRunMi(weekInBlock, blockWeeks, isCutback, isTrailingBlock);

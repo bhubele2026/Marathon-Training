@@ -842,6 +842,13 @@ describe("previewWeeklyMileage matches generatePlanFromConfig", () => {
         Math.round(spec.distanceMi * spec.runMinPerMi),
       );
       expect(marathonSun.total_load).toBe(spec.totalLoad);
+      // Task #221: race-day pace also comes from the shared per-kind
+      // spec instead of three independent locals (`tempoPace`,
+      // `recipe.tempoPace`, `qualityPace`) — pin both branches
+      // directly to `spec.pace` so a future regression that re-inlines
+      // a hardcoded pace in either generator branch fails here too.
+      expect(marathonSun.pace).toBe(spec.pace);
+      expect(hybridSun.pace).toBe(spec.pace);
     });
 
     it("half-marathon recipe (half_marathon) Sun matches RACE_DAY_SPECS.half (and any hybrid half template emits an identical Sun row)", () => {
@@ -865,6 +872,9 @@ describe("previewWeeklyMileage matches generatePlanFromConfig", () => {
       expect(halfRecipeSun.total_load).toBe(spec.totalLoad);
       expect(halfRecipeSun.session_type).toBe("Race");
       expect(halfRecipeSun.equipment_list).toEqual(["Outdoor"]);
+      // Task #221: half race-day pace comes from the shared spec
+      // (same source the marathon parity case asserts above).
+      expect(halfRecipeSun.pace).toBe(spec.pace);
 
       // Cross-branch parity: if any hybrid template is currently
       // classified at "half" race kind (i.e. routes through
@@ -938,6 +948,13 @@ describe("previewWeeklyMileage matches generatePlanFromConfig", () => {
       expect(sun!.run_min).toBe(144);
       expect(sun!.total_load).toBe(spec.totalLoad);
       expect(sun!.total_load).toBe(200);
+      // Task #221: pace was the last race-day field that legacy
+      // `generatePlan` computed independently (its local `tempoPace`
+      // = "11:00" for w=52). Pin the post-#221 legacy Sun directly
+      // to `spec.pace` so the legacy branch can't drift back to a
+      // per-week-band local while the recipe / hybrid branches read
+      // from the shared spec.
+      expect(sun!.pace).toBe(spec.pace);
 
       // The race-day Sun must land on the campaign-final Sunday — six
       // days after `PLAN_START_ISO` + (TOTAL_WEEKS-1) weeks. Locks the
