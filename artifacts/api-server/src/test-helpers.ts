@@ -218,6 +218,11 @@ export interface WorkoutInput {
   strengthLoad?: number | null;
   planDayId?: number | null;
   notes?: string | null;
+  // Optional time-of-day tag. When omitted the row's `time_of_day` column
+  // stays NULL so existing tests that don't care about AM/PM ordering keep
+  // landing in the untagged bucket. Tests that assert AM/PM/Other ordering
+  // on /api/plan/today and /api/workouts should pass an explicit tag.
+  timeOfDay?: string | null;
   // Optional task #78 chip rail. When omitted the row's equipment_list
   // column is left NULL, which simulates a pre-task-#78 legacy row and
   // exercises the API's `[equipment]` fallback path through `toWorkout`.
@@ -244,6 +249,7 @@ export async function insertWorkout(w: WorkoutInput): Promise<{ id: number }> {
       strengthLoad: w.strengthLoad ?? null,
       planDayId: w.planDayId ?? null,
       notes: w.notes ?? null,
+      timeOfDay: w.timeOfDay ?? null,
     })
     .returning({ id: workoutsTable.id });
   return { id: inserted[0]!.id };

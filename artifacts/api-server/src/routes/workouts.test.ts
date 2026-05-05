@@ -172,6 +172,120 @@ describe("GET /api/workouts", () => {
     expect(res.status).toBe(400);
     expectMatchesSchema(ValidationErrorResponse, res.body);
   });
+
+  // Task #50: AM/PM/Other/untagged ordering on /api/workouts. The route
+  // sorts by date desc first, then by a CASE on workouts.time_of_day so
+  // within a single date AM sorts above PM, then Other, then untagged
+  // rows. The createdAt desc tiebreaker is asserted in the same-slot
+  // case below. Inserting in the OPPOSITE of the expected output order
+  // would surface a regression as the inverse list.
+  it("orders same-day workouts by time-of-day tag (AM, PM, Other, untagged)", async () => {
+    const date = "2099-07-04";
+    const untagged = await insertWorkout({
+      date,
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      durationMin: 20,
+      timeOfDay: null,
+    });
+    const other = await insertWorkout({
+      date,
+      sessionType: T_STRENGTH,
+      equipment: E_GYM,
+      durationMin: 25,
+      timeOfDay: "Other",
+    });
+    const pm = await insertWorkout({
+      date,
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      durationMin: 30,
+      timeOfDay: "PM",
+    });
+    const am = await insertWorkout({
+      date,
+      sessionType: T_STRENGTH,
+      equipment: E_GYM,
+      durationMin: 35,
+      timeOfDay: "AM",
+    });
+
+    const res = await request(app)
+      .get("/api/workouts")
+      .query({ from: date, to: date });
+    expect(res.status).toBe(200);
+    expectMatchesSchema(ListWorkoutsResponse, res.body);
+    const ids = (res.body as Array<{ id: number }>).map((w) => w.id);
+    expect(ids).toEqual([am.id, pm.id, other.id, untagged.id]);
+  });
+
+  it("breaks AM/PM ties on /api/workouts by createdAt descending (newest first)", async () => {
+    const date = "2099-07-05";
+    const am1 = await insertWorkout({
+      date,
+      sessionType: T_STRENGTH,
+      equipment: E_GYM,
+      durationMin: 20,
+      timeOfDay: "AM",
+    });
+    const am2 = await insertWorkout({
+      date,
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      durationMin: 25,
+      timeOfDay: "AM",
+    });
+    const pm1 = await insertWorkout({
+      date,
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      durationMin: 30,
+      timeOfDay: "PM",
+    });
+
+    const res = await request(app)
+      .get("/api/workouts")
+      .query({ from: date, to: date });
+    expect(res.status).toBe(200);
+    const ids = (res.body as Array<{ id: number }>).map((w) => w.id);
+    // /api/workouts uses createdAt DESC as the tiebreaker (newest log
+    // wins), unlike /api/plan/today which uses ASC. am2 was inserted
+    // after am1 so it surfaces first within the AM bucket; pm1 still
+    // sorts below both AM rows.
+    expect(ids).toEqual([am2.id, am1.id, pm1.id]);
+  });
+
+  it("preserves date-desc as the primary sort across days, with AM/PM as the within-day tiebreaker", async () => {
+    const earlyDayPm = await insertWorkout({
+      date: "2099-07-10",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      durationMin: 20,
+      timeOfDay: "PM",
+    });
+    const lateDayUntagged = await insertWorkout({
+      date: "2099-07-11",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      durationMin: 20,
+      timeOfDay: null,
+    });
+    const lateDayAm = await insertWorkout({
+      date: "2099-07-11",
+      sessionType: T_STRENGTH,
+      equipment: E_GYM,
+      durationMin: 20,
+      timeOfDay: "AM",
+    });
+
+    const res = await request(app)
+      .get("/api/workouts")
+      .query({ from: "2099-07-10", to: "2099-07-11" });
+    expect(res.status).toBe(200);
+    const ids = (res.body as Array<{ id: number }>).map((w) => w.id);
+    // The newer date wins overall, and within it AM beats untagged.
+    expect(ids).toEqual([lateDayAm.id, lateDayUntagged.id, earlyDayPm.id]);
+  });
 });
 
 describe("GET /api/workouts (prescribed run target join, Task #140)", () => {

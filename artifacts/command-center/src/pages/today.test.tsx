@@ -1039,6 +1039,117 @@ describe("Today page — race-day personalized pace chip (task #235)", () => {
     expect(target.textContent).toContain("10:30");
   });
 
+  // Task #50: AM/PM ordering passthrough. The Today page renders
+  // `loggedWorkouts` in the order returned by the API (server-side
+  // sort by AM/PM tag, then createdAt asc), so the rendered DOM order
+  // of the per-session cards must match the wire order. This test
+  // asserts the page does NOT silently re-sort or drop sessions when
+  // multiple AM/PM/Other/untagged tags are present on the same day.
+  it("renders Mission Accomplished cards in the order returned by the API (AM, PM, Other, untagged)", () => {
+    const sessionFor = (id: number, timeOfDay: string | null) => ({
+      id,
+      date: "2026-05-05",
+      sessionType: "Strength + Cardio",
+      equipment: "Tonal",
+      durationMin: 60,
+      strengthMin: 35,
+      cardioMin: 25,
+      runMin: null,
+      distanceMi: null,
+      pace: null,
+      avgHr: null,
+      rpe: 7,
+      strengthLoad: 60,
+      totalLoad: 85,
+      notes: null,
+      timeOfDay,
+      modality: null,
+      planDayId: 1,
+    });
+    renderWithData({
+      date: "2026-05-05",
+      hasPlan: true,
+      plan: firstSession,
+      // Wire order from the API for this scenario: AM, PM, Other,
+      // untagged. The Today page renders in array order; assertions
+      // below check both the per-card testId order and the time-of-day
+      // badge text on each card so a regression that re-ordered the
+      // map but kept the right ids would still surface.
+      loggedWorkouts: [
+        sessionFor(101, "AM"),
+        sessionFor(102, "PM"),
+        sessionFor(103, "Other"),
+        sessionFor(104, null),
+      ],
+      suggestions: null,
+      daysUntilStart: null,
+      firstSession: null,
+    });
+
+    const cards = screen.getAllByTestId(/^session-today-\d+$/);
+    expect(cards.map((c) => c.getAttribute("data-testid"))).toEqual([
+      "session-today-101",
+      "session-today-102",
+      "session-today-103",
+      "session-today-104",
+    ]);
+    expect(
+      screen.getByTestId("badge-time-of-day-today-101").textContent,
+    ).toContain("AM");
+    expect(
+      screen.getByTestId("badge-time-of-day-today-102").textContent,
+    ).toContain("PM");
+    expect(
+      screen.getByTestId("badge-time-of-day-today-103").textContent,
+    ).toContain("Other");
+  });
+
+  it("renders multiple same-slot sessions in the order returned by the API", () => {
+    const sessionFor = (id: number, timeOfDay: string | null) => ({
+      id,
+      date: "2026-05-05",
+      sessionType: "Run",
+      equipment: "Outdoor",
+      durationMin: 30,
+      strengthMin: null,
+      cardioMin: null,
+      runMin: 30,
+      distanceMi: 3,
+      pace: "10:00",
+      avgHr: 140,
+      rpe: 6,
+      strengthLoad: null,
+      totalLoad: 30,
+      notes: null,
+      timeOfDay,
+      modality: null,
+      planDayId: 1,
+    });
+    renderWithData({
+      date: "2026-05-05",
+      hasPlan: true,
+      plan: firstSession,
+      // Two AM rows, then a PM row. The earlier AM row should still
+      // surface above the later AM row (server orders createdAt asc
+      // within a slot) and both AM rows above the PM row.
+      loggedWorkouts: [
+        sessionFor(201, "AM"),
+        sessionFor(202, "AM"),
+        sessionFor(203, "PM"),
+      ],
+      suggestions: null,
+      daysUntilStart: null,
+      firstSession: null,
+    });
+
+    const cards = screen.getAllByTestId(/^session-today-\d+$/);
+    expect(cards.map((c) => c.getAttribute("data-testid"))).toEqual([
+      "session-today-201",
+      "session-today-202",
+      "session-today-203",
+    ]);
+  });
+
   it("does NOT render the race-day chip on a non-race weekday plan", () => {
     runTargetingModeRef.current = "pace";
     const easyRunPlan = {

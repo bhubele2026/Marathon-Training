@@ -19,9 +19,17 @@ const { runTargetingModeRef } = vi.hoisted(() => ({
   },
 }));
 
+// Mutable ref so the AM/PM ordering tests below can swap in a logged-
+// workouts payload for `useListWorkouts` without rebuilding the whole
+// vi.mock factory. Other suites in this file don't touch it and keep
+// the empty default.
+const { workoutsRef } = vi.hoisted(() => ({
+  workoutsRef: { current: [] as unknown[] },
+}));
+
 vi.mock("@workspace/api-client-react", () => ({
   useGetPlanWeek: vi.fn(),
-  useListWorkouts: () => ({ data: [] }),
+  useListWorkouts: () => ({ data: workoutsRef.current }),
   useResetPlanDay: () => ({ mutate: vi.fn(), isPending: false }),
   useResetPlanWeek: () => ({ mutate: vi.fn(), isPending: false }),
   useUndoPlanReset: () => ({ mutate: vi.fn(), isPending: false }),
@@ -753,4 +761,156 @@ describe("Week detail — per-kind race-day Sunday badge (task #201)", () => {
       expect(screen.queryByTestId("badge-race-day-2026-08-30")).toBeNull();
     },
   );
+});
+
+// Task #50: AM/PM/Other/untagged ordering on the Week Detail day card.
+// Unlike the Today page (which renders sessions in the API's order),
+// week-detail.tsx calls `sortWorkoutsByTimeOfDay` client-side after
+// grouping workouts by plan_day. These tests pass `useListWorkouts` a
+// deliberately mis-ordered payload and assert the rendered card order
+// reflects the AM → PM → Other → untagged ranking, with createdAt
+// ascending as the tiebreaker. Covers the edge cases called out by
+// task #50: missing timeOfDay (untagged ranks last) and multiple
+// same-slot sessions (createdAt asc decides).
+describe("Week detail — AM/PM/Other/untagged session ordering (task #50)", () => {
+  function makeRunDay() {
+    return {
+      id: 42,
+      week: 1,
+      phase: "Foundation Build",
+      date: "2026-05-05",
+      day: "Tue",
+      sessionType: "Easy Run",
+      description: "Easy aerobic shakeout",
+      equipment: "Outdoor",
+      equipmentList: ["Outdoor"],
+      isRest: false,
+      isCustomized: false,
+      customizedFields: [],
+      customizedDiff: [],
+      strengthLoad: 0,
+      strengthMin: 0,
+      cardioMin: 0,
+      runMin: 30,
+      distanceMi: 3,
+      pace: "10:00",
+      totalMin: 30,
+      totalLoad: 30,
+      sourceEntryIndex: 0,
+      sourceEntryLabel: null,
+      suggestions: null,
+    };
+  }
+
+  function makeWeekPayload() {
+    return {
+      week: 1,
+      phase: "Foundation Build",
+      startDate: "2026-05-04",
+      endDate: "2026-05-10",
+      plannedStrength: 0,
+      plannedCardio: 0,
+      plannedTotalLoad: 30,
+      plannedMiles: 3,
+      longRunMi: 3,
+      actualMiles: 0,
+      actualCardio: 0,
+      completedSessions: 0,
+      totalSessions: 1,
+      missedSessions: 0,
+      dominantCardioEquipment: null,
+      days: [makeRunDay()],
+    };
+  }
+
+  function makeSession(
+    id: number,
+    timeOfDay: string | null,
+    createdAt: string,
+  ) {
+    return {
+      id,
+      planDayId: 42,
+      date: "2026-05-05",
+      sessionType: "Easy Run",
+      equipment: "Outdoor",
+      equipmentList: ["Outdoor"],
+      durationMin: 30,
+      strengthMin: null,
+      cardioMin: null,
+      runMin: 30,
+      distanceMi: 3,
+      pace: "10:00",
+      avgHr: 140,
+      rpe: 6,
+      strengthLoad: null,
+      totalLoad: 30,
+      notes: null,
+      timeOfDay,
+      modality: null,
+      createdAt,
+      totalMin: 30,
+    };
+  }
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    workoutsRef.current = [];
+  });
+
+  it("renders sessions in AM → PM → Other → untagged order regardless of API arrival order", () => {
+    // Wire arrival order is the OPPOSITE of the expected render
+    // order, so a regression that dropped the client-side sort would
+    // surface as the inverse list.
+    workoutsRef.current = [
+      makeSession(704, null, "2026-05-05T20:00:00Z"),
+      makeSession(703, "Other", "2026-05-05T18:00:00Z"),
+      makeSession(702, "PM", "2026-05-05T17:00:00Z"),
+      makeSession(701, "AM", "2026-05-05T07:00:00Z"),
+    ];
+    renderWith(makeWeekPayload());
+
+    const sessions = screen.getAllByTestId(/^session-2026-05-05-\d+$/);
+    expect(sessions.map((el) => el.getAttribute("data-testid"))).toEqual([
+      "session-2026-05-05-701",
+      "session-2026-05-05-702",
+      "session-2026-05-05-703",
+      "session-2026-05-05-704",
+    ]);
+  });
+
+  it("breaks AM/AM ties by createdAt ascending so an earlier-logged AM session surfaces first", () => {
+    workoutsRef.current = [
+      makeSession(802, "AM", "2026-05-05T09:00:00Z"),
+      makeSession(801, "AM", "2026-05-05T07:00:00Z"),
+      makeSession(803, "PM", "2026-05-05T17:00:00Z"),
+    ];
+    renderWith(makeWeekPayload());
+
+    const sessions = screen.getAllByTestId(/^session-2026-05-05-\d+$/);
+    expect(sessions.map((el) => el.getAttribute("data-testid"))).toEqual([
+      "session-2026-05-05-801",
+      "session-2026-05-05-802",
+      "session-2026-05-05-803",
+    ]);
+  });
+
+  it("ranks rows with missing timeOfDay (null and unknown strings) last", () => {
+    workoutsRef.current = [
+      makeSession(902, "Evening", "2026-05-05T19:00:00Z"),
+      makeSession(901, null, "2026-05-05T05:00:00Z"),
+      makeSession(900, "AM", "2026-05-05T22:00:00Z"),
+    ];
+    renderWith(makeWeekPayload());
+
+    const sessions = screen.getAllByTestId(/^session-2026-05-05-\d+$/);
+    // AM first; the two untagged-equivalent rows then sort by
+    // createdAt ascending (901 was inserted before 902).
+    expect(sessions.map((el) => el.getAttribute("data-testid"))).toEqual([
+      "session-2026-05-05-900",
+      "session-2026-05-05-901",
+      "session-2026-05-05-902",
+    ]);
+  });
 });

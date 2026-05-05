@@ -371,6 +371,116 @@ describe("GET /api/plan/today", () => {
     expect(ids).toEqual([first.id, second.id]);
   });
 
+  // Task #50: AM/PM/Other/untagged ordering on /api/plan/today.
+  // The route's ORDER BY uses a CASE on workouts.time_of_day so AM
+  // sorts first, then PM, then Other, then untagged rows — with
+  // createdAt ascending as the tiebreaker. The earlier test above
+  // covers the createdAt fallback for two untagged rows; this test
+  // exercises the full four-bucket priority by deliberately inserting
+  // rows in the OPPOSITE of the expected output order so a regression
+  // that drops the CASE expression and falls back to plain createdAt
+  // ordering would surface as the inverse list.
+  it("orders today's logged workouts by time-of-day tag (AM, PM, Other, untagged)", async () => {
+    const today = "2099-06-04";
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(`${today}T12:00:00.000Z`));
+
+    const week = 8013;
+    const phase = "Today Quad";
+    await insertWeek(week, { startDate: today, endDate: today, phase });
+    await insertPlanDay(week, phase, {
+      date: today,
+      day: "Wed",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+    });
+
+    // Insert in REVERSE rank order so a missing CASE would yield
+    // [untagged, Other, PM, AM] (createdAt asc) instead of the
+    // expected [AM, PM, Other, untagged].
+    const untagged = await insertWorkout({
+      date: today,
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      durationMin: 20,
+      timeOfDay: null,
+    });
+    const other = await insertWorkout({
+      date: today,
+      sessionType: T_STRENGTH,
+      equipment: E_GYM,
+      durationMin: 25,
+      timeOfDay: "Other",
+    });
+    const pm = await insertWorkout({
+      date: today,
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      durationMin: 30,
+      timeOfDay: "PM",
+    });
+    const am = await insertWorkout({
+      date: today,
+      sessionType: T_STRENGTH,
+      equipment: E_GYM,
+      durationMin: 35,
+      timeOfDay: "AM",
+    });
+
+    const res = await request(app).get("/api/plan/today");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetTodayPlanResponse, res.body);
+    const ids = res.body.loggedWorkouts.map((w: { id: number }) => w.id);
+    expect(ids).toEqual([am.id, pm.id, other.id, untagged.id]);
+  });
+
+  // Same-slot tiebreak: two AM workouts must come back in createdAt
+  // ascending order. Pairs with the cross-slot test above so both legs
+  // of the ORDER BY clause (rank, then createdAt) have explicit
+  // coverage on the live HTTP surface.
+  it("breaks AM/PM ties on /api/plan/today by createdAt ascending", async () => {
+    const today = "2099-06-05";
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(`${today}T12:00:00.000Z`));
+
+    const week = 8014;
+    const phase = "Today AM Double";
+    await insertWeek(week, { startDate: today, endDate: today, phase });
+    await insertPlanDay(week, phase, {
+      date: today,
+      day: "Thu",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+    });
+
+    const am1 = await insertWorkout({
+      date: today,
+      sessionType: T_STRENGTH,
+      equipment: E_GYM,
+      durationMin: 20,
+      timeOfDay: "AM",
+    });
+    const am2 = await insertWorkout({
+      date: today,
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      durationMin: 25,
+      timeOfDay: "AM",
+    });
+    const pm1 = await insertWorkout({
+      date: today,
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      durationMin: 30,
+      timeOfDay: "PM",
+    });
+
+    const res = await request(app).get("/api/plan/today");
+    expect(res.status).toBe(200);
+    const ids = res.body.loggedWorkouts.map((w: { id: number }) => w.id);
+    expect(ids).toEqual([am1.id, am2.id, pm1.id]);
+  });
+
   it("returns daysUntilStart and a firstSession preview when today is before the campaign begins", async () => {
     // Pre-launch window: today is 4 days before the first non-rest plan day.
     // The week starts on a Mon rest day to verify we count down to the first
