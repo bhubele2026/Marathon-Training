@@ -914,3 +914,229 @@ describe("Week detail — AM/PM/Other/untagged session ordering (task #50)", () 
     ]);
   });
 });
+
+// Task #139: end-to-end coverage that the slim Week Detail day cards
+// and per-session rows actually render the one headline number picked
+// by `getPrimaryMetric` / `getPrimaryMetricCompare`. The unit tests on
+// the helpers cover the selection rule itself; these tests pin the
+// rendered DOM so a refactor of the slim-card layout (or a swap of
+// PrimaryMetricDisplay's testIds) is caught here. Each surface gets a
+// planned-only, a logged-only, and a planned-vs-actual compare case.
+describe("Week detail — primary metric rendering on slim cards (task #139)", () => {
+  function makeDay(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 1,
+      week: 1,
+      phase: "Foundation Build",
+      date: "2026-05-05",
+      day: "Tue",
+      sessionType: "Tonal Lift",
+      description: "Heavy upper-body Tonal",
+      equipment: "Tonal",
+      equipmentList: ["Tonal"],
+      isRest: false,
+      isCustomized: false,
+      customizedFields: [],
+      customizedDiff: [],
+      strengthLoad: 60,
+      strengthMin: 45,
+      cardioMin: 0,
+      runMin: 0,
+      distanceMi: null,
+      pace: null,
+      totalMin: 45,
+      totalLoad: 60,
+      sourceEntryIndex: 0,
+      sourceEntryLabel: null,
+      suggestions: null,
+      ...overrides,
+    };
+  }
+
+  function makeWeek(day: Record<string, unknown>) {
+    return {
+      week: 1,
+      phase: "Foundation Build",
+      startDate: "2026-05-04",
+      endDate: "2026-05-10",
+      plannedStrength: 45,
+      plannedCardio: 0,
+      plannedTotalLoad: 60,
+      plannedMiles: 0,
+      longRunMi: 0,
+      actualMiles: 0,
+      actualCardio: 0,
+      completedSessions: 0,
+      totalSessions: 1,
+      missedSessions: 0,
+      dominantCardioEquipment: null,
+      days: [day],
+    };
+  }
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    workoutsRef.current = [];
+  });
+
+  // -----------------------------------------------------------------
+  // Day plan card (PrimaryMetric, single-value variant)
+  // testIdPrefix: `day-${day.date}`
+  // -----------------------------------------------------------------
+  it("renders distance as the headline metric on a long-run day card", () => {
+    renderWith(
+      makeWeek(
+        makeDay({
+          sessionType: "Long Run",
+          strengthMin: 0,
+          runMin: 60,
+          distanceMi: 8,
+          totalMin: 60,
+        }),
+      ),
+    );
+
+    expect(
+      screen.getByTestId("day-2026-05-05-primary-metric-value").textContent,
+    ).toBe("8.00 mi");
+  });
+
+  it("renders lift minutes as the headline metric on a Tonal-only day card", () => {
+    renderWith(makeWeek(makeDay()));
+
+    expect(
+      screen.getByTestId("day-2026-05-05-primary-metric-value").textContent,
+    ).toBe("45 min");
+    expect(
+      screen.getByTestId("day-2026-05-05-primary-metric").textContent,
+    ).toContain("Lift");
+  });
+
+  it("renders total minutes as the headline metric on a mixed lift+cardio day card", () => {
+    renderWith(
+      makeWeek(
+        makeDay({
+          sessionType: "Strength + Cardio",
+          strengthMin: 35,
+          cardioMin: 25,
+          totalMin: 60,
+        }),
+      ),
+    );
+
+    expect(
+      screen.getByTestId("day-2026-05-05-primary-metric-value").textContent,
+    ).toBe("60 min");
+  });
+
+  // -----------------------------------------------------------------
+  // Logged session row inside a non-rest day card (compare variant)
+  // testIdPrefix: `session-${day.date}-${session.id}`
+  // -----------------------------------------------------------------
+  it("renders an actual / planned compare on a logged session row matching a run plan day", () => {
+    workoutsRef.current = [
+      {
+        id: 555,
+        date: "2026-05-05",
+        sessionType: "Long Run",
+        equipment: "Outdoor",
+        durationMin: 58,
+        strengthMin: 0,
+        cardioMin: 0,
+        runMin: 58,
+        distanceMi: 5.2,
+        pace: "10:05",
+        avgHr: null,
+        rpe: 7,
+        strengthLoad: 0,
+        totalLoad: 60,
+        notes: null,
+        timeOfDay: null,
+        modality: null,
+        planDayId: 1,
+        totalMin: 58,
+      },
+    ];
+    renderWith(
+      makeWeek(
+        makeDay({
+          sessionType: "Long Run",
+          strengthMin: 0,
+          runMin: 60,
+          distanceMi: 6,
+          totalMin: 60,
+        }),
+      ),
+    );
+
+    expect(
+      screen.getByTestId("session-2026-05-05-555-primary-metric-actual")
+        .textContent,
+    ).toBe("5.20 mi");
+    expect(
+      screen.getByTestId("session-2026-05-05-555-primary-metric-planned")
+        .textContent,
+    ).toContain("6.00 mi");
+  });
+
+  it("renders the actual headline with no planned counterpart when the logged session has no comparable plan numbers (logged-only compare)", () => {
+    // The non-rest day path inside the day card uses
+    // getPrimaryMetricCompare(session, day). Pair a Tonal day's plan
+    // with a Lifestyle session that recorded only durationMin → the
+    // kind is picked off the actual (total) and the planned slot is
+    // omitted because the plan day has no positive total in that
+    // kind once we strip lift / cardio / run.
+    workoutsRef.current = [
+      {
+        id: 888,
+        date: "2026-05-05",
+        sessionType: "Lifestyle",
+        equipment: "Lifestyle",
+        durationMin: 30,
+        strengthMin: 0,
+        cardioMin: 0,
+        runMin: 0,
+        distanceMi: null,
+        pace: null,
+        avgHr: null,
+        rpe: null,
+        strengthLoad: 0,
+        totalLoad: 0,
+        notes: null,
+        timeOfDay: null,
+        modality: null,
+        planDayId: null,
+      },
+    ];
+    // Use a rest plan day so the day card takes the rest-day branch
+    // (line 661 of week-detail.tsx) which calls
+    // getPrimaryMetricCompare(session, null) — the cleanest "logged-
+    // only" compare path on this page.
+    renderWith(
+      makeWeek(
+        makeDay({
+          isRest: true,
+          sessionType: "Rest",
+          equipment: "None",
+          equipmentList: ["None"],
+          strengthLoad: 0,
+          strengthMin: 0,
+          cardioMin: 0,
+          runMin: 0,
+          distanceMi: null,
+          totalMin: 0,
+          totalLoad: 0,
+        }),
+      ),
+    );
+
+    expect(
+      screen.getByTestId("session-2026-05-05-888-primary-metric-actual")
+        .textContent,
+    ).toBe("30 min");
+    expect(
+      screen.queryByTestId("session-2026-05-05-888-primary-metric-planned"),
+    ).toBeNull();
+  });
+});

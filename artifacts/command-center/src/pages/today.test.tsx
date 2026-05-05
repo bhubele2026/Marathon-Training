@@ -1184,3 +1184,288 @@ describe("Today page — race-day personalized pace chip (task #235)", () => {
     ).toBeNull();
   });
 });
+
+// Task #139: end-to-end coverage that the slim session cards on the
+// Today page actually render the one headline number picked by
+// `getPrimaryMetric` / `getPrimaryMetricCompare`. The unit tests on
+// the helpers cover the selection rule itself; these tests pin the
+// rendered DOM so a refactor of the slim-card layout (or a swap of
+// PrimaryMetricDisplay's testIds) is caught here. Each surface is
+// exercised with a planned-only, a logged-only, and a planned-vs-
+// actual compare case so all three card states stay covered.
+describe("Today page — primary metric rendering on slim cards (task #139)", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  // -----------------------------------------------------------------
+  // Mission Brief planned card (PrimaryMetric, single-value variant)
+  // testIdPrefix: `today-plan-${sourceEntryIndex}`
+  // -----------------------------------------------------------------
+  it("renders distance as the headline metric on a long-run Mission Brief plan card", () => {
+    renderWithData({
+      date: "2026-05-05",
+      hasPlan: true,
+      plan: {
+        ...firstSession,
+        sourceEntryIndex: 0,
+        sessionType: "Long Run",
+        runMin: 60,
+        distanceMi: 8,
+        strengthLoad: 0,
+        cardioMin: 0,
+        totalMin: 60,
+      },
+      loggedWorkouts: [],
+      suggestions: null,
+      daysUntilStart: null,
+      firstSession: null,
+    });
+
+    const value = screen.getByTestId("today-plan-0-primary-metric-value");
+    expect(value.textContent).toBe("8.00 mi");
+    // The actual/planned compare slots are exclusive to logged cards.
+    expect(
+      screen.queryByTestId("today-plan-0-primary-metric-actual"),
+    ).toBeNull();
+  });
+
+  it("renders total minutes as the headline metric on a mixed Mission Brief plan card", () => {
+    renderWithData({
+      date: "2026-05-05",
+      hasPlan: true,
+      plan: {
+        ...firstSession,
+        sourceEntryIndex: 0,
+        sessionType: "Strength + Cardio",
+        strengthMin: 35,
+        cardioMin: 25,
+        runMin: 0,
+        distanceMi: null,
+        totalMin: 60,
+      },
+      loggedWorkouts: [],
+      suggestions: null,
+      daysUntilStart: null,
+      firstSession: null,
+    });
+
+    const value = screen.getByTestId("today-plan-0-primary-metric-value");
+    // Two populated buckets (lift + cardio) with totalMin > 0 → "total"
+    // kind formatted as "60 min".
+    expect(value.textContent).toBe("60 min");
+  });
+
+  it("renders lift minutes as the headline metric on a Tonal-only Mission Brief plan card", () => {
+    renderWithData({
+      date: "2026-05-05",
+      hasPlan: true,
+      plan: {
+        ...firstSession,
+        sourceEntryIndex: 0,
+        sessionType: "Tonal Lift",
+        strengthMin: 45,
+        cardioMin: 0,
+        runMin: 0,
+        distanceMi: null,
+        totalMin: 45,
+      },
+      loggedWorkouts: [],
+      suggestions: null,
+      daysUntilStart: null,
+      firstSession: null,
+    });
+
+    expect(
+      screen.getByTestId("today-plan-0-primary-metric-value").textContent,
+    ).toBe("45 min");
+    // Label sits next to the value via the same testIdPrefix container.
+    expect(
+      screen.getByTestId("today-plan-0-primary-metric").textContent,
+    ).toContain("Lift");
+  });
+
+  // -----------------------------------------------------------------
+  // Pre-launch First Scheduled Session preview (PrimaryMetric, single)
+  // testIdPrefix: `first-session`
+  // -----------------------------------------------------------------
+  it("renders the first-session headline metric on the pre-launch preview", () => {
+    renderWithData({
+      date: "2026-05-02",
+      hasPlan: false,
+      plan: null,
+      loggedWorkouts: [],
+      suggestions: null,
+      daysUntilStart: 3,
+      firstSession: {
+        ...firstSession,
+        sessionType: "Tonal Lift",
+        strengthMin: 50,
+        cardioMin: 0,
+        runMin: 0,
+        distanceMi: null,
+        totalMin: 50,
+      },
+    });
+
+    expect(
+      screen.getByTestId("first-session-primary-metric-value").textContent,
+    ).toBe("50 min");
+  });
+
+  // -----------------------------------------------------------------
+  // Mission Accomplished compare card (PrimaryMetricCompare)
+  // testIdPrefix: `session-today-${id}` → `-primary-metric-actual`
+  //                                      → `-primary-metric-planned`
+  // -----------------------------------------------------------------
+  it("renders an actual / planned compare on a logged Mission Accomplished card matching a run plan day", () => {
+    const runPlan = {
+      ...firstSession,
+      sessionType: "Long Run",
+      runMin: 60,
+      distanceMi: 6,
+      strengthLoad: 0,
+      cardioMin: 0,
+      totalMin: 60,
+    };
+    renderWithData({
+      date: "2026-05-05",
+      hasPlan: true,
+      plan: runPlan,
+      loggedWorkouts: [
+        {
+          id: 555,
+          date: "2026-05-05",
+          sessionType: "Long Run",
+          equipment: "Outdoor",
+          durationMin: 58,
+          strengthMin: 0,
+          cardioMin: 0,
+          runMin: 58,
+          distanceMi: 5.2,
+          pace: "10:05",
+          avgHr: null,
+          rpe: 7,
+          strengthLoad: 0,
+          totalLoad: 60,
+          notes: null,
+          timeOfDay: null,
+          modality: null,
+          planDayId: 1,
+        },
+      ],
+      suggestions: null,
+      daysUntilStart: null,
+      firstSession: null,
+    });
+
+    // Plan picked the kind (distance), so the logged card displays
+    // miles even though the runner could have only logged minutes.
+    expect(
+      screen.getByTestId("session-today-555-primary-metric-actual").textContent,
+    ).toBe("5.20 mi");
+    expect(
+      screen.getByTestId("session-today-555-primary-metric-planned")
+        .textContent,
+    ).toContain("6.00 mi");
+    // Single-value testid is reserved for the non-compare variant.
+    expect(
+      screen.queryByTestId("session-today-555-primary-metric-value"),
+    ).toBeNull();
+  });
+
+  it("renders an actual / planned compare on a logged Mission Accomplished card for a mixed lift+cardio day (minutes)", () => {
+    const liftPlan = {
+      ...firstSession,
+      sessionType: "Strength + Cardio",
+      strengthMin: 35,
+      cardioMin: 25,
+      runMin: 0,
+      distanceMi: null,
+      totalMin: 60,
+    };
+    renderWithData({
+      date: "2026-05-05",
+      hasPlan: true,
+      plan: liftPlan,
+      loggedWorkouts: [
+        {
+          id: 777,
+          date: "2026-05-05",
+          sessionType: "Strength + Cardio",
+          equipment: "Tonal",
+          durationMin: 50,
+          strengthMin: 30,
+          cardioMin: 20,
+          runMin: 0,
+          distanceMi: null,
+          pace: null,
+          avgHr: null,
+          rpe: 6,
+          strengthLoad: 50,
+          totalLoad: 70,
+          notes: null,
+          timeOfDay: null,
+          modality: null,
+          planDayId: 1,
+          totalMin: 50,
+        },
+      ],
+      suggestions: null,
+      daysUntilStart: null,
+      firstSession: null,
+    });
+
+    expect(
+      screen.getByTestId("session-today-777-primary-metric-actual").textContent,
+    ).toBe("50 min");
+    expect(
+      screen.getByTestId("session-today-777-primary-metric-planned")
+        .textContent,
+    ).toContain("60 min");
+  });
+
+  it("renders the actual headline with no planned counterpart when a logged session has no matching plan numbers (logged-only compare)", () => {
+    // Rest-day plan + a quick-logged Lifestyle row → planned side has
+    // nothing positive to display, so getPrimaryMetricCompare picks the
+    // kind off the actual and omits the planned slot.
+    renderWithData({
+      date: "2026-05-04",
+      hasPlan: true,
+      plan: restPlan,
+      loggedWorkouts: [
+        {
+          id: 888,
+          date: "2026-05-04",
+          sessionType: "Lifestyle",
+          equipment: "Lifestyle",
+          durationMin: 30,
+          strengthMin: 0,
+          cardioMin: 0,
+          runMin: 0,
+          distanceMi: null,
+          pace: null,
+          avgHr: null,
+          rpe: null,
+          strengthLoad: 0,
+          totalLoad: 0,
+          notes: null,
+          timeOfDay: null,
+          modality: null,
+          planDayId: null,
+        },
+      ],
+      suggestions: null,
+      daysUntilStart: null,
+      firstSession: null,
+    });
+
+    expect(
+      screen.getByTestId("session-today-888-primary-metric-actual").textContent,
+    ).toBe("30 min");
+    expect(
+      screen.queryByTestId("session-today-888-primary-metric-planned"),
+    ).toBeNull();
+  });
+});

@@ -400,3 +400,207 @@ describe("Dashboard header — title from active planner config name (task #244)
     );
   });
 });
+
+// Task #139: end-to-end coverage that the slim Today's Mission card on
+// the Dashboard actually renders the one headline number picked by
+// `getPrimaryMetric` / `getPrimaryMetricCompare`. The unit tests on
+// the helpers cover the selection rule itself; these tests pin the
+// rendered DOM so a refactor of the slim-card layout (or a swap of
+// PrimaryMetricDisplay's testIds) is caught here. The Dashboard surface
+// gets a planned-only, a logged-only, and a planned-vs-actual compare
+// case so all three card states stay covered alongside the matching
+// Today / Week Detail suites.
+describe("Dashboard — primary metric rendering on Today's Mission card (task #139)", () => {
+  // Common Today payload pieces. We override `today` per-test via
+  // mockToday so we can flip planned/logged shape without rewriting
+  // every other dashboard hook return.
+  function setTodayPayload(payload: Record<string, unknown>) {
+    setupHooks([]);
+    mockToday.mockReturnValue({
+      data: payload,
+      isLoading: false,
+    } as unknown as ReturnType<typeof useGetTodayPlan>);
+  }
+
+  const planBase = {
+    id: 1,
+    week: 1,
+    phase: "Foundation Build",
+    date: "2026-05-05",
+    day: "Tue",
+    sessionType: "Tonal Lift",
+    description: "Heavy upper-body Tonal",
+    equipment: "Tonal",
+    equipmentList: ["Tonal"],
+    isRest: false,
+    isCustomized: false,
+    customizedFields: [],
+    strengthLoad: 60,
+    strengthMin: 45,
+    cardioMin: 0,
+    runMin: 0,
+    distanceMi: null,
+    pace: null,
+    totalMin: 45,
+    totalLoad: 60,
+    sourceEntryIndex: 0,
+  };
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  // -----------------------------------------------------------------
+  // Today's Mission planned card (PrimaryMetric, single-value variant)
+  // testIdPrefix: `dashboard-today-plan`
+  // -----------------------------------------------------------------
+  it("renders distance as the headline metric on a long-run Today's Mission card", () => {
+    setTodayPayload({
+      hasPlan: true,
+      date: "2026-05-05",
+      plan: {
+        ...planBase,
+        sessionType: "Long Run",
+        strengthMin: 0,
+        runMin: 60,
+        distanceMi: 8,
+        totalMin: 60,
+      },
+      loggedWorkouts: [],
+    });
+    render(<Dashboard />);
+
+    expect(
+      screen.getByTestId("dashboard-today-plan-primary-metric-value")
+        .textContent,
+    ).toBe("8.00 mi");
+  });
+
+  it("renders lift minutes as the headline metric on a Tonal-only Today's Mission card", () => {
+    setTodayPayload({
+      hasPlan: true,
+      date: "2026-05-05",
+      plan: planBase,
+      loggedWorkouts: [],
+    });
+    render(<Dashboard />);
+
+    expect(
+      screen.getByTestId("dashboard-today-plan-primary-metric-value")
+        .textContent,
+    ).toBe("45 min");
+    expect(
+      screen.getByTestId("dashboard-today-plan-primary-metric").textContent,
+    ).toContain("Lift");
+  });
+
+  // -----------------------------------------------------------------
+  // Logged session row on the Dashboard (compare variant)
+  // testIdPrefix: `session-dashboard-${session.id}`
+  // -----------------------------------------------------------------
+  it("renders an actual / planned compare on a logged session row matching a run plan day", () => {
+    setTodayPayload({
+      hasPlan: true,
+      date: "2026-05-05",
+      plan: {
+        ...planBase,
+        sessionType: "Long Run",
+        strengthMin: 0,
+        runMin: 60,
+        distanceMi: 6,
+        totalMin: 60,
+      },
+      loggedWorkouts: [
+        {
+          id: 555,
+          date: "2026-05-05",
+          sessionType: "Long Run",
+          equipment: "Outdoor",
+          durationMin: 58,
+          strengthMin: 0,
+          cardioMin: 0,
+          runMin: 58,
+          distanceMi: 5.2,
+          pace: "10:05",
+          avgHr: null,
+          rpe: 7,
+          strengthLoad: 0,
+          totalLoad: 60,
+          notes: null,
+          timeOfDay: null,
+          modality: null,
+          planDayId: 1,
+          totalMin: 58,
+        },
+      ],
+    });
+    render(<Dashboard />);
+
+    expect(
+      screen.getByTestId("session-dashboard-555-primary-metric-actual")
+        .textContent,
+    ).toBe("5.20 mi");
+    expect(
+      screen.getByTestId("session-dashboard-555-primary-metric-planned")
+        .textContent,
+    ).toContain("6.00 mi");
+  });
+
+  it("renders the actual headline with no planned counterpart when the logged session has no comparable plan numbers (logged-only compare)", () => {
+    // Rest plan day + a quick-logged Lifestyle row → planned side has
+    // nothing positive to display, so getPrimaryMetricCompare picks
+    // the kind off the actual and omits the planned slot.
+    setTodayPayload({
+      hasPlan: true,
+      date: "2026-05-04",
+      plan: {
+        ...planBase,
+        date: "2026-05-04",
+        day: "Mon",
+        sessionType: "Rest",
+        equipment: "None",
+        equipmentList: ["None"],
+        isRest: true,
+        strengthLoad: 0,
+        strengthMin: 0,
+        cardioMin: 0,
+        runMin: 0,
+        distanceMi: null,
+        totalMin: 0,
+        totalLoad: 0,
+      },
+      loggedWorkouts: [
+        {
+          id: 888,
+          date: "2026-05-04",
+          sessionType: "Lifestyle",
+          equipment: "Lifestyle",
+          durationMin: 30,
+          strengthMin: 0,
+          cardioMin: 0,
+          runMin: 0,
+          distanceMi: null,
+          pace: null,
+          avgHr: null,
+          rpe: null,
+          strengthLoad: 0,
+          totalLoad: 0,
+          notes: null,
+          timeOfDay: null,
+          modality: null,
+          planDayId: null,
+        },
+      ],
+    });
+    render(<Dashboard />);
+
+    expect(
+      screen.getByTestId("session-dashboard-888-primary-metric-actual")
+        .textContent,
+    ).toBe("30 min");
+    expect(
+      screen.queryByTestId("session-dashboard-888-primary-metric-planned"),
+    ).toBeNull();
+  });
+});
