@@ -158,11 +158,14 @@ export function HybridWeekPreview({
                 {s.label}
               </div>
               {tag && (
-                <div
-                  className="mt-0.5 text-[8px] font-mono uppercase tracking-wider text-muted-foreground"
-                  data-testid={`${tidPrefix}-${s.day.toLowerCase()}-tag`}
-                >
-                  {tag}
+                <div className="mt-0.5">
+                  <span
+                    className="inline-flex items-center rounded-full border border-accent/30 bg-accent/10 px-1.5 text-[9px] font-medium tracking-wide"
+                    style={{ color: "hsl(var(--accent))" }}
+                    data-testid={`${tidPrefix}-${s.day.toLowerCase()}-tag`}
+                  >
+                    {tag}
+                  </span>
                 </div>
               )}
             </div>

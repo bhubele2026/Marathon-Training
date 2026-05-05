@@ -2981,7 +2981,7 @@ export default function Planner() {
                           <div className="flex items-center justify-between">
                             <Label className="text-xs">Lift / Run mix</Label>
                             <span
-                              className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground"
+                              className="text-[11px] uppercase tracking-wider text-muted-foreground"
                               data-testid="planner-hybrid-position-label"
                             >
                               {HYBRID_POSITION_LABEL[hybridPosition]}
@@ -3086,7 +3086,7 @@ export default function Planner() {
                                   ),
                                 );
                               }}
-                              className="h-8"
+                              className="h-9"
                               data-testid="planner-hybrid-days-input"
                             />
                           </div>
@@ -3105,7 +3105,7 @@ export default function Planner() {
                             >
                               <SelectTrigger
                                 id="planner-hybrid-level"
-                                className="h-8"
+                                className="h-9"
                                 data-testid="planner-hybrid-level-select"
                               >
                                 <SelectValue />
@@ -3138,7 +3138,7 @@ export default function Planner() {
                             onChange={(e) =>
                               setHybridEventDate(e.target.value)
                             }
-                            className="h-8"
+                            className="h-9"
                             data-testid="planner-hybrid-event-date-input"
                           />
                           {hybridEventDate &&
