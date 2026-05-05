@@ -12,6 +12,9 @@ import { Edit, Trash2, Plus } from "lucide-react";
 import { WorkoutForm } from "@/components/workout-form";
 import { ActualBreakdown } from "@/components/actual-breakdown";
 import { RunTargetLine } from "@/components/run-target-line";
+import { PrimaryMetricDisplay } from "@/components/primary-metric-display";
+import { SessionDetailDisclosure } from "@/components/session-detail-disclosure";
+import { getPrimaryMetric } from "@/lib/primary-metric";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -130,21 +133,23 @@ export default function Log() {
                 <TableHead className="uppercase text-[10px] font-bold tracking-wider">Date</TableHead>
                 <TableHead className="uppercase text-[10px] font-bold tracking-wider">Type</TableHead>
                 <TableHead className="uppercase text-[10px] font-bold tracking-wider">Equipment</TableHead>
-                <TableHead className="uppercase text-[10px] font-bold tracking-wider text-right">Distance</TableHead>
-                <TableHead className="uppercase text-[10px] font-bold tracking-wider text-right">Time</TableHead>
-                <TableHead className="uppercase text-[10px] font-bold tracking-wider text-right">Pace</TableHead>
-                <TableHead className="uppercase text-[10px] font-bold tracking-wider text-right">Load</TableHead>
+                {/* Task #138: collapsed Distance / Time / Pace / Load
+                    columns into a single one-number "Metric" column
+                    powered by getPrimaryMetric, matching the slimmed
+                    session-card treatment from Task #133. The full
+                    breakdown still lives in the per-row expand below. */}
+                <TableHead className="uppercase text-[10px] font-bold tracking-wider text-right">Metric</TableHead>
                 <TableHead className="text-right"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {workouts?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">No workouts found</TableCell>
+                  <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">No workouts found</TableCell>
                 </TableRow>
               ) : (
-                workouts?.map((workout) => (
-                  <TableRow key={workout.id} className="hover:bg-muted/30">
+                workouts?.flatMap((workout) => [
+                  <TableRow key={workout.id} className="hover:bg-muted/30 border-b-0">
                     <TableCell className="font-medium whitespace-nowrap">{formatDate(workout.date)}</TableCell>
                     <TableCell className="font-bold">{workout.sessionType}</TableCell>
                     <TableCell>
@@ -163,50 +168,21 @@ export default function Log() {
                         ))}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-mono">{formatDistance(workout.distanceMi)}</TableCell>
-                    <TableCell className="text-right font-mono">
-                      {/* Per-bucket actual breakdown (Task #76). Renders
-                          TOTAL · LIFT · CARDIO · RUN inline so the table
-                          shows how each session's time broke down across
-                          buckets, not just the rolled-up duration. The
-                          /log table has no plan-day join here, so the
-                          tiles render without "/ planned" annotations.
-                          For legacy duration-only rows the component
-                          falls back to a single Total tile so the cell
-                          still renders the same number it always has. */}
-                      <ActualBreakdown
-                        totalMin={workout.totalMin}
-                        strengthMin={workout.strengthMin}
-                        cardioMin={workout.cardioMin}
-                        runMin={workout.runMin}
-                        durationMin={workout.durationMin}
+                    <TableCell className="text-right">
+                      {/* Task #138: single headline number per row
+                          (miles for runs, minutes for lifts/cardio,
+                          total for mixed) instead of cramming distance
+                          + duration + load into separate columns.
+                          Hidden details (per-bucket breakdown, pace,
+                          load, run-target) live in the disclosure row
+                          below. */}
+                      <PrimaryMetricDisplay
+                        metric={getPrimaryMetric(workout)}
                         variant="compact"
                         testIdPrefix={`log-row-${workout.id}`}
+                        className="inline-block text-right"
                       />
-                      {/* Task #140: surface the prescribed run-target
-                          line in the user's chosen mode so the runner
-                          can compare what the plan asked for vs the
-                          actuals shown above. The component no-ops on
-                          rest / strength / cardio days and on rows that
-                          have no plan-day join (quick-logged Lifestyle
-                          activities, off-plan runs), so we can render
-                          it unconditionally. */}
-                      {workout.prescribedRunTarget && (
-                        <div className="mt-1 flex justify-end">
-                          <RunTargetLine
-                            sessionType={workout.prescribedRunTarget.sessionType}
-                            week={workout.prescribedRunTarget.week}
-                            runMin={workout.prescribedRunTarget.runMin}
-                            distanceMi={workout.prescribedRunTarget.distanceMi}
-                            pace={workout.prescribedRunTarget.pace}
-                            variant="compact"
-                            testId={`log-row-${workout.id}-run-target`}
-                          />
-                        </div>
-                      )}
                     </TableCell>
-                    <TableCell className="text-right font-mono">{workout.pace || '-'}</TableCell>
-                    <TableCell className="text-right font-mono">{formatLoad(workout.totalLoad)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(workout)}>
@@ -233,8 +209,59 @@ export default function Log() {
                         </AlertDialog>
                       </div>
                     </TableCell>
-                  </TableRow>
-                ))
+                  </TableRow>,
+                  <TableRow key={`${workout.id}-detail`} className="hover:bg-transparent">
+                    <TableCell colSpan={5} className="pt-0">
+                      <SessionDetailDisclosure
+                        testId={`toggle-log-session-detail-${workout.id}`}
+                      >
+                        <div className="space-y-3 px-1">
+                          {/* Per-bucket actual breakdown (Task #76),
+                              moved into the disclosure as part of the
+                              Task #138 slim-down. */}
+                          <ActualBreakdown
+                            totalMin={workout.totalMin}
+                            strengthMin={workout.strengthMin}
+                            cardioMin={workout.cardioMin}
+                            runMin={workout.runMin}
+                            durationMin={workout.durationMin}
+                            variant="compact"
+                            testIdPrefix={`log-row-${workout.id}`}
+                          />
+                          <div className="grid grid-cols-3 gap-3 text-xs">
+                            <div>
+                              <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Distance</p>
+                              <p className="font-mono font-bold" data-testid={`log-row-${workout.id}-distance`}>{formatDistance(workout.distanceMi)}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Pace</p>
+                              <p className="font-mono font-bold" data-testid={`log-row-${workout.id}-pace`}>{workout.pace || '-'}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Load</p>
+                              <p className="font-mono font-bold" data-testid={`log-row-${workout.id}-load`}>{formatLoad(workout.totalLoad)}</p>
+                            </div>
+                          </div>
+                          {/* Task #140 prescribed run-target line, kept
+                              in the expand so the runner can still
+                              compare planned vs actual without the
+                              collapsed row growing back. */}
+                          {workout.prescribedRunTarget && (
+                            <RunTargetLine
+                              sessionType={workout.prescribedRunTarget.sessionType}
+                              week={workout.prescribedRunTarget.week}
+                              runMin={workout.prescribedRunTarget.runMin}
+                              distanceMi={workout.prescribedRunTarget.distanceMi}
+                              pace={workout.prescribedRunTarget.pace}
+                              variant="compact"
+                              testId={`log-row-${workout.id}-run-target`}
+                            />
+                          )}
+                        </div>
+                      </SessionDetailDisclosure>
+                    </TableCell>
+                  </TableRow>,
+                ])
               )}
             </TableBody>
           </Table>
