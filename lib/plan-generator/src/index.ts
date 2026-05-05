@@ -3468,6 +3468,7 @@ export {
   type HybridPhase,
   type PlanRaceKind,
 } from "./templates.js";
+export { detectRaceKind, type RaceDayKind } from "./race-day.js";
 // Note: previewHybridWeek + HybridPreview* types are exported inline
 // at their declaration site above (line ~1557). They live here in
 // index.ts (not templates.ts) because they reuse pickHybridSchedule

@@ -8,20 +8,17 @@
 // the four real-race kinds (see RACE_DAY_SPECS in
 // lib/plan-generator/src/templates.ts).
 //
-// IMPORTANT: classification is GATED on an explicit race signal —
-// either the row's `sessionType === "Race"` or the description starts
-// with the generator's "RACE DAY — " prefix. Without this guard a
-// regular 13.1 mi long run (or a 3.1 mi shakeout) would mis-classify
-// as a race day from distance alone, and the calendar would paint a
-// stray "Half Marathon Day" / "5K Day" badge on it. Once the row is
-// confirmed to be a race day, kind is resolved from the description
-// prefix first (survives a runner editing the distance), then falls
-// back to `distance_mi` for legacy / hand-edited rows.
-//
-// Returns `null` when the row is not a recognised race-day Sunday so
-// callers can fall through to the generic session-type title.
+// Task #210: the actual race-day classification (regex + distance
+// tolerance + session-type gate) lives in the shared
+// `@workspace/plan-generator` `detectRaceKind` helper so the api-server
+// `/plan/overview` route and this module can never drift. This file
+// stays the home of the runner-facing LABEL mapping (long / short /
+// canonical distance) — kept on the client because no server surface
+// needs the strings today.
 
-export type RaceDayKind = "5k" | "10k" | "half" | "marathon";
+import { detectRaceKind, type RaceDayKind } from "@workspace/plan-generator";
+
+export type { RaceDayKind };
 
 export interface RaceDayLabelInfo {
   kind: RaceDayKind;
@@ -103,58 +100,11 @@ const KIND_INFO: Readonly<Record<RaceDayKind, RaceDayLabelInfo>> = {
   },
 };
 
-function kindFromDescription(description: string | null | undefined): RaceDayKind | null {
-  if (!description) return null;
-  // Generator writes "RACE DAY — <label>." with an em-dash. Be tolerant
-  // of a regular "-" in case a customization round-trips through an
-  // editor that normalises punctuation.
-  const m = description.match(/^RACE DAY\s*[—-]\s*(Marathon|Half|10K|5K)\b/i);
-  if (!m) return null;
-  const tag = m[1]!.toLowerCase();
-  if (tag === "marathon") return "marathon";
-  if (tag === "half") return "half";
-  if (tag === "10k") return "10k";
-  if (tag === "5k") return "5k";
-  return null;
-}
-
-function kindFromDistance(distanceMi: number | null | undefined): RaceDayKind | null {
-  if (distanceMi == null) return null;
-  // Allow a small tolerance so the float round-trip through the API
-  // doesn't miss a match. The four real distances are far enough apart
-  // (≥3.1 mi gap to the next kind) that 0.05 mi can never collide.
-  const eq = (a: number, b: number) => Math.abs(a - b) <= 0.05;
-  if (eq(distanceMi, 26.2)) return "marathon";
-  if (eq(distanceMi, 13.1)) return "half";
-  if (eq(distanceMi, 6.2)) return "10k";
-  if (eq(distanceMi, 3.1)) return "5k";
-  return null;
-}
-
-// Cheap guard so a race-day row is identifiable even when only the
-// description is available (e.g. the dashboard's RaceDayHero, which
-// reads from `/race-week` and doesn't carry sessionType). Matches the
-// generator's "RACE DAY — " prefix tolerantly (em-dash OR hyphen,
-// optional surrounding whitespace).
-const RACE_DAY_PREFIX_RE = /^RACE DAY\s*[—-]\s*/i;
-
 export function raceDayLabel(
   distanceMi: number | null | undefined,
   description: string | null | undefined,
   sessionType?: string | null | undefined,
 ): RaceDayLabelInfo | null {
-  // Gate on an explicit race signal so non-race rows at canonical race
-  // distances (13.1 mi long runs, 3.1 mi shakeouts, 6.2 mi taper runs,
-  // 26.2 mi anything) cannot be mis-labeled as race days from the
-  // distance fallback. Either the row IS a Race session, OR the
-  // description carries the generator's "RACE DAY — " prefix.
-  const hasRacePrefix = !!description && RACE_DAY_PREFIX_RE.test(description);
-  const isRaceSession = typeof sessionType === "string" && sessionType.trim().toLowerCase() === "race";
-  if (!hasRacePrefix && !isRaceSession) return null;
-
-  const fromDesc = kindFromDescription(description);
-  if (fromDesc) return KIND_INFO[fromDesc];
-  const fromDist = kindFromDistance(distanceMi);
-  if (fromDist) return KIND_INFO[fromDist];
-  return null;
+  const kind = detectRaceKind(distanceMi, description, sessionType);
+  return kind ? KIND_INFO[kind] : null;
 }

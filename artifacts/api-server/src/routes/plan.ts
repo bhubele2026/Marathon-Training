@@ -18,6 +18,7 @@ import {
   generatePlan,
   generatePlanFromConfig,
   expandConfigToPlanRows,
+  detectRaceKind,
 } from "@workspace/plan-generator";
 import { readLastAppliedPlannerConfig } from "./planner";
 import { toPlanDay, toPlanWeek, toWorkout } from "../lib/transforms";
@@ -104,7 +105,9 @@ router.get("/plan/overview", async (_req, res) => {
         LIMIT 1`,
   );
   const lastDay = lastDayRows.rows[0];
-  const raceKind = lastDay ? detectRaceKind(lastDay) : null;
+  const raceKind = lastDay
+    ? detectRaceKind(lastDay.distance_mi, lastDay.description, lastDay.session_type)
+    : null;
 
   // Task #135: surface every program (TemplateEntry) currently
   // contributing rows to plan_days so the /plan overview can render a
@@ -154,59 +157,11 @@ router.get("/plan/overview", async (_req, res) => {
   });
 });
 
-// Task #204: server-side race-kind detection for /plan/overview.
-// Mirrors the client-side `raceDayLabel` helper at
-// artifacts/command-center/src/lib/race-day-label.ts so the two surfaces
-// agree on which trailing Sundays count as a race day. Returns one of
-// the four canonical race kinds, or null when the row is not a
-// recognised race day (tonal-first / lift-only / ad-hoc Custom blocks
-// never produce a race-day row).
-type DetectableRaceKind = "marathon" | "half" | "10k" | "5k";
-
-const RACE_DAY_PREFIX_RE = /^RACE DAY\s*[—-]\s*/i;
-const RACE_DAY_KIND_RE = /^RACE DAY\s*[—-]\s*(Marathon|Half|10K|5K)\b/i;
-
-function detectRaceKind(row: {
-  distance_mi: number | null;
-  description: string | null;
-  session_type: string | null;
-}): DetectableRaceKind | null {
-  // Gate on an explicit race signal so non-race rows at canonical race
-  // distances (13.1 mi long runs, 3.1 mi shakeouts, 6.2 mi taper runs,
-  // 26.2 mi anything) cannot be mis-labeled as race days from the
-  // distance fallback. Either the row IS a Race session, OR the
-  // description carries the generator's "RACE DAY — " prefix.
-  const description = row.description ?? "";
-  const hasRacePrefix = RACE_DAY_PREFIX_RE.test(description);
-  const isRaceSession =
-    typeof row.session_type === "string" &&
-    row.session_type.trim().toLowerCase() === "race";
-  if (!hasRacePrefix && !isRaceSession) return null;
-
-  // Resolve from the description prefix first — survives a runner
-  // editing distance_mi away from the canonical value.
-  const m = description.match(RACE_DAY_KIND_RE);
-  if (m) {
-    const tag = m[1]!.toLowerCase();
-    if (tag === "marathon") return "marathon";
-    if (tag === "half") return "half";
-    if (tag === "10k") return "10k";
-    if (tag === "5k") return "5k";
-  }
-
-  // Distance fallback for legacy / hand-edited rows that lost the
-  // prefix. The four canonical distances are far enough apart (≥3.1 mi
-  // gap) that 0.05 mi tolerance can never collide.
-  const d = row.distance_mi;
-  if (d != null) {
-    const eq = (a: number, b: number) => Math.abs(a - b) <= 0.05;
-    if (eq(d, 26.2)) return "marathon";
-    if (eq(d, 13.1)) return "half";
-    if (eq(d, 6.2)) return "10k";
-    if (eq(d, 3.1)) return "5k";
-  }
-  return null;
-}
+// Task #204 / #210: server-side race-kind detection for /plan/overview
+// is implemented by the shared `detectRaceKind` helper in
+// `@workspace/plan-generator`, imported above. The client `raceDayLabel`
+// helper consumes the same module so the two surfaces can never drift
+// on which trailing Sundays count as a race day.
 
 router.get("/plan/weeks", async (_req, res) => {
   const today = todayISO();
@@ -674,11 +629,7 @@ async function fetchPersonalizationOverlays(
   const raceRows = days
     .map((d) => ({
       row: d,
-      kind: detectRaceKind({
-        distance_mi: d.distanceMi,
-        description: d.description,
-        session_type: d.sessionType,
-      }),
+      kind: detectRaceKind(d.distanceMi, d.description, d.sessionType),
     }))
     .filter(
       (r): r is { row: PlanDayRow; kind: PersonalizableRaceKind } =>
