@@ -593,6 +593,65 @@ describe("GET /api/plan/today", () => {
     expect(res.body.daysUntilStart).toBeNull();
     expect(res.body.firstSession).toBeNull();
   });
+
+  // Task #148: loggedWorkouts on /plan/today snapshots
+  // prescribedRunTarget off the matched plan day so the today card can
+  // render the prescribed line without a follow-up fetch. Mirrors the
+  // join behaviour added to GET /api/workouts in Task #140 and to
+  // /dashboard/recent-activity in Task #148.
+  it("populates prescribedRunTarget on loggedWorkouts when planDayId is set, and null otherwise", async () => {
+    const today = "2099-06-14";
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(`${today}T12:00:00.000Z`));
+
+    const week = 8148;
+    const phase = "Today Prescribed";
+    await insertWeek(week, { startDate: today, endDate: today, phase });
+    const planDay = await insertPlanDay(week, phase, {
+      date: today,
+      day: "Sun",
+      sessionType: "Long Run",
+      equipment: E_OUTDOOR,
+      runMin: 60,
+      distanceMi: 6,
+      pace: "10:00",
+    });
+
+    await insertWorkout({
+      date: today,
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      planDayId: planDay.id,
+      runMin: 58,
+      distanceMi: 5.9,
+    });
+    await insertWorkout({
+      date: today,
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      // planDayId omitted — quick-logged off-plan row.
+      distanceMi: 2,
+    });
+
+    const res = await request(app).get("/api/plan/today");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetTodayPlanResponse, res.body);
+    const logged = res.body.loggedWorkouts as Array<{
+      planDayId: number | null;
+      prescribedRunTarget: unknown;
+    }>;
+    expect(logged).toHaveLength(2);
+    const bound = logged.find((w) => w.planDayId === planDay.id);
+    const unbound = logged.find((w) => w.planDayId === null);
+    expect(bound?.prescribedRunTarget).toEqual({
+      sessionType: "Long Run",
+      week,
+      runMin: 60,
+      distanceMi: 6,
+      pace: "10:00",
+    });
+    expect(unbound?.prescribedRunTarget).toBeNull();
+  });
 });
 
 // Task #228: race-day Sun pace personalization. The /plan/weeks/:week

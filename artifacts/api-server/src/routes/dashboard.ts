@@ -695,8 +695,32 @@ router.get("/dashboard/long-run-progression", async (_req, res) => {
 });
 
 router.get("/dashboard/recent-activity", async (_req, res) => {
-  const rows = await db.select().from(workoutsTable).orderBy(desc(workoutsTable.date), desc(workoutsTable.createdAt)).limit(10);
-  res.json(rows.map((r) => toWorkout(r)));
+  // Left join the matched plan day so each Workout row carries the
+  // prescribed run-target snapshot (Task #140 / #148). Mirrors the
+  // join shape used by GET /api/workouts.
+  const rows = await db
+    .select({
+      workout: workoutsTable,
+      planDay: {
+        sessionType: planDaysTable.sessionType,
+        week: planDaysTable.week,
+        runMin: planDaysTable.runMin,
+        distanceMi: planDaysTable.distanceMi,
+        pace: planDaysTable.pace,
+      },
+    })
+    .from(workoutsTable)
+    .leftJoin(planDaysTable, eq(workoutsTable.planDayId, planDaysTable.id))
+    .orderBy(desc(workoutsTable.date), desc(workoutsTable.createdAt))
+    .limit(10);
+  res.json(
+    rows.map((r) =>
+      toWorkout(
+        r.workout,
+        r.planDay && r.planDay.sessionType != null ? r.planDay : null,
+      ),
+    ),
+  );
 });
 
 // Task #42: Distinct lifestyle session types ordered by recency. Drives

@@ -833,9 +833,23 @@ router.get("/plan/today", async (_req, res) => {
   // Order same-day sessions by their time-of-day tag (AM, PM, Other, then
   // untagged) and then by createdAt ascending so tagged AM workouts logged
   // late in the evening still surface above PM ones.
+  // Left join the matched plan day so each Workout row carries the
+  // prescribed run-target snapshot (Task #140 / #148). Mirrors the
+  // join shape used by GET /api/workouts so /plan/today's
+  // loggedWorkouts agree with /workouts on `prescribedRunTarget`.
   const loggedRows = await db
-    .select()
+    .select({
+      workout: workoutsTable,
+      planDay: {
+        sessionType: planDaysTable.sessionType,
+        week: planDaysTable.week,
+        runMin: planDaysTable.runMin,
+        distanceMi: planDaysTable.distanceMi,
+        pace: planDaysTable.pace,
+      },
+    })
     .from(workoutsTable)
+    .leftJoin(planDaysTable, eq(workoutsTable.planDayId, planDaysTable.id))
     .where(eq(workoutsTable.date, today))
     .orderBy(asc(timeOfDayOrderExpr), asc(workoutsTable.createdAt));
   const suggestions = planRow && !planRow.isRest ? await suggestionsForPlan(planRow, today) : null;
@@ -877,7 +891,12 @@ router.get("/plan/today", async (_req, res) => {
     hasPlan: planRows.length > 0,
     plan: planRow ? todayPlanDay(planRow) : null,
     plans: planRows.map(todayPlanDay),
-    loggedWorkouts: loggedRows.map((r) => toWorkout(r)),
+    loggedWorkouts: loggedRows.map((r) =>
+      toWorkout(
+        r.workout,
+        r.planDay && r.planDay.sessionType != null ? r.planDay : null,
+      ),
+    ),
     suggestions,
     daysUntilStart,
     firstSession:

@@ -1529,4 +1529,61 @@ describe("GET /api/dashboard/recent-activity", () => {
       "2099-11-03",
     ]);
   });
+
+  // Task #148: the recent-activity card snapshots prescribedRunTarget
+  // off the matched plan day so the UI can render the "Plan: 6 mi @
+  // 10:00" line without a follow-up fetch. Mirrors the behaviour added
+  // to GET /api/workouts in Task #140.
+  it("populates prescribedRunTarget from the joined plan day when planDayId is set, and null otherwise", async () => {
+    const week = 8148;
+    const phase = "Recent Activity Phase";
+    await insertWeek(week, {
+      startDate: "2099-12-01",
+      endDate: "2099-12-02",
+      phase,
+    });
+    const planDay = await insertPlanDay(week, phase, {
+      date: "2099-12-01",
+      day: "Mon",
+      sessionType: "Long Run",
+      equipment: E_OUTDOOR,
+      runMin: 60,
+      distanceMi: 6,
+      pace: "10:00",
+    });
+    await insertWorkout({
+      date: "2099-12-01",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      planDayId: planDay.id,
+      runMin: 58,
+      distanceMi: 5.9,
+    });
+    await insertWorkout({
+      date: "2099-12-02",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      // planDayId omitted — quick-logged off-plan row.
+      distanceMi: 3,
+    });
+
+    const res = await request(app).get("/api/dashboard/recent-activity");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetRecentActivityResponse, res.body);
+    const rows = res.body as Array<{
+      date: string;
+      planDayId: number | null;
+      prescribedRunTarget: unknown;
+    }>;
+    const bound = rows.find((r) => r.date === "2099-12-01");
+    const unbound = rows.find((r) => r.date === "2099-12-02");
+    expect(bound?.prescribedRunTarget).toEqual({
+      sessionType: "Long Run",
+      week,
+      runMin: 60,
+      distanceMi: 6,
+      pace: "10:00",
+    });
+    expect(unbound?.prescribedRunTarget).toBeNull();
+  });
 });
