@@ -182,6 +182,101 @@ export function filterTemplatesByTags<T extends CategorizableTemplate>(
   });
 }
 
+// Modality bucket for a template, derived from its equipmentMixHint
+// (and id as a tiebreaker for scaffold templates that don't carry a
+// modality keyword in the hint). Used by call sites that want to
+// surface a coarse "what kind of plan is this?" grouping above the
+// finer Beginner/Intermediate/Advanced level. Keep the bucket list
+// small and stable: callers may render one chip per category.
+//
+// "Custom" is the catch-all for runner-defined / scaffold templates
+// (e.g. `race_countdown`, `*_custom`, `custom_hybrid`) whose modality
+// is decided by the runner at config time, not by the template
+// itself. Without this bucket, the previous keyword-only logic
+// silently fell through to "Conditioning" because none of the
+// strength / endurance / cardio keywords matched the "Runner-defined"
+// hint — which is wrong: a scaffold template has no modality of its
+// own, so "Custom" is the honest classification.
+export type TemplateCategory =
+  | "Endurance"
+  | "Strength"
+  | "Conditioning"
+  | "Custom";
+
+const STRENGTH_KEYWORDS = [
+  "tonal",
+  "barbell",
+  "lift",
+  "strength",
+  "dumbbell",
+  "kettlebell",
+];
+const ENDURANCE_KEYWORDS = [
+  "run",
+  "tread",
+  "outdoor",
+  "marathon",
+  "5k",
+  "10k",
+  "half",
+];
+const CONDITIONING_KEYWORDS = [
+  "bike",
+  "row",
+  "rower",
+  "spin",
+  "cross-train",
+  "cross train",
+  "conditioning",
+  "hyrox",
+];
+const CUSTOM_KEYWORDS = [
+  "runner-defined",
+  "runner defined",
+  "scaffold",
+  "custom",
+  "build your own",
+  "user-defined",
+  "user defined",
+];
+
+function matchesAny(haystack: string, needles: readonly string[]): boolean {
+  return needles.some((n) => haystack.includes(n));
+}
+
+// Bucket a template into a coarse modality category. Resolution order
+// (first match wins):
+//   1. Runner-defined / scaffold templates by id pattern
+//      (`race_countdown`, `*_custom`, `custom_hybrid`) → Custom.
+//   2. equipmentMixHint contains a Custom keyword (e.g. "Runner-defined")
+//      → Custom. This is the bucket scaffold templates fall into and
+//      the bug fix: previously these silently routed to Conditioning
+//      because no other keyword matched.
+//   3. Strength keyword (lift / Tonal / barbell …) → Strength.
+//   4. Endurance keyword (run / tread / marathon …) → Endurance. Run
+//      is checked before Conditioning so a hybrid hint like "Tread +
+//      Bike" categorises by its run anchor.
+//   5. Conditioning keyword (bike / row / spin …) → Conditioning.
+//   6. Default → Custom (safer than mis-bucketing into Conditioning).
+export function categorizeTemplate(
+  tpl: CategorizableTemplate,
+): TemplateCategory {
+  const id = tpl.id.toLowerCase();
+  if (
+    id === "race_countdown" ||
+    id === "custom_hybrid" ||
+    id.endsWith("_custom")
+  ) {
+    return "Custom";
+  }
+  const hint = tpl.metadata.equipmentMixHint.toLowerCase();
+  if (matchesAny(hint, CUSTOM_KEYWORDS)) return "Custom";
+  if (matchesAny(hint, STRENGTH_KEYWORDS)) return "Strength";
+  if (matchesAny(hint, ENDURANCE_KEYWORDS)) return "Endurance";
+  if (matchesAny(hint, CONDITIONING_KEYWORDS)) return "Conditioning";
+  return "Custom";
+}
+
 export interface TemplateGroup<T> {
   level: TemplateLevel;
   list: T[];

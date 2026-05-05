@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { ARCHIVED_PLAN_TEMPLATES } from "@workspace/plan-generator";
 import {
   type CategorizableTemplate,
+  categorizeTemplate,
   countTemplatesByTag,
   filterTemplatesByTags,
   getAllTemplateTags,
@@ -8,7 +10,11 @@ import {
   sortTagsByCount,
 } from "./planner-templates";
 
-function tpl(id: string, tags: string[]): CategorizableTemplate {
+function tpl(
+  id: string,
+  tags: string[],
+  overrides: Partial<CategorizableTemplate> = {},
+): CategorizableTemplate {
   return {
     id,
     name: id,
@@ -17,6 +23,7 @@ function tpl(id: string, tags: string[]): CategorizableTemplate {
     metadata: { equipmentMixHint: "run" },
     tags,
     level: "Beginner",
+    ...overrides,
   } as CategorizableTemplate;
 }
 
@@ -211,6 +218,62 @@ describe("sortTags (alpha mode)", () => {
     expect(sortTags(tags, counts, new Set(), "count")).toEqual(
       sortTagsByCount(tags, counts, new Set()),
     );
+  });
+});
+
+describe("categorizeTemplate", () => {
+  it("routes templates whose equipmentMixHint is 'Runner-defined' to Custom (not Conditioning)", () => {
+    const t = tpl("anything", [], {
+      metadata: { equipmentMixHint: "Runner-defined" },
+    });
+    expect(categorizeTemplate(t)).toBe("Custom");
+  });
+
+  it("routes the archived race_countdown scaffold to Custom", () => {
+    const raceCountdown = ARCHIVED_PLAN_TEMPLATES.find(
+      (t) => t.id === "race_countdown",
+    );
+    expect(raceCountdown).toBeDefined();
+    expect(categorizeTemplate(raceCountdown!)).toBe("Custom");
+  });
+
+  it("routes scaffold ids ending in _custom to Custom regardless of hint", () => {
+    expect(
+      categorizeTemplate(
+        tpl("run_custom", [], { metadata: { equipmentMixHint: "Tread" } }),
+      ),
+    ).toBe("Custom");
+    expect(
+      categorizeTemplate(
+        tpl("bike_custom", [], { metadata: { equipmentMixHint: "Peloton Bike" } }),
+      ),
+    ).toBe("Custom");
+  });
+
+  it("classifies Tonal / lift hints as Strength", () => {
+    expect(
+      categorizeTemplate(
+        tpl("x", [], { metadata: { equipmentMixHint: "Tonal lifts only" } }),
+      ),
+    ).toBe("Strength");
+  });
+
+  it("classifies run-anchored hints as Endurance, even with bike cross-train", () => {
+    expect(
+      categorizeTemplate(
+        tpl("x", [], {
+          metadata: { equipmentMixHint: "Tread runs + optional Bike cross-train" },
+        }),
+      ),
+    ).toBe("Endurance");
+  });
+
+  it("classifies bike/row hints with no run as Conditioning", () => {
+    expect(
+      categorizeTemplate(
+        tpl("x", [], { metadata: { equipmentMixHint: "Peloton Bike + Row" } }),
+      ),
+    ).toBe("Conditioning");
   });
 });
 
