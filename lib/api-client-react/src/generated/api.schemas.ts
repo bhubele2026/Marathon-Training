@@ -824,6 +824,8 @@ export interface RaceWeekChecklistItem {
   label: string;
   checked: boolean;
   checkedAt?: string | null;
+  /** True for user-created items (which can be deleted). False for built-in default items. */
+  isCustom: boolean;
 }
 
 export interface RaceWeekRacePlan {
@@ -849,6 +851,20 @@ export interface RaceWeekStatus {
 
 export interface SetRaceWeekChecklistItemBody {
   checked: boolean;
+}
+
+export interface CreateRaceWeekChecklistItemBody {
+  /**
+   * Human-readable label for the new custom checklist item.
+   * @minLength 1
+   * @maxLength 200
+   */
+  label: string;
+}
+
+export interface DeleteRaceWeekChecklistItemResponse {
+  itemId: string;
+  deleted: boolean;
 }
 
 export type PhaseBlockFocusType =

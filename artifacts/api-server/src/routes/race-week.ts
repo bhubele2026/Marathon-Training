@@ -1,7 +1,11 @@
 import { Router, type IRouter } from "express";
 import { db, planDaysTable, raceWeekChecklistTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
-import { SetRaceWeekChecklistItemBody } from "@workspace/api-zod";
+import { eq, asc } from "drizzle-orm";
+import {
+  SetRaceWeekChecklistItemBody,
+  CreateRaceWeekChecklistItemBody,
+} from "@workspace/api-zod";
+import { randomUUID } from "node:crypto";
 import { readActiveRaceDate } from "./planner";
 
 const router: IRouter = Router();
@@ -20,7 +24,12 @@ export const RACE_WEEK_CHECKLIST_DEFAULTS: ReadonlyArray<{ itemId: string; label
   { itemId: "pin-bib", label: "Pin bib to race kit before bed" },
 ];
 
-const KNOWN_ITEM_IDS = new Set(RACE_WEEK_CHECKLIST_DEFAULTS.map((d) => d.itemId));
+const KNOWN_DEFAULT_ITEM_IDS = new Set(RACE_WEEK_CHECKLIST_DEFAULTS.map((d) => d.itemId));
+const DEFAULT_LABEL_BY_ID = new Map(
+  RACE_WEEK_CHECKLIST_DEFAULTS.map((d) => [d.itemId, d.label] as const),
+);
+
+const CUSTOM_ITEM_PREFIX = "custom-";
 
 function todayUtcMidnight(): Date {
   const now = new Date();
@@ -69,17 +78,34 @@ router.get("/race-week", async (_req, res) => {
     }
   }
 
-  const stored = await db.select().from(raceWeekChecklistTable);
+  // Order by `created_at` so custom items keep a stable display order
+  // independent of toggling (toggles bump `updated_at`, which would
+  // otherwise shuffle the list every time a runner ticks an item).
+  const stored = await db
+    .select()
+    .from(raceWeekChecklistTable)
+    .orderBy(asc(raceWeekChecklistTable.createdAt));
   const byId = new Map(stored.map((r) => [r.itemId, r] as const));
-  const checklist = RACE_WEEK_CHECKLIST_DEFAULTS.map((d) => {
+  const defaults = RACE_WEEK_CHECKLIST_DEFAULTS.map((d) => {
     const row = byId.get(d.itemId);
     return {
       itemId: d.itemId,
       label: d.label,
       checked: row?.checked ?? false,
       checkedAt: row?.checked && row.updatedAt ? row.updatedAt.toISOString() : null,
+      isCustom: false,
     };
   });
+  const customs = stored
+    .filter((r) => r.isCustom)
+    .map((r) => ({
+      itemId: r.itemId,
+      label: r.label ?? "(unnamed)",
+      checked: r.checked,
+      checkedAt: r.checked && r.updatedAt ? r.updatedAt.toISOString() : null,
+      isCustom: true,
+    }));
+  const checklist = [...defaults, ...customs];
 
   res.json({
     raceDate,
@@ -94,11 +120,53 @@ router.get("/race-week", async (_req, res) => {
   });
 });
 
+router.post("/race-week/checklist", async (req, res): Promise<void> => {
+  const parsed = CreateRaceWeekChecklistItemBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const label = parsed.data.label.trim();
+  if (label.length === 0) {
+    res.status(400).json({ error: "label cannot be empty" });
+    return;
+  }
+  const itemId = `${CUSTOM_ITEM_PREFIX}${randomUUID()}`;
+  const now = new Date();
+  const inserted = await db
+    .insert(raceWeekChecklistTable)
+    .values({ itemId, checked: false, isCustom: true, label, createdAt: now, updatedAt: now })
+    .returning();
+  const row = inserted[0]!;
+  res.json({
+    itemId: row.itemId,
+    label: row.label ?? label,
+    checked: row.checked,
+    checkedAt: null,
+    isCustom: true,
+  });
+});
+
 router.put("/race-week/checklist/:itemId", async (req, res): Promise<void> => {
   const itemId = req.params.itemId;
-  if (!itemId || !KNOWN_ITEM_IDS.has(itemId)) {
+  if (!itemId) {
     res.status(404).json({ error: "checklist item not found" });
     return;
+  }
+  const isDefault = KNOWN_DEFAULT_ITEM_IDS.has(itemId);
+  let existing: typeof raceWeekChecklistTable.$inferSelect | undefined;
+  if (!isDefault) {
+    existing = (
+      await db
+        .select()
+        .from(raceWeekChecklistTable)
+        .where(eq(raceWeekChecklistTable.itemId, itemId))
+        .limit(1)
+    )[0];
+    if (!existing) {
+      res.status(404).json({ error: "checklist item not found" });
+      return;
+    }
   }
   const parsed = SetRaceWeekChecklistItemBody.safeParse(req.body);
   if (!parsed.success) {
@@ -109,20 +177,58 @@ router.put("/race-week/checklist/:itemId", async (req, res): Promise<void> => {
   const now = new Date();
   const upserted = await db
     .insert(raceWeekChecklistTable)
-    .values({ itemId, checked, updatedAt: now })
+    .values({
+      itemId,
+      checked,
+      isCustom: existing?.isCustom ?? false,
+      label: existing?.label ?? null,
+      updatedAt: now,
+    })
     .onConflictDoUpdate({
       target: raceWeekChecklistTable.itemId,
       set: { checked, updatedAt: now },
     })
     .returning();
   const row = upserted[0]!;
-  const def = RACE_WEEK_CHECKLIST_DEFAULTS.find((d) => d.itemId === itemId)!;
+  const label = row.isCustom
+    ? row.label ?? "(unnamed)"
+    : DEFAULT_LABEL_BY_ID.get(itemId) ?? "";
   res.json({
     itemId: row.itemId,
-    label: def.label,
+    label,
     checked: row.checked,
     checkedAt: row.checked ? row.updatedAt.toISOString() : null,
+    isCustom: row.isCustom,
   });
+});
+
+router.delete("/race-week/checklist/:itemId", async (req, res): Promise<void> => {
+  const itemId = req.params.itemId;
+  if (!itemId) {
+    res.status(404).json({ error: "checklist item not found" });
+    return;
+  }
+  if (KNOWN_DEFAULT_ITEM_IDS.has(itemId)) {
+    res.status(400).json({ error: "default checklist items cannot be deleted" });
+    return;
+  }
+  const existing = (
+    await db
+      .select()
+      .from(raceWeekChecklistTable)
+      .where(eq(raceWeekChecklistTable.itemId, itemId))
+      .limit(1)
+  )[0];
+  if (!existing) {
+    res.status(404).json({ error: "checklist item not found" });
+    return;
+  }
+  if (!existing.isCustom) {
+    res.status(400).json({ error: "default checklist items cannot be deleted" });
+    return;
+  }
+  await db.delete(raceWeekChecklistTable).where(eq(raceWeekChecklistTable.itemId, itemId));
+  res.json({ itemId, deleted: true });
 });
 
 export default router;

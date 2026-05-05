@@ -815,6 +815,31 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/RaceWeekStatus" }
 
+  /race-week/checklist:
+    post:
+      operationId: createRaceWeekChecklistItem
+      tags: [race-week]
+      description: Create a user-defined custom checklist item. Default items are seeded by the server and cannot be created this way.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateRaceWeekChecklistItemBody" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RaceWeekChecklistItem" }
+        "400":
+          description: Invalid body
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ValidationError"
+
   /race-week/checklist/{itemId}:
     put:
       operationId: setRaceWeekChecklistItem
@@ -843,6 +868,31 @@ paths:
                 oneOf:
                   - $ref: "#/components/schemas/Error"
                   - $ref: "#/components/schemas/ValidationError"
+        "404":
+          description: Checklist item not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      operationId: deleteRaceWeekChecklistItem
+      tags: [race-week]
+      description: Delete a user-defined custom checklist item. Default items cannot be deleted and return 400.
+      parameters:
+        - in: path
+          name: itemId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeleteRaceWeekChecklistItemResponse" }
+        "400":
+          description: Item is a default item and cannot be deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
         "404":
           description: Checklist item not found
           content:
@@ -1882,12 +1932,15 @@ components:
 
     RaceWeekChecklistItem:
       type: object
-      required: [itemId, label, checked]
+      required: [itemId, label, checked, isCustom]
       properties:
         itemId: { type: string }
         label: { type: string }
         checked: { type: boolean }
         checkedAt: { type: string, format: date-time, nullable: true }
+        isCustom:
+          type: boolean
+          description: True for user-created items (which can be deleted). False for built-in default items.
 
     RaceWeekRacePlan:
       type: object
@@ -1927,6 +1980,23 @@ components:
       required: [checked]
       properties:
         checked: { type: boolean }
+
+    CreateRaceWeekChecklistItemBody:
+      type: object
+      required: [label]
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Human-readable label for the new custom checklist item.
+
+    DeleteRaceWeekChecklistItemResponse:
+      type: object
+      required: [itemId, deleted]
+      properties:
+        itemId: { type: string }
+        deleted: { type: boolean }
 
     PhaseBlock:
       type: object

@@ -4,6 +4,8 @@ import { sql } from "drizzle-orm";
 import {
   GetRaceWeekResponse,
   SetRaceWeekChecklistItemResponse,
+  CreateRaceWeekChecklistItemResponse,
+  DeleteRaceWeekChecklistItemResponse,
 } from "@workspace/api-zod";
 import { db, planDaysTable, plannerConfigsTable } from "@workspace/db";
 import { RACE_DAY_SPECS } from "@workspace/plan-generator";
@@ -199,5 +201,115 @@ describe("PUT /api/race-week/checklist/:itemId", () => {
       .send({ checked: "yes" });
     expect(res.status).toBe(400);
     expect(res.body.error.fieldErrors.checked).toBeTruthy();
+  });
+});
+
+describe("POST /api/race-week/checklist (custom items)", () => {
+  it("creates a custom item that surfaces on subsequent GETs with isCustom=true", async () => {
+    const create = await request(app)
+      .post("/api/race-week/checklist")
+      .send({ label: "Pick up bib at expo" });
+    expect(create.status).toBe(200);
+    const created = expectMatchesSchema(CreateRaceWeekChecklistItemResponse, create.body);
+    expect(created.label).toBe("Pick up bib at expo");
+    expect(created.isCustom).toBe(true);
+    expect(created.checked).toBe(false);
+    expect(created.itemId).toMatch(/^custom-/);
+
+    const get = await request(app).get("/api/race-week");
+    const body = expectMatchesSchema(GetRaceWeekResponse, get.body);
+    const found = body.checklist.find((c) => c.itemId === created.itemId);
+    expect(found?.label).toBe("Pick up bib at expo");
+    expect(found?.isCustom).toBe(true);
+
+    // Default items must remain present and flagged isCustom=false.
+    const defaults = body.checklist.filter((c) => !c.isCustom);
+    expect(defaults.length).toBeGreaterThanOrEqual(9);
+  });
+
+  it("can toggle a custom item checked state via the existing PUT endpoint", async () => {
+    const create = await request(app)
+      .post("/api/race-week/checklist")
+      .send({ label: "Test race-day breakfast" });
+    const created = expectMatchesSchema(CreateRaceWeekChecklistItemResponse, create.body);
+
+    const put = await request(app)
+      .put(`/api/race-week/checklist/${created.itemId}`)
+      .send({ checked: true });
+    expect(put.status).toBe(200);
+    const putBody = expectMatchesSchema(SetRaceWeekChecklistItemResponse, put.body);
+    expect(putBody.checked).toBe(true);
+    expect(putBody.isCustom).toBe(true);
+    expect(putBody.label).toBe("Test race-day breakfast");
+  });
+
+  it("preserves creation order of custom items even after toggling", async () => {
+    const a = await request(app)
+      .post("/api/race-week/checklist")
+      .send({ label: "Item A" });
+    const b = await request(app)
+      .post("/api/race-week/checklist")
+      .send({ label: "Item B" });
+    const c = await request(app)
+      .post("/api/race-week/checklist")
+      .send({ label: "Item C" });
+    const aId = a.body.itemId as string;
+    const bId = b.body.itemId as string;
+    const cId = c.body.itemId as string;
+
+    // Toggle the middle (and oldest) items so updated_at would change
+    // their relative order if ordering wasn't anchored on created_at.
+    await request(app).put(`/api/race-week/checklist/${bId}`).send({ checked: true });
+    await request(app).put(`/api/race-week/checklist/${aId}`).send({ checked: true });
+
+    const get = await request(app).get("/api/race-week");
+    const body = expectMatchesSchema(GetRaceWeekResponse, get.body);
+    const customIds = body.checklist.filter((c) => c.isCustom).map((c) => c.itemId);
+    expect(customIds).toEqual([aId, bId, cId]);
+  });
+
+  it("rejects empty / whitespace labels with 400", async () => {
+    const res = await request(app)
+      .post("/api/race-week/checklist")
+      .send({ label: "   " });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects a missing label with 400", async () => {
+    const res = await request(app).post("/api/race-week/checklist").send({});
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("DELETE /api/race-week/checklist/:itemId", () => {
+  it("deletes a custom item and removes it from subsequent GETs", async () => {
+    const create = await request(app)
+      .post("/api/race-week/checklist")
+      .send({ label: "Charge headphones" });
+    const created = expectMatchesSchema(CreateRaceWeekChecklistItemResponse, create.body);
+
+    const del = await request(app).delete(`/api/race-week/checklist/${created.itemId}`);
+    expect(del.status).toBe(200);
+    const delBody = expectMatchesSchema(DeleteRaceWeekChecklistItemResponse, del.body);
+    expect(delBody.deleted).toBe(true);
+    expect(delBody.itemId).toBe(created.itemId);
+
+    const get = await request(app).get("/api/race-week");
+    const body = expectMatchesSchema(GetRaceWeekResponse, get.body);
+    expect(body.checklist.find((c) => c.itemId === created.itemId)).toBeUndefined();
+  });
+
+  it("refuses to delete a default item with 400", async () => {
+    const res = await request(app).delete("/api/race-week/checklist/hydrate");
+    expect(res.status).toBe(400);
+    // Default item must remain in the checklist.
+    const get = await request(app).get("/api/race-week");
+    const body = expectMatchesSchema(GetRaceWeekResponse, get.body);
+    expect(body.checklist.find((c) => c.itemId === "hydrate")).toBeDefined();
+  });
+
+  it("returns 404 for an unknown item id", async () => {
+    const res = await request(app).delete("/api/race-week/checklist/custom-does-not-exist");
+    expect(res.status).toBe(404);
   });
 });

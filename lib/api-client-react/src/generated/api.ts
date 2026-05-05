@@ -20,9 +20,11 @@ import type {
   ApplyPlannerConfigResponse,
   CreateMeasurementBody,
   CreatePlannerConfigBody,
+  CreateRaceWeekChecklistItemBody,
   CreateWorkoutBody,
   DashboardSummary,
   DeletePlannerConfigResponse,
+  DeleteRaceWeekChecklistItemResponse,
   DuplicatePlannerConfigBody,
   EquipmentPhaseSummary,
   EquipmentUsage,
@@ -3146,6 +3148,95 @@ export function useGetRaceWeek<
   return { ...query, queryKey: queryOptions.queryKey };
 }
 
+/**
+ * Create a user-defined custom checklist item. Default items are seeded by the server and cannot be created this way.
+ */
+export const getCreateRaceWeekChecklistItemUrl = () => {
+  return `/api/race-week/checklist`;
+};
+
+export const createRaceWeekChecklistItem = async (
+  createRaceWeekChecklistItemBody: CreateRaceWeekChecklistItemBody,
+  options?: RequestInit,
+): Promise<RaceWeekChecklistItem> => {
+  return customFetch<RaceWeekChecklistItem>(
+    getCreateRaceWeekChecklistItemUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(createRaceWeekChecklistItemBody),
+    },
+  );
+};
+
+export const getCreateRaceWeekChecklistItemMutationOptions = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createRaceWeekChecklistItem>>,
+    TError,
+    { data: BodyType<CreateRaceWeekChecklistItemBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createRaceWeekChecklistItem>>,
+  TError,
+  { data: BodyType<CreateRaceWeekChecklistItemBody> },
+  TContext
+> => {
+  const mutationKey = ["createRaceWeekChecklistItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createRaceWeekChecklistItem>>,
+    { data: BodyType<CreateRaceWeekChecklistItemBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createRaceWeekChecklistItem(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateRaceWeekChecklistItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createRaceWeekChecklistItem>>
+>;
+export type CreateRaceWeekChecklistItemMutationBody =
+  BodyType<CreateRaceWeekChecklistItemBody>;
+export type CreateRaceWeekChecklistItemMutationError = ErrorType<
+  Error | ValidationError
+>;
+
+export const useCreateRaceWeekChecklistItem = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createRaceWeekChecklistItem>>,
+    TError,
+    { data: BodyType<CreateRaceWeekChecklistItemBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createRaceWeekChecklistItem>>,
+  TError,
+  { data: BodyType<CreateRaceWeekChecklistItemBody> },
+  TContext
+> => {
+  return useMutation(getCreateRaceWeekChecklistItemMutationOptions(options));
+};
+
 export const getSetRaceWeekChecklistItemUrl = (itemId: string) => {
   return `/api/race-week/checklist/${itemId}`;
 };
@@ -3231,4 +3322,88 @@ export const useSetRaceWeekChecklistItem = <
   TContext
 > => {
   return useMutation(getSetRaceWeekChecklistItemMutationOptions(options));
+};
+
+/**
+ * Delete a user-defined custom checklist item. Default items cannot be deleted and return 400.
+ */
+export const getDeleteRaceWeekChecklistItemUrl = (itemId: string) => {
+  return `/api/race-week/checklist/${itemId}`;
+};
+
+export const deleteRaceWeekChecklistItem = async (
+  itemId: string,
+  options?: RequestInit,
+): Promise<DeleteRaceWeekChecklistItemResponse> => {
+  return customFetch<DeleteRaceWeekChecklistItemResponse>(
+    getDeleteRaceWeekChecklistItemUrl(itemId),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+};
+
+export const getDeleteRaceWeekChecklistItemMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteRaceWeekChecklistItem>>,
+    TError,
+    { itemId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteRaceWeekChecklistItem>>,
+  TError,
+  { itemId: string },
+  TContext
+> => {
+  const mutationKey = ["deleteRaceWeekChecklistItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteRaceWeekChecklistItem>>,
+    { itemId: string }
+  > = (props) => {
+    const { itemId } = props ?? {};
+
+    return deleteRaceWeekChecklistItem(itemId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteRaceWeekChecklistItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteRaceWeekChecklistItem>>
+>;
+
+export type DeleteRaceWeekChecklistItemMutationError = ErrorType<Error>;
+
+export const useDeleteRaceWeekChecklistItem = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteRaceWeekChecklistItem>>,
+    TError,
+    { itemId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteRaceWeekChecklistItem>>,
+  TError,
+  { itemId: string },
+  TContext
+> => {
+  return useMutation(getDeleteRaceWeekChecklistItemMutationOptions(options));
 };

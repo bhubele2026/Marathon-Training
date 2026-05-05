@@ -3322,8 +3322,38 @@ export const GetRaceWeekResponse = zod.object({
       label: zod.string(),
       checked: zod.boolean(),
       checkedAt: zod.coerce.date().nullish(),
+      isCustom: zod
+        .boolean()
+        .describe(
+          "True for user-created items (which can be deleted). False for built-in default items.",
+        ),
     }),
   ),
+});
+
+/**
+ * Create a user-defined custom checklist item. Default items are seeded by the server and cannot be created this way.
+ */
+export const createRaceWeekChecklistItemBodyLabelMax = 200;
+
+export const CreateRaceWeekChecklistItemBody = zod.object({
+  label: zod
+    .string()
+    .min(1)
+    .max(createRaceWeekChecklistItemBodyLabelMax)
+    .describe("Human-readable label for the new custom checklist item."),
+});
+
+export const CreateRaceWeekChecklistItemResponse = zod.object({
+  itemId: zod.string(),
+  label: zod.string(),
+  checked: zod.boolean(),
+  checkedAt: zod.coerce.date().nullish(),
+  isCustom: zod
+    .boolean()
+    .describe(
+      "True for user-created items (which can be deleted). False for built-in default items.",
+    ),
 });
 
 export const SetRaceWeekChecklistItemParams = zod.object({
@@ -3339,4 +3369,21 @@ export const SetRaceWeekChecklistItemResponse = zod.object({
   label: zod.string(),
   checked: zod.boolean(),
   checkedAt: zod.coerce.date().nullish(),
+  isCustom: zod
+    .boolean()
+    .describe(
+      "True for user-created items (which can be deleted). False for built-in default items.",
+    ),
+});
+
+/**
+ * Delete a user-defined custom checklist item. Default items cannot be deleted and return 400.
+ */
+export const DeleteRaceWeekChecklistItemParams = zod.object({
+  itemId: zod.coerce.string(),
+});
+
+export const DeleteRaceWeekChecklistItemResponse = zod.object({
+  itemId: zod.string(),
+  deleted: zod.boolean(),
 });

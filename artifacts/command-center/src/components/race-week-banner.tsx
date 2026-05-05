@@ -1,6 +1,9 @@
+import { useState } from "react";
 import {
   useGetRaceWeek,
   useSetRaceWeekChecklistItem,
+  useCreateRaceWeekChecklistItem,
+  useDeleteRaceWeekChecklistItem,
   getGetRaceWeekQueryKey,
   type RaceWeekStatus,
   type RaceWeekChecklistItem,
@@ -9,7 +12,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Trophy, Flag, ListChecks } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Trophy, Flag, ListChecks, Plus, X } from "lucide-react";
 import { formatDistance } from "@/lib/format";
 import { raceDayLabel } from "@/lib/race-day-label";
 import { HR_ZONE_TONES } from "@/lib/run-target";
@@ -156,6 +161,7 @@ function RaceWeekCountdown({
               <ChecklistRow key={item.itemId} item={item} />
             ))}
           </ul>
+          <AddChecklistItem />
         </div>
       </CardContent>
     </Card>
@@ -333,7 +339,7 @@ function PlanStat({
 function ChecklistRow({ item }: { item: RaceWeekChecklistItem }) {
   const queryClient = useQueryClient();
   const queryKey = getGetRaceWeekQueryKey();
-  const mutation = useSetRaceWeekChecklistItem({
+  const toggleMutation = useSetRaceWeekChecklistItem({
     mutation: {
       onMutate: async ({ itemId, data }) => {
         await queryClient.cancelQueries({ queryKey });
@@ -363,8 +369,36 @@ function ChecklistRow({ item }: { item: RaceWeekChecklistItem }) {
     },
   });
 
+  const deleteMutation = useDeleteRaceWeekChecklistItem({
+    mutation: {
+      onMutate: async ({ itemId }) => {
+        await queryClient.cancelQueries({ queryKey });
+        const prev = queryClient.getQueryData<RaceWeekStatus>(queryKey);
+        if (prev) {
+          queryClient.setQueryData<RaceWeekStatus>(queryKey, {
+            ...prev,
+            checklist: prev.checklist.filter((c) => c.itemId !== itemId),
+          });
+        }
+        return { prev };
+      },
+      onError: (_err, _vars, ctx) => {
+        if (ctx?.prev) queryClient.setQueryData(queryKey, ctx.prev);
+      },
+      onSettled: () => {
+        queryClient.invalidateQueries({ queryKey });
+      },
+    },
+  });
+
   const toggle = () => {
-    mutation.mutate({ itemId: item.itemId, data: { checked: !item.checked } });
+    toggleMutation.mutate({ itemId: item.itemId, data: { checked: !item.checked } });
+  };
+
+  const remove = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    deleteMutation.mutate({ itemId: item.itemId });
   };
 
   return (
@@ -372,6 +406,7 @@ function ChecklistRow({ item }: { item: RaceWeekChecklistItem }) {
       <label
         className="flex items-start gap-3 cursor-pointer rounded-md border border-border bg-background/60 hover:bg-background hover:border-primary/40 transition-colors px-3 py-2.5"
         data-testid={`race-week-checklist-${item.itemId}`}
+        data-is-custom={item.isCustom ? "true" : "false"}
       >
         <Checkbox
           checked={item.checked}
@@ -381,7 +416,7 @@ function ChecklistRow({ item }: { item: RaceWeekChecklistItem }) {
         />
         <span
           className={
-            "text-sm leading-tight " +
+            "text-sm leading-tight flex-1 " +
             (item.checked
               ? "line-through text-muted-foreground"
               : "text-foreground")
@@ -389,7 +424,69 @@ function ChecklistRow({ item }: { item: RaceWeekChecklistItem }) {
         >
           {item.label}
         </span>
+        {item.isCustom && (
+          <button
+            type="button"
+            onClick={remove}
+            className="text-muted-foreground hover:text-destructive transition-colors p-0.5 -m-0.5 rounded"
+            aria-label={`Delete ${item.label}`}
+            data-testid={`race-week-checklist-delete-${item.itemId}`}
+            disabled={deleteMutation.isPending}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
       </label>
     </li>
+  );
+}
+
+function AddChecklistItem() {
+  const queryClient = useQueryClient();
+  const queryKey = getGetRaceWeekQueryKey();
+  const [label, setLabel] = useState("");
+  const createMutation = useCreateRaceWeekChecklistItem({
+    mutation: {
+      onSuccess: () => {
+        setLabel("");
+        queryClient.invalidateQueries({ queryKey });
+      },
+    },
+  });
+
+  const trimmed = label.trim();
+  const canSubmit = trimmed.length > 0 && !createMutation.isPending;
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canSubmit) return;
+    createMutation.mutate({ data: { label: trimmed } });
+  };
+
+  return (
+    <form
+      onSubmit={submit}
+      className="flex items-center gap-2 pt-1"
+      data-testid="race-week-checklist-add-form"
+    >
+      <Input
+        type="text"
+        value={label}
+        onChange={(e) => setLabel(e.target.value)}
+        placeholder="Add your own item (e.g. Pick up bib)"
+        maxLength={200}
+        className="h-9 text-sm"
+        data-testid="race-week-checklist-add-input"
+      />
+      <Button
+        type="submit"
+        size="sm"
+        disabled={!canSubmit}
+        data-testid="race-week-checklist-add-submit"
+      >
+        <Plus className="h-4 w-4 mr-1" />
+        Add
+      </Button>
+    </form>
   );
 }
