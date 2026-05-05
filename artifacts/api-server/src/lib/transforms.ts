@@ -2,6 +2,7 @@ import type { PlanDayRow } from "@workspace/db";
 import type { PlanWeekRow } from "@workspace/db";
 import type { WorkoutRow } from "@workspace/db";
 import type { MeasurementRow } from "@workspace/db";
+import type { PersonalizedRacePace } from "./personalized-race-pace";
 
 // Normalize a possibly-NULL or possibly-empty equipment_list to a
 // guaranteed non-empty `[scalar]` fallback. Both NULL (the column was
@@ -123,7 +124,10 @@ function planDayCustomizedDiff(r: PlanDayRow): PlanDayDiffEntry[] {
   });
 }
 
-export function toPlanDay(r: PlanDayRow) {
+export function toPlanDay(
+  r: PlanDayRow,
+  extras?: { personalizedRacePace?: PersonalizedRacePace | null },
+) {
   const customizedFields = planDayCustomizedFields(r);
   const customizedDiff = planDayCustomizedDiff(r);
   return {
@@ -160,6 +164,14 @@ export function toPlanDay(r: PlanDayRow) {
     // /plan when concurrent programs are running.
     sourceEntryIndex: r.sourceEntryIndex,
     sourceEntryLabel: r.sourceEntryLabel,
+    // Task #228: personalized race-day pace. Populated only on race-day
+    // Sun rows that the route layer recognised as a real race
+    // (`detectRaceKind` returned a non-null kind); null on every other
+    // day so the UI can render the explainer chip exclusively on the
+    // race-day card. The route layer is responsible for computing this
+    // — `toPlanDay` is intentionally row-pure and just passes through
+    // the value its caller hands in.
+    personalizedRacePace: extras?.personalizedRacePace ?? null,
   };
 }
 

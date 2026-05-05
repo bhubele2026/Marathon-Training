@@ -485,6 +485,255 @@ describe("GET /api/plan/today", () => {
   });
 });
 
+// Task #228: race-day Sun pace personalization. The /plan/weeks/:week
+// and /plan/today endpoints overlay a `personalizedRacePace` object
+// onto race-day Sun rows (sessionType "Race" + the generator's
+// "RACE DAY — <kind>" description prefix) computed from the runner's
+// recent quality workouts. The chip falls back to the catalog
+// `RACE_DAY_SPECS[raceKind].pace` when the runner has fewer than 3
+// parseable quality paces in the lookback window, so the UI always has
+// something to render.
+describe("personalizedRacePace overlay on /plan/weeks/:week and /plan/today", () => {
+  // Insert a recognised race-day Sun row plus N quality runs with a
+  // controlled pace history so each scenario can assert the catalog vs
+  // personalized behaviour off a fixed average.
+  async function setupRaceDayWeek(
+    week: number,
+    qualityPaces: ReadonlyArray<string>,
+  ): Promise<void> {
+    const phase = "Race Day Personalization";
+    await insertWeek(week, {
+      startDate: "2099-04-26",
+      endDate: "2099-05-02",
+      phase,
+    });
+    // Six non-race rest days to keep the week valid; only Sun matters
+    // for the race-day overlay.
+    const dows: ReadonlyArray<{ date: string; day: string }> = [
+      { date: "2099-04-26", day: "Mon" },
+      { date: "2099-04-27", day: "Tue" },
+      { date: "2099-04-28", day: "Wed" },
+      { date: "2099-04-29", day: "Thu" },
+      { date: "2099-04-30", day: "Fri" },
+      { date: "2099-05-01", day: "Sat" },
+    ];
+    for (const d of dows) {
+      await insertPlanDay(week, phase, {
+        ...d,
+        sessionType: T_REST,
+        equipment: E_NONE,
+        isRest: true,
+      });
+    }
+    // The race day. Description prefix + Race sessionType + 26.2 mi
+    // collectively put `detectRaceKind` on the marathon branch — see
+    // the helper at routes/plan.ts:160.
+    await insertPlanDay(week, phase, {
+      date: "2099-05-02",
+      day: "Sun",
+      sessionType: "Race",
+      equipment: E_OUTDOOR,
+      description:
+        "RACE DAY — Marathon (26.2 mi). Execute race plan; trust the build.",
+      distanceMi: 26.2,
+      pace: "10:35",
+    });
+    // History: real "Tempo Run" sessionType so the SQL filter (and
+    // `isQualityRunSession` mirror) both pick them up. Dates are inside
+    // the 8-week lookback window prior to the 2099-05-02 race day.
+    let dayCursor = 0;
+    for (const pace of qualityPaces) {
+      // Spread the runs across the prior 4 weeks so they all fall well
+      // inside the 56-day lookback window.
+      const date = `2099-04-${String(5 + dayCursor).padStart(2, "0")}`;
+      await insertWorkout({
+        date,
+        sessionType: "Tempo Run",
+        equipment: E_OUTDOOR,
+        pace,
+        distanceMi: 5,
+      });
+      dayCursor += 2;
+    }
+  }
+
+  it("personalizes the race-day Sun pace when at least 3 quality runs are in the window", async () => {
+    // Mock "today" to a date AFTER the historical workouts but before
+    // the personalization lookback drops them — the SQL filter at
+    // routes/plan.ts uses `date < today AND date >= today - 56d`, so
+    // without a fixed clock the 2099 workouts inserted below would all
+    // sit in the future relative to the real test-runner clock and the
+    // SQL filter would return zero rows.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-05-02T12:00:00.000Z"));
+    // 3 tempos averaging 10:30 (630s); marathon offset is +30s/mi so the
+    // chip should land at 11:00.
+    await setupRaceDayWeek(8700, ["10:00", "10:30", "11:00"]);
+
+    const res = await request(app).get(`/api/plan/weeks/8700`);
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetPlanWeekResponse, res.body);
+
+    const days = res.body.days as Array<{
+      date: string;
+      day: string;
+      personalizedRacePace: {
+        pace: string;
+        source: "personalized" | "catalog";
+        sampleSize: number;
+        lookbackWeeks: number;
+        basisPaceSeconds: number | null;
+      } | null;
+    }>;
+
+    const sun = days.find((d) => d.date === "2099-05-02")!;
+    expect(sun.personalizedRacePace).not.toBeNull();
+    expect(sun.personalizedRacePace).toEqual({
+      pace: "11:00",
+      source: "personalized",
+      sampleSize: 3,
+      lookbackWeeks: 8,
+      basisPaceSeconds: 630,
+    });
+    // Non-race rows on the same week have no overlay.
+    const mon = days.find((d) => d.date === "2099-04-26")!;
+    expect(mon.personalizedRacePace).toBeNull();
+  });
+
+  it("falls back to the catalog pace when fewer than 3 quality runs exist", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-05-02T12:00:00.000Z"));
+    // Only 2 tempos -> below MIN_QUALITY_SAMPLE -> catalog fallback.
+    await setupRaceDayWeek(8701, ["10:00", "10:30"]);
+
+    const res = await request(app).get(`/api/plan/weeks/8701`);
+    expect(res.status).toBe(200);
+
+    const days = res.body.days as Array<{
+      date: string;
+      personalizedRacePace: {
+        pace: string;
+        source: "personalized" | "catalog";
+        sampleSize: number;
+        lookbackWeeks: number;
+        basisPaceSeconds: number | null;
+      } | null;
+    }>;
+    const sun = days.find((d) => d.date === "2099-05-02")!;
+    expect(sun.personalizedRacePace).not.toBeNull();
+    expect(sun.personalizedRacePace!.source).toBe("catalog");
+    expect(sun.personalizedRacePace!.sampleSize).toBe(0);
+    expect(sun.personalizedRacePace!.basisPaceSeconds).toBeNull();
+    // Catalog pace is non-empty — the runner-facing chip always has
+    // something to render even on a cold start.
+    expect(typeof sun.personalizedRacePace!.pace).toBe("string");
+    expect(sun.personalizedRacePace!.pace.length).toBeGreaterThan(0);
+  });
+
+  it("excludes easy aerobic / long runs from the personalization sample", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-05-02T12:00:00.000Z"));
+    const week = 8702;
+    const phase = "Race Day Personalization Exclusion";
+    await insertWeek(week, {
+      startDate: "2099-04-26",
+      endDate: "2099-05-02",
+      phase,
+    });
+    for (const d of [
+      { date: "2099-04-26", day: "Mon" },
+      { date: "2099-04-27", day: "Tue" },
+      { date: "2099-04-28", day: "Wed" },
+      { date: "2099-04-29", day: "Thu" },
+      { date: "2099-04-30", day: "Fri" },
+      { date: "2099-05-01", day: "Sat" },
+    ]) {
+      await insertPlanDay(week, phase, {
+        ...d,
+        sessionType: T_REST,
+        equipment: E_NONE,
+        isRest: true,
+      });
+    }
+    await insertPlanDay(week, phase, {
+      date: "2099-05-02",
+      day: "Sun",
+      sessionType: "Race",
+      equipment: E_OUTDOOR,
+      description: "RACE DAY — Marathon (26.2 mi). Execute the plan.",
+      distanceMi: 26.2,
+      pace: "10:35",
+    });
+    // 3 long runs and 3 easy aerobic runs — none of these should count
+    // as "quality" so the chip must still fall back to the catalog.
+    for (const date of ["2099-04-05", "2099-04-12", "2099-04-19"]) {
+      await insertWorkout({
+        date,
+        sessionType: "Long Run",
+        equipment: E_OUTDOOR,
+        pace: "12:00",
+        distanceMi: 12,
+      });
+    }
+    for (const date of ["2099-04-07", "2099-04-14", "2099-04-21"]) {
+      await insertWorkout({
+        date,
+        sessionType: "Aerobic Base",
+        equipment: E_OUTDOOR,
+        pace: "11:30",
+        distanceMi: 5,
+      });
+    }
+
+    const res = await request(app).get(`/api/plan/weeks/${week}`);
+    expect(res.status).toBe(200);
+    const days = res.body.days as Array<{
+      date: string;
+      personalizedRacePace: { source: string; sampleSize: number } | null;
+    }>;
+    const sun = days.find((d) => d.date === "2099-05-02")!;
+    expect(sun.personalizedRacePace).not.toBeNull();
+    expect(sun.personalizedRacePace!.source).toBe("catalog");
+    expect(sun.personalizedRacePace!.sampleSize).toBe(0);
+  });
+
+  it("attaches the overlay to /plan/today when today's plan is the race day", async () => {
+    // Mock today to land on the race-day Sun so /plan/today returns
+    // the race-day row and we can assert the overlay is present there
+    // too — symmetry with the /plan/weeks/:week path is what lets the
+    // /today card render the same chip without re-deriving anything.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-05-02T12:00:00.000Z"));
+
+    await setupRaceDayWeek(8703, ["10:00", "10:30", "11:00"]);
+
+    const res = await request(app).get(`/api/plan/today`);
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetTodayPlanResponse, res.body);
+    expect(res.body.plan).not.toBeNull();
+    expect(res.body.plan.personalizedRacePace).toEqual({
+      pace: "11:00",
+      source: "personalized",
+      sampleSize: 3,
+      lookbackWeeks: 8,
+      basisPaceSeconds: 630,
+    });
+  });
+
+  it("returns null personalizedRacePace on /plan/today for non-race-day rows", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-04-26T12:00:00.000Z"));
+
+    // Reuse the same week setup; today is the Mon rest day, not Sun.
+    await setupRaceDayWeek(8704, ["10:00", "10:30", "11:00"]);
+
+    const res = await request(app).get(`/api/plan/today`);
+    expect(res.status).toBe(200);
+    expect(res.body.plan).not.toBeNull();
+    expect(res.body.plan.personalizedRacePace).toBeNull();
+  });
+});
+
 describe("PATCH /api/plan/days/:id", () => {
   it("returns 404 when the plan day does not exist", async () => {
     const res = await request(app)

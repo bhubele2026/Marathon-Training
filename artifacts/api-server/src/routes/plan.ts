@@ -29,6 +29,12 @@ import {
   RESET_UNDO_TTL_MS,
   type PlanDaySnapshot,
 } from "../lib/reset-undo";
+import {
+  DEFAULT_LOOKBACK_WEEKS,
+  personalizeRacePace,
+  type PersonalizableRaceKind,
+  type PersonalizedRacePace,
+} from "../lib/personalized-race-pace";
 
 const router: IRouter = Router();
 
@@ -366,8 +372,15 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
   const today = todayISO();
   const nonRestDays = days.filter((d) => !d.isRest);
   const recentByPair = await fetchRecentWorkoutsByPair(nonRestDays, today);
+  // Task #228: race-day Sun rows in this week (if any) get a
+  // personalized pace overlay derived from the runner's recent quality
+  // workouts. The fetch is skipped automatically when no race-day Sun
+  // is in the week — see `fetchPersonalizedRacePaces`.
+  const personalizedByDayId = await fetchPersonalizedRacePaces(days, today);
   const daysWithSuggestions = days.map((d) => {
-    const base = toPlanDay(d);
+    const base = toPlanDay(d, {
+      personalizedRacePace: personalizedByDayId.get(d.id) ?? null,
+    });
     if (d.isRest) return { ...base, suggestions: null };
     const recent = recentByPair.get(pairKey(d.sessionType, d.equipment)) ?? [];
     return { ...base, suggestions: buildSuggestions(d, recent) };
@@ -588,6 +601,85 @@ async function suggestionsForPlan(plan: PlanDayRow, today: string) {
   return buildSuggestions(plan, recent);
 }
 
+// Task #228: pull every parseable pace string from the runner's recent
+// quality (tempo / threshold / interval / sharpener / VO2 / race) runs
+// inside the personalization lookback window. Used by the race-day Sun
+// pace-personalization path on /plan/weeks/:week and /plan/today. We
+// filter by sessionType in SQL using a single regex so the round-trip
+// stays a single statement regardless of how many quality variants the
+// runner has logged. Easy aerobic work is intentionally excluded — see
+// `isQualityRunSession` for the matching wire-format contract.
+async function fetchRecentQualityRunPaces(
+  today: string,
+  lookbackDays: number,
+): Promise<string[]> {
+  // ISO date math via Date.UTC keeps the cutoff TZ-independent so a
+  // server in any region computes the same window the runner sees on
+  // their calendar.
+  const todayMs = Date.parse(`${today}T00:00:00.000Z`);
+  const cutoffMs = todayMs - lookbackDays * 24 * 60 * 60 * 1000;
+  const cutoff = new Date(cutoffMs).toISOString().slice(0, 10);
+  // Match the same set of session types `isQualityRunSession` recognises
+  // so the SQL filter and the in-process filter agree exactly.
+  const QUALITY_RE =
+    "tempo|threshold|sharpener|interval|speed|vo2|race-pace|race pace|^race$";
+  const rows = await db.execute<{ pace: string | null }>(sql`
+    SELECT pace
+    FROM workouts
+    WHERE date < ${today}
+      AND date >= ${cutoff}
+      AND pace IS NOT NULL
+      AND session_type ~* ${QUALITY_RE}
+    ORDER BY date DESC, created_at DESC
+  `);
+  return rows.rows
+    .map((r) => r.pace)
+    .filter((p): p is string => typeof p === "string" && p.length > 0);
+}
+
+// Task #228: compute personalized race-day pace overlays for whichever
+// plan_days in `days` are recognised race-day Sun rows. Returns a Map
+// keyed by plan_day id so the read path can stitch the overlay onto the
+// matching `toPlanDay` payload without re-running detection per row.
+// Empty when `days` contains no recognised race-day rows — in that case
+// no SQL is issued and the read path just renders `personalizedRacePace:
+// null` everywhere.
+async function fetchPersonalizedRacePaces(
+  days: readonly PlanDayRow[],
+  today: string,
+): Promise<Map<number, PersonalizedRacePace>> {
+  const result = new Map<number, PersonalizedRacePace>();
+  const raceRows = days
+    .map((d) => ({
+      row: d,
+      kind: detectRaceKind({
+        distance_mi: d.distanceMi,
+        description: d.description,
+        session_type: d.sessionType,
+      }),
+    }))
+    .filter(
+      (r): r is { row: PlanDayRow; kind: PersonalizableRaceKind } =>
+        r.kind !== null,
+    );
+  if (raceRows.length === 0) return result;
+
+  const lookbackWeeks = DEFAULT_LOOKBACK_WEEKS;
+  const lookbackDays = lookbackWeeks * 7;
+  const qualityPaces = await fetchRecentQualityRunPaces(today, lookbackDays);
+  for (const { row, kind } of raceRows) {
+    result.set(
+      row.id,
+      personalizeRacePace({
+        raceKind: kind,
+        qualityPaces,
+        lookbackWeeks,
+      }),
+    );
+  }
+  return result;
+}
+
 // Number of whole UTC days between two ISO date strings (yyyy-mm-dd). Both
 // inputs are treated as midnight UTC so the result matches what the user sees
 // when they look at their calendar — independent of the server's local TZ
@@ -643,22 +735,35 @@ router.get("/plan/today", async (_req, res) => {
   // first non-rest day rather than the very first plan_day so a Mon rest day
   // at the start of week 1 still shows the countdown.
   let daysUntilStart: number | null = null;
-  let firstSession: ReturnType<typeof toPlanDay> | null = null;
   const firstSessionRow = await fetchFirstSessionDay();
-  if (firstSessionRow && today < firstSessionRow.date) {
+  const showFirstSession = !!(firstSessionRow && today < firstSessionRow.date);
+  if (firstSessionRow && showFirstSession) {
     daysUntilStart = daysBetweenISO(today, firstSessionRow.date);
-    firstSession = toPlanDay(firstSessionRow);
   }
+
+  // Task #228: personalized race-day pace overlays for any race-day Sun
+  // rows on today's calendar (or for the pre-launch first-session
+  // preview if it itself happens to be the race-day Sun).
+  const todayPersonalized = await fetchPersonalizedRacePaces(
+    [
+      ...planRows,
+      ...(firstSessionRow && showFirstSession ? [firstSessionRow] : []),
+    ],
+    today,
+  );
+  const todayPlanDay = (r: PlanDayRow) =>
+    toPlanDay(r, { personalizedRacePace: todayPersonalized.get(r.id) ?? null });
 
   res.json({
     date: today,
     hasPlan: planRows.length > 0,
-    plan: planRow ? toPlanDay(planRow) : null,
-    plans: planRows.map(toPlanDay),
+    plan: planRow ? todayPlanDay(planRow) : null,
+    plans: planRows.map(todayPlanDay),
     loggedWorkouts: loggedRows.map((r) => toWorkout(r)),
     suggestions,
     daysUntilStart,
-    firstSession,
+    firstSession:
+      firstSessionRow && showFirstSession ? todayPlanDay(firstSessionRow) : null,
   });
 });
 

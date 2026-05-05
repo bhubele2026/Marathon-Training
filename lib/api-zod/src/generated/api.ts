@@ -210,6 +210,39 @@ export const GetPlanWeekResponse = zod
               .describe(
                 "Task #135. Human-readable program name (entry.customName or template name) shown as a badge in \/today and \/plan when concurrent programs are running. Null on legacy blocks-mode rows.\n",
               ),
+            personalizedRacePace: zod
+              .object({
+                pace: zod
+                  .string()
+                  .describe(
+                    'Final race-day pace string the chip should render (e.g. \"10:55\"). Either personalized from history or pulled from the catalog.',
+                  ),
+                source: zod
+                  .enum(["personalized", "catalog"])
+                  .describe(
+                    'Where the pace came from. \"personalized\" means at least 3 parseable quality paces fed the average; \"catalog\" means we fell back to `RACE_DAY_SPECS[raceKind].pace`.',
+                  ),
+                sampleSize: zod
+                  .number()
+                  .describe(
+                    'Number of quality workouts that fed the average. 0 when source is \"catalog\".',
+                  ),
+                lookbackWeeks: zod
+                  .number()
+                  .describe(
+                    'Lookback window in whole weeks the quality sample was drawn from. Mirrors the input so the UI tooltip can render \"last N weeks of training\" without re-deriving it.',
+                  ),
+                basisPaceSeconds: zod
+                  .number()
+                  .nullable()
+                  .describe(
+                    'Average pace seconds\/mile of the quality sample BEFORE the per-kind race-day offset is applied. Null when source is \"catalog\". Surfaced so the tooltip can show the raw training pace alongside the personalized race-day target (\"10:30 tempo avg → 11:00 race target\").',
+                  ),
+              })
+              .nullable()
+              .describe(
+                "Task #228. Race-day Sun pace target overlay computed at READ time from the runner's recent quality workouts (tempo, threshold, interval, sharpener, VO2, race-pace, logged Race), with the per-kind `RACE_DAY_SPECS[raceKind].pace` catalog value as the fallback when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on race-day Sun rows that the server recognised as a real race (sessionType `Race` or the generator's \"RACE DAY — <Marathon|Half|10K|5K>\" description prefix); null on every other day so the UI can render the personalized chip \/ explainer tooltip exclusively on the race-day card. The pace string here may differ from the row-level `pace` field — that field is the seeded plan value (or any user customization), while this overlay reflects the live recommendation derived from training history.\n",
+              ),
           })
           .and(
             zod.object({
@@ -331,6 +364,39 @@ export const UpdatePlanDayResponse = zod.object({
     .describe(
       "Task #135. Human-readable program name (entry.customName or template name) shown as a badge in \/today and \/plan when concurrent programs are running. Null on legacy blocks-mode rows.\n",
     ),
+  personalizedRacePace: zod
+    .object({
+      pace: zod
+        .string()
+        .describe(
+          'Final race-day pace string the chip should render (e.g. \"10:55\"). Either personalized from history or pulled from the catalog.',
+        ),
+      source: zod
+        .enum(["personalized", "catalog"])
+        .describe(
+          'Where the pace came from. \"personalized\" means at least 3 parseable quality paces fed the average; \"catalog\" means we fell back to `RACE_DAY_SPECS[raceKind].pace`.',
+        ),
+      sampleSize: zod
+        .number()
+        .describe(
+          'Number of quality workouts that fed the average. 0 when source is \"catalog\".',
+        ),
+      lookbackWeeks: zod
+        .number()
+        .describe(
+          'Lookback window in whole weeks the quality sample was drawn from. Mirrors the input so the UI tooltip can render \"last N weeks of training\" without re-deriving it.',
+        ),
+      basisPaceSeconds: zod
+        .number()
+        .nullable()
+        .describe(
+          'Average pace seconds\/mile of the quality sample BEFORE the per-kind race-day offset is applied. Null when source is \"catalog\". Surfaced so the tooltip can show the raw training pace alongside the personalized race-day target (\"10:30 tempo avg → 11:00 race target\").',
+        ),
+    })
+    .nullable()
+    .describe(
+      "Task #228. Race-day Sun pace target overlay computed at READ time from the runner's recent quality workouts (tempo, threshold, interval, sharpener, VO2, race-pace, logged Race), with the per-kind `RACE_DAY_SPECS[raceKind].pace` catalog value as the fallback when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on race-day Sun rows that the server recognised as a real race (sessionType `Race` or the generator's \"RACE DAY — <Marathon|Half|10K|5K>\" description prefix); null on every other day so the UI can render the personalized chip \/ explainer tooltip exclusively on the race-day card. The pace string here may differ from the row-level `pace` field — that field is the seeded plan value (or any user customization), while this overlay reflects the live recommendation derived from training history.\n",
+    ),
 });
 
 export const SwapPlanDayParams = zod.object({
@@ -422,6 +488,39 @@ export const SwapPlanDayResponse = zod.object({
       .describe(
         "Task #135. Human-readable program name (entry.customName or template name) shown as a badge in \/today and \/plan when concurrent programs are running. Null on legacy blocks-mode rows.\n",
       ),
+    personalizedRacePace: zod
+      .object({
+        pace: zod
+          .string()
+          .describe(
+            'Final race-day pace string the chip should render (e.g. \"10:55\"). Either personalized from history or pulled from the catalog.',
+          ),
+        source: zod
+          .enum(["personalized", "catalog"])
+          .describe(
+            'Where the pace came from. \"personalized\" means at least 3 parseable quality paces fed the average; \"catalog\" means we fell back to `RACE_DAY_SPECS[raceKind].pace`.',
+          ),
+        sampleSize: zod
+          .number()
+          .describe(
+            'Number of quality workouts that fed the average. 0 when source is \"catalog\".',
+          ),
+        lookbackWeeks: zod
+          .number()
+          .describe(
+            'Lookback window in whole weeks the quality sample was drawn from. Mirrors the input so the UI tooltip can render \"last N weeks of training\" without re-deriving it.',
+          ),
+        basisPaceSeconds: zod
+          .number()
+          .nullable()
+          .describe(
+            'Average pace seconds\/mile of the quality sample BEFORE the per-kind race-day offset is applied. Null when source is \"catalog\". Surfaced so the tooltip can show the raw training pace alongside the personalized race-day target (\"10:30 tempo avg → 11:00 race target\").',
+          ),
+      })
+      .nullable()
+      .describe(
+        "Task #228. Race-day Sun pace target overlay computed at READ time from the runner's recent quality workouts (tempo, threshold, interval, sharpener, VO2, race-pace, logged Race), with the per-kind `RACE_DAY_SPECS[raceKind].pace` catalog value as the fallback when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on race-day Sun rows that the server recognised as a real race (sessionType `Race` or the generator's \"RACE DAY — <Marathon|Half|10K|5K>\" description prefix); null on every other day so the UI can render the personalized chip \/ explainer tooltip exclusively on the race-day card. The pace string here may differ from the row-level `pace` field — that field is the seeded plan value (or any user customization), while this overlay reflects the live recommendation derived from training history.\n",
+      ),
   }),
   to: zod.object({
     id: zod.number(),
@@ -498,6 +597,39 @@ export const SwapPlanDayResponse = zod.object({
       .nullish()
       .describe(
         "Task #135. Human-readable program name (entry.customName or template name) shown as a badge in \/today and \/plan when concurrent programs are running. Null on legacy blocks-mode rows.\n",
+      ),
+    personalizedRacePace: zod
+      .object({
+        pace: zod
+          .string()
+          .describe(
+            'Final race-day pace string the chip should render (e.g. \"10:55\"). Either personalized from history or pulled from the catalog.',
+          ),
+        source: zod
+          .enum(["personalized", "catalog"])
+          .describe(
+            'Where the pace came from. \"personalized\" means at least 3 parseable quality paces fed the average; \"catalog\" means we fell back to `RACE_DAY_SPECS[raceKind].pace`.',
+          ),
+        sampleSize: zod
+          .number()
+          .describe(
+            'Number of quality workouts that fed the average. 0 when source is \"catalog\".',
+          ),
+        lookbackWeeks: zod
+          .number()
+          .describe(
+            'Lookback window in whole weeks the quality sample was drawn from. Mirrors the input so the UI tooltip can render \"last N weeks of training\" without re-deriving it.',
+          ),
+        basisPaceSeconds: zod
+          .number()
+          .nullable()
+          .describe(
+            'Average pace seconds\/mile of the quality sample BEFORE the per-kind race-day offset is applied. Null when source is \"catalog\". Surfaced so the tooltip can show the raw training pace alongside the personalized race-day target (\"10:30 tempo avg → 11:00 race target\").',
+          ),
+      })
+      .nullable()
+      .describe(
+        "Task #228. Race-day Sun pace target overlay computed at READ time from the runner's recent quality workouts (tempo, threshold, interval, sharpener, VO2, race-pace, logged Race), with the per-kind `RACE_DAY_SPECS[raceKind].pace` catalog value as the fallback when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on race-day Sun rows that the server recognised as a real race (sessionType `Race` or the generator's \"RACE DAY — <Marathon|Half|10K|5K>\" description prefix); null on every other day so the UI can render the personalized chip \/ explainer tooltip exclusively on the race-day card. The pace string here may differ from the row-level `pace` field — that field is the seeded plan value (or any user customization), while this overlay reflects the live recommendation derived from training history.\n",
       ),
   }),
   weeksAffected: zod
@@ -603,6 +735,39 @@ export const ResetPlanDayResponse = zod.object({
     .nullish()
     .describe(
       "Task #135. Human-readable program name (entry.customName or template name) shown as a badge in \/today and \/plan when concurrent programs are running. Null on legacy blocks-mode rows.\n",
+    ),
+  personalizedRacePace: zod
+    .object({
+      pace: zod
+        .string()
+        .describe(
+          'Final race-day pace string the chip should render (e.g. \"10:55\"). Either personalized from history or pulled from the catalog.',
+        ),
+      source: zod
+        .enum(["personalized", "catalog"])
+        .describe(
+          'Where the pace came from. \"personalized\" means at least 3 parseable quality paces fed the average; \"catalog\" means we fell back to `RACE_DAY_SPECS[raceKind].pace`.',
+        ),
+      sampleSize: zod
+        .number()
+        .describe(
+          'Number of quality workouts that fed the average. 0 when source is \"catalog\".',
+        ),
+      lookbackWeeks: zod
+        .number()
+        .describe(
+          'Lookback window in whole weeks the quality sample was drawn from. Mirrors the input so the UI tooltip can render \"last N weeks of training\" without re-deriving it.',
+        ),
+      basisPaceSeconds: zod
+        .number()
+        .nullable()
+        .describe(
+          'Average pace seconds\/mile of the quality sample BEFORE the per-kind race-day offset is applied. Null when source is \"catalog\". Surfaced so the tooltip can show the raw training pace alongside the personalized race-day target (\"10:30 tempo avg → 11:00 race target\").',
+        ),
+    })
+    .nullable()
+    .describe(
+      "Task #228. Race-day Sun pace target overlay computed at READ time from the runner's recent quality workouts (tempo, threshold, interval, sharpener, VO2, race-pace, logged Race), with the per-kind `RACE_DAY_SPECS[raceKind].pace` catalog value as the fallback when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on race-day Sun rows that the server recognised as a real race (sessionType `Race` or the generator's \"RACE DAY — <Marathon|Half|10K|5K>\" description prefix); null on every other day so the UI can render the personalized chip \/ explainer tooltip exclusively on the race-day card. The pace string here may differ from the row-level `pace` field — that field is the seeded plan value (or any user customization), while this overlay reflects the live recommendation derived from training history.\n",
     ),
 });
 
@@ -821,6 +986,39 @@ export const GetTodayPlanResponse = zod.object({
         .describe(
           "Task #135. Human-readable program name (entry.customName or template name) shown as a badge in \/today and \/plan when concurrent programs are running. Null on legacy blocks-mode rows.\n",
         ),
+      personalizedRacePace: zod
+        .object({
+          pace: zod
+            .string()
+            .describe(
+              'Final race-day pace string the chip should render (e.g. \"10:55\"). Either personalized from history or pulled from the catalog.',
+            ),
+          source: zod
+            .enum(["personalized", "catalog"])
+            .describe(
+              'Where the pace came from. \"personalized\" means at least 3 parseable quality paces fed the average; \"catalog\" means we fell back to `RACE_DAY_SPECS[raceKind].pace`.',
+            ),
+          sampleSize: zod
+            .number()
+            .describe(
+              'Number of quality workouts that fed the average. 0 when source is \"catalog\".',
+            ),
+          lookbackWeeks: zod
+            .number()
+            .describe(
+              'Lookback window in whole weeks the quality sample was drawn from. Mirrors the input so the UI tooltip can render \"last N weeks of training\" without re-deriving it.',
+            ),
+          basisPaceSeconds: zod
+            .number()
+            .nullable()
+            .describe(
+              'Average pace seconds\/mile of the quality sample BEFORE the per-kind race-day offset is applied. Null when source is \"catalog\". Surfaced so the tooltip can show the raw training pace alongside the personalized race-day target (\"10:30 tempo avg → 11:00 race target\").',
+            ),
+        })
+        .nullable()
+        .describe(
+          "Task #228. Race-day Sun pace target overlay computed at READ time from the runner's recent quality workouts (tempo, threshold, interval, sharpener, VO2, race-pace, logged Race), with the per-kind `RACE_DAY_SPECS[raceKind].pace` catalog value as the fallback when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on race-day Sun rows that the server recognised as a real race (sessionType `Race` or the generator's \"RACE DAY — <Marathon|Half|10K|5K>\" description prefix); null on every other day so the UI can render the personalized chip \/ explainer tooltip exclusively on the race-day card. The pace string here may differ from the row-level `pace` field — that field is the seeded plan value (or any user customization), while this overlay reflects the live recommendation derived from training history.\n",
+        ),
     })
     .nullish()
     .describe(
@@ -903,6 +1101,39 @@ export const GetTodayPlanResponse = zod.object({
           .nullish()
           .describe(
             "Task #135. Human-readable program name (entry.customName or template name) shown as a badge in \/today and \/plan when concurrent programs are running. Null on legacy blocks-mode rows.\n",
+          ),
+        personalizedRacePace: zod
+          .object({
+            pace: zod
+              .string()
+              .describe(
+                'Final race-day pace string the chip should render (e.g. \"10:55\"). Either personalized from history or pulled from the catalog.',
+              ),
+            source: zod
+              .enum(["personalized", "catalog"])
+              .describe(
+                'Where the pace came from. \"personalized\" means at least 3 parseable quality paces fed the average; \"catalog\" means we fell back to `RACE_DAY_SPECS[raceKind].pace`.',
+              ),
+            sampleSize: zod
+              .number()
+              .describe(
+                'Number of quality workouts that fed the average. 0 when source is \"catalog\".',
+              ),
+            lookbackWeeks: zod
+              .number()
+              .describe(
+                'Lookback window in whole weeks the quality sample was drawn from. Mirrors the input so the UI tooltip can render \"last N weeks of training\" without re-deriving it.',
+              ),
+            basisPaceSeconds: zod
+              .number()
+              .nullable()
+              .describe(
+                'Average pace seconds\/mile of the quality sample BEFORE the per-kind race-day offset is applied. Null when source is \"catalog\". Surfaced so the tooltip can show the raw training pace alongside the personalized race-day target (\"10:30 tempo avg → 11:00 race target\").',
+              ),
+          })
+          .nullable()
+          .describe(
+            "Task #228. Race-day Sun pace target overlay computed at READ time from the runner's recent quality workouts (tempo, threshold, interval, sharpener, VO2, race-pace, logged Race), with the per-kind `RACE_DAY_SPECS[raceKind].pace` catalog value as the fallback when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on race-day Sun rows that the server recognised as a real race (sessionType `Race` or the generator's \"RACE DAY — <Marathon|Half|10K|5K>\" description prefix); null on every other day so the UI can render the personalized chip \/ explainer tooltip exclusively on the race-day card. The pace string here may differ from the row-level `pace` field — that field is the seeded plan value (or any user customization), while this overlay reflects the live recommendation derived from training history.\n",
           ),
       }),
     )
@@ -1089,6 +1320,39 @@ export const GetTodayPlanResponse = zod.object({
         .nullish()
         .describe(
           "Task #135. Human-readable program name (entry.customName or template name) shown as a badge in \/today and \/plan when concurrent programs are running. Null on legacy blocks-mode rows.\n",
+        ),
+      personalizedRacePace: zod
+        .object({
+          pace: zod
+            .string()
+            .describe(
+              'Final race-day pace string the chip should render (e.g. \"10:55\"). Either personalized from history or pulled from the catalog.',
+            ),
+          source: zod
+            .enum(["personalized", "catalog"])
+            .describe(
+              'Where the pace came from. \"personalized\" means at least 3 parseable quality paces fed the average; \"catalog\" means we fell back to `RACE_DAY_SPECS[raceKind].pace`.',
+            ),
+          sampleSize: zod
+            .number()
+            .describe(
+              'Number of quality workouts that fed the average. 0 when source is \"catalog\".',
+            ),
+          lookbackWeeks: zod
+            .number()
+            .describe(
+              'Lookback window in whole weeks the quality sample was drawn from. Mirrors the input so the UI tooltip can render \"last N weeks of training\" without re-deriving it.',
+            ),
+          basisPaceSeconds: zod
+            .number()
+            .nullable()
+            .describe(
+              'Average pace seconds\/mile of the quality sample BEFORE the per-kind race-day offset is applied. Null when source is \"catalog\". Surfaced so the tooltip can show the raw training pace alongside the personalized race-day target (\"10:30 tempo avg → 11:00 race target\").',
+            ),
+        })
+        .nullable()
+        .describe(
+          "Task #228. Race-day Sun pace target overlay computed at READ time from the runner's recent quality workouts (tempo, threshold, interval, sharpener, VO2, race-pace, logged Race), with the per-kind `RACE_DAY_SPECS[raceKind].pace` catalog value as the fallback when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on race-day Sun rows that the server recognised as a real race (sessionType `Race` or the generator's \"RACE DAY — <Marathon|Half|10K|5K>\" description prefix); null on every other day so the UI can render the personalized chip \/ explainer tooltip exclusively on the race-day card. The pace string here may differ from the row-level `pace` field — that field is the seeded plan value (or any user customization), while this overlay reflects the live recommendation derived from training history.\n",
         ),
     })
     .nullish()
