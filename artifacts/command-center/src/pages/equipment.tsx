@@ -43,6 +43,45 @@ function paceStatus(actual: number, plannedToDate: number): PaceStatus {
   return "on-track";
 }
 
+// Endurance machines (Peloton Bike, Peloton Row) accumulate training load
+// through time-on-machine, not session count: a 10-min spin and a 45-min
+// threshold ride are both one session but very different doses. Use cardio
+// minutes for those; everything else (Tonal, Peloton Tread) keeps session
+// count.
+const ENDURANCE_MINUTE_MACHINES = new Set(["Peloton Bike", "Peloton Row"]);
+
+interface PaceMetric {
+  actual: number;
+  plannedToDate: number;
+  planned: number;
+  unit: "sessions" | "min";
+}
+
+function paceMetricFor(eq: {
+  equipment: string;
+  sessions: number;
+  totalMinutes: number;
+  plannedSessions: number;
+  plannedMinutes: number;
+  plannedToDateSessions: number;
+  plannedToDateMinutes: number;
+}): PaceMetric {
+  if (ENDURANCE_MINUTE_MACHINES.has(eq.equipment)) {
+    return {
+      actual: Math.round(eq.totalMinutes),
+      plannedToDate: Math.round(eq.plannedToDateMinutes),
+      planned: Math.round(eq.plannedMinutes),
+      unit: "min",
+    };
+  }
+  return {
+    actual: eq.sessions,
+    plannedToDate: eq.plannedToDateSessions,
+    planned: eq.plannedSessions,
+    unit: "sessions",
+  };
+}
+
 const PACE_STYLES: Record<PaceStatus, { bar: string; track: string; badge: string; label: string }> = {
   behind: {
     bar: "bg-amber-500",
@@ -71,18 +110,20 @@ const PACE_STYLES: Record<PaceStatus, { bar: string; track: string; badge: strin
 };
 
 function PacingIndicator({
-  actualSessions,
-  plannedToDateSessions,
-  plannedSessions,
+  actual,
+  plannedToDate,
+  planned,
+  unit,
 }: {
-  actualSessions: number;
-  plannedToDateSessions: number;
-  plannedSessions: number;
+  actual: number;
+  plannedToDate: number;
+  planned: number;
+  unit: "sessions" | "min";
 }) {
-  const status = paceStatus(actualSessions, plannedToDateSessions);
+  const status = paceStatus(actual, plannedToDate);
   const styles = PACE_STYLES[status];
   const isIdle = status === "idle";
-  const ratio = isIdle ? 0 : actualSessions / Math.max(1, plannedToDateSessions);
+  const ratio = isIdle ? 0 : actual / Math.max(1, plannedToDate);
   const fillPct = Math.max(0, Math.min(1, ratio)) * 100;
   const deltaPct = isIdle ? 0 : Math.round((ratio - 1) * 100);
   const deltaLabel = isIdle
@@ -92,6 +133,10 @@ function PacingIndicator({
       : deltaPct > 0
         ? `+${deltaPct}% ahead`
         : `${deltaPct}% behind`;
+  const unitLabel = unit === "min" ? "min" : "sessions";
+  const ariaLabel = unit === "min"
+    ? "Actual cardio minutes vs planned to date"
+    : "Actual sessions vs planned to date";
 
   return (
     <div className="mb-4">
@@ -114,7 +159,7 @@ function PacingIndicator({
         aria-valuenow={Math.round(fillPct)}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-label="Actual sessions vs planned to date"
+        aria-label={ariaLabel}
       >
         <div
           className={cn("h-full transition-all", styles.bar)}
@@ -123,8 +168,8 @@ function PacingIndicator({
       </div>
       <div className="mt-1 text-[10px] tracking-wider text-muted-foreground/80 font-mono">
         {isIdle
-          ? `0 of ${plannedSessions} planned this campaign`
-          : `${actualSessions} of ${plannedToDateSessions} due so far · ${plannedSessions} planned total`}
+          ? `0 of ${planned} ${unitLabel} planned this campaign`
+          : `${actual} of ${plannedToDate} ${unitLabel} due so far · ${planned} ${unitLabel} planned total`}
       </div>
     </div>
   );
@@ -241,9 +286,10 @@ export default function Equipment() {
                 <div className="font-black text-lg uppercase tracking-wider">All Arsenal</div>
               </div>
               <PacingIndicator
-                actualSessions={combined.sessions}
-                plannedToDateSessions={combined.plannedToDateSessions}
-                plannedSessions={combined.plannedSessions}
+                actual={combined.sessions}
+                plannedToDate={combined.plannedToDateSessions}
+                planned={combined.plannedSessions}
+                unit="sessions"
               />
               <div className="grid grid-cols-2 gap-4">
                 <PlannedActualRow
@@ -287,11 +333,17 @@ export default function Equipment() {
                 <div className="font-black text-lg uppercase tracking-wider mb-4 border-b border-border pb-2">
                   {eq.equipment}
                 </div>
-                <PacingIndicator
-                  actualSessions={eq.sessions}
-                  plannedToDateSessions={eq.plannedToDateSessions}
-                  plannedSessions={eq.plannedSessions}
-                />
+                {(() => {
+                  const m = paceMetricFor(eq);
+                  return (
+                    <PacingIndicator
+                      actual={m.actual}
+                      plannedToDate={m.plannedToDate}
+                      planned={m.planned}
+                      unit={m.unit}
+                    />
+                  );
+                })()}
                 <div className="grid grid-cols-2 gap-4">
                   <PlannedActualRow
                     label="Sessions"
@@ -398,9 +450,9 @@ export default function Equipment() {
       )}
 
       {(() => {
-        const behindMachines = (usage ?? []).filter(
-          (eq) => paceStatus(eq.sessions, eq.plannedToDateSessions) === "behind",
-        );
+        const behindMachines = (usage ?? [])
+          .map((eq) => ({ eq, metric: paceMetricFor(eq) }))
+          .filter(({ metric }) => paceStatus(metric.actual, metric.plannedToDate) === "behind");
         if (behindMachines.length === 0) return null;
         return (
           <Card
@@ -415,10 +467,11 @@ export default function Equipment() {
                 </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {behindMachines.map((eq) => {
-                  const ratio = eq.plannedToDateSessions > 0
-                    ? Math.round((eq.sessions / eq.plannedToDateSessions) * 100)
+                {behindMachines.map(({ eq, metric }) => {
+                  const ratio = metric.plannedToDate > 0
+                    ? Math.round((metric.actual / metric.plannedToDate) * 100)
                     : 0;
+                  const unitLabel = metric.unit === "min" ? " min" : "";
                   return (
                     <button
                       key={eq.equipment}
@@ -429,7 +482,7 @@ export default function Equipment() {
                     >
                       <span className="font-bold uppercase tracking-wider text-xs">{eq.equipment}</span>
                       <span className="text-xs font-mono text-amber-600 dark:text-amber-400">
-                        {eq.sessions}/{eq.plannedToDateSessions} ({ratio}%)
+                        {metric.actual}/{metric.plannedToDate}{unitLabel} ({ratio}%)
                       </span>
                     </button>
                   );
