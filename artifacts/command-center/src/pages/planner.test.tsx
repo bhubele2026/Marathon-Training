@@ -2711,3 +2711,214 @@ describe("Custom hybrid builder card (Task #136)", () => {
     ).toBeTruthy();
   });
 });
+
+describe("Tag-cloud sort toggle — Plan Template Library", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    window.localStorage.clear();
+  });
+
+  // Returns chip tags in DOM order, filtering out the count-badge
+  // descendants whose testid shares the chip prefix.
+  function templateChipTags(): string[] {
+    const els = document.querySelectorAll<HTMLElement>(
+      '[data-testid^="planner-template-tag-chip-"]',
+    );
+    return Array.from(els)
+      .map((el) => el.getAttribute("data-testid")!)
+      .filter((id) => !id.startsWith("planner-template-tag-chip-count-"))
+      .map((id) => id.replace("planner-template-tag-chip-", ""));
+  }
+
+  it("defaults to By count and switches to alphabetical when A-Z is clicked", () => {
+    renderPlanner();
+    const countBtn = screen.getByTestId(
+      "planner-template-tag-cloud-sort-count",
+    );
+    const alphaBtn = screen.getByTestId(
+      "planner-template-tag-cloud-sort-alpha",
+    );
+    expect(countBtn.getAttribute("aria-pressed")).toBe("true");
+    expect(alphaBtn.getAttribute("aria-pressed")).toBe("false");
+
+    const before = templateChipTags();
+    expect(before.length).toBeGreaterThan(1);
+
+    fireEvent.click(alphaBtn);
+
+    expect(alphaBtn.getAttribute("aria-pressed")).toBe("true");
+    expect(countBtn.getAttribute("aria-pressed")).toBe("false");
+
+    const after = templateChipTags();
+    expect(after).toEqual(
+      [...after].sort((a, b) => a.localeCompare(b)),
+    );
+    // The reorder must actually have changed the chip sequence — if
+    // both modes produced identical output the toggle would be a no-op.
+    expect(after).not.toEqual(before);
+  });
+
+  it("clicking By count restores the count-ordered chip sequence", () => {
+    renderPlanner();
+    const countBtn = screen.getByTestId(
+      "planner-template-tag-cloud-sort-count",
+    );
+    const alphaBtn = screen.getByTestId(
+      "planner-template-tag-cloud-sort-alpha",
+    );
+
+    const initial = templateChipTags();
+
+    fireEvent.click(alphaBtn);
+    expect(templateChipTags()).not.toEqual(initial);
+
+    fireEvent.click(countBtn);
+    expect(countBtn.getAttribute("aria-pressed")).toBe("true");
+    expect(alphaBtn.getAttribute("aria-pressed")).toBe("false");
+    expect(templateChipTags()).toEqual(initial);
+  });
+
+  it("persists the sort choice to localStorage and survives a remount", () => {
+    const { unmount } = renderPlanner();
+    fireEvent.click(
+      screen.getByTestId("planner-template-tag-cloud-sort-alpha"),
+    );
+    expect(
+      window.localStorage.getItem("planner.templateTagSort.v1"),
+    ).toBe("alpha");
+
+    unmount();
+    cleanup();
+
+    renderPlanner();
+    const alphaBtn = screen.getByTestId(
+      "planner-template-tag-cloud-sort-alpha",
+    );
+    expect(alphaBtn.getAttribute("aria-pressed")).toBe("true");
+    const tags = templateChipTags();
+    expect(tags).toEqual([...tags].sort((a, b) => a.localeCompare(b)));
+  });
+
+  it("hydrates from a pre-set localStorage value as A-Z", () => {
+    window.localStorage.setItem("planner.templateTagSort.v1", "alpha");
+    renderPlanner();
+    expect(
+      screen
+        .getByTestId("planner-template-tag-cloud-sort-alpha")
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    const tags = templateChipTags();
+    expect(tags).toEqual([...tags].sort((a, b) => a.localeCompare(b)));
+  });
+
+  it("the Plan Template Library and quick-add popover persist independently", () => {
+    // Flipping the library to A-Z must NOT change the quick-add key
+    // (each surface owns its own preference).
+    renderPlanner();
+    fireEvent.click(
+      screen.getByTestId("planner-template-tag-cloud-sort-alpha"),
+    );
+    expect(
+      window.localStorage.getItem("planner.templateTagSort.v1"),
+    ).toBe("alpha");
+    // Quick-add stayed on its default ("count").
+    expect(
+      window.localStorage.getItem("planner.quickAddTagSort.v1"),
+    ).toBe("count");
+  });
+});
+
+describe("Tag-cloud sort toggle — quick-add popover", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    window.localStorage.clear();
+  });
+
+  function quickAddChipTags(): string[] {
+    const els = document.querySelectorAll<HTMLElement>(
+      '[data-testid^="planner-entry-add-tag-chip-"]',
+    );
+    return Array.from(els)
+      .map((el) => el.getAttribute("data-testid")!)
+      .filter((id) => !id.startsWith("planner-entry-add-tag-chip-count-"))
+      .map((id) => id.replace("planner-entry-add-tag-chip-", ""));
+  }
+
+  function enterEntriesModeAndOpenQuickAdd() {
+    fireEvent.click(
+      screen.getByTestId("planner-template-apply-higdon_5k_novice"),
+    );
+    fireEvent.click(screen.getByTestId("planner-confirm-pending-apply"));
+    fireEvent.click(screen.getByTestId("planner-entry-add-select"));
+    expect(screen.getByTestId("planner-entry-add-popover")).toBeTruthy();
+  }
+
+  it("defaults to By count and switches to alphabetical when A-Z is clicked", () => {
+    renderPlanner();
+    enterEntriesModeAndOpenQuickAdd();
+
+    const countBtn = screen.getByTestId(
+      "planner-entry-add-tag-cloud-sort-count",
+    );
+    const alphaBtn = screen.getByTestId(
+      "planner-entry-add-tag-cloud-sort-alpha",
+    );
+    expect(countBtn.getAttribute("aria-pressed")).toBe("true");
+    expect(alphaBtn.getAttribute("aria-pressed")).toBe("false");
+
+    const before = quickAddChipTags();
+    expect(before.length).toBeGreaterThan(1);
+
+    fireEvent.click(alphaBtn);
+    expect(alphaBtn.getAttribute("aria-pressed")).toBe("true");
+    expect(countBtn.getAttribute("aria-pressed")).toBe("false");
+
+    const after = quickAddChipTags();
+    expect(after).toEqual(
+      [...after].sort((a, b) => a.localeCompare(b)),
+    );
+    expect(after).not.toEqual(before);
+
+    fireEvent.click(countBtn);
+    expect(countBtn.getAttribute("aria-pressed")).toBe("true");
+    expect(quickAddChipTags()).toEqual(before);
+  });
+
+  it("persists the quick-add sort choice and survives a remount", () => {
+    const { unmount } = renderPlanner();
+    enterEntriesModeAndOpenQuickAdd();
+    fireEvent.click(
+      screen.getByTestId("planner-entry-add-tag-cloud-sort-alpha"),
+    );
+    expect(
+      window.localStorage.getItem("planner.quickAddTagSort.v1"),
+    ).toBe("alpha");
+
+    unmount();
+    cleanup();
+
+    renderPlanner();
+    enterEntriesModeAndOpenQuickAdd();
+    const alphaBtn = screen.getByTestId(
+      "planner-entry-add-tag-cloud-sort-alpha",
+    );
+    expect(alphaBtn.getAttribute("aria-pressed")).toBe("true");
+    const tags = quickAddChipTags();
+    expect(tags).toEqual([...tags].sort((a, b) => a.localeCompare(b)));
+  });
+
+  it("hydrates from a pre-set localStorage value as A-Z", () => {
+    window.localStorage.setItem("planner.quickAddTagSort.v1", "alpha");
+    renderPlanner();
+    enterEntriesModeAndOpenQuickAdd();
+    expect(
+      screen
+        .getByTestId("planner-entry-add-tag-cloud-sort-alpha")
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    const tags = quickAddChipTags();
+    expect(tags).toEqual([...tags].sort((a, b) => a.localeCompare(b)));
+  });
+});
