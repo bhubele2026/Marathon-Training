@@ -1483,7 +1483,14 @@ export const RACE_DAY_SPECS: Readonly<
       "RACE DAY — 10K (6.2 mi). Execute race plan at threshold effort, hold form, finish strong.",
     runMinPerMi: 10,
     totalLoad: 110,
-    pace: "11:30",
+    // Task #223: 10K is run at lactate-threshold effort, notably faster
+    // than marathon pace. The Speed recipe's `tempoPace` ("11:00",
+    // used by the 10K templates' threshold/tempo Friday) is the same
+    // rung on the per-kind pace ladder, so race-day pace mirrors it
+    // here. Before #223 every race kind shared "11:30" (marathon pace);
+    // a runner training for a 10K saw the same pace chip on race day
+    // as a marathoner, mis-setting expectations.
+    pace: "11:00",
   },
   "5k": {
     distanceMi: 3.1,
@@ -1492,7 +1499,13 @@ export const RACE_DAY_SPECS: Readonly<
       "RACE DAY — 5K (3.1 mi). Execute race plan at VO2 effort, go hard from the gun, finish strong.",
     runMinPerMi: 10,
     totalLoad: 60,
-    pace: "11:30",
+    // Task #223: 5K is run at VO2max effort, faster again than the
+    // 10K threshold pace above. Roughly one notch quicker than
+    // `RACE_DAY_SPECS["10k"].pace`, matching the conventional ~30s/mi
+    // gap between threshold and VO2 race efforts. Before #223 the 5K
+    // shared "11:30" with the marathon, which under-sold the
+    // sharpening effort runners actually deliver on race day.
+    pace: "10:30",
   },
 };
 

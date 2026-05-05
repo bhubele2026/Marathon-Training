@@ -851,6 +851,100 @@ describe("previewWeeklyMileage matches generatePlanFromConfig", () => {
       expect(hybridSun.pace).toBe(spec.pace);
     });
 
+    // Task #223: 10K race day reads `pace` from `RACE_DAY_SPECS["10k"]`,
+    // which is now distinct from marathon / half (threshold-effort
+    // value, not the shared "11:30"). Pin parity across the recipe-
+    // driven branch (`buildWeekDays`, used by `10k_higdon_int`) and
+    // the hybrid branch (`buildHybridWeekDays`, used by
+    // `10k_hybrid_balanced`) so a future tweak that drifts only one
+    // branch's pace lookup off `RACE_DAY_SPECS["10k"].pace` fails
+    // here. Mirrors the marathon recipe-vs-hybrid parity test above.
+    it("10K recipe (10k_higdon_int) and 10K hybrid (10k_hybrid_balanced) emit identical Sun race-day rows at RACE_DAY_SPECS[\"10k\"] pace", () => {
+      // Higdon Intermediate 10K and 10k_hybrid_balanced both default
+      // to 10 weeks, so Mon 2026-05-04 + 10 wk lines them up on the
+      // same campaign-final Sunday (2026-07-12).
+      const recipeSun = buildRaceSun("10k_higdon_int", 10, "2026-07-12");
+      const hybridSun = buildRaceSun("10k_hybrid_balanced", 10, "2026-07-12");
+
+      // Strict per-field parity for everything that flows through
+      // `RACE_DAY_SPECS["10k"]`: any branch-local override of pace,
+      // distance, run_min, total_load, description, session_type, or
+      // equipment desyncs the two rows and fails loudly here.
+      for (const field of RACE_SUN_PARITY_FIELDS) {
+        expect(
+          hybridSun[field],
+          `10k hybrid vs 10k recipe: ${field}`,
+        ).toEqual(recipeSun[field]);
+      }
+      expect(hybridSun.equipment_list).toEqual(recipeSun.equipment_list);
+      expect(recipeSun.equipment_list).toEqual(["Outdoor"]);
+
+      // Sanity: lock both branches directly against the per-kind
+      // spec so a future regression that drifts BOTH branches in
+      // lock-step (defeating the cross-branch parity check above)
+      // is still caught. The 10K race-day pace must be the
+      // threshold/tempo target from `RACE_DAY_SPECS["10k"]` — NOT
+      // the marathon pace it shared pre-#223.
+      const spec = RACE_DAY_SPECS["10k"];
+      expect(recipeSun.distance_mi).toBe(spec.distanceMi);
+      expect(recipeSun.distance_mi).toBe(6.2);
+      expect(recipeSun.description).toBe(spec.description);
+      expect(recipeSun.run_min).toBe(
+        Math.round(spec.distanceMi * spec.runMinPerMi),
+      );
+      expect(recipeSun.total_load).toBe(spec.totalLoad);
+      expect(recipeSun.pace).toBe(spec.pace);
+      expect(hybridSun.pace).toBe(spec.pace);
+      // Pin the actual per-kind value so a future drift of
+      // `RACE_DAY_SPECS["10k"].pace` back onto marathon pace
+      // ("11:30") — silently re-collapsing the four race kinds onto
+      // one shared value the way they were before #223 — fails
+      // loudly here too.
+      expect(spec.pace).toBe("11:00");
+      expect(spec.pace).not.toBe(RACE_DAY_SPECS.marathon.pace);
+    });
+
+    // Task #223: 5K race day reads `pace` from `RACE_DAY_SPECS["5k"]`,
+    // which is faster again than the 10K threshold pace (VO2 effort).
+    // Same recipe-vs-hybrid parity structure as the 10K case above:
+    // `higdon_5k_novice` (recipe-driven) vs `5k_hybrid_balanced`
+    // (hybrid) — both classified at race kind "5k" so both consume
+    // `RACE_DAY_SPECS["5k"]`.
+    it("5K recipe (higdon_5k_novice) and 5K hybrid (5k_hybrid_balanced) emit identical Sun race-day rows at RACE_DAY_SPECS[\"5k\"] pace", () => {
+      // Higdon Novice 5K and 5k_hybrid_balanced both default to 8
+      // weeks, so Mon 2026-05-04 + 8 wk lines them up on the same
+      // campaign-final Sunday (2026-06-28).
+      const recipeSun = buildRaceSun("higdon_5k_novice", 8, "2026-06-28");
+      const hybridSun = buildRaceSun("5k_hybrid_balanced", 8, "2026-06-28");
+
+      for (const field of RACE_SUN_PARITY_FIELDS) {
+        expect(
+          hybridSun[field],
+          `5k hybrid vs 5k recipe: ${field}`,
+        ).toEqual(recipeSun[field]);
+      }
+      expect(hybridSun.equipment_list).toEqual(recipeSun.equipment_list);
+      expect(recipeSun.equipment_list).toEqual(["Outdoor"]);
+
+      const spec = RACE_DAY_SPECS["5k"];
+      expect(recipeSun.distance_mi).toBe(spec.distanceMi);
+      expect(recipeSun.distance_mi).toBe(3.1);
+      expect(recipeSun.description).toBe(spec.description);
+      expect(recipeSun.run_min).toBe(
+        Math.round(spec.distanceMi * spec.runMinPerMi),
+      );
+      expect(recipeSun.total_load).toBe(spec.totalLoad);
+      expect(recipeSun.pace).toBe(spec.pace);
+      expect(hybridSun.pace).toBe(spec.pace);
+      // Pin the actual per-kind value (VO2 effort, faster than
+      // 10K threshold) so a future drift back onto marathon pace
+      // — or onto the 10K threshold pace, collapsing the two
+      // shorter race kinds onto one shared value — fails loudly.
+      expect(spec.pace).toBe("10:30");
+      expect(spec.pace).not.toBe(RACE_DAY_SPECS.marathon.pace);
+      expect(spec.pace).not.toBe(RACE_DAY_SPECS["10k"].pace);
+    });
+
     it("half-marathon recipe (half_marathon) Sun matches RACE_DAY_SPECS.half (and any hybrid half template emits an identical Sun row)", () => {
       // Higdon Intermediate-1 half-marathon at its `defaultWeeks` of
       // 12. Mon 2026-05-04 → Sun 2026-07-26 spans 12 weeks.
