@@ -11,17 +11,22 @@ import {
 import { WorkoutForm } from "@/components/workout-form";
 import { LIFESTYLE_PRESETS } from "@/lib/lifestyle-presets";
 import { LIFESTYLE_EQUIPMENT } from "@workspace/plan-generator";
+import { useGetRecentLifestyleActivities } from "@workspace/api-client-react";
+import { sortPresetsByRecent } from "@/lib/recent-activities";
 
 export function QuickLogFab() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [preset, setPreset] = useState<{ sessionType: string } | null>(null);
+  const { data: recent } = useGetRecentLifestyleActivities();
 
   const openForm = (sessionType: string | null) => {
     setPreset(sessionType ? { sessionType } : null);
     setSheetOpen(false);
     setFormOpen(true);
   };
+
+  const orderedPresets = sortPresetsByRecent(LIFESTYLE_PRESETS, recent ?? []);
 
   return (
     <>
@@ -42,8 +47,8 @@ export function QuickLogFab() {
               Quick Log Activity
             </SheetTitle>
           </SheetHeader>
-          <div className="grid grid-cols-2 gap-2 mt-4">
-            {LIFESTYLE_PRESETS.map((p) => {
+          <div className="grid grid-cols-2 gap-2 mt-4" data-testid="quick-log-fab-presets">
+            {orderedPresets.map((p) => {
               const Icon = p.icon;
               return (
                 <Button

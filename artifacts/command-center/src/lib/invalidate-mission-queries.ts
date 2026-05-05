@@ -7,6 +7,7 @@ import {
   getGetEquipmentUsageQueryKey,
   getGetLongRunProgressionQueryKey,
   getGetRecentActivityQueryKey,
+  getGetRecentLifestyleActivitiesQueryKey,
   getGetPlanOverviewQueryKey,
   getListPlannerConfigsQueryKey,
 } from "@workspace/api-client-react";
@@ -19,6 +20,7 @@ export function invalidateMissionRelatedQueries(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: getGetEquipmentUsageQueryKey() });
   queryClient.invalidateQueries({ queryKey: getGetLongRunProgressionQueryKey() });
   queryClient.invalidateQueries({ queryKey: getGetRecentActivityQueryKey() });
+  queryClient.invalidateQueries({ queryKey: getGetRecentLifestyleActivitiesQueryKey() });
   queryClient.invalidateQueries({ queryKey: getGetPlanOverviewQueryKey() });
   // Planner configs (Task #80, multi-config since Task #82) drive
   // /plan/full-reset and are the source of truth for the Phase Planner

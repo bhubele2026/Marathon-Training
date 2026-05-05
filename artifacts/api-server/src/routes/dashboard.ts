@@ -652,4 +652,30 @@ router.get("/dashboard/recent-activity", async (_req, res) => {
   res.json(rows.map((r) => toWorkout(r)));
 });
 
+// Task #42: Distinct lifestyle session types ordered by recency. Drives
+// the quick-log preset ordering on the Dashboard card and the mobile
+// FAB so the runner's most-recently-logged activity sorts to the front.
+// Sourced from persisted workout history (NOT a localStorage click
+// counter) so the order reflects what the runner actually did, and it
+// updates automatically after every successful workout save via the
+// React Query invalidation that already runs in WorkoutForm.
+router.get("/dashboard/recent-lifestyle-activities", async (_req, res) => {
+  const rows = await db.execute<{ session_type: string; last_logged_at: string }>(
+    sql`SELECT session_type,
+           TO_CHAR(MAX(date), 'YYYY-MM-DD') AS last_logged_at
+        FROM workouts
+        WHERE equipment = ${LIFESTYLE_EQUIPMENT}
+          AND session_type IS NOT NULL
+          AND session_type <> ''
+          AND session_type <> 'Skipped'
+        GROUP BY session_type
+        ORDER BY MAX(date) DESC, MAX(created_at) DESC
+        LIMIT 10`,
+  );
+  res.json(rows.rows.map((r) => ({
+    sessionType: r.session_type,
+    lastLoggedAt: r.last_logged_at,
+  })));
+});
+
 export default router;

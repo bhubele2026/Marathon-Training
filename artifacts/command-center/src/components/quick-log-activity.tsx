@@ -1,54 +1,35 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, Clock } from "lucide-react";
 import { WorkoutForm } from "@/components/workout-form";
 import { LIFESTYLE_PRESETS } from "@/lib/lifestyle-presets";
 import { LIFESTYLE_EQUIPMENT } from "@workspace/plan-generator";
+import { useGetRecentLifestyleActivities } from "@workspace/api-client-react";
+import {
+  sortPresetsByRecent,
+  getRecentNonPresetActivities,
+} from "@/lib/recent-activities";
 
 interface QuickLogActivityProps {
   testIdSuffix?: string;
 }
 
-const RECENT_KEY = "quickLog.recentActivities.v1";
-const MAX_RECENT = 4;
-
-function getRecentActivities(): string[] {
-  try {
-    const raw = localStorage.getItem(RECENT_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter((s: unknown) => typeof s === "string").slice(0, MAX_RECENT) : [];
-  } catch {
-    return [];
-  }
-}
-
-function addRecentActivity(sessionType: string) {
-  const recent = getRecentActivities().filter((s) => s !== sessionType);
-  recent.unshift(sessionType);
-  localStorage.setItem(RECENT_KEY, JSON.stringify(recent.slice(0, MAX_RECENT)));
-}
-
 export function QuickLogActivity({ testIdSuffix }: QuickLogActivityProps = {}) {
   const [quickLogOpen, setQuickLogOpen] = useState(false);
   const [quickLogPreset, setQuickLogPreset] = useState<{ sessionType: string } | null>(null);
-  const [recentActivities, setRecentActivities] = useState<string[]>([]);
-
-  useEffect(() => {
-    setRecentActivities(getRecentActivities());
-  }, [quickLogOpen]);
+  const { data: recent } = useGetRecentLifestyleActivities();
+  const recentActivities = recent ?? [];
 
   const openQuickLog = (sessionType: string | null) => {
-    if (sessionType) addRecentActivity(sessionType);
     setQuickLogPreset(sessionType ? { sessionType } : null);
     setQuickLogOpen(true);
   };
 
   const suffix = testIdSuffix ? `-${testIdSuffix}` : "";
 
-  const presetSessionTypes = new Set(LIFESTYLE_PRESETS.map((p) => p.sessionType));
-  const recentOnly = recentActivities.filter((s) => !presetSessionTypes.has(s));
+  const orderedPresets = sortPresetsByRecent(LIFESTYLE_PRESETS, recentActivities);
+  const recentOnly = getRecentNonPresetActivities(recentActivities);
 
   return (
     <Card>
@@ -56,8 +37,8 @@ export function QuickLogActivity({ testIdSuffix }: QuickLogActivityProps = {}) {
         <CardTitle className="text-lg uppercase tracking-wider">Quick Log Activity</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 gap-2">
-          {LIFESTYLE_PRESETS.map((preset) => {
+        <div className="grid grid-cols-2 gap-2" data-testid={`quick-log-presets${suffix}`}>
+          {orderedPresets.map((preset) => {
             const Icon = preset.icon;
             return (
               <Button

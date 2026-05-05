@@ -28,6 +28,7 @@ import type {
   EquipmentUsage,
   Error,
   FullResetPlanResponse,
+  GetRecentLifestyleActivities200Item,
   HealthStatus,
   ListPlannerConfigsResponse,
   ListWorkoutsParams,
@@ -2090,6 +2091,89 @@ export function useGetRecentActivity<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetRecentActivityQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Distinct lifestyle session types ordered by most recent log first.
+Drives the quick-log surfaces (FAB and Dashboard card) so the
+runner's most-recently-logged preset (e.g. "Dog Walk") sorts to
+the front. Sourced from the `workouts` table (equipment =
+Lifestyle), grouped by sessionType, ordered by MAX(date,
+createdAt) DESC. Returns at most 10 entries; empty if the runner
+has never logged a lifestyle activity.
+
+ */
+export const getGetRecentLifestyleActivitiesUrl = () => {
+  return `/api/dashboard/recent-lifestyle-activities`;
+};
+
+export const getRecentLifestyleActivities = async (
+  options?: RequestInit,
+): Promise<GetRecentLifestyleActivities200Item[]> => {
+  return customFetch<GetRecentLifestyleActivities200Item[]>(
+    getGetRecentLifestyleActivitiesUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetRecentLifestyleActivitiesQueryKey = () => {
+  return [`/api/dashboard/recent-lifestyle-activities`] as const;
+};
+
+export const getGetRecentLifestyleActivitiesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getRecentLifestyleActivities>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getRecentLifestyleActivities>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetRecentLifestyleActivitiesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getRecentLifestyleActivities>>
+  > = ({ signal }) =>
+    getRecentLifestyleActivities({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getRecentLifestyleActivities>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetRecentLifestyleActivitiesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getRecentLifestyleActivities>>
+>;
+export type GetRecentLifestyleActivitiesQueryError = ErrorType<unknown>;
+
+export function useGetRecentLifestyleActivities<
+  TData = Awaited<ReturnType<typeof getRecentLifestyleActivities>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getRecentLifestyleActivities>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetRecentLifestyleActivitiesQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

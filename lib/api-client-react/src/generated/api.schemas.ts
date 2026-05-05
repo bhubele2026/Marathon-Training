@@ -1159,3 +1159,9 @@ export type ListWorkoutsParams = {
   to?: string;
   equipment?: string;
 };
+
+export type GetRecentLifestyleActivities200Item = {
+  sessionType: string;
+  /** ISO date (YYYY-MM-DD) of the most recent log for this sessionType. */
+  lastLoggedAt: string;
+};

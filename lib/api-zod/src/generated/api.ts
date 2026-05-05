@@ -2474,6 +2474,28 @@ export const GetRecentActivityResponse = zod.array(
 );
 
 /**
+ * Distinct lifestyle session types ordered by most recent log first.
+Drives the quick-log surfaces (FAB and Dashboard card) so the
+runner's most-recently-logged preset (e.g. "Dog Walk") sorts to
+the front. Sourced from the `workouts` table (equipment =
+Lifestyle), grouped by sessionType, ordered by MAX(date,
+createdAt) DESC. Returns at most 10 entries; empty if the runner
+has never logged a lifestyle activity.
+
+ */
+export const GetRecentLifestyleActivitiesResponseItem = zod.object({
+  sessionType: zod.string(),
+  lastLoggedAt: zod
+    .string()
+    .describe(
+      "ISO date (YYYY-MM-DD) of the most recent log for this sessionType.",
+    ),
+});
+export const GetRecentLifestyleActivitiesResponse = zod.array(
+  GetRecentLifestyleActivitiesResponseItem,
+);
+
+/**
  * Static catalog of research-backed plan templates (Couch-to-5K, 5K Improver, 10K Builder, Half Marathon, Marathon, Ultramarathon 50K, Aerobic Base, Speed Block, Hybrid Strength + Run, Cardio + Weight Loss, Recovery, Maintenance) plus three opinionated starter shortcuts. Returned data is read-only and shipped from `@workspace/plan-generator`. The UI Template Library renders this catalog and the runner composes ordered TemplateEntry[] arrays inside their PlannerConfig.
  */
 

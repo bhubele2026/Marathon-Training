@@ -531,6 +531,34 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/Workout" }
 
+  /dashboard/recent-lifestyle-activities:
+    get:
+      operationId: getRecentLifestyleActivities
+      tags: [dashboard]
+      description: |
+        Distinct lifestyle session types ordered by most recent log first.
+        Drives the quick-log surfaces (FAB and Dashboard card) so the
+        runner's most-recently-logged preset (e.g. "Dog Walk") sorts to
+        the front. Sourced from the `workouts` table (equipment =
+        Lifestyle), grouped by sessionType, ordered by MAX(date,
+        createdAt) DESC. Returns at most 10 entries; empty if the runner
+        has never logged a lifestyle activity.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [sessionType, lastLoggedAt]
+                  properties:
+                    sessionType: { type: string }
+                    lastLoggedAt:
+                      type: string
+                      description: ISO date (YYYY-MM-DD) of the most recent log for this sessionType.
+
   /planner/templates:
     get:
       operationId: listPlannerTemplates
