@@ -1560,15 +1560,28 @@ export function buildRaceDaySunRow(args: {
   };
 }
 
+// Training-style classification used to group starter shortcuts on the
+// planner rail (task #225). `"run_only"` starters compose only run-only
+// templates (no `hybrid` tag in any composed template); `"hybrid"`
+// starters include at least one template tagged `hybrid` (e.g. Viada-
+// style concurrent lift+run blocks). The grouping is purely a UI hint —
+// the apply path is identical for both styles.
+export type StarterShortcutStyle = "run_only" | "hybrid";
+
 // Opinionated starter shortcuts surfaced as one-click "Use this starter"
 // buttons. Each starter is a COMPOSITION of TemplateEntry objects — an
 // Aerobic Base lead-in followed by a race-specific template — so that
 // the runner gets the canonical "build your engine first, then sharpen"
 // structure recommended by every coach in the citation list.
+
 export interface StarterShortcut {
   id: string;
   name: string;
   description: string;
+  // Training-style bucket — drives the planner rail's "Run-only" vs
+  // "Hybrid" grouping. Populated explicitly so the catalog stays self-
+  // describing even if a composed template's tags change later.
+  style: StarterShortcutStyle;
   // Sum of entries.weeks is the total span. No auto-pinned tail.
   entries: ReadonlyArray<{ templateId: string; weeks: number }>;
 }
@@ -1579,6 +1592,7 @@ export const STARTER_SHORTCUTS: StarterShortcut[] = [
     name: "HM Beginner — 16 weeks",
     description:
       "6-week Higdon Novice 5K lead-in feeding into 10 weeks of Higdon's half-marathon plan. Ends on the HM template's 2-week taper.",
+    style: "run_only",
     entries: [
       { templateId: "higdon_5k_novice", weeks: 6 },
       { templateId: "half_marathon", weeks: 10 },
@@ -1589,6 +1603,7 @@ export const STARTER_SHORTCUTS: StarterShortcut[] = [
     name: "HM Hybrid — 18 weeks",
     description:
       "6-week Higdon Novice 5K aerobic-base lead-in feeding into 12 weeks of Viada's balanced hybrid half-marathon block. Ends on a 13.1 mi RACE DAY Sunday with the shared race-eve Saturday shake-out.",
+    style: "hybrid",
     entries: [
       { templateId: "higdon_5k_novice", weeks: 6 },
       { templateId: "half_marathon_hybrid", weeks: 12 },
@@ -1599,6 +1614,7 @@ export const STARTER_SHORTCUTS: StarterShortcut[] = [
     name: "Marathon First-Timer — 24 weeks",
     description:
       "6-week Higdon Novice 5K + 18-week Pfitzinger marathon build. Conservative ramp through Base → Time on Feet → Marathon-Specific → 3-week taper.",
+    style: "run_only",
     entries: [
       { templateId: "higdon_5k_novice", weeks: 6 },
       { templateId: "marathon", weeks: 18 },
@@ -1609,6 +1625,7 @@ export const STARTER_SHORTCUTS: StarterShortcut[] = [
     name: "Get Faster 5K — 14 weeks",
     description:
       "6-week NHS Couch to 5K lead-in + 8-week 5K-with-strength-accessory build. Ends on a 1-week sharpening taper into race day.",
+    style: "run_only",
     entries: [
       { templateId: "couch_to_5k", weeks: 6 },
       { templateId: "5k_strength_lite", weeks: 8 },
@@ -1619,6 +1636,7 @@ export const STARTER_SHORTCUTS: StarterShortcut[] = [
     name: "Couch → Half Marathon — 24 weeks",
     description:
       "9-week NHS Couch to 5K + 15-week Higdon HM. From zero to a half-marathon finish.",
+    style: "run_only",
     entries: [
       { templateId: "couch_to_5k", weeks: 9 },
       { templateId: "half_marathon", weeks: 15 },

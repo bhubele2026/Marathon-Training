@@ -532,6 +532,44 @@ describe("Planner template library (entries-mode)", () => {
     expect(within(editor).getByText(/Composition · 1 entry · 12\/12w/)).toBeTruthy();
   });
 
+  it("starter shortcuts rail groups starters by training style with Run-only first", () => {
+    renderPlanner();
+    const rail = screen.getByTestId("planner-starter-rail");
+    const runGroup = within(rail).getByTestId("planner-starter-group-run_only");
+    const hybridGroup = within(rail).getByTestId(
+      "planner-starter-group-hybrid",
+    );
+    // Run-only group renders before the Hybrid group in DOM order.
+    expect(
+      runGroup.compareDocumentPosition(hybridGroup) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    // Visible group headers.
+    expect(within(runGroup).getByText("Run-only")).toBeTruthy();
+    expect(within(hybridGroup).getByText("Hybrid")).toBeTruthy();
+    // Run-only starters live under the Run-only group; hybrid starters
+    // under the Hybrid group. Per-card test ids are unchanged.
+    expect(
+      within(runGroup).getByTestId("planner-starter-hm_beginner_16w"),
+    ).toBeTruthy();
+    expect(
+      within(runGroup).getByTestId("planner-starter-marathon_first_timer_24w"),
+    ).toBeTruthy();
+    expect(
+      within(runGroup).getByTestId("planner-starter-get_faster_5k_14w"),
+    ).toBeTruthy();
+    expect(
+      within(runGroup).getByTestId("planner-starter-couch_to_hm_24w"),
+    ).toBeTruthy();
+    expect(
+      within(hybridGroup).getByTestId("planner-starter-hm_hybrid_18w"),
+    ).toBeTruthy();
+    // Hybrid starter does NOT also show up under the Run-only group.
+    expect(
+      within(runGroup).queryByTestId("planner-starter-hm_hybrid_18w"),
+    ).toBeNull();
+  });
+
   it("applying a one-click starter loads its full multi-entry composition", () => {
     renderPlanner();
     fireEvent.click(screen.getByTestId("planner-starter-apply-hm_beginner_16w"));

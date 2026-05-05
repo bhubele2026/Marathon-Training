@@ -824,6 +824,17 @@ export interface PlanTemplate {
   level: PlanTemplateLevel;
 }
 
+/**
+ * Training-style bucket used to group starter shortcuts on the planner rail. `run_only` shortcuts compose only run-only templates; `hybrid` shortcuts include at least one concurrent lift+run template.
+ */
+export type StarterShortcutStyle =
+  (typeof StarterShortcutStyle)[keyof typeof StarterShortcutStyle];
+
+export const StarterShortcutStyle = {
+  run_only: "run_only",
+  hybrid: "hybrid",
+} as const;
+
 export type StarterShortcutEntriesItem = {
   templateId: string;
   weeks: number;
@@ -836,6 +847,8 @@ export interface StarterShortcut {
   id: string;
   name: string;
   description: string;
+  /** Training-style bucket used to group starter shortcuts on the planner rail. `run_only` shortcuts compose only run-only templates; `hybrid` shortcuts include at least one concurrent lift+run template. */
+  style: StarterShortcutStyle;
   /** @minItems 1 */
   entries: StarterShortcutEntriesItem[];
 }

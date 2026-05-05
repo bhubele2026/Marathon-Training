@@ -2259,33 +2259,61 @@ export default function Planner() {
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Starter shortcuts: one-click full configs */}
-          <div className="space-y-2">
+          {/* Starter shortcuts: one-click full configs, grouped by
+              training style ("Run-only" vs "Hybrid") so the rail stays
+              scannable as the catalog grows (task #225). Group order is
+              fixed (Run-only first), and a group is dropped entirely
+              when no starters of that style exist. The per-card test
+              ids (`planner-starter-${id}` / `planner-starter-apply-${id}`)
+              are unchanged so existing apply-flow tests keep working. */}
+          <div className="space-y-4" data-testid="planner-starter-rail">
             <h3 className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
               <Sparkles className="h-3 w-3" /> Starter shortcuts
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {starters.map((s) => (
+            {(
+              [
+                { style: "run_only" as const, label: "Run-only" },
+                { style: "hybrid" as const, label: "Hybrid" },
+              ]
+            )
+              .map((g) => ({
+                ...g,
+                items: starters.filter((s) => s.style === g.style),
+              }))
+              .filter((g) => g.items.length > 0)
+              .map((g) => (
                 <div
-                  key={s.id}
-                  className="border rounded-md p-3 flex flex-col gap-2"
-                  data-testid={`planner-starter-${s.id}`}
+                  key={g.style}
+                  className="space-y-2"
+                  data-testid={`planner-starter-group-${g.style}`}
                 >
-                  <div className="font-medium text-sm">{s.name}</div>
-                  <div className="text-xs text-muted-foreground flex-1">
-                    {s.description}
+                  <h4 className="text-[11px] uppercase tracking-wider text-muted-foreground/80">
+                    {g.label}
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {g.items.map((s) => (
+                      <div
+                        key={s.id}
+                        className="border rounded-md p-3 flex flex-col gap-2"
+                        data-testid={`planner-starter-${s.id}`}
+                      >
+                        <div className="font-medium text-sm">{s.name}</div>
+                        <div className="text-xs text-muted-foreground flex-1">
+                          {s.description}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => applyStarter(s)}
+                          data-testid={`planner-starter-apply-${s.id}`}
+                        >
+                          <Sparkles className="h-3 w-3 mr-1" /> Use this starter
+                        </Button>
+                      </div>
+                    ))}
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => applyStarter(s)}
-                    data-testid={`planner-starter-apply-${s.id}`}
-                  >
-                    <Sparkles className="h-3 w-3 mr-1" /> Use this starter
-                  </Button>
                 </div>
               ))}
-            </div>
           </div>
 
           {/* Tag-cloud filter (chips) — clickable AND-semantics filter

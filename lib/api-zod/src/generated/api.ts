@@ -1723,6 +1723,11 @@ export const ListPlannerTemplatesResponse = zod.object({
         id: zod.string(),
         name: zod.string(),
         description: zod.string(),
+        style: zod
+          .enum(["run_only", "hybrid"])
+          .describe(
+            "Training-style bucket used to group starter shortcuts on the planner rail. `run_only` shortcuts compose only run-only templates; `hybrid` shortcuts include at least one concurrent lift+run template.",
+          ),
         entries: zod
           .array(
             zod.object({

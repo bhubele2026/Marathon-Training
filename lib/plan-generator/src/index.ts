@@ -3455,6 +3455,7 @@ export {
   type PlanTemplateLevel,
   type PlanTemplateMetadata,
   type StarterShortcut,
+  type StarterShortcutStyle,
   type TemplateEntry,
   type EntryProjection,
   type PrimaryMachineKind,

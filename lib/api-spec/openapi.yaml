@@ -1968,12 +1968,16 @@ components:
 
     StarterShortcut:
       type: object
-      required: [id, name, description, entries]
+      required: [id, name, description, style, entries]
       description: One-click shortcut that seeds an ordered composition of TemplateEntry objects (e.g. an Aerobic Base lead-in followed by a race-specific template) for a common goal/duration pairing.
       properties:
         id: { type: string }
         name: { type: string }
         description: { type: string }
+        style:
+          type: string
+          enum: [run_only, hybrid]
+          description: "Training-style bucket used to group starter shortcuts on the planner rail. `run_only` shortcuts compose only run-only templates; `hybrid` shortcuts include at least one concurrent lift+run template."
         entries:
           type: array
           minItems: 1
