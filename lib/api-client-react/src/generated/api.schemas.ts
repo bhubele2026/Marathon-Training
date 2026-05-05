@@ -859,6 +859,24 @@ export interface RaceWeekRacePlan {
   description: string;
 }
 
+export interface RaceResult {
+  raceDate: string;
+  /** Free-form finish time string (e.g. "2:14:08"). */
+  finishTime?: string | null;
+  placementOverall?: number | null;
+  /** Total field size, used together with placementOverall (e.g. 312 of 1804). */
+  placementTotal?: number | null;
+  /**
+   * 1-5 self-rating of how the race felt (1 = brutal, 5 = nailed it).
+   * @minimum 1
+   * @maximum 5
+   */
+  feltRating?: number | null;
+  notes?: string | null;
+  recordedAt: string;
+  updatedAt: string;
+}
+
 export interface RaceWeekStatus {
   raceDate: string;
   daysToRace: number;
@@ -870,7 +888,33 @@ export interface RaceWeekStatus {
   /** Number of days since race day. Null when race has not yet passed. */
   daysAfterRace?: number | null;
   racePlan?: RaceWeekRacePlan | null;
+  /** The runner's logged race-day result, or null if no result has been
+captured yet. Only ever populated once `racePassed` is true; the
+UI uses this to switch the post-race recovery banner between an
+empty "Log your race" form and a "saved result" summary card.
+ */
+  raceResult?: RaceResult | null;
   checklist: RaceWeekChecklistItem[];
+}
+
+export interface SetRaceResultBody {
+  finishTime?: string | null;
+  /**
+   * 1-based finish position. Must be a positive integer.
+   * @minimum 1
+   */
+  placementOverall?: number | null;
+  /**
+   * Total field size. Must be a positive integer.
+   * @minimum 1
+   */
+  placementTotal?: number | null;
+  /**
+   * @minimum 1
+   * @maximum 5
+   */
+  feltRating?: number | null;
+  notes?: string | null;
 }
 
 export interface SetRaceWeekChecklistItemBody {

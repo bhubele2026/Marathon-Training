@@ -3,6 +3,7 @@ export * from "./planWeeks";
 export * from "./workouts";
 export * from "./measurements";
 export * from "./raceWeekChecklist";
+export * from "./raceResults";
 export * from "./resetUndoSnapshots";
 export * from "./plannerConfigs";
 export * from "./userPreferences";

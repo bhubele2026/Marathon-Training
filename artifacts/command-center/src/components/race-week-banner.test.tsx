@@ -9,14 +9,26 @@
 // /race-week response for each race kind.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 const useGetRaceWeekMock = vi.fn();
+const setRaceResultMutate = vi.fn();
 
 vi.mock("@workspace/api-client-react", () => ({
   useGetRaceWeek: (...args: unknown[]) => useGetRaceWeekMock(...args),
   useSetRaceWeekChecklistItem: () => ({ mutate: vi.fn(), isPending: false }),
+  useSetRaceResult: (opts: { mutation?: { onSuccess?: () => void } } = {}) => ({
+    mutate: (vars: unknown) => {
+      setRaceResultMutate(vars);
+      opts.mutation?.onSuccess?.();
+    },
+    isPending: false,
+  }),
   getGetRaceWeekQueryKey: () => ["/race-week"],
+}));
+
+vi.mock("@/hooks/use-toast", () => ({
+  useToast: () => ({ toast: vi.fn() }),
 }));
 
 vi.mock("@tanstack/react-query", async () => {
@@ -39,6 +51,7 @@ import { RaceWeekBanner } from "./race-week-banner";
 afterEach(() => {
   cleanup();
   useGetRaceWeekMock.mockReset();
+  setRaceResultMutate.mockReset();
 });
 
 function setupRaceDay(opts: {
@@ -119,5 +132,98 @@ describe("RaceWeekBanner — race-day Target Pace tile (Task #227)", () => {
     expect(chip.className).toContain("border-border");
     // None of the zone-color classes should appear.
     expect(chip.className).not.toMatch(/border-(amber|orange|red)-500\/40/);
+  });
+});
+
+describe("RaceWeekBanner — post-race result form / summary (Task #40)", () => {
+  function setupPostRace(raceResult: unknown = null, daysAfterRace = 2) {
+    useGetRaceWeekMock.mockReturnValue({
+      data: {
+        inWindow: true,
+        isRaceDay: false,
+        racePassed: true,
+        daysToRace: 0,
+        hoursToRace: 0,
+        daysAfterRace,
+        racePlan: null,
+        raceResult,
+        checklist: [],
+      },
+      isLoading: false,
+    });
+  }
+
+  it("renders the empty form when no result has been logged yet", () => {
+    setupPostRace(null);
+    render(<RaceWeekBanner />);
+    expect(screen.getByTestId("race-result-form")).toBeTruthy();
+    expect(screen.queryByTestId("race-result-summary")).toBeNull();
+
+    fireEvent.change(screen.getByTestId("input-finish-time"), {
+      target: { value: "2:14:08" },
+    });
+    fireEvent.change(screen.getByTestId("input-placement-overall"), {
+      target: { value: "312" },
+    });
+    fireEvent.click(screen.getByTestId("felt-rating-4"));
+    fireEvent.submit(screen.getByTestId("race-result-form"));
+
+    expect(setRaceResultMutate).toHaveBeenCalledTimes(1);
+    expect(setRaceResultMutate.mock.calls[0][0]).toEqual({
+      data: {
+        finishTime: "2:14:08",
+        placementOverall: 312,
+        placementTotal: null,
+        feltRating: 4,
+        notes: null,
+      },
+    });
+  });
+
+  it("renders the saved summary when a result is present and supports re-opening for edit", () => {
+    setupPostRace({
+      raceDate: "2027-05-02",
+      finishTime: "2:14:08",
+      placementOverall: 312,
+      placementTotal: 1804,
+      feltRating: 4,
+      notes: "Held the pace.",
+      recordedAt: "2027-05-02T18:00:00.000Z",
+      updatedAt: "2027-05-02T18:00:00.000Z",
+    });
+    render(<RaceWeekBanner />);
+    const summary = screen.getByTestId("race-result-summary");
+    expect(summary).toBeTruthy();
+    expect(screen.getByTestId("race-result-finish-time").textContent).toContain(
+      "2:14:08",
+    );
+    expect(screen.getByTestId("race-result-placement").textContent).toContain(
+      "312 / 1804",
+    );
+    expect(screen.getByTestId("race-result-felt").textContent).toContain("4 / 5");
+    expect(screen.getByTestId("race-result-notes").textContent).toContain(
+      "Held the pace.",
+    );
+
+    fireEvent.click(screen.getByTestId("edit-race-result"));
+    expect(screen.getByTestId("race-result-form")).toBeTruthy();
+    expect(
+      (screen.getByTestId("input-finish-time") as HTMLInputElement).value,
+    ).toBe("2:14:08");
+  });
+
+  it("shows phased recovery guidance based on daysAfterRace", () => {
+    setupPostRace(null, 2);
+    const { rerender } = render(<RaceWeekBanner />);
+    expect(screen.getByTestId("recovery-phase-1")).toBeTruthy();
+    expect(screen.queryByTestId("recovery-phase-2")).toBeNull();
+
+    setupPostRace(null, 6);
+    rerender(<RaceWeekBanner />);
+    expect(screen.getByTestId("recovery-phase-2")).toBeTruthy();
+
+    setupPostRace(null, 10);
+    rerender(<RaceWeekBanner />);
+    expect(screen.getByTestId("recovery-phase-3")).toBeTruthy();
   });
 });

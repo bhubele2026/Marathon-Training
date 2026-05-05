@@ -1369,7 +1369,7 @@ router.post("/plan/full-reset", async (req, res): Promise<void> => {
     // counts. ACCESS EXCLUSIVE matches the lock TRUNCATE itself takes, so
     // this just hoists that lock acquisition earlier in the transaction.
     await tx.execute(
-      sql`LOCK TABLE workouts, plan_days, plan_weeks, measurements, race_week_checklist, reset_undo_snapshots IN ACCESS EXCLUSIVE MODE`,
+      sql`LOCK TABLE workouts, plan_days, plan_weeks, measurements, race_week_checklist, race_results, reset_undo_snapshots IN ACCESS EXCLUSIVE MODE`,
     );
 
     // Snapshot pre-wipe counts so the response can tell the user exactly
@@ -1401,7 +1401,7 @@ router.post("/plan/full-reset", async (req, res): Promise<void> => {
     // Listing every table the runner can mutate makes this the canonical
     // "delete everything I've put in" operation.
     await tx.execute(
-      sql`TRUNCATE TABLE workouts, plan_days, plan_weeks, measurements, race_week_checklist, reset_undo_snapshots RESTART IDENTITY CASCADE`,
+      sql`TRUNCATE TABLE workouts, plan_days, plan_weeks, measurements, race_week_checklist, race_results, reset_undo_snapshots RESTART IDENTITY CASCADE`,
     );
 
     // Reseed plan_weeks first so the plan_days FK targets exist. Use

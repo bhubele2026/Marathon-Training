@@ -313,3 +313,105 @@ describe("DELETE /api/race-week/checklist/:itemId", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("PUT /api/race-week/result (Task #40)", () => {
+  beforeEach(async () => {
+    await db.execute(sql`DELETE FROM race_results`);
+  });
+  afterEach(async () => {
+    await db.execute(sql`DELETE FROM race_results`);
+  });
+
+  it("upserts a race result and surfaces it on /race-week once race has passed", async () => {
+    const put = await request(app)
+      .put("/api/race-week/result")
+      .send({
+        finishTime: "2:14:08",
+        placementOverall: 312,
+        placementTotal: 1804,
+        feltRating: 4,
+        notes: "Negative split. Fueling held.",
+      });
+    expect(put.status).toBe(200);
+    expect(put.body.raceDate).toBe(RACE_DATE);
+    expect(put.body.finishTime).toBe("2:14:08");
+    expect(put.body.placementOverall).toBe(312);
+    expect(put.body.feltRating).toBe(4);
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2027-05-05T12:00:00.000Z"));
+    const get = await request(app).get("/api/race-week");
+    expect(get.status).toBe(200);
+    const body = expectMatchesSchema(GetRaceWeekResponse, get.body);
+    expect(body.racePassed).toBe(true);
+    expect(body.raceResult?.finishTime).toBe("2:14:08");
+    expect(body.raceResult?.placementOverall).toBe(312);
+    expect(body.raceResult?.placementTotal).toBe(1804);
+    expect(body.raceResult?.feltRating).toBe(4);
+    expect(body.raceResult?.notes).toMatch(/Negative split/);
+  });
+
+  it("does not surface a stored result before the race has passed", async () => {
+    await request(app)
+      .put("/api/race-week/result")
+      .send({ finishTime: "2:14:08" });
+    vi.useFakeTimers();
+    // Pre-race window: 7 days out.
+    vi.setSystemTime(new Date("2027-04-25T12:00:00.000Z"));
+    const get = await request(app).get("/api/race-week");
+    expect(get.status).toBe(200);
+    expect(get.body.racePassed).toBe(false);
+    expect(get.body.raceResult).toBeNull();
+  });
+
+  it("treats a second PUT as an edit (preserves recordedAt, advances updatedAt)", async () => {
+    const first = await request(app)
+      .put("/api/race-week/result")
+      .send({ finishTime: "2:14:08", feltRating: 3 });
+    expect(first.status).toBe(200);
+    const recordedAt = first.body.recordedAt;
+    // Force a clock tick so updatedAt definitely moves forward.
+    await new Promise((r) => setTimeout(r, 10));
+    const second = await request(app)
+      .put("/api/race-week/result")
+      .send({ finishTime: "2:13:55", feltRating: 5, notes: "Crushed it" });
+    expect(second.status).toBe(200);
+    expect(second.body.finishTime).toBe("2:13:55");
+    expect(second.body.feltRating).toBe(5);
+    expect(second.body.notes).toBe("Crushed it");
+    expect(second.body.recordedAt).toBe(recordedAt);
+    expect(new Date(second.body.updatedAt).getTime()).toBeGreaterThanOrEqual(
+      new Date(recordedAt).getTime(),
+    );
+  });
+
+  it("accepts an empty body (defensive partial save) and stores all-null fields", async () => {
+    const res = await request(app).put("/api/race-week/result").send({});
+    expect(res.status).toBe(200);
+    expect(res.body.finishTime).toBeNull();
+    expect(res.body.placementOverall).toBeNull();
+    expect(res.body.feltRating).toBeNull();
+    expect(res.body.notes).toBeNull();
+  });
+
+  it("rejects an out-of-range feltRating with 400", async () => {
+    const res = await request(app)
+      .put("/api/race-week/result")
+      .send({ feltRating: 7 });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects a non-integer placement with 400", async () => {
+    const res = await request(app)
+      .put("/api/race-week/result")
+      .send({ placementOverall: 312.5 });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects a zero/negative placement with 400", async () => {
+    const res = await request(app)
+      .put("/api/race-week/result")
+      .send({ placementOverall: 0 });
+    expect(res.status).toBe(400);
+  });
+});

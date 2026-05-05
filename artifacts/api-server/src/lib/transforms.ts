@@ -2,6 +2,7 @@ import type { PlanDayRow } from "@workspace/db";
 import type { PlanWeekRow } from "@workspace/db";
 import type { WorkoutRow } from "@workspace/db";
 import type { MeasurementRow } from "@workspace/db";
+import type { RaceResultRow } from "@workspace/db";
 import type {
   PersonalizedQualityPace,
   PersonalizedRacePace,
@@ -323,6 +324,19 @@ export function toWorkout(
         }
       : null,
     createdAt: r.createdAt.toISOString(),
+  };
+}
+
+export function toRaceResult(r: RaceResultRow) {
+  return {
+    raceDate: r.raceDate,
+    finishTime: r.finishTime,
+    placementOverall: r.placementOverall,
+    placementTotal: r.placementTotal,
+    feltRating: r.feltRating,
+    notes: r.notes,
+    recordedAt: r.recordedAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
   };
 }
 

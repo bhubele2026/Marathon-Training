@@ -1,20 +1,25 @@
-import { useState } from "react";
 import {
   useGetRaceWeek,
   useSetRaceWeekChecklistItem,
   useCreateRaceWeekChecklistItem,
   useDeleteRaceWeekChecklistItem,
+  useSetRaceResult,
   getGetRaceWeekQueryKey,
   type RaceWeekStatus,
   type RaceWeekChecklistItem,
+  type RaceResult,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Trophy, Flag, ListChecks, Plus, X } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { Trophy, Flag, ListChecks, Plus, X, Pencil } from "lucide-react";
 import { formatDistance } from "@/lib/format";
 import { raceDayLabel } from "@/lib/race-day-label";
 import { HR_ZONE_TONES } from "@/lib/run-target";
@@ -182,12 +187,13 @@ function PostRaceRecovery({
     raceKind && raceKind !== "marathon"
       ? `${RACE_KIND_LABELS[raceKind]} Complete`
       : "Race Complete";
+  const daysAfter = data.daysAfterRace ?? 0;
   return (
     <Card
       className="border-emerald-500/40 bg-gradient-to-br from-emerald-500/15 via-emerald-500/5 to-background overflow-hidden"
       data-testid="post-race-banner"
     >
-      <CardContent className="p-6 space-y-4">
+      <CardContent className="p-6 space-y-5">
         <div className="flex items-center gap-3">
           <div className="rounded-md bg-emerald-500/20 p-2">
             <Trophy className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
@@ -201,30 +207,286 @@ function PostRaceRecovery({
               data-testid="post-race-headline"
               data-race-kind={raceKind ?? ""}
             >
-              {completedLabel} — Day {data.daysAfterRace ?? 0} Recovery
+              {completedLabel} — Day {daysAfter} Recovery
             </h2>
           </div>
         </div>
-        <div className="space-y-2 text-sm text-muted-foreground">
+
+        <RaceResultSection result={data.raceResult ?? null} />
+
+        <div className="space-y-2 text-sm text-muted-foreground" data-testid="post-race-recovery-guidance">
           <p>Focus on gentle movement, hydration, and nutrition. Your body earned this rest.</p>
-          {(data.daysAfterRace ?? 0) <= 3 && (
-            <p className="text-emerald-600 dark:text-emerald-400 font-bold uppercase text-xs tracking-wider">
+          {daysAfter <= 3 && (
+            <p className="text-emerald-600 dark:text-emerald-400 font-bold uppercase text-xs tracking-wider" data-testid="recovery-phase-1">
               Days 1-3: Walk only. Ice sore spots. Eat well. Sleep extra.
             </p>
           )}
-          {(data.daysAfterRace ?? 0) > 3 && (data.daysAfterRace ?? 0) <= 7 && (
-            <p className="text-emerald-600 dark:text-emerald-400 font-bold uppercase text-xs tracking-wider">
+          {daysAfter > 3 && daysAfter <= 7 && (
+            <p className="text-emerald-600 dark:text-emerald-400 font-bold uppercase text-xs tracking-wider" data-testid="recovery-phase-2">
               Days 4-7: Light movement OK. No intensity. Listen to your body.
             </p>
           )}
-          {(data.daysAfterRace ?? 0) > 7 && (
-            <p className="text-emerald-600 dark:text-emerald-400 font-bold uppercase text-xs tracking-wider">
+          {daysAfter > 7 && (
+            <p className="text-emerald-600 dark:text-emerald-400 font-bold uppercase text-xs tracking-wider" data-testid="recovery-phase-3">
               Week 2+: Gradually return to easy efforts. No racing for 2-4 weeks.
             </p>
           )}
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function RaceResultSection({ result }: { result: RaceResult | null }) {
+  // Local edit-mode toggle so the runner can re-open the form to amend
+  // a saved result. Defaults to "show form" when no result exists yet.
+  const [editing, setEditing] = useState(result == null);
+  // Whenever the server payload changes (e.g. after a successful save
+  // refetch), collapse back into the saved-summary view so the runner
+  // sees their captured result rather than the still-open form.
+  useEffect(() => {
+    if (result != null) setEditing(false);
+  }, [result?.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (result && !editing) {
+    return (
+      <SavedRaceResult result={result} onEdit={() => setEditing(true)} />
+    );
+  }
+  return (
+    <RaceResultForm
+      initial={result}
+      onCancel={result ? () => setEditing(false) : undefined}
+    />
+  );
+}
+
+function SavedRaceResult({
+  result,
+  onEdit,
+}: {
+  result: RaceResult;
+  onEdit: () => void;
+}) {
+  const placement =
+    result.placementOverall != null
+      ? result.placementTotal != null
+        ? `${result.placementOverall} / ${result.placementTotal}`
+        : `${result.placementOverall}`
+      : null;
+  return (
+    <div
+      className="rounded-md border border-emerald-500/30 bg-background/60 p-4 space-y-3"
+      data-testid="race-result-summary"
+    >
+      <div className="flex items-center justify-between">
+        <p className="text-xs uppercase tracking-wider font-bold text-emerald-600 dark:text-emerald-400">
+          Race Result
+        </p>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onEdit}
+          data-testid="edit-race-result"
+          className="h-7 px-2 text-xs"
+        >
+          <Pencil className="h-3 w-3 mr-1" />
+          Edit
+        </Button>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <ResultStat label="Finish" value={result.finishTime ?? "—"} testId="race-result-finish-time" />
+        <ResultStat label="Place" value={placement ?? "—"} testId="race-result-placement" />
+        <ResultStat
+          label="Felt"
+          value={result.feltRating != null ? `${result.feltRating} / 5` : "—"}
+          testId="race-result-felt"
+        />
+      </div>
+      {result.notes ? (
+        <p
+          className="text-sm text-muted-foreground italic border-t border-emerald-500/20 pt-3 whitespace-pre-line"
+          data-testid="race-result-notes"
+        >
+          {result.notes}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function ResultStat({
+  label,
+  value,
+  testId,
+}: {
+  label: string;
+  value: string;
+  testId: string;
+}) {
+  return (
+    <div className="rounded-md bg-background/60 border border-border p-3" data-testid={testId}>
+      <p className="text-xs uppercase tracking-wider font-bold text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-1 text-base font-black">{value}</p>
+    </div>
+  );
+}
+
+function RaceResultForm({
+  initial,
+  onCancel,
+}: {
+  initial: RaceResult | null;
+  onCancel?: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const queryKey = getGetRaceWeekQueryKey();
+  const { toast } = useToast();
+  const [finishTime, setFinishTime] = useState(initial?.finishTime ?? "");
+  const [placementOverall, setPlacementOverall] = useState(
+    initial?.placementOverall != null ? String(initial.placementOverall) : "",
+  );
+  const [placementTotal, setPlacementTotal] = useState(
+    initial?.placementTotal != null ? String(initial.placementTotal) : "",
+  );
+  const [feltRating, setFeltRating] = useState<number | null>(
+    initial?.feltRating ?? null,
+  );
+  const [notes, setNotes] = useState(initial?.notes ?? "");
+
+  const mutation = useSetRaceResult({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey });
+        toast({ title: "Race result saved", description: "Recovery on. Earned." });
+      },
+      onError: () => {
+        toast({ title: "Could not save race result", variant: "destructive" });
+      },
+    },
+  });
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const overall = placementOverall.trim() ? Number(placementOverall) : null;
+    const total = placementTotal.trim() ? Number(placementTotal) : null;
+    if (overall != null && !Number.isFinite(overall)) {
+      toast({ title: "Placement must be a number", variant: "destructive" });
+      return;
+    }
+    if (total != null && !Number.isFinite(total)) {
+      toast({ title: "Field size must be a number", variant: "destructive" });
+      return;
+    }
+    mutation.mutate({
+      data: {
+        finishTime: finishTime.trim() || null,
+        placementOverall: overall,
+        placementTotal: total,
+        feltRating,
+        notes: notes.trim() || null,
+      },
+    });
+  };
+
+  return (
+    <form
+      onSubmit={onSubmit}
+      className="rounded-md border border-emerald-500/30 bg-background/60 p-4 space-y-4"
+      data-testid="race-result-form"
+    >
+      <div className="flex items-center justify-between">
+        <p className="text-xs uppercase tracking-wider font-bold text-emerald-600 dark:text-emerald-400">
+          {initial ? "Edit Race Result" : "Log Your Race"}
+        </p>
+        {onCancel ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onCancel}
+            className="h-7 px-2 text-xs"
+            data-testid="race-result-cancel"
+          >
+            Cancel
+          </Button>
+        ) : null}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="race-result-finish">Finish time</Label>
+          <Input
+            id="race-result-finish"
+            placeholder="2:14:08"
+            value={finishTime}
+            onChange={(e) => setFinishTime(e.target.value)}
+            data-testid="input-finish-time"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="race-result-place">Placement</Label>
+          <Input
+            id="race-result-place"
+            inputMode="numeric"
+            placeholder="312"
+            value={placementOverall}
+            onChange={(e) => setPlacementOverall(e.target.value)}
+            data-testid="input-placement-overall"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="race-result-total">Field size</Label>
+          <Input
+            id="race-result-total"
+            inputMode="numeric"
+            placeholder="1804"
+            value={placementTotal}
+            onChange={(e) => setPlacementTotal(e.target.value)}
+            data-testid="input-placement-total"
+          />
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label>How did it feel?</Label>
+        <div className="flex gap-2" data-testid="felt-rating">
+          {[1, 2, 3, 4, 5].map((n) => (
+            <Button
+              key={n}
+              type="button"
+              variant={feltRating === n ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFeltRating(feltRating === n ? null : n)}
+              data-testid={`felt-rating-${n}`}
+              className="h-9 w-9 p-0 font-black"
+            >
+              {n}
+            </Button>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="race-result-notes">Notes</Label>
+        <Textarea
+          id="race-result-notes"
+          placeholder="Splits, weather, fueling, what worked, what didn't..."
+          rows={3}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          data-testid="input-notes"
+        />
+      </div>
+      <div className="flex justify-end">
+        <Button
+          type="submit"
+          disabled={mutation.isPending}
+          data-testid="submit-race-result"
+        >
+          {mutation.isPending ? "Saving..." : initial ? "Update result" : "Save result"}
+        </Button>
+      </div>
+    </form>
   );
 }
 

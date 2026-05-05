@@ -846,6 +846,39 @@ paths:
                   - $ref: "#/components/schemas/Error"
                   - $ref: "#/components/schemas/ValidationError"
 
+  /race-week/result:
+    put:
+      operationId: setRaceResult
+      tags: [race-week]
+      description: |
+        Upsert the runner's race-day result for the currently active race
+        date. Used by the post-race recovery banner so the runner can capture
+        their finish time, placement, perceived effort, and any free-form
+        notes once the race is in the past. The race date is implicit — it's
+        always the active planner config's race date — so the body has no
+        date field. All fields except `raceDate` echo back nullable so the
+        client can render partial saves (e.g. "I'll fill in placement
+        later").
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SetRaceResultBody" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RaceResult" }
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ValidationError"
+
   /race-week/checklist/{itemId}:
     put:
       operationId: setRaceWeekChecklistItem
@@ -2007,9 +2040,67 @@ components:
           allOf:
             - $ref: "#/components/schemas/RaceWeekRacePlan"
           nullable: true
+        raceResult:
+          allOf:
+            - $ref: "#/components/schemas/RaceResult"
+          nullable: true
+          description: |
+            The runner's logged race-day result, or null if no result has been
+            captured yet. Only ever populated once `racePassed` is true; the
+            UI uses this to switch the post-race recovery banner between an
+            empty "Log your race" form and a "saved result" summary card.
         checklist:
           type: array
           items: { $ref: "#/components/schemas/RaceWeekChecklistItem" }
+
+    RaceResult:
+      type: object
+      required: [raceDate, recordedAt, updatedAt]
+      properties:
+        raceDate: { type: string }
+        finishTime:
+          type: string
+          nullable: true
+          description: Free-form finish time string (e.g. "2:14:08").
+        placementOverall:
+          type: integer
+          nullable: true
+        placementTotal:
+          type: integer
+          nullable: true
+          description: Total field size, used together with placementOverall (e.g. 312 of 1804).
+        feltRating:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 5
+          description: 1-5 self-rating of how the race felt (1 = brutal, 5 = nailed it).
+        notes:
+          type: string
+          nullable: true
+        recordedAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    SetRaceResultBody:
+      type: object
+      properties:
+        finishTime: { type: string, nullable: true }
+        placementOverall:
+          type: integer
+          nullable: true
+          minimum: 1
+          description: 1-based finish position. Must be a positive integer.
+        placementTotal:
+          type: integer
+          nullable: true
+          minimum: 1
+          description: Total field size. Must be a positive integer.
+        feltRating:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 5
+        notes: { type: string, nullable: true }
 
     SetRaceWeekChecklistItemBody:
       type: object

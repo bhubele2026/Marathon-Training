@@ -1,12 +1,19 @@
 import { Router, type IRouter } from "express";
-import { db, planDaysTable, raceWeekChecklistTable } from "@workspace/db";
+import {
+  db,
+  planDaysTable,
+  raceWeekChecklistTable,
+  raceResultsTable,
+} from "@workspace/db";
 import { eq, asc } from "drizzle-orm";
 import {
   SetRaceWeekChecklistItemBody,
   CreateRaceWeekChecklistItemBody,
+  SetRaceResultBody,
 } from "@workspace/api-zod";
 import { randomUUID } from "node:crypto";
 import { readActiveRaceDate } from "./planner";
+import { toRaceResult } from "../lib/transforms";
 
 const router: IRouter = Router();
 
@@ -78,6 +85,24 @@ router.get("/race-week", async (_req, res) => {
     }
   }
 
+  // Task #40: surface any logged race result so the post-race banner can
+  // switch between the empty "Log your race" form and a saved-result
+  // summary. Only emitted once the race has actually passed; pre-race
+  // and race-day responses leave `raceResult` null even if a result row
+  // exists from a prior campaign at the same date (defensive — should
+  // not happen in practice because Full Reset wipes race_results too).
+  let raceResult = null as ReturnType<typeof toRaceResult> | null;
+  if (racePassed) {
+    const resultRow = (
+      await db
+        .select()
+        .from(raceResultsTable)
+        .where(eq(raceResultsTable.raceDate, raceDate))
+        .limit(1)
+    )[0];
+    if (resultRow) raceResult = toRaceResult(resultRow);
+  }
+
   // Order by `created_at` so custom items keep a stable display order
   // independent of toggling (toggles bump `updated_at`, which would
   // otherwise shuffle the list every time a runner ticks an item).
@@ -116,6 +141,7 @@ router.get("/race-week", async (_req, res) => {
     racePassed,
     daysAfterRace,
     racePlan,
+    raceResult,
     checklist,
   });
 });
@@ -145,6 +171,51 @@ router.post("/race-week/checklist", async (req, res): Promise<void> => {
     checkedAt: null,
     isCustom: true,
   });
+});
+
+router.put("/race-week/result", async (req, res): Promise<void> => {
+  const parsed = SetRaceResultBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  // Orval generates `.number().min(1)` for OpenAPI `type: integer` —
+  // not `.int()` — so we belt-and-suspenders the integer constraint
+  // on the placement fields here. Decimals like 312.5 would otherwise
+  // round-trip through to the DB and produce off-by-half placements.
+  const isPositiveIntOrNullish = (v: number | null | undefined) =>
+    v == null || (Number.isInteger(v) && v >= 1);
+  if (
+    !isPositiveIntOrNullish(parsed.data.placementOverall) ||
+    !isPositiveIntOrNullish(parsed.data.placementTotal)
+  ) {
+    res.status(400).json({
+      error: "placementOverall and placementTotal must be positive integers",
+    });
+    return;
+  }
+  const raceDate = await readActiveRaceDate();
+  const now = new Date();
+  const values = {
+    raceDate,
+    finishTime: parsed.data.finishTime ?? null,
+    placementOverall: parsed.data.placementOverall ?? null,
+    placementTotal: parsed.data.placementTotal ?? null,
+    feltRating: parsed.data.feltRating ?? null,
+    notes: parsed.data.notes ?? null,
+    updatedAt: now,
+  };
+  const upserted = await db
+    .insert(raceResultsTable)
+    .values({ ...values, recordedAt: now })
+    .onConflictDoUpdate({
+      target: raceResultsTable.raceDate,
+      // recordedAt is preserved on update so the original capture
+      // timestamp survives subsequent edits — only updatedAt moves.
+      set: values,
+    })
+    .returning();
+  res.json(toRaceResult(upserted[0]!));
 });
 
 router.put("/race-week/checklist/:itemId", async (req, res): Promise<void> => {

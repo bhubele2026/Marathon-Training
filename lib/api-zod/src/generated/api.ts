@@ -3315,6 +3315,8 @@ export const UpdateUserPreferencesResponse = zod
     "Single-user preferences applied across the app. Exposes the run targeting mode (Task",
   );
 
+export const getRaceWeekResponseRaceResultOneFeltRatingMax = 5;
+
 export const GetRaceWeekResponse = zod.object({
   raceDate: zod.string(),
   daysToRace: zod.number(),
@@ -3340,6 +3342,36 @@ export const GetRaceWeekResponse = zod.object({
       description: zod.string(),
     })
     .nullish(),
+  raceResult: zod
+    .object({
+      raceDate: zod.string(),
+      finishTime: zod
+        .string()
+        .nullish()
+        .describe('Free-form finish time string (e.g. \"2:14:08\").'),
+      placementOverall: zod.number().nullish(),
+      placementTotal: zod
+        .number()
+        .nullish()
+        .describe(
+          "Total field size, used together with placementOverall (e.g. 312 of 1804).",
+        ),
+      feltRating: zod
+        .number()
+        .min(1)
+        .max(getRaceWeekResponseRaceResultOneFeltRatingMax)
+        .nullish()
+        .describe(
+          "1-5 self-rating of how the race felt (1 = brutal, 5 = nailed it).",
+        ),
+      notes: zod.string().nullish(),
+      recordedAt: zod.coerce.date(),
+      updatedAt: zod.coerce.date(),
+    })
+    .nullish()
+    .describe(
+      'The runner\'s logged race-day result, or null if no result has been\ncaptured yet. Only ever populated once `racePassed` is true; the\nUI uses this to switch the post-race recovery banner between an\nempty \"Log your race\" form and a \"saved result\" summary card.\n',
+    ),
   checklist: zod.array(
     zod.object({
       itemId: zod.string(),
@@ -3378,6 +3410,64 @@ export const CreateRaceWeekChecklistItemResponse = zod.object({
     .describe(
       "True for user-created items (which can be deleted). False for built-in default items.",
     ),
+});
+
+/**
+ * Upsert the runner's race-day result for the currently active race
+date. Used by the post-race recovery banner so the runner can capture
+their finish time, placement, perceived effort, and any free-form
+notes once the race is in the past. The race date is implicit — it's
+always the active planner config's race date — so the body has no
+date field. All fields except `raceDate` echo back nullable so the
+client can render partial saves (e.g. "I'll fill in placement
+later").
+
+ */
+
+export const setRaceResultBodyFeltRatingMax = 5;
+
+export const SetRaceResultBody = zod.object({
+  finishTime: zod.string().nullish(),
+  placementOverall: zod
+    .number()
+    .min(1)
+    .nullish()
+    .describe("1-based finish position. Must be a positive integer."),
+  placementTotal: zod
+    .number()
+    .min(1)
+    .nullish()
+    .describe("Total field size. Must be a positive integer."),
+  feltRating: zod.number().min(1).max(setRaceResultBodyFeltRatingMax).nullish(),
+  notes: zod.string().nullish(),
+});
+
+export const setRaceResultResponseFeltRatingMax = 5;
+
+export const SetRaceResultResponse = zod.object({
+  raceDate: zod.string(),
+  finishTime: zod
+    .string()
+    .nullish()
+    .describe('Free-form finish time string (e.g. \"2:14:08\").'),
+  placementOverall: zod.number().nullish(),
+  placementTotal: zod
+    .number()
+    .nullish()
+    .describe(
+      "Total field size, used together with placementOverall (e.g. 312 of 1804).",
+    ),
+  feltRating: zod
+    .number()
+    .min(1)
+    .max(setRaceResultResponseFeltRatingMax)
+    .nullish()
+    .describe(
+      "1-5 self-rating of how the race felt (1 = brutal, 5 = nailed it).",
+    ),
+  notes: zod.string().nullish(),
+  recordedAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
 });
 
 export const SetRaceWeekChecklistItemParams = zod.object({

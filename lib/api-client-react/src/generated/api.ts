@@ -42,10 +42,12 @@ import type {
   PlanWeekDetail,
   PlannerConfig,
   PlannerTemplatesResponse,
+  RaceResult,
   RaceWeekChecklistItem,
   RaceWeekStatus,
   ResetPlanResponse,
   ResetPlanWeekResponse,
+  SetRaceResultBody,
   SetRaceWeekChecklistItemBody,
   SwapPlanDayBody,
   SwapPlanDayResponse,
@@ -3235,6 +3237,97 @@ export const useCreateRaceWeekChecklistItem = <
   TContext
 > => {
   return useMutation(getCreateRaceWeekChecklistItemMutationOptions(options));
+};
+
+/**
+ * Upsert the runner's race-day result for the currently active race
+date. Used by the post-race recovery banner so the runner can capture
+their finish time, placement, perceived effort, and any free-form
+notes once the race is in the past. The race date is implicit — it's
+always the active planner config's race date — so the body has no
+date field. All fields except `raceDate` echo back nullable so the
+client can render partial saves (e.g. "I'll fill in placement
+later").
+
+ */
+export const getSetRaceResultUrl = () => {
+  return `/api/race-week/result`;
+};
+
+export const setRaceResult = async (
+  setRaceResultBody: SetRaceResultBody,
+  options?: RequestInit,
+): Promise<RaceResult> => {
+  return customFetch<RaceResult>(getSetRaceResultUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(setRaceResultBody),
+  });
+};
+
+export const getSetRaceResultMutationOptions = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setRaceResult>>,
+    TError,
+    { data: BodyType<SetRaceResultBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setRaceResult>>,
+  TError,
+  { data: BodyType<SetRaceResultBody> },
+  TContext
+> => {
+  const mutationKey = ["setRaceResult"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setRaceResult>>,
+    { data: BodyType<SetRaceResultBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return setRaceResult(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetRaceResultMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setRaceResult>>
+>;
+export type SetRaceResultMutationBody = BodyType<SetRaceResultBody>;
+export type SetRaceResultMutationError = ErrorType<Error | ValidationError>;
+
+export const useSetRaceResult = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setRaceResult>>,
+    TError,
+    { data: BodyType<SetRaceResultBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setRaceResult>>,
+  TError,
+  { data: BodyType<SetRaceResultBody> },
+  TContext
+> => {
+  return useMutation(getSetRaceResultMutationOptions(options));
 };
 
 export const getSetRaceWeekChecklistItemUrl = (itemId: string) => {
