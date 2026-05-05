@@ -30,13 +30,14 @@ describe("phaseColor", () => {
     const gray = "hsl(220 9% 46%)";
     expect(phaseColor("")).toBe(gray);
     expect(phaseColor("   ")).toBe(gray);
-    expect(phaseColor(null as any)).toBe(gray);
-    expect(phaseColor(undefined as any)).toBe(gray);
+    expect(phaseColor(null)).toBe(gray);
+    expect(phaseColor(undefined)).toBe(gray);
   });
 
   it("does not confuse blank phases with Foundation Build", () => {
     const foundationColor = phaseColor("Foundation Build");
     expect(phaseColor("")).not.toBe(foundationColor);
-    expect(phaseColor(null as any)).not.toBe(foundationColor);
+    expect(phaseColor(null)).not.toBe(foundationColor);
+    expect(phaseColor(undefined)).not.toBe(foundationColor);
   });
 });
