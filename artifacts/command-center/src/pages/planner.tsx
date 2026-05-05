@@ -91,6 +91,7 @@ import {
   ArrowDown,
   ArrowUp,
   Plus,
+  Minus,
   Trash2,
   Save,
   Play,
@@ -814,6 +815,12 @@ export default function Planner() {
   // hybrid block ends exactly the Sunday before the event Monday.
   // Empty string = no event, runner picks weeks directly via Weeks input.
   const [hybridEventDate, setHybridEventDate] = useState<string>("");
+  // Task #156: which week of the block the typical-week preview shows.
+  // Defaults to 1; clamped to 1..blockWeeks via the stepper handlers and
+  // the clamping effect below so a runner can scrub through the full
+  // mileage arc (peak weeks, every-4th-week cutbacks, etc.) before
+  // committing to a block length.
+  const [hybridPreviewWeek, setHybridPreviewWeek] = useState<number>(1);
   // Reset the "show hidden" toggles whenever the runner clears their
   // filters so the next filter session starts from the
   // collapsed-by-default state instead of remembering a stale
@@ -1928,6 +1935,19 @@ export default function Planner() {
     hybridBuilderWeeks,
   ]);
   const hybridIsRaceWeek = hybridRaceKind !== "none";
+  // Task #156: clamp the preview-week selector to 1..hybridBuilderWeeks
+  // whenever the block length shrinks (e.g. event-date trimming, manual
+  // weeks input) so the stepper can never point past the end of the
+  // block. Snaps back to the new last week rather than resetting to 1
+  // so a runner who was inspecting the peak/taper week stays near the
+  // end of the arc.
+  useEffect(() => {
+    if (hybridBuilderWeeks < 1) return;
+    setHybridPreviewWeek((w) => {
+      const clamped = Math.max(1, Math.min(hybridBuilderWeeks, Math.floor(w)));
+      return clamped === w ? w : clamped;
+    });
+  }, [hybridBuilderWeeks]);
   const mileagePreview = useMemo<WeekMileagePreview[]>(() => {
     try {
       // In entries-mode each template owns its own taper, so we MUST NOT
@@ -3086,6 +3106,77 @@ export default function Planner() {
                           each non-rest slot, a Cutback badge on
                           deload weeks, and a totals line.
                         */}
+                        {/*
+                          Task #156: week-of-block stepper. Lets the
+                          runner scrub the typical-week preview through
+                          the full mileage arc (peak weeks, every-4th-
+                          week cutbacks) before clicking Build, instead
+                          of being stuck on week 1. Clamped to
+                          1..blockWeeks; a useEffect above also clamps
+                          when the block shrinks.
+                        */}
+                        {(() => {
+                          const blockWeeks =
+                            tplWeeks["custom_hybrid"] ?? tpl.defaultWeeks;
+                          const clampedWeek = Math.max(
+                            1,
+                            Math.min(blockWeeks, hybridPreviewWeek),
+                          );
+                          return (
+                            <div
+                              className="flex items-center justify-between gap-2"
+                              data-testid="planner-hybrid-preview-week-stepper"
+                            >
+                              <Label className="text-xs">Preview week</Label>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() =>
+                                    setHybridPreviewWeek((w) =>
+                                      Math.max(
+                                        1,
+                                        Math.min(blockWeeks, w) - 1,
+                                      ),
+                                    )
+                                  }
+                                  disabled={clampedWeek <= 1}
+                                  aria-label="Previous week"
+                                  data-testid="planner-hybrid-preview-week-prev"
+                                >
+                                  <Minus className="h-3 w-3" />
+                                </Button>
+                                <span
+                                  className="min-w-[5.5rem] text-center text-[11px] font-mono uppercase tracking-wider text-muted-foreground"
+                                  data-testid="planner-hybrid-preview-week-label"
+                                >
+                                  Week {clampedWeek} of {blockWeeks}
+                                </span>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() =>
+                                    setHybridPreviewWeek((w) =>
+                                      Math.min(
+                                        blockWeeks,
+                                        Math.max(1, w) + 1,
+                                      ),
+                                    )
+                                  }
+                                  disabled={clampedWeek >= blockWeeks}
+                                  aria-label="Next week"
+                                  data-testid="planner-hybrid-preview-week-next"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })()}
                         <HybridWeekPreview
                           position={hybridPosition}
                           daysPerWeek={hybridDaysPerWeek}
@@ -3093,6 +3184,13 @@ export default function Planner() {
                           blockWeeks={
                             tplWeeks["custom_hybrid"] ?? tpl.defaultWeeks
                           }
+                          weekInBlock={Math.max(
+                            1,
+                            Math.min(
+                              tplWeeks["custom_hybrid"] ?? tpl.defaultWeeks,
+                              hybridPreviewWeek,
+                            ),
+                          )}
                         />
                         {/*
                           Race-week preview (Task #203 / #207). Mounted

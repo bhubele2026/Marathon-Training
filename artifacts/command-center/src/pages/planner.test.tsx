@@ -2740,6 +2740,71 @@ describe("Custom hybrid builder card (Task #136)", () => {
     ).toBeNull();
   });
 
+  // Task #156 — week-of-block stepper. Lets the runner scrub the
+  // typical-week preview through the full mileage arc (peak weeks +
+  // every-4th-week cutbacks) before clicking Build, instead of being
+  // stuck on week 1.
+  it("renders a week stepper that defaults to week 1 of the block", () => {
+    renderPlanner();
+    expect(
+      screen.getByTestId("planner-hybrid-preview-week-stepper"),
+    ).toBeTruthy();
+    const label = screen.getByTestId("planner-hybrid-preview-week-label");
+    // Default custom_hybrid block is 8 weeks → "Week 1 of 8".
+    expect(label.textContent).toContain("Week 1 of 8");
+    // Prev is disabled at the floor; Next is enabled.
+    expect(
+      (screen.getByTestId("planner-hybrid-preview-week-prev") as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByTestId("planner-hybrid-preview-week-next") as HTMLButtonElement)
+        .disabled,
+    ).toBe(false);
+  });
+
+  it("re-renders the strip and totals when the runner steps to the cutback (week 4)", () => {
+    renderPlanner();
+    const totalsBefore =
+      screen.getByTestId("planner-hybrid-preview-totals").textContent ?? "";
+    // Step from week 1 → week 4 (the every-4th-week cutback). Mileage on
+    // a Balanced/5/Beginner block ramps up between weeks 1 and 3 then
+    // drops on week 4, so the totals string MUST change between the
+    // default week-1 view and the week-4 view.
+    const next = screen.getByTestId("planner-hybrid-preview-week-next");
+    fireEvent.click(next);
+    fireEvent.click(next);
+    fireEvent.click(next);
+    expect(
+      screen.getByTestId("planner-hybrid-preview-week-label").textContent,
+    ).toContain("Week 4 of 8");
+    // Cutback badge appears on week 4.
+    expect(
+      screen.getByTestId("planner-hybrid-preview-cutback"),
+    ).toBeTruthy();
+    const totalsAfter =
+      screen.getByTestId("planner-hybrid-preview-totals").textContent ?? "";
+    expect(totalsAfter).not.toBe(totalsBefore);
+  });
+
+  it("clamps the stepper to the last week and disables Next at the cap", () => {
+    renderPlanner();
+    const next = screen.getByTestId("planner-hybrid-preview-week-next");
+    // 8-week default block — click Next 7 times to reach week 8.
+    for (let i = 0; i < 7; i += 1) fireEvent.click(next);
+    expect(
+      screen.getByTestId("planner-hybrid-preview-week-label").textContent,
+    ).toContain("Week 8 of 8");
+    expect(
+      (next as HTMLButtonElement).disabled,
+    ).toBe(true);
+    // One more click is a no-op (clamped at blockWeeks).
+    fireEvent.click(next);
+    expect(
+      screen.getByTestId("planner-hybrid-preview-week-label").textContent,
+    ).toContain("Week 8 of 8");
+  });
+
   // Task #203 — the builder card now mounts a SECOND preview tagged
   // for race week (Mon..Fri taper, Sat Race Prep, Sun RACE DAY 26.2 mi)
   // ONLY when the projected hybrid end lands on the configured
