@@ -22,8 +22,16 @@
 //     Load. Uses the same font sizing as the other small stats.
 //   * `prominent` — today.tsx mission brief and pre-launch countdown:
 //     larger numbers to match the other big-stat tiles in those cards.
+//
+// Task #137: typography aligned with PrimaryMetricDisplay so the slim
+// card header and the expanded breakdown read as one design system —
+// uppercase tracking-wider muted labels, font-black primary-tone TOTAL,
+// font-mono semibold values for the secondary buckets. Tile gaps were
+// tightened (gap-x-5 compact, gap-x-7 prominent) to keep the row
+// scannable inside the disclosure gutter.
 
 import { formatDistance, formatDuration } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 export interface PlannedBreakdownProps {
   // The generated OpenAPI types model nullable optional fields as
@@ -82,35 +90,39 @@ export function PlannedBreakdown({
     });
   }
 
+  const tid = (suffix: string) =>
+    testIdPrefix ? `${testIdPrefix}-${suffix}` : undefined;
+
   if (variant === "prominent") {
-    // Prominent: today.tsx mission brief / pre-launch countdown. Flex
-    // layout so the row sizes itself naturally as cells appear/disappear.
+    // Prominent: today.tsx mission brief / pre-launch countdown. Tighter
+    // tile gap (gap-x-7) than the original gap-x-8 so the row sits
+    // anchored inside the disclosure gutter; TOTAL keeps the primary
+    // accent so it visually echoes the headline number above.
     return (
       <div
-        className="flex flex-wrap gap-x-8 gap-y-4"
-        data-testid={testIdPrefix ? `${testIdPrefix}-breakdown` : undefined}
+        className="flex flex-wrap gap-x-7 gap-y-3"
+        data-testid={tid("breakdown")}
       >
         {cells.map((c) => (
           <div key={c.key}>
-            <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">
+            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
               {c.label}
             </p>
             <p
-              className={`text-xl font-black ${c.key === "total" ? "text-primary" : ""}`}
-              data-testid={
-                testIdPrefix ? `${testIdPrefix}-breakdown-${c.key}` : undefined
-              }
+              className={cn(
+                "font-black leading-tight",
+                c.key === "total"
+                  ? "text-2xl text-primary"
+                  : "text-xl font-mono",
+              )}
+              data-testid={tid(`breakdown-${c.key}`)}
             >
               {formatDuration(c.value)}
             </p>
             {c.detail && (
               <p
-                className="text-xs text-muted-foreground font-mono"
-                data-testid={
-                  testIdPrefix
-                    ? `${testIdPrefix}-breakdown-${c.key}-detail`
-                    : undefined
-                }
+                className="text-[10px] text-muted-foreground font-mono mt-0.5 uppercase tracking-wider"
+                data-testid={tid(`breakdown-${c.key}-detail`)}
               >
                 {c.detail}
               </p>
@@ -121,32 +133,33 @@ export function PlannedBreakdown({
     );
   }
 
-  // Compact: matches the inline Distance / Load tiles in week-detail.tsx.
+  // Compact: matches the inline Distance / Load tiles in week-detail.tsx
+  // and the dashboard mini brief. Tighter gap-x-5 keeps the row dense
+  // inside the disclosure gutter.
   return (
     <div
-      className="flex flex-wrap gap-4"
-      data-testid={testIdPrefix ? `${testIdPrefix}-breakdown` : undefined}
+      className="flex flex-wrap gap-x-5 gap-y-2"
+      data-testid={tid("breakdown")}
     >
       {cells.map((c) => (
         <div key={c.key}>
-          <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+          <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground block">
             {c.label}
           </span>
           <span
-            className={`font-mono font-medium ${c.key === "total" ? "text-primary font-bold" : ""}`}
-            data-testid={
-              testIdPrefix ? `${testIdPrefix}-breakdown-${c.key}` : undefined
-            }
+            className={cn(
+              "leading-tight block",
+              c.key === "total"
+                ? "text-base font-black text-primary"
+                : "text-sm font-mono font-semibold",
+            )}
+            data-testid={tid(`breakdown-${c.key}`)}
           >
             {formatDuration(c.value)}
             {c.detail && (
               <span
-                className="text-[10px] text-muted-foreground ml-1"
-                data-testid={
-                  testIdPrefix
-                    ? `${testIdPrefix}-breakdown-${c.key}-detail`
-                    : undefined
-                }
+                className="text-[10px] text-muted-foreground font-mono ml-1 font-normal"
+                data-testid={tid(`breakdown-${c.key}-detail`)}
               >
                 · {c.detail}
               </span>

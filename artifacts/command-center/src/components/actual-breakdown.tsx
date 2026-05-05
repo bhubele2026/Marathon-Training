@@ -23,8 +23,16 @@
 //     (and quick-logged Lifestyle activities) still render something.
 //   * If neither side has any minutes, the whole component renders
 //     nothing.
+//
+// Task #137: typography unified with PrimaryMetricDisplay's compare
+// branch — actual is rendered in the primary accent (font-black) and
+// the planned annotation is its inline muted/mono trailing piece, so
+// the expanded "actual vs planned" tile reads like a more detailed
+// version of the slim card's headline number rather than a separate
+// design.
 
 import { formatDuration } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 export interface ActualBreakdownProps {
   // Actuals from the logged workout. The generated OpenAPI types model
@@ -141,25 +149,35 @@ function Tiles({ cells, variant, testIdPrefix }: TilesProps) {
     testIdPrefix ? `${testIdPrefix}-${suffix}` : undefined;
 
   if (variant === "prominent") {
-    // Prominent: today.tsx logged-workout card. Same sizing as the
-    // PlannedBreakdown prominent variant so the planned and actual rows
-    // line up visually when stacked together.
+    // Prominent: today.tsx logged-workout card. Mirrors
+    // PlannedBreakdown's prominent sizing so when the two stack inside
+    // the disclosure they line up tile-for-tile. The planned annotation
+    // sits as its own muted line under the value so the actual / planned
+    // delta reads at a glance — same compare style as PrimaryMetricDisplay.
     return (
-      <div className="flex flex-wrap gap-x-8 gap-y-4" data-testid={tid("actual-breakdown")}>
+      <div
+        className="flex flex-wrap gap-x-7 gap-y-3"
+        data-testid={tid("actual-breakdown")}
+      >
         {cells.map((c) => (
           <div key={c.key}>
-            <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">
+            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
               {c.label}
             </p>
             <p
-              className={`text-xl font-black ${c.key === "total" ? "text-primary" : ""}`}
+              className={cn(
+                "font-black leading-tight",
+                c.key === "total"
+                  ? "text-2xl text-primary"
+                  : "text-xl font-mono",
+              )}
               data-testid={tid(`actual-breakdown-${c.key}`)}
             >
               {formatDuration(c.value)}
             </p>
             {c.planned != null && (
               <p
-                className="text-xs text-muted-foreground font-mono"
+                className="text-[10px] text-muted-foreground font-mono mt-0.5 uppercase tracking-wider"
                 data-testid={tid(`actual-breakdown-${c.key}-planned`)}
               >
                 / {c.planned} planned
@@ -171,28 +189,41 @@ function Tiles({ cells, variant, testIdPrefix }: TilesProps) {
     );
   }
 
-  // Compact: week-detail.tsx per-session row. Inline pill-sized stats
-  // matching the surrounding Dist / Pace / RPE / Load tiles.
+  // Compact: week-detail.tsx + dashboard per-session row. Inline tile
+  // matched to the PrimaryMetricDisplay compare style — actual in the
+  // primary accent, planned trailing in muted/mono so the gap reads
+  // like the headline "5.20 / 6.00 mi" comparison the slim card uses.
   return (
-    <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs font-mono" data-testid={tid("actual-breakdown")}>
+    <div
+      className="flex flex-wrap gap-x-5 gap-y-2 text-xs"
+      data-testid={tid("actual-breakdown")}
+    >
       {cells.map((c) => (
-        <span key={c.key}>
-          <span className="text-muted-foreground">{c.label}</span>{" "}
-          <span
-            className={c.key === "total" ? "font-bold text-primary" : ""}
-            data-testid={tid(`actual-breakdown-${c.key}`)}
-          >
-            {formatDuration(c.value)}
+        <div key={c.key}>
+          <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground block">
+            {c.label}
           </span>
-          {c.planned != null && (
+          <span className="leading-tight block">
             <span
-              className="text-[10px] text-muted-foreground ml-1"
-              data-testid={tid(`actual-breakdown-${c.key}-planned`)}
+              className={cn(
+                c.key === "total"
+                  ? "text-base font-black text-primary"
+                  : "text-sm font-mono font-semibold",
+              )}
+              data-testid={tid(`actual-breakdown-${c.key}`)}
             >
-              / {c.planned}
+              {formatDuration(c.value)}
             </span>
-          )}
-        </span>
+            {c.planned != null && (
+              <span
+                className="text-[10px] text-muted-foreground font-mono ml-1"
+                data-testid={tid(`actual-breakdown-${c.key}-planned`)}
+              >
+                / {c.planned}
+              </span>
+            )}
+          </span>
+        </div>
       ))}
     </div>
   );
