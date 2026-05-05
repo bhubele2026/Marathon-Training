@@ -559,6 +559,9 @@ describe("Planner template library (entries-mode)", () => {
       within(runGroup).getByTestId("planner-starter-get_faster_5k_14w"),
     ).toBeTruthy();
     expect(
+      within(runGroup).getByTestId("planner-starter-beginner_5k_16w"),
+    ).toBeTruthy();
+    expect(
       within(runGroup).getByTestId("planner-starter-couch_to_hm_24w"),
     ).toBeTruthy();
     expect(
@@ -609,6 +612,9 @@ describe("Planner template library (entries-mode)", () => {
       within(rail).getByTestId("planner-starter-get_faster_5k_14w"),
     ).toBeTruthy();
     expect(
+      within(rail).getByTestId("planner-starter-beginner_5k_16w"),
+    ).toBeTruthy();
+    expect(
       within(rail).getByTestId("planner-starter-couch_to_hm_24w"),
     ).toBeTruthy();
 
@@ -650,7 +656,8 @@ describe("Planner template library (entries-mode)", () => {
       within(rail).queryByTestId("planner-starter-get_faster_5k_14w"),
     ).toBeNull();
 
-    // Click "5K": only the get_faster_5k_14w shortcut survives.
+    // Click "5K": only the 5K-focused starters survive
+    // (get_faster_5k_14w + beginner_5k_16w — Task #177).
     fireEvent.click(
       within(filter).getByTestId("planner-starter-distance-5k"),
     );
@@ -658,7 +665,13 @@ describe("Planner template library (entries-mode)", () => {
       within(rail).getByTestId("planner-starter-get_faster_5k_14w"),
     ).toBeTruthy();
     expect(
+      within(rail).getByTestId("planner-starter-beginner_5k_16w"),
+    ).toBeTruthy();
+    expect(
       within(rail).queryByTestId("planner-starter-marathon_first_timer_24w"),
+    ).toBeNull();
+    expect(
+      within(rail).queryByTestId("planner-starter-hm_beginner_16w"),
     ).toBeNull();
 
     // "10K": Task #232 added the run-only Get Faster 10K starter, so

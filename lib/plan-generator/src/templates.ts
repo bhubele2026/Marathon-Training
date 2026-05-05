@@ -1696,6 +1696,24 @@ export const STARTER_SHORTCUTS: StarterShortcut[] = [
     ],
   },
   {
+    // Task #177 — true-beginner 5K-only on-ramp. Pairs the full 9-week
+    // NHS Couch to 5K progression with a 7-week strength-supported 5K
+    // build so a brand-new runner gets a longer, gentler ramp than the
+    // 14-week `get_faster_5k_14w` shortcut. Both legs are Beginner 5K
+    // templates (`couch_to_5k` + `5k_strength_lite`) and the second leg
+    // owns the 1-week sharpening taper so the trailing Sunday is the
+    // canonical 3.1 mi RACE DAY row.
+    id: "beginner_5k_16w",
+    name: "5K Beginner — 16 weeks",
+    description:
+      "Full 9-week NHS Couch to 5K progression + 7-week 5K-with-strength-accessory build. A longer, gentler on-ramp for true beginners ending on a 1-week sharpening taper into race day.",
+    style: "run_only",
+    entries: [
+      { templateId: "couch_to_5k", weeks: 9 },
+      { templateId: "5k_strength_lite", weeks: 7 },
+    ],
+  },
+  {
     id: "couch_to_hm_24w",
     name: "Couch → Half Marathon — 24 weeks",
     description:
