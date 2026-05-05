@@ -292,7 +292,7 @@ describe("STARTER_SHORTCUTS", () => {
     const startDate = "2026-01-05";
 
     function buildConfig(
-      starterId: "hm_beginner_16w" | "hm_hybrid_18w",
+      starterId: string,
     ): { config: PlannerConfig; totalWeeks: number; raceDateISO: string } {
       const starter = STARTER_SHORTCUTS.find((s) => s.id === starterId)!;
       const totalWeeks = starter.entries.reduce((s, e) => s + e.weeks, 0);
@@ -337,6 +337,11 @@ describe("STARTER_SHORTCUTS", () => {
       expect(finalSun.description).toMatch(/RACE DAY .*Half \(13\.1 mi\)/);
     });
 
+    // Task #230 widened the build helper's input type from the
+    // hand-rolled HM union ("hm_beginner_16w" | "hm_hybrid_18w") to
+    // any starter id so the same scaffolding could power the
+    // non-HM regression block below; the HM tests still pass the
+    // exact same two ids.
     it("hm_hybrid_18w lays down an 18-week plan ending on race-eve Sat + 13.1 mi race-day Sun", () => {
       const { config, totalWeeks, raceDateISO } = buildConfig("hm_hybrid_18w");
       expect(totalWeeks).toBe(18);
@@ -387,6 +392,157 @@ describe("STARTER_SHORTCUTS", () => {
       // The hybrid pipeline appends the block's customNotes as a
       // trailing suffix on the description; the leading prose still
       // comes verbatim from `RACE_EVE_SAT_SPEC.describe(...)`.
+      expect(finalSat.description.startsWith(expectedSat.description)).toBe(
+        true,
+      );
+      expect(finalSat.run_min).toBe(expectedSat.run_min);
+      expect(finalSat.distance_mi).toBe(expectedSat.distance_mi);
+      expect(finalSat.is_rest).toBe(expectedSat.is_rest);
+    });
+  });
+
+  // Task #230 — extend the Task #224 race-day regression to the other
+  // three curated starters. The catalog tests above only check that
+  // each starter's entries fit the template's published min/max range;
+  // they never expand a starter through `expandEntriesToBlocks` +
+  // `generatePlanFromConfig` to verify the trailing Sunday is a real
+  // race day at the matching distance. Without these regressions a
+  // future refactor of `expandEntriesToBlocks` / `buildWeekDays` could
+  // silently break any one-click onboarding flow the same way Task
+  // #224 was protecting against for the HM starters — the runner would
+  // still get a 14/24-week plan, but the trailing Sunday would fall
+  // back to the recipe's natural Taper long run instead of the 5K /
+  // half / marathon they trained for.
+  describe("non-HM starters generate a true race-day Sunday (Task #230)", () => {
+    // Reuses the Task #224 scaffolding above: same start anchor
+    // (2026-01-05 Monday), same `buildConfig` helper that pairs each
+    // starter's declared total span with a marathonDate exactly
+    // `totalWeeks * 7 - 1` days out, and the same blocks+entries
+    // round-trip via `expandEntriesToBlocks` so the saved config
+    // mirrors what the API stores on the apply path.
+    const startDate = "2026-01-05";
+
+    function buildConfig(
+      starterId: string,
+    ): { config: PlannerConfig; totalWeeks: number; raceDateISO: string } {
+      const starter = STARTER_SHORTCUTS.find((s) => s.id === starterId)!;
+      const totalWeeks = starter.entries.reduce((s, e) => s + e.weeks, 0);
+      const startMs = Date.parse(`${startDate}T00:00:00Z`);
+      const raceMs = startMs + (totalWeeks * 7 - 1) * 86_400_000;
+      const raceDateISO = new Date(raceMs).toISOString().slice(0, 10);
+      const entries = starter.entries.map((e) => ({
+        templateId: e.templateId,
+        weeks: e.weeks,
+      }));
+      const blocks = expandEntriesToBlocks(entries);
+      const config: PlannerConfig = {
+        startDate,
+        marathonDate: raceDateISO,
+        blocks,
+        entries,
+      };
+      return { config, totalWeeks, raceDateISO };
+    }
+
+    it("get_faster_5k_14w lays down a 14-week plan ending on a 3.1 mi race-day Sunday", () => {
+      const { config, totalWeeks, raceDateISO } = buildConfig(
+        "get_faster_5k_14w",
+      );
+      expect(totalWeeks).toBe(14);
+
+      const { daily, weekly } = generatePlanFromConfig(config);
+
+      // Span lock — exactly 14 Mon..Sun weeks, 14 * 7 = 98 daily rows.
+      expect(weekly).toHaveLength(14);
+      expect(daily).toHaveLength(14 * 7);
+      expect(weekly[weekly.length - 1]!.week).toBe(14);
+
+      // Final Sunday is the canonical 5K race-day row, sourced from
+      // `RACE_DAY_SPECS["5k"]` via `buildRaceDaySunRow` (Task #217).
+      const finalSun = daily[daily.length - 1]!;
+      expect(finalSun.day).toBe("Sun");
+      expect(finalSun.date).toBe(raceDateISO);
+      expect(finalSun.session_type).toBe("Race");
+      expect(finalSun.distance_mi).toBe(3.1);
+      expect(finalSun.description).toMatch(/RACE DAY .*5K \(3\.1 mi\)/);
+    });
+
+    it("couch_to_hm_24w lays down a 24-week plan ending on a 13.1 mi race-day Sunday", () => {
+      const { config, totalWeeks, raceDateISO } = buildConfig(
+        "couch_to_hm_24w",
+      );
+      expect(totalWeeks).toBe(24);
+
+      const { daily, weekly } = generatePlanFromConfig(config);
+
+      // Span lock — exactly 24 Mon..Sun weeks, 24 * 7 = 168 daily rows.
+      expect(weekly).toHaveLength(24);
+      expect(daily).toHaveLength(24 * 7);
+      expect(weekly[weekly.length - 1]!.week).toBe(24);
+
+      // Final Sunday is the canonical half race-day row, sourced from
+      // `RACE_DAY_SPECS.half` via `buildRaceDaySunRow` (Task #217).
+      const finalSun = daily[daily.length - 1]!;
+      expect(finalSun.day).toBe("Sun");
+      expect(finalSun.date).toBe(raceDateISO);
+      expect(finalSun.session_type).toBe("Race");
+      expect(finalSun.distance_mi).toBe(13.1);
+      expect(finalSun.description).toMatch(/RACE DAY .*Half \(13\.1 mi\)/);
+    });
+
+    it("marathon_first_timer_24w lays down a 24-week plan ending on race-eve Sat + 26.2 mi race-day Sun", () => {
+      const { config, totalWeeks, raceDateISO } = buildConfig(
+        "marathon_first_timer_24w",
+      );
+      expect(totalWeeks).toBe(24);
+
+      const { daily, weekly } = generatePlanFromConfig(config);
+
+      // Span lock — exactly 24 Mon..Sun weeks, 24 * 7 = 168 daily rows.
+      expect(weekly).toHaveLength(24);
+      expect(daily).toHaveLength(24 * 7);
+      expect(weekly[weekly.length - 1]!.week).toBe(24);
+
+      // Final Sunday is the canonical marathon race-day row, sourced
+      // from `RACE_DAY_SPECS.marathon` via `buildRaceDaySunRow`
+      // (Task #217). The Pfitz 18w marathon template declares
+      // `raceKind: "marathon"` so the trailing Sunday gets the
+      // 26.2 mi RACE DAY override.
+      const finalSun = daily[daily.length - 1]!;
+      expect(finalSun.day).toBe("Sun");
+      expect(finalSun.date).toBe(raceDateISO);
+      expect(finalSun.session_type).toBe("Race");
+      expect(finalSun.distance_mi).toBe(26.2);
+      expect(finalSun.description).toMatch(/RACE DAY .*Marathon \(26\.2 mi\)/);
+
+      // Final Saturday is the shared race-eve protocol from
+      // `buildRaceEveSatRow` — strength_min / cardio_min / total_load
+      // / session_type all read from `RACE_EVE_SAT_SPEC` (Task #215).
+      // Mirror the field-by-field comparison the hm_hybrid_18w test
+      // does so a future bump to either spec propagates here too,
+      // and so a refactor of the recipe-driven race-week Sat branch
+      // in `buildWeekDays` cannot silently drift away from the
+      // shared helper's output.
+      const finalSat = daily[daily.length - 2]!;
+      expect(finalSat.day).toBe("Sat");
+      expect(finalSat.session_type).toBe(RACE_EVE_SAT_SPEC.sessionType);
+      expect(finalSat.strength_min).toBe(RACE_EVE_SAT_SPEC.strengthMin);
+      expect(finalSat.cardio_min).toBe(RACE_EVE_SAT_SPEC.cardioMin);
+      expect(finalSat.total_load).toBe(RACE_EVE_SAT_SPEC.totalLoad);
+
+      const expectedSat = buildRaceEveSatRow({
+        weekNumber: 24,
+        phase: finalSat.phase,
+        date: finalSat.date,
+      });
+      expect(finalSat.strength_load).toBe(expectedSat.strength_load);
+      expect(finalSat.equipment).toBe(expectedSat.equipment);
+      expect(finalSat.equipment_list).toEqual(expectedSat.equipment_list);
+      // The recipe-driven Sat path appends the block's customSuffix
+      // as a trailing tag on the description; the leading prose
+      // still comes verbatim from `RACE_EVE_SAT_SPEC.describe(...)`,
+      // so a startsWith check matches whether or not a suffix is
+      // present (mirrors the hm_hybrid_18w assertion above).
       expect(finalSat.description.startsWith(expectedSat.description)).toBe(
         true,
       );
