@@ -836,6 +836,16 @@ export default function Dashboard() {
                           }}
                         />
                         <Legend />
+                        {summary && (
+                          <ReferenceLine
+                            yAxisId="miles"
+                            x={summary.currentWeek}
+                            stroke="hsl(var(--primary))"
+                            strokeDasharray="4 4"
+                            strokeWidth={2}
+                            label={{ value: "Now", position: "top", fill: "hsl(var(--primary))", fontSize: 10, fontWeight: 700 }}
+                          />
+                        )}
                         <Line yAxisId="miles" type="stepAfter" dataKey="plannedMi" name="Target" stroke="hsl(var(--muted-foreground))" strokeDasharray="5 5" strokeWidth={2} dot={false} />
                         <Line
                           yAxisId="miles"
