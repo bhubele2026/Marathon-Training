@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { and, gt, lte, sql } from "drizzle-orm";
+import { and, sql } from "drizzle-orm";
 import {
   db,
   resetUndoSnapshotsTable,
@@ -94,10 +94,13 @@ export function snapshotPlanDay(row: PlanDayRow): PlanDaySnapshot {
 // `DELETE ... RETURNING` so a concurrent double-click (even from two
 // different replicas) can never run the restore twice.
 
-async function purgeExpired(now: Date): Promise<void> {
+async function purgeExpired(): Promise<void> {
+  // Compare against the database's clock so a fast-skewed replica can't
+  // delete still-valid snapshots and effectively shorten the undo window
+  // for everyone.
   await db
     .delete(resetUndoSnapshotsTable)
-    .where(lte(resetUndoSnapshotsTable.expiresAt, now));
+    .where(sql`${resetUndoSnapshotsTable.expiresAt} <= NOW()`);
 }
 
 // Proactive sweep so expired snapshots don't linger between resets when
@@ -107,7 +110,7 @@ async function purgeExpired(now: Date): Promise<void> {
 const sweepIntervalMs = RESET_UNDO_TTL_MS;
 if (process.env.VITEST !== "true" && process.env.NODE_ENV !== "test") {
   const timer = setInterval(() => {
-    purgeExpired(new Date()).catch(() => {
+    purgeExpired().catch(() => {
       // Swallow sweep errors; the next tick will retry. We deliberately do
       // not crash the process for a transient DB hiccup in the background
       // sweep -- the same row will be picked up on the next pass or on the
@@ -122,17 +125,20 @@ export async function storeResetSnapshot(
   weeksAffected: number[],
   ttlMs: number = RESET_UNDO_TTL_MS,
 ): Promise<{ token: string; expiresInSeconds: number }> {
-  const now = new Date();
-  await purgeExpired(now);
+  await purgeExpired();
   const token = randomBytes(18).toString("base64url");
-  const expiresAt = new Date(now.getTime() + ttlMs);
+  // Compute the expiration timestamp on the database (`NOW() + interval`)
+  // rather than in JS so a clock skew between API replicas can't shorten
+  // (or stretch) the undo window. Every replica then reads the same
+  // canonical wall-clock value back through `expires_at`.
+  const ttlSeconds = Math.round(ttlMs / 1000);
   await db.insert(resetUndoSnapshotsTable).values({
     token,
     snapshot: days,
     weeksAffected: [...weeksAffected],
-    expiresAt,
+    expiresAt: sql`NOW() + (${ttlSeconds} || ' seconds')::interval`,
   });
-  return { token, expiresInSeconds: Math.round(ttlMs / 1000) };
+  return { token, expiresInSeconds: ttlSeconds };
 }
 
 // Atomically reserve the snapshot for a single in-flight undo via a
@@ -172,16 +178,23 @@ export async function releaseResetSnapshot(
   token: string,
   snap: ResetSnapshot,
 ): Promise<void> {
-  if (snap.expiresAt <= Date.now()) return;
-  await db
-    .insert(resetUndoSnapshotsTable)
-    .values({
-      token,
-      snapshot: snap.days,
-      weeksAffected: snap.weeksAffected,
-      expiresAt: new Date(snap.expiresAt),
-    })
-    .onConflictDoNothing({ target: resetUndoSnapshotsTable.token });
+  // Gate the re-insert on the database's clock rather than the local
+  // process clock so a replica with a skewed wall clock can neither
+  // resurrect an already-expired snapshot nor drop a still-valid one.
+  // The original `expires_at` (set with NOW() + interval at store time)
+  // remains the canonical deadline.
+  const expiresAt = new Date(snap.expiresAt);
+  await db.execute(sql`
+    INSERT INTO ${resetUndoSnapshotsTable}
+      (token, snapshot, weeks_affected, expires_at)
+    SELECT
+      ${token},
+      ${JSON.stringify(snap.days)}::jsonb,
+      ${JSON.stringify(snap.weeksAffected)}::jsonb,
+      ${expiresAt}
+    WHERE ${expiresAt} > NOW()
+    ON CONFLICT (token) DO NOTHING
+  `);
 }
 
 // Test helper: drop everything in the store. Lets test suites start each
@@ -205,5 +218,5 @@ export async function _expireResetSnapshotForTesting(
 // Test helper: run the periodic sweep on demand so tests can verify that
 // expired rows actually get pruned (and not just rejected on consume).
 export async function _runResetSnapshotSweepForTesting(): Promise<void> {
-  await purgeExpired(new Date());
+  await purgeExpired();
 }
