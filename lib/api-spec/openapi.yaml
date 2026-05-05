@@ -2018,7 +2018,13 @@ components:
         cardioMin:
           type: number
           nullable: true
-          description: Cardio minutes logged on the same date as the long run. Useful for cross-train weeks where a bike/row session accompanies the long run.
+          description: Total actual cardio minutes logged across the whole plan week (sum of `workouts.cardio_min`). Null when no cardio was logged that week. Kept for back-compat — prefer `actualCardioMin` for new code.
+        plannedCardioMin:
+          type: number
+          description: Total planned cross-train cardio minutes for the whole plan week (sum of `plan_days.cardio_min`). Drives the secondary-axis bar on the Long Run Build chart so cross-train-only weeks (no Long Run / Race) still render a visible bar.
+        actualCardioMin:
+          type: number
+          description: Total actual cardio minutes logged across the whole plan week. Same value as `cardioMin` but always a number (0 instead of null).
 
     RaceWeekChecklistItem:
       type: object

@@ -622,29 +622,53 @@ router.get("/dashboard/equipment-phase-summary", async (_req, res) => {
 });
 
 router.get("/dashboard/long-run-progression", async (_req, res) => {
-  const rows = await db.execute<{ week: number; date: string; phase: string; planned_mi: number; actual_mi: number; cardio_min: number | null }>(
+  // Task #113: aggregate per plan_week so weeks with no Long Run / Race
+  // (cross-train-only weeks, taper weeks, lift-priority blocks) still
+  // appear on the chart — previously they were skipped entirely because
+  // the row source was `plan_days WHERE session_type IN ('Long Run',
+  // 'Race')`. Per-week planned/actual long run miles fall back to 0
+  // when the week has no long run, and `plannedCardioMin` /
+  // `actualCardioMin` surface the cross-train load so the secondary
+  // axis bar renders something for those weeks.
+  const rows = await db.execute<{
+    week: number;
+    start_date: string;
+    long_run_date: string | null;
+    phase: string;
+    planned_mi: number;
+    actual_mi: number;
+    planned_cardio_min: number;
+    actual_cardio_min: number;
+  }>(
     sql`
-      SELECT pd.week,
-        TO_CHAR(pd.date, 'YYYY-MM-DD') AS date,
+      SELECT pw.week,
+        TO_CHAR(pw.start_date, 'YYYY-MM-DD') AS start_date,
         pw.phase AS phase,
-        pd.distance_mi::float AS planned_mi,
-        COALESCE((SELECT MAX(distance_mi) FROM workouts w
-          WHERE w.date = pd.date AND w.session_type IN ('Long Run', 'Race')), 0)::float AS actual_mi,
-        (SELECT SUM(cardio_min)::float FROM workouts w
-          WHERE w.date = pd.date AND w.cardio_min > 0) AS cardio_min
-      FROM plan_days pd
-      LEFT JOIN plan_weeks pw ON pw.week = pd.week
-      WHERE pd.session_type IN ('Long Run', 'Race')
-      ORDER BY pd.date ASC
+        (SELECT TO_CHAR(MAX(pd.date), 'YYYY-MM-DD') FROM plan_days pd
+          WHERE pd.week = pw.week AND pd.session_type IN ('Long Run', 'Race')) AS long_run_date,
+        COALESCE((SELECT MAX(pd.distance_mi) FROM plan_days pd
+          WHERE pd.week = pw.week AND pd.session_type IN ('Long Run', 'Race')), 0)::float AS planned_mi,
+        COALESCE((SELECT MAX(w.distance_mi) FROM workouts w
+          WHERE w.date BETWEEN pw.start_date AND pw.end_date
+            AND w.session_type IN ('Long Run', 'Race')), 0)::float AS actual_mi,
+        COALESCE((SELECT SUM(pd.cardio_min) FROM plan_days pd
+          WHERE pd.week = pw.week AND pd.cardio_min > 0), 0)::float AS planned_cardio_min,
+        COALESCE((SELECT SUM(w.cardio_min) FROM workouts w
+          WHERE w.date BETWEEN pw.start_date AND pw.end_date
+            AND w.cardio_min > 0), 0)::float AS actual_cardio_min
+      FROM plan_weeks pw
+      ORDER BY pw.week ASC
     `,
   );
   res.json(rows.rows.map((r) => ({
     week: r.week,
-    date: r.date,
+    date: r.long_run_date ?? r.start_date,
     phase: r.phase,
     plannedMi: r.planned_mi,
     actualMi: r.actual_mi,
-    cardioMin: r.cardio_min ?? null,
+    cardioMin: r.actual_cardio_min > 0 ? r.actual_cardio_min : null,
+    plannedCardioMin: r.planned_cardio_min,
+    actualCardioMin: r.actual_cardio_min,
   })));
 });
 

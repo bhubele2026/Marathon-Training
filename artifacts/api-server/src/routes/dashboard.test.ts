@@ -1348,7 +1348,72 @@ describe("GET /api/dashboard/long-run-progression", () => {
       actualMi: number;
     }>;
     const ours = rows.find((r) => r.week === week);
-    expect(ours).toEqual({ week, date: "2099-09-26", phase, plannedMi: 12, actualMi: 11.5, cardioMin: null });
+    expect(ours).toEqual({
+      week,
+      date: "2099-09-26",
+      phase,
+      plannedMi: 12,
+      actualMi: 11.5,
+      cardioMin: null,
+      plannedCardioMin: 0,
+      actualCardioMin: 0,
+    });
+  });
+
+  it("returns cross-train weeks with no long run, surfacing planned cardio minutes", async () => {
+    // Task #113: per-week aggregation so a week with bike/row sessions
+    // but no Long Run / Race still shows up on the chart with its
+    // planned cardio minutes (drives the secondary-axis bar).
+    const week = 8502;
+    const phase = "Cross Train Phase";
+    await insertWeek(week, {
+      startDate: "2099-10-05",
+      endDate: "2099-10-11",
+      phase,
+      plannedMiles: 0,
+      longRunMi: 0,
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-10-07",
+      day: "Wed",
+      sessionType: "Cardio",
+      equipment: "Peloton Bike",
+      cardioMin: 45,
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-10-09",
+      day: "Fri",
+      sessionType: "Cardio",
+      equipment: "Peloton Row",
+      cardioMin: 30,
+    });
+
+    const res = await request(app).get("/api/dashboard/long-run-progression");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetLongRunProgressionResponse, res.body);
+
+    const rows = res.body as Array<{
+      week: number;
+      date: string;
+      phase: string;
+      plannedMi: number;
+      actualMi: number;
+      cardioMin: number | null;
+      plannedCardioMin: number;
+      actualCardioMin: number;
+    }>;
+    const ours = rows.find((r) => r.week === week);
+    expect(ours).toBeDefined();
+    expect(ours).toEqual({
+      week,
+      date: "2099-10-05",
+      phase,
+      plannedMi: 0,
+      actualMi: 0,
+      cardioMin: null,
+      plannedCardioMin: 75,
+      actualCardioMin: 0,
+    });
   });
 });
 

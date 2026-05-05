@@ -829,9 +829,17 @@ export default function Dashboard() {
                       <LineChart data={longRun}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
                         <XAxis dataKey="week" tickFormatter={(v) => `W${v}`} />
-                        <YAxis yAxisId="miles" />
-                        {longRun?.some((p) => p.cardioMin != null && p.cardioMin > 0) && (
-                          <YAxis yAxisId="cardio" orientation="right" tickFormatter={(v) => `${v}m`} />
+                        <YAxis yAxisId="miles" tickFormatter={(v) => `${v} mi`} />
+                        {longRun?.some(
+                          (p) =>
+                            (p.plannedCardioMin ?? 0) > 0 ||
+                            (p.actualCardioMin ?? p.cardioMin ?? 0) > 0,
+                        ) && (
+                          <YAxis
+                            yAxisId="cardio"
+                            orientation="right"
+                            tickFormatter={(v) => `${v} min`}
+                          />
                         )}
                         <Tooltip
                           contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
@@ -851,12 +859,12 @@ export default function Dashboard() {
                             label={{ value: "Now", position: "top", fill: "hsl(var(--primary))", fontSize: 10, fontWeight: 700 }}
                           />
                         )}
-                        <Line yAxisId="miles" type="stepAfter" dataKey="plannedMi" name="Target" stroke="hsl(var(--muted-foreground))" strokeDasharray="5 5" strokeWidth={2} dot={false} />
+                        <Line yAxisId="miles" type="stepAfter" dataKey="plannedMi" name="Long run target (mi)" stroke="hsl(var(--muted-foreground))" strokeDasharray="5 5" strokeWidth={2} dot={false} />
                         <Line
                           yAxisId="miles"
                           type="monotone"
                           dataKey="actualMi"
-                          name="Completed"
+                          name="Long run completed (mi)"
                           stroke="hsl(var(--muted-foreground))"
                           strokeOpacity={0.5}
                           strokeWidth={2}
@@ -883,15 +891,29 @@ export default function Dashboard() {
                             );
                           }}
                         />
-                        {longRun?.some((p) => p.cardioMin != null && p.cardioMin > 0) && (
-                          <Bar
-                            yAxisId="cardio"
-                            dataKey="cardioMin"
-                            name="Cardio min"
-                            fill="hsl(var(--chart-2, var(--primary)))"
-                            opacity={0.25}
-                            radius={[2, 2, 0, 0]}
-                          />
+                        {longRun?.some(
+                          (p) =>
+                            (p.plannedCardioMin ?? 0) > 0 ||
+                            (p.actualCardioMin ?? p.cardioMin ?? 0) > 0,
+                        ) && (
+                          <>
+                            <Bar
+                              yAxisId="cardio"
+                              dataKey="plannedCardioMin"
+                              name="Cross-train target (min)"
+                              fill="hsl(var(--chart-2, var(--primary)))"
+                              opacity={0.18}
+                              radius={[2, 2, 0, 0]}
+                            />
+                            <Bar
+                              yAxisId="cardio"
+                              dataKey="actualCardioMin"
+                              name="Cross-train completed (min)"
+                              fill="hsl(var(--chart-2, var(--primary)))"
+                              opacity={0.55}
+                              radius={[2, 2, 0, 0]}
+                            />
+                          </>
                         )}
                       </LineChart>
                     </ResponsiveContainer>

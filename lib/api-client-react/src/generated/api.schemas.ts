@@ -856,8 +856,12 @@ export interface LongRunPoint {
   phase?: string;
   plannedMi: number;
   actualMi: number;
-  /** Cardio minutes logged on the same date as the long run. Useful for cross-train weeks where a bike/row session accompanies the long run. */
+  /** Total actual cardio minutes logged across the whole plan week (sum of `workouts.cardio_min`). Null when no cardio was logged that week. Kept for back-compat — prefer `actualCardioMin` for new code. */
   cardioMin?: number | null;
+  /** Total planned cross-train cardio minutes for the whole plan week (sum of `plan_days.cardio_min`). Drives the secondary-axis bar on the Long Run Build chart so cross-train-only weeks (no Long Run / Race) still render a visible bar. */
+  plannedCardioMin?: number;
+  /** Total actual cardio minutes logged across the whole plan week. Same value as `cardioMin` but always a number (0 instead of null). */
+  actualCardioMin?: number;
 }
 
 export interface RaceWeekChecklistItem {
