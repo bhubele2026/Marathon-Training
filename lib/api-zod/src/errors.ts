@@ -10,12 +10,12 @@
 import * as zod from "zod";
 
 export const ErrorResponse = zod.object({
-    "error": zod.string(),
-  });
+  error: zod.string(),
+});
 
 export const ValidationErrorResponse = zod.object({
-    "error": zod.object({
-    "formErrors": zod.array(zod.string()),
-    "fieldErrors": zod.record(zod.string(), zod.array(zod.string())),
+  error: zod.object({
+    formErrors: zod.array(zod.string()),
+    fieldErrors: zod.record(zod.string(), zod.array(zod.string())),
   }),
-  });
+});
