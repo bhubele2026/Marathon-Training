@@ -143,6 +143,29 @@ router.get("/plan/overview", async (_req, res) => {
     weeks: r.week_count,
   }));
 
+  // Task #33: earliest past non-rest plan_day with no workout
+  // attributed to it (either via workouts.plan_day_id, or via the
+  // legacy date-only fallback when plan_day_id is NULL). Used by the
+  // /plan header to render a "Next Missed" shortcut that jumps the
+  // runner straight to the day they need to back-fill. Mirrors the
+  // missed-day predicate used in /plan/weeks so the badge counts and
+  // this shortcut never disagree on which dates count as missed.
+  const today = todayISO();
+  const nextMissedRows = await db.execute<{ id: number; date: string; week: number }>(
+    sql`SELECT pd.id, pd.date, pd.week
+        FROM plan_days pd
+        WHERE pd.is_rest = false
+          AND pd.date < ${today}
+          AND NOT EXISTS (
+            SELECT 1 FROM workouts w
+            WHERE w.plan_day_id = pd.id
+               OR (w.plan_day_id IS NULL AND w.date = pd.date)
+          )
+        ORDER BY pd.date ASC, pd.source_entry_index ASC
+        LIMIT 1`,
+  );
+  const nextMissed = nextMissedRows.rows[0];
+
   res.json({
     currentWeek: week,
     currentPhase: phase,
@@ -157,6 +180,9 @@ router.get("/plan/overview", async (_req, res) => {
     longRunTarget: weekRow?.longRunMi ?? 0,
     programs,
     raceKind,
+    nextMissedDate: nextMissed?.date ?? null,
+    nextMissedWeek: nextMissed?.week ?? null,
+    nextMissedPlanDayId: nextMissed?.id ?? null,
   });
 });
 

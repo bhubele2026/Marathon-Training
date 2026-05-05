@@ -4,6 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 vi.mock("wouter", () => ({
   useParams: () => ({ week: "1" }),
   useLocation: () => ["/plan/1", vi.fn()] as const,
+  useSearch: () => "",
 }));
 
 // Mutable ref so individual tests can flip the active run-targeting mode

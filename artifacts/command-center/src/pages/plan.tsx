@@ -206,6 +206,15 @@ export default function Plan() {
   const totalMissed = weeks.reduce((sum, w) => sum + (w.missedSessions ?? 0), 0);
   const totalCustomized = weeks.reduce((sum, w) => sum + (w.customizedDays ?? 0), 0);
   const nextMissedWeek = weeks.find((w) => (w.missedSessions ?? 0) > 0);
+  // Task #33: server-resolved earliest missed plan_day. We prefer this
+  // over deriving from `nextMissedWeek` so the deep link jumps straight
+  // to the specific day card to back-fill, not just the week. We pass
+  // the plan_day.id (not just the date) so concurrent overlapping
+  // programs that share a calendar date highlight the EXACT missed
+  // card rather than always defaulting to the primary one.
+  const nextMissedDate = overview.nextMissedDate ?? null;
+  const nextMissedDateWeek = overview.nextMissedWeek ?? null;
+  const nextMissedPlanDayId = overview.nextMissedPlanDayId ?? null;
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto">
@@ -227,6 +236,34 @@ export default function Plan() {
               : `${overview.weeksRemaining} Weeks Remaining · Ends ${formatDate(overview.raceDate)}`}
           </p>
           <div className="flex flex-wrap items-center gap-3 mt-2">
+            {/* Task #33: deep-link straight to the earliest un-logged
+                non-rest plan_day so a runner who's fallen behind can
+                back-fill without scrubbing week by week. Hidden when
+                the server reports no missed sessions. */}
+            {nextMissedDate && nextMissedDateWeek != null && (
+              <button
+                type="button"
+                className="flex items-center gap-1.5 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors px-3 py-1 rounded font-bold uppercase tracking-wider"
+                onClick={() => {
+                  const idParam =
+                    nextMissedPlanDayId != null
+                      ? `&missedId=${nextMissedPlanDayId}`
+                      : "";
+                  setLocation(
+                    `/plan/${nextMissedDateWeek}?missed=${nextMissedDate}${idParam}`,
+                  );
+                }}
+                title={`Jump to ${nextMissedDate} (W${nextMissedDateWeek})`}
+                data-testid="button-next-missed"
+                data-next-missed-date={nextMissedDate}
+                data-next-missed-week={nextMissedDateWeek}
+                data-next-missed-plan-day-id={nextMissedPlanDayId ?? ""}
+              >
+                <AlertTriangle className="h-3 w-3" />
+                Next Missed
+                <ChevronRight className="h-3 w-3 -mr-0.5" />
+              </button>
+            )}
             {totalMissed > 0 && (
               nextMissedWeek ? (
                 <button

@@ -43,6 +43,24 @@ export const GetPlanOverviewResponse = zod.object({
     .describe(
       'Task #204. Kind of race the campaign is anchored on, derived\nfrom the trailing plan_day Sunday. Populated when that final\nrow is a recognised race day (sessionType `Race` or the\ngenerator\'s \"RACE DAY — <Marathon|Half|10K|5K>\" description\nprefix); resolved from the description first so a runner who\nedits the distance still gets the right kind, then falls\nback to `distance_mi`. Null on tonal-first \/ non-race plans\n(lift_primary blocks, ad-hoc Custom blocks) and on legacy \/\nfreshly seeded campaigns with no plan_days yet. Drives the\n\"Race Campaign\" \/ per-kind (\"5K Campaign\", \"10K Campaign\",\n\"Half Marathon Campaign\", \"Marathon Campaign\") framing on\nthe \/plan header so half \/ 10K \/ 5K entries-mode plans get\nthe same \"Weeks to Race Day\" copy marathon plans do, instead\nof falling back to a generic \"Workout Plan · Weeks Remaining\".\n',
     ),
+  nextMissedDate: zod
+    .string()
+    .nullish()
+    .describe(
+      'Task #33. ISO yyyy-mm-dd of the earliest non-rest plan_day\nin the past that has no logged workout attributed to it\n(workouts.plan_day_id == plan_days.id, or a legacy\nplan_day_id IS NULL match on the same date). Lets the \/plan\nheader surface a \"Next Missed\" shortcut that jumps the\nrunner straight to the day they need to back-fill instead\nof forcing them to scrub week by week. Null when no missed\nsessions exist (everything caught up, or pre-launch with\nno past plan_days yet).\n',
+    ),
+  nextMissedWeek: zod
+    .number()
+    .nullish()
+    .describe(
+      "Task #33. Week number containing `nextMissedDate`, surfaced\nso the client can navigate to \/plan\/:week without a second\nlookup. Null whenever `nextMissedDate` is null.\n",
+    ),
+  nextMissedPlanDayId: zod
+    .number()
+    .nullish()
+    .describe(
+      "Task #33. plan_day.id of the earliest missed session.\nSurfaced so the client can highlight the EXACT card after\nnavigation, even when concurrent overlapping programs share\na calendar date and the missed row isn't the primary\n(lowest-source-entry-index) card. Null whenever\n`nextMissedDate` is null.\n",
+    ),
 });
 
 export const ListPlanWeeksResponseItem = zod.object({

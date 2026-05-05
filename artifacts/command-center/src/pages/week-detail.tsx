@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useGetPlanWeek,
   getGetPlanWeekQueryKey,
@@ -11,7 +11,7 @@ import {
   PlanDay,
   PlanDayWithSuggestions,
 } from "@workspace/api-client-react";
-import { useParams, useLocation } from "wouter";
+import { useParams, useLocation, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -170,6 +170,21 @@ export default function WeekDetail() {
   const params = useParams();
   const weekNum = parseInt(params.week || "1", 10);
   const [, setLocation] = useLocation();
+  // Task #33: when arriving from the /plan "Next Missed" deep link,
+  // pull the target plan_day.id (preferred — survives concurrent
+  // overlapping programs sharing a date) and the date fallback out of
+  // the query string so we can scroll the matching card into view and
+  // pulse a destructive ring around it.
+  const search = useSearch();
+  const params2 = new URLSearchParams(search);
+  const missedDate = params2.get("missed");
+  const missedIdRaw = params2.get("missedId");
+  const missedId = missedIdRaw != null ? Number(missedIdRaw) : null;
+  const missedIdValid = missedId != null && Number.isFinite(missedId) ? missedId : null;
+  const [highlightedPlanDayId, setHighlightedPlanDayId] = useState<number | null>(missedIdValid);
+  const [highlightedDate, setHighlightedDate] = useState<string | null>(
+    missedIdValid != null ? null : missedDate,
+  );
   const { openLog, openEdit, requestDelete, requestSkip, crushIt, isDeleting, isCrushing, dialogs } =
     useMissionActions();
 
@@ -197,6 +212,40 @@ export default function WeekDetail() {
       queryKey: getListWorkoutsQueryKey(workoutsParams),
     },
   });
+
+  // Task #33: trigger the scroll-into-view + ring pulse only AFTER the
+  // week's days have actually mounted, otherwise scrollIntoView on a
+  // freshly navigated route would no-op against an empty page. Effect
+  // is keyed on the deep-link target + the loaded week so a slow
+  // network or a route change between weeks both work.
+  useEffect(() => {
+    if (missedIdValid == null && !missedDate) return;
+    if (!week) return;
+    setHighlightedPlanDayId(missedIdValid);
+    setHighlightedDate(missedIdValid != null ? null : missedDate);
+    const raf = window.requestAnimationFrame(() => {
+      // Use attribute-based lookup with safe values: missedIdValid is
+      // a finite number, and the date-fallback path validates the
+      // string against an ISO yyyy-mm-dd shape so a malformed
+      // hand-typed URL can't sneak a CSS-selector fragment through to
+      // querySelector.
+      let el: Element | null = null;
+      if (missedIdValid != null) {
+        el = document.querySelector(`[data-plan-day-anchor="${missedIdValid}"]`);
+      } else if (missedDate && /^\d{4}-\d{2}-\d{2}$/.test(missedDate)) {
+        el = document.querySelector(`[data-day-anchor="${missedDate}"]`);
+      }
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    const fade = window.setTimeout(() => {
+      setHighlightedPlanDayId(null);
+      setHighlightedDate(null);
+    }, 4000);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.clearTimeout(fade);
+    };
+  }, [missedIdValid, missedDate, week]);
 
   if (isLoading) {
     return <div className="space-y-6 max-w-4xl mx-auto"><Skeleton className="h-32 w-full" /><Skeleton className="h-96 w-full" /></div>;
@@ -553,12 +602,27 @@ export default function WeekDetail() {
             </div>
           );
 
+          // Task #33: highlight by plan_day.id when the deep link
+          // included one (handles concurrent overlapping programs that
+          // share a calendar date — the missed row may NOT be the
+          // primary card). Fall back to date+primary when only
+          // ?missed=YYYY-MM-DD is present (legacy / hand-typed URLs).
+          const isHighlighted =
+            highlightedPlanDayId != null
+              ? highlightedPlanDayId === day.id
+              : highlightedDate === day.date && primary;
+
           if (day.isRest) {
             return (
               <Card
                 key={day.id}
-                className="border-dashed border-2 bg-muted/20"
+                className={cn(
+                  "border-dashed border-2 bg-muted/20 scroll-mt-24 transition-shadow",
+                  isHighlighted && "ring-2 ring-destructive ring-offset-2 ring-offset-background animate-pulse",
+                )}
                 data-testid={cardTestId}
+                data-day-anchor={primary ? day.date : undefined}
+                data-plan-day-anchor={day.id}
               >
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-center justify-between gap-3">
@@ -692,15 +756,18 @@ export default function WeekDetail() {
             <Card
               key={day.id}
               className={cn(
-                "transition-colors",
+                "transition-colors scroll-mt-24",
                 missed
                   ? "border-destructive/40 bg-destructive/5 hover:border-destructive/60"
                   : isRaceDay
                     ? "border-amber-500/60 bg-amber-500/5 hover:border-amber-500/80 ring-1 ring-amber-500/30"
                     : "border-border hover:border-primary/30",
+                isHighlighted && "ring-2 ring-destructive ring-offset-2 ring-offset-background animate-pulse",
               )}
               data-testid={cardTestId}
               data-race-day={isRaceDay ? "true" : undefined}
+              data-day-anchor={primary ? day.date : undefined}
+              data-plan-day-anchor={day.id}
             >
               <CardContent className="p-0">
                 <div className="flex flex-col md:flex-row">

@@ -399,6 +399,30 @@ the same "Weeks to Race Day" copy marathon plans do, instead
 of falling back to a generic "Workout Plan · Weeks Remaining".
  */
   raceKind?: PlanOverviewRaceKind;
+  /** Task #33. ISO yyyy-mm-dd of the earliest non-rest plan_day
+in the past that has no logged workout attributed to it
+(workouts.plan_day_id == plan_days.id, or a legacy
+plan_day_id IS NULL match on the same date). Lets the /plan
+header surface a "Next Missed" shortcut that jumps the
+runner straight to the day they need to back-fill instead
+of forcing them to scrub week by week. Null when no missed
+sessions exist (everything caught up, or pre-launch with
+no past plan_days yet).
+ */
+  nextMissedDate?: string | null;
+  /** Task #33. Week number containing `nextMissedDate`, surfaced
+so the client can navigate to /plan/:week without a second
+lookup. Null whenever `nextMissedDate` is null.
+ */
+  nextMissedWeek?: number | null;
+  /** Task #33. plan_day.id of the earliest missed session.
+Surfaced so the client can highlight the EXACT card after
+navigation, even when concurrent overlapping programs share
+a calendar date and the missed row isn't the primary
+(lowest-source-entry-index) card. Null whenever
+`nextMissedDate` is null.
+ */
+  nextMissedPlanDayId?: number | null;
 }
 
 /**
