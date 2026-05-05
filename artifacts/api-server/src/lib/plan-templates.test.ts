@@ -631,6 +631,112 @@ describe("STARTER_SHORTCUTS", () => {
   });
 });
 
+describe("lift-primary (Tonal-only) routing in generatePlanFromConfig (Task #95)", () => {
+  // 2026-01-05 is a Monday. Use blocks-mode so the trailing 16-week
+  // Marathon-Specific tail owns the race week and we can assert the
+  // leading lift-primary Custom block in isolation. Mirrors the
+  // bikeRowBlockConfig pattern below.
+  function liftOnlyBlockConfig(
+    kind: "upper" | "lower" | "ppl" | "conditioning",
+    blockWeeks: number,
+  ): PlannerConfig {
+    const total = blockWeeks + 16;
+    const startMs = Date.parse("2026-01-05T00:00:00Z");
+    const endMs = startMs + (total * 7 - 1) * 86400000;
+    const marathonDate = new Date(endMs).toISOString().slice(0, 10);
+    return {
+      startDate: "2026-01-05",
+      marathonDate,
+      blocks: [
+        {
+          focusType: "Custom",
+          weeks: blockWeeks,
+          customName: `Tonal ${kind}`,
+          customNotes: `[lift-primary:${kind}] Tonal ${kind} block`,
+        },
+      ],
+    };
+  }
+
+  for (const kind of ["upper", "lower", "ppl", "conditioning"] as const) {
+    it(`Tonal-only ${kind} block: lift days carry Tonal-only chips and rest days are correctly marked`, () => {
+      const cfg = liftOnlyBlockConfig(kind, 4);
+      const { daily, weekly } = generatePlanFromConfig(cfg);
+      const liftDaily = daily.filter((d) => d.week <= 4);
+      const liftWeekly = weekly.filter((w) => w.week <= 4);
+
+      // 4 weeks * 7 days
+      expect(liftDaily).toHaveLength(28);
+
+      for (const d of liftDaily) {
+        // No runs and no cardio sessions in any lift-primary day.
+        expect(d.run_min, `${d.day} w${d.week} run_min`).toBe(0);
+        expect(d.cardio_min, `${d.day} w${d.week} cardio_min`).toBe(0);
+        expect(d.distance_mi, `${d.day} w${d.week} distance_mi`).toBeNull();
+        expect(d.pace, `${d.day} w${d.week} pace`).toBeNull();
+
+        if (d.day === "Tue" || d.day === "Thu" || d.day === "Sun") {
+          // Rest days: full rest, "Off / Rest" chip, no load.
+          expect(d.is_rest, `${d.day} w${d.week} is_rest`).toBe(true);
+          expect(d.session_type).toBe("Rest");
+          expect(d.equipment).toBe("Off / Rest");
+          expect(d.equipment_list).toEqual(["Off / Rest"]);
+          expect(d.strength_load).toBe(0);
+          expect(d.strength_min).toBe(0);
+          expect(d.total_load).toBe(0);
+        } else {
+          // Lift days (Mon/Wed/Fri/Sat): Tonal chip ONLY (no Bike/Row/
+          // Tread/Outdoor), Strength session, lift minutes > 0.
+          expect(d.is_rest, `${d.day} w${d.week} is_rest`).toBe(false);
+          expect(d.session_type).toBe("Strength");
+          expect(d.equipment).toBe("Tonal");
+          expect(d.equipment_list).toEqual(["Tonal"]);
+          expect(d.strength_min, `${d.day} w${d.week} strength_min`).toBeGreaterThan(0);
+          expect(d.strength_load, `${d.day} w${d.week} strength_load`).toBeGreaterThan(0);
+          // Equipment chips must NOT include any running gear.
+          expect(d.equipment_list).not.toContain("Peloton Tread");
+          expect(d.equipment_list).not.toContain("Outdoor");
+          expect(d.equipment_list).not.toContain("Peloton Bike");
+          expect(d.equipment_list).not.toContain("Peloton Row");
+        }
+      }
+
+      // Weekly rollups for a Tonal-only block: zero miles, zero non-run
+      // cardio minutes, zero long run, all load comes from lifting.
+      for (const wk of liftWeekly) {
+        expect(wk.planned_miles, `week ${wk.week} planned_miles`).toBe(0);
+        expect(wk.planned_cardio, `week ${wk.week} planned_cardio`).toBe(0);
+        expect(wk.long_run_mi, `week ${wk.week} long_run_mi`).toBe(0);
+        expect(wk.planned_strength, `week ${wk.week} planned_strength`).toBeGreaterThan(0);
+      }
+    });
+  }
+
+  it("per-kind day labels appear in the Tonal session descriptions", () => {
+    // The four-day rotation in `buildLiftPrimaryWeekDays` stamps a
+    // distinctive movement label per kind. Spot-check one phrase per
+    // kind so a future refactor that drops the per-kind rotation
+    // (collapsing every kind to a generic "Heavy full-body" label)
+    // breaks loudly here instead of silently shipping an undifferentiated
+    // plan to runners who picked the upper / lower / PPL / conditioning
+    // template.
+    const probes: Record<"upper" | "lower" | "ppl" | "conditioning", string> = {
+      upper: "Heavy push",
+      lower: "Heavy squat",
+      ppl: "Push day",
+      conditioning: "Tonal finisher",
+    };
+    for (const [kind, probe] of Object.entries(probes) as Array<
+      [keyof typeof probes, string]
+    >) {
+      const { daily } = generatePlanFromConfig(liftOnlyBlockConfig(kind, 1));
+      const week1 = daily.filter((d) => d.week === 1 && !d.is_rest);
+      const joined = week1.map((d) => d.description).join(" || ");
+      expect(joined, `${kind} kind missing "${probe}" anywhere in week 1`).toContain(probe);
+    }
+  });
+});
+
 describe("primaryMachineKind sentinel parser", () => {
   it("returns 'bike' for [primary-machine:bike] notes", () => {
     expect(primaryMachineKind("[primary-machine:bike] PZ Beginner")).toBe(

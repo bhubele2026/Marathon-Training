@@ -1140,3 +1140,164 @@ describe("Week detail — primary metric rendering on slim cards (task #139)", (
     ).toBeNull();
   });
 });
+
+// Task #95: lift-primary (Tonal-only) week renders correctly on the
+// week-detail daily view. The generator's `buildLiftPrimaryWeekDays`
+// emits a Mon/Wed/Fri/Sat = Strength on Tonal layout with
+// Tue/Thu/Sun = Off / Rest, run/cardio always 0. Pair with the
+// generator-level coverage in plan-templates.test.ts so a regression
+// in either the data shape OR the rendering surface is caught.
+describe("Week detail — Tonal-only lift-primary week rendering (task #95)", () => {
+  function makeLiftDay(
+    date: string,
+    day: string,
+    sessionType: string,
+    description: string,
+    id: number,
+  ) {
+    return {
+      id,
+      week: 1,
+      phase: "Custom",
+      date,
+      day,
+      sessionType,
+      description,
+      equipment: "Tonal",
+      equipmentList: ["Tonal"],
+      isRest: false,
+      isCustomized: false,
+      customizedFields: [],
+      customizedDiff: [],
+      strengthLoad: 8000,
+      strengthMin: 60,
+      cardioMin: 0,
+      runMin: 0,
+      distanceMi: null,
+      pace: null,
+      totalMin: 60,
+      totalLoad: 60,
+      sourceEntryIndex: 0,
+      sourceEntryLabel: null,
+      suggestions: null,
+    };
+  }
+
+  function makeRestDay(date: string, day: string, id: number) {
+    return {
+      id,
+      week: 1,
+      phase: "Custom",
+      date,
+      day,
+      sessionType: "Off / Rest",
+      description: "Rest day",
+      equipment: "Lifestyle",
+      equipmentList: ["Lifestyle"],
+      isRest: true,
+      isCustomized: false,
+      customizedFields: [],
+      customizedDiff: [],
+      strengthLoad: 0,
+      strengthMin: 0,
+      cardioMin: 0,
+      runMin: 0,
+      distanceMi: null,
+      pace: null,
+      totalMin: 0,
+      totalLoad: 0,
+      sourceEntryIndex: 0,
+      sourceEntryLabel: null,
+      suggestions: null,
+    };
+  }
+
+  function makeTonalWeekPayload() {
+    return {
+      week: 1,
+      phase: "Custom",
+      startDate: "2026-05-04",
+      endDate: "2026-05-10",
+      plannedStrength: 240,
+      plannedCardio: 0,
+      plannedTotalLoad: 240,
+      plannedMiles: 0,
+      longRunMi: 0,
+      actualMiles: 0,
+      actualCardio: 0,
+      completedSessions: 0,
+      totalSessions: 4,
+      missedSessions: 0,
+      dominantCardioEquipment: null,
+      days: [
+        makeLiftDay("2026-05-04", "Mon", "Strength", "Heavy push", 1),
+        makeRestDay("2026-05-05", "Tue", 2),
+        makeLiftDay("2026-05-06", "Wed", "Strength", "Pull day", 3),
+        makeRestDay("2026-05-07", "Thu", 4),
+        makeLiftDay("2026-05-08", "Fri", "Strength", "Heavy squat", 5),
+        makeLiftDay("2026-05-09", "Sat", "Strength", "Tonal finisher", 6),
+        makeRestDay("2026-05-10", "Sun", 7),
+      ],
+    };
+  }
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("renders Tonal-only equipment chips on every lift day (no running gear)", () => {
+    renderWith(makeTonalWeekPayload());
+
+    for (const date of ["2026-05-04", "2026-05-06", "2026-05-08", "2026-05-09"]) {
+      const chip = screen.getByTestId(`chip-equipment-${date}-0`);
+      expect(chip.textContent).toBe("Tonal");
+      // Lift days have a single-machine chip rail — no Peloton Tread /
+      // Outdoor / Bike / Row should leak in on a Tonal-only week.
+      expect(screen.queryByTestId(`chip-equipment-${date}-1`)).toBeNull();
+    }
+  });
+
+  it("renders Strength session label and lift minutes without run/cardio buckets", () => {
+    renderWith(makeTonalWeekPayload());
+
+    for (const date of ["2026-05-04", "2026-05-06", "2026-05-08", "2026-05-09"]) {
+      const card = screen.getByTestId(`day-card-${date}`);
+      expect(card.textContent).toContain("Strength");
+
+      const total = screen.getByTestId(`day-${date}-breakdown-total`);
+      expect(total.textContent).toContain("60");
+
+      const lift = screen.getByTestId(`day-${date}-breakdown-lift`);
+      expect(lift.textContent).toContain("60");
+
+      // Empty buckets must be dropped — no RUN or CARDIO tile on a
+      // Tonal-only lift day.
+      expect(
+        screen.queryByTestId(`day-${date}-breakdown-run`),
+      ).toBeNull();
+      expect(
+        screen.queryByTestId(`day-${date}-breakdown-cardio`),
+      ).toBeNull();
+    }
+  });
+
+  it("marks Tue / Thu / Sun as rest cards with Rest / Recovery copy and no breakdown", () => {
+    renderWith(makeTonalWeekPayload());
+
+    for (const date of ["2026-05-05", "2026-05-07", "2026-05-10"]) {
+      const card = screen.getByTestId(`day-card-${date}`);
+      // Rest cards use the dashed border-2 + muted background treatment.
+      expect(card.className).toContain("border-dashed");
+      expect(card.textContent).toContain("Rest / Recovery");
+      // PlannedBreakdown returns null when totalMin <= 0, so no
+      // breakdown element should render on a rest day.
+      expect(
+        screen.queryByTestId(`day-${date}-breakdown`),
+      ).toBeNull();
+      // And no race-day amber accent should leak onto a Tonal-only
+      // rest day either.
+      expect(card.getAttribute("data-race-day")).toBeNull();
+    }
+  });
+});
