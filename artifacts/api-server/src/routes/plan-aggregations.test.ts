@@ -4,6 +4,7 @@ import {
   GetPlanOverviewResponse,
   ListPlanWeeksResponse,
 } from "@workspace/api-zod";
+import { RACE_DAY_SPECS } from "@workspace/plan-generator";
 import app from "../app";
 import {
   cleanTestData,
@@ -85,28 +86,28 @@ describe("GET /api/plan/overview", () => {
   // gets the right kind.
   it.each([
     {
+      // Pull each race-day prose from the same `RACE_DAY_SPECS[kind]`
+      // table the canonical generator emits, so a future tweak to the
+      // copy can't silently desync this fixture (mirrors the
+      // drift-proofing in race-week.test.ts / backfill-plan-day-equipment.test.ts).
       kind: "5k",
-      distanceMi: 3.1,
-      description:
-        "RACE DAY — 5K (3.1 mi). Execute race plan at VO2 effort, go hard from the gun, finish strong.",
+      distanceMi: RACE_DAY_SPECS["5k"].distanceMi,
+      description: RACE_DAY_SPECS["5k"].description,
     },
     {
       kind: "10k",
-      distanceMi: 6.2,
-      description:
-        "RACE DAY — 10K (6.2 mi). Execute race plan at threshold effort, hold form, finish strong.",
+      distanceMi: RACE_DAY_SPECS["10k"].distanceMi,
+      description: RACE_DAY_SPECS["10k"].description,
     },
     {
       kind: "half",
-      distanceMi: 13.1,
-      description:
-        "RACE DAY — Half (13.1 mi). Execute race plan, fuel every 4 mi, finish strong.",
+      distanceMi: RACE_DAY_SPECS.half.distanceMi,
+      description: RACE_DAY_SPECS.half.description,
     },
     {
       kind: "marathon",
-      distanceMi: 26.2,
-      description:
-        "RACE DAY — Marathon (26.2 mi). Execute race plan, fuel every 4 mi, finish strong.",
+      distanceMi: RACE_DAY_SPECS.marathon.distanceMi,
+      description: RACE_DAY_SPECS.marathon.description,
     },
   ])(
     "reports raceKind=$kind when the trailing plan_day is the matching race row",
@@ -191,8 +192,7 @@ describe("GET /api/plan/overview", () => {
       // Non-canonical distance after a runner edit; description
       // still carries the generator's "RACE DAY — 5K" prefix.
       distanceMi: 5.05,
-      description:
-        "RACE DAY — 5K (3.1 mi). Execute race plan at VO2 effort, go hard from the gun, finish strong.",
+      description: RACE_DAY_SPECS["5k"].description,
     });
     const res = await request(app).get("/api/plan/overview");
     expect(res.status).toBe(200);

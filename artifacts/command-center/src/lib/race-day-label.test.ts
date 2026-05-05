@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { RACE_DAY_SPECS } from "@workspace/plan-generator";
 import { raceDayLabel, RACE_DAY_ZONE_BUCKET } from "./race-day-label";
 
 describe("raceDayLabel — task #201 per-kind Sunday label", () => {
@@ -7,10 +8,15 @@ describe("raceDayLabel — task #201 per-kind Sunday label", () => {
     // the helper resolves the kind even when the caller can't supply
     // sessionType (e.g. dashboard RaceDayHero, which reads from the
     // /race-week endpoint payload).
-    expect(raceDayLabel(26.2, "RACE DAY — Marathon (26.2 mi). Execute race plan, fuel every 4 mi, finish strong.")?.label).toBe("Marathon Day");
-    expect(raceDayLabel(13.1, "RACE DAY — Half (13.1 mi). Execute race plan, fuel every 4 mi, finish strong.")?.label).toBe("Half Marathon Day");
-    expect(raceDayLabel(6.2, "RACE DAY — 10K (6.2 mi). Execute race plan at threshold effort, hold form, finish strong.")?.label).toBe("10K Day");
-    expect(raceDayLabel(3.1, "RACE DAY — 5K (3.1 mi). Execute race plan at VO2 effort, go hard from the gun, finish strong.")?.label).toBe("5K Day");
+    // Pull each race-day prose from the same `RACE_DAY_SPECS[kind]`
+    // table the canonical generator emits, so a future tweak to the
+    // copy can't silently desync this fixture (Task #231; mirrors the
+    // drift-proofing already applied to race-week.test.ts and
+    // backfill-plan-day-equipment.test.ts).
+    expect(raceDayLabel(26.2, RACE_DAY_SPECS.marathon.description)?.label).toBe("Marathon Day");
+    expect(raceDayLabel(13.1, RACE_DAY_SPECS.half.description)?.label).toBe("Half Marathon Day");
+    expect(raceDayLabel(6.2, RACE_DAY_SPECS["10k"].description)?.label).toBe("10K Day");
+    expect(raceDayLabel(3.1, RACE_DAY_SPECS["5k"].description)?.label).toBe("5K Day");
   });
 
   it("falls back to distance_mi for race rows whose description was customized away from the generator prefix", () => {

@@ -113,7 +113,12 @@ describe("GET /api/race-week", () => {
       day: "Sun",
       strengthLoad: 0,
       equipment: "Outdoor",
-      description: "RACE DAY — Marathon (26.2 mi). Fuel every 4 mi.",
+      // Pull the marathon race-day prose from the canonical
+      // `RACE_DAY_SPECS.marathon.description` table — hand-rolling the
+      // literal here would silently drift the moment the marathon copy
+      // changes (Task #231; mirrors the half-marathon drift-proofing
+      // already applied earlier in this file at line ~61).
+      description: RACE_DAY_SPECS.marathon.description,
       cardioMin: 240,
       distanceMi: 26.2,
       pace: "10:00",

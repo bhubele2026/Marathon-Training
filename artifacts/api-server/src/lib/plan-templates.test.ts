@@ -13,6 +13,7 @@ import {
   primaryMachineKind,
   projectEntries,
   RACE_EVE_SAT_SPEC,
+  RACE_DAY_SPECS,
   buildRaceEveSatRow,
   type PlannerConfig,
 } from "@workspace/plan-generator";
@@ -1462,9 +1463,10 @@ describe("Race-day marking on entries-mode marathon plans (Task #195)", () => {
       // banner copy, so a regression that dropped this string would
       // silently strip the headline label even if mileage stayed
       // correct.
-      expect(sun.description).toBe(
-        "RACE DAY — Marathon (26.2 mi). Execute race plan, fuel every 4 mi, finish strong.",
-      );
+      // Pull the canonical marathon RACE DAY prose from the same
+      // `RACE_DAY_SPECS.marathon` table the generator emits, so a future
+      // tweak to the copy can't silently desync this fixture (Task #231).
+      expect(sun.description).toBe(RACE_DAY_SPECS.marathon.description);
       expect(sun.session_type).toBe("Race");
       expect(sun.equipment).toBe("Outdoor");
       expect(sun.equipment_list).toEqual(["Outdoor"]);
@@ -1523,9 +1525,10 @@ describe("Race-day marking on entries-mode marathon plans (Task #195)", () => {
     // would have been.
     const { sun, sat } = finalSunAndSat(entriesPlan("marathon_hybrid", 18));
     expect(sun.distance_mi).toBe(26.2);
-    expect(sun.description).toBe(
-      "RACE DAY — Marathon (26.2 mi). Execute race plan, fuel every 4 mi, finish strong.",
-    );
+    // Same canonical marathon RACE DAY prose, sourced from
+    // `RACE_DAY_SPECS.marathon` to stay in lockstep with the generator
+    // (Task #231).
+    expect(sun.description).toBe(RACE_DAY_SPECS.marathon.description);
     expect(sun.session_type).toBe("Race");
     expect(sun.equipment).toBe("Outdoor");
     expect(sun.equipment_list).toEqual(["Outdoor"]);
