@@ -95,6 +95,82 @@ export default function Today() {
               {today.firstSession.description && (
                 <p className="text-sm text-muted-foreground mt-2">{today.firstSession.description}</p>
               )}
+              {/* Task #238: mirror the Mission Brief race-day badge +
+                  personalized vs catalog chip pair onto the pre-launch
+                  First Scheduled Session preview for the rare campaign-
+                  final-week edge case where the first scheduled session
+                  is itself a race-day Sun. The IIFE returns null on
+                  every non-race row so this is a no-op for normal
+                  pre-launch previews (e.g. a Tue strength + cardio
+                  first session). */}
+              {(() => {
+                const fs = today.firstSession!;
+                const race = raceDayLabel(fs.distanceMi, fs.description, fs.sessionType);
+                if (!race) return null;
+                const prp = fs.personalizedRacePace ?? null;
+                return (
+                  <div className="flex flex-wrap items-center gap-2 mt-3">
+                    <span
+                      className="inline-flex items-center gap-1 text-[10px] bg-primary/15 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider w-fit"
+                      data-testid={`badge-race-day-first-session-${fs.date}`}
+                      data-race-kind={race.kind}
+                    >
+                      <Activity className="h-3 w-3" />
+                      {race.label}
+                    </span>
+                    {prp && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wider w-fit cursor-help",
+                              prp.source === "personalized"
+                                ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                                : "bg-muted text-muted-foreground",
+                            )}
+                            data-testid={`badge-race-pace-source-first-session-${fs.date}`}
+                            data-pace-source={prp.source}
+                            data-personalized-pace={prp.pace}
+                          >
+                            <Sparkles className="h-3 w-3" />
+                            {prp.source === "personalized"
+                              ? `${prp.pace}/mi · Personalized`
+                              : `${prp.pace}/mi · From catalog`}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          align="start"
+                          className="max-w-xs text-xs"
+                        >
+                          {prp.source === "personalized" && prp.basisPaceSeconds != null ? (
+                            <span>
+                              Personalized from {prp.sampleSize} quality run
+                              {prp.sampleSize === 1 ? "" : "s"} (tempo / threshold /
+                              interval / VO2 / race) in the last {prp.lookbackWeeks} weeks.
+                              Avg training pace{" "}
+                              <span className="font-mono font-bold">
+                                {Math.floor(prp.basisPaceSeconds / 60)}:
+                                {String(prp.basisPaceSeconds % 60).padStart(2, "0")}
+                              </span>
+                              /mi → race-day target{" "}
+                              <span className="font-mono font-bold">{prp.pace}</span>/mi.
+                            </span>
+                          ) : (
+                            <span>
+                              Showing the catalog {race.label.toLowerCase()} pace —
+                              not enough recent quality runs in the last{" "}
+                              {prp.lookbackWeeks} weeks to personalize. Log a few
+                              tempo / threshold / interval workouts and this chip
+                              will retune to your training.
+                            </span>
+                          )}
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
+                );
+              })()}
               {/* Slim collapsed view (Task #133): just the one headline
                   number for the first session. Equipment chips, the
                   planned minute breakdown, and the strength / total load

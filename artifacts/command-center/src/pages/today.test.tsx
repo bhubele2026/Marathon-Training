@@ -1265,6 +1265,105 @@ describe("Today page — race-day personalized pace chip (task #235)", () => {
     ]);
   });
 
+  // Task #238: rare campaign-final-week edge case where the pre-launch
+  // countdown's "First Scheduled Session" preview is itself the
+  // race-day Sun. The pace override was already wired in Task #235 but
+  // the badge + chip pair was missing — this test pins down that the
+  // pre-launch preview now mirrors the Mission Brief race-day chip
+  // pair so a runner whose campaign starts ON race day sees the same
+  // explainer.
+  it("renders the race-day badge + Personalized chip on the pre-launch First Scheduled Session preview when firstSession is a race-day", () => {
+    runTargetingModeRef.current = "pace";
+    const raceFirstSession = {
+      ...racePlanBase,
+      personalizedRacePace: {
+        pace: "10:55",
+        source: "personalized",
+        sampleSize: 5,
+        lookbackWeeks: 6,
+        basisPaceSeconds: 630,
+      },
+    };
+    renderWithData({
+      date: "2026-09-12",
+      hasPlan: false,
+      plan: null,
+      loggedWorkouts: [],
+      suggestions: null,
+      daysUntilStart: 1,
+      firstSession: raceFirstSession,
+    });
+
+    expect(
+      screen.getByTestId(`badge-race-day-first-session-${raceFirstSession.date}`),
+    ).toBeTruthy();
+    const chip = screen.getByTestId(
+      `badge-race-pace-source-first-session-${raceFirstSession.date}`,
+    );
+    expect(chip.getAttribute("data-pace-source")).toBe("personalized");
+    expect(chip.getAttribute("data-personalized-pace")).toBe("10:55");
+    expect(chip.textContent).toContain("10:55/mi");
+    expect(chip.textContent).toContain("Personalized");
+
+    // Headline run-target on the pre-launch preview reflects the
+    // personalized value (10:55) per the pace override already wired
+    // in Task #235.
+    const target = screen.getByTestId("first-session-run-target");
+    expect(target.textContent).toContain("10:55");
+    expect(target.textContent).not.toContain("10:30");
+  });
+
+  it("renders the From catalog chip on the pre-launch First Scheduled Session preview when source = 'catalog'", () => {
+    runTargetingModeRef.current = "pace";
+    const raceFirstSession = {
+      ...racePlanBase,
+      personalizedRacePace: {
+        pace: "10:30",
+        source: "catalog",
+        sampleSize: 0,
+        lookbackWeeks: 6,
+        basisPaceSeconds: null,
+      },
+    };
+    renderWithData({
+      date: "2026-09-12",
+      hasPlan: false,
+      plan: null,
+      loggedWorkouts: [],
+      suggestions: null,
+      daysUntilStart: 1,
+      firstSession: raceFirstSession,
+    });
+
+    const chip = screen.getByTestId(
+      `badge-race-pace-source-first-session-${raceFirstSession.date}`,
+    );
+    expect(chip.getAttribute("data-pace-source")).toBe("catalog");
+    expect(chip.textContent).toContain("10:30/mi");
+    expect(chip.textContent).toContain("From catalog");
+  });
+
+  it("does NOT render the race-day chip on the pre-launch preview when the first scheduled session is a normal weekday", () => {
+    renderWithData({
+      date: "2026-05-02",
+      hasPlan: false,
+      plan: null,
+      loggedWorkouts: [],
+      suggestions: null,
+      daysUntilStart: 3,
+      firstSession,
+    });
+
+    expect(
+      screen.queryByTestId(`badge-race-day-first-session-${firstSession.date}`),
+    ).toBeNull();
+    expect(
+      screen.queryByTestId(
+        `badge-race-pace-source-first-session-${firstSession.date}`,
+      ),
+    ).toBeNull();
+  });
+
   it("does NOT render the race-day chip on a non-race weekday plan", () => {
     runTargetingModeRef.current = "pace";
     const easyRunPlan = {
