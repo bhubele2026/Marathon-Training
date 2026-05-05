@@ -5,9 +5,17 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
+import {
+  useGetUserPreferences,
+  useUpdateUserPreferences,
+  getGetUserPreferencesQueryKey,
+  type UpdateUserPreferencesBodyVisualTheme,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   DEFAULT_THEME_KEY,
   PHASE_VAR_NAMES,
@@ -42,6 +50,15 @@ function readStoredTheme(): ThemeKey {
     // fall back to the default theme silently.
   }
   return DEFAULT_THEME_KEY;
+}
+
+function writeStoredTheme(key: ThemeKey) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, key);
+  } catch {
+    // Persistence failure shouldn't break the in-memory swap.
+  }
 }
 
 function tokenBlock(selector: string, tokens: ThemeTokens): string {
@@ -94,7 +111,59 @@ export interface VisualThemeProviderProps {
 }
 
 export function VisualThemeProvider({ children }: VisualThemeProviderProps) {
+  // Seed synchronously from localStorage so the first paint matches
+  // the runner's previous choice on this device — prevents a flash of
+  // the arctic default while the server-preferences query resolves.
   const [themeKey, setThemeKeyState] = useState<ThemeKey>(() => readStoredTheme());
+
+  // Task #196 — hydrate from the server-side user-preferences row so
+  // the chosen theme follows the runner across devices. Server value
+  // wins over localStorage once it arrives. If the server has no
+  // saved choice yet but localStorage does, push the local choice up
+  // so subsequent devices inherit it (one-shot migration per browser).
+  const queryClient = useQueryClient();
+  const prefsQuery = useGetUserPreferences();
+  const updatePrefs = useUpdateUserPreferences({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: getGetUserPreferencesQueryKey(),
+        });
+      },
+    },
+  });
+  const serverVisualTheme = prefsQuery.data?.visualTheme ?? null;
+  const hasHydratedFromServer = useRef(false);
+  const hasMigratedLocalToServer = useRef(false);
+
+  useEffect(() => {
+    if (!prefsQuery.isSuccess) return;
+    if (hasHydratedFromServer.current) return;
+    hasHydratedFromServer.current = true;
+    if (isThemeKey(serverVisualTheme)) {
+      // Server has a saved choice — adopt it (and mirror to
+      // localStorage so an offline reload still picks it up).
+      if (serverVisualTheme !== themeKey) {
+        setThemeKeyState(serverVisualTheme);
+      }
+      writeStoredTheme(serverVisualTheme);
+    } else if (!hasMigratedLocalToServer.current) {
+      // Server has nothing yet. If this device has a non-default
+      // local choice, push it up so other devices inherit it.
+      hasMigratedLocalToServer.current = true;
+      const stored = readStoredTheme();
+      if (stored !== DEFAULT_THEME_KEY) {
+        updatePrefs.mutate({
+          data: { visualTheme: stored as UpdateUserPreferencesBodyVisualTheme },
+        });
+      }
+    }
+    // We intentionally only react to the initial query success — later
+    // refetches with the same value shouldn't fight the user's in-flight
+    // optimistic local change. The cross-tab `storage` listener still
+    // catches multi-tab edits on the same browser.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefsQuery.isSuccess, serverVisualTheme]);
 
   // useLayoutEffect so the override style is in the DOM before the
   // first paint — prevents a flash of arctic colors when the runner
@@ -115,14 +184,19 @@ export function VisualThemeProvider({ children }: VisualThemeProviderProps) {
     return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
-  const setThemeKey = useCallback((next: ThemeKey) => {
-    setThemeKeyState(next);
-    try {
-      window.localStorage.setItem(STORAGE_KEY, next);
-    } catch {
-      // Persistence failure shouldn't break the in-memory swap.
-    }
-  }, []);
+  const setThemeKey = useCallback(
+    (next: ThemeKey) => {
+      setThemeKeyState(next);
+      writeStoredTheme(next);
+      // Persist to the server-side user-preferences row so the choice
+      // follows the runner across devices (Task #196). Failures are
+      // swallowed — the in-memory + localStorage swap still wins.
+      updatePrefs.mutate({
+        data: { visualTheme: next as UpdateUserPreferencesBodyVisualTheme },
+      });
+    },
+    [updatePrefs],
+  );
 
   const value = useMemo<VisualThemeContextValue>(
     () => ({

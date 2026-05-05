@@ -1209,6 +1209,29 @@ export const UserPreferencesHrZoneModel = {
 } as const;
 
 /**
+ * Which visual theme palette the runner picked (Task #196). The
+five palettes match the keys in the frontend theme registry
+(`artifacts/command-center/src/lib/visual-themes.ts`). Null
+means the runner has never picked one — the provider falls
+back to localStorage and then to the arctic-performance
+default. Picking a theme on Settings writes here in addition
+to localStorage so the choice follows the runner across
+devices.
+
+ */
+export type UserPreferencesVisualTheme =
+  | (typeof UserPreferencesVisualTheme)[keyof typeof UserPreferencesVisualTheme]
+  | null;
+
+export const UserPreferencesVisualTheme = {
+  "arctic-performance": "arctic-performance",
+  "midnight-track": "midnight-track",
+  "trail-forest": "trail-forest",
+  "championship-red": "championship-red",
+  "sunset-endurance": "sunset-endurance",
+} as const;
+
+/**
  * Single-user preferences applied across the app. Exposes the run targeting mode (Task
  */
 export interface UserPreferences {
@@ -1253,6 +1276,16 @@ renders next to each "Zone N" line.
 Defaults to "five_zone_max" on new accounts.
  */
   hrZoneModel: UserPreferencesHrZoneModel;
+  /** Which visual theme palette the runner picked (Task #196). The
+five palettes match the keys in the frontend theme registry
+(`artifacts/command-center/src/lib/visual-themes.ts`). Null
+means the runner has never picked one — the provider falls
+back to localStorage and then to the arctic-performance
+default. Picking a theme on Settings writes here in addition
+to localStorage so the choice follows the runner across
+devices.
+ */
+  visualTheme: UserPreferencesVisualTheme;
   updatedAt: string;
 }
 
@@ -1302,6 +1335,18 @@ export const UpdateUserPreferencesBodyHrZoneModel = {
   polarized_3_zone: "polarized_3_zone",
 } as const;
 
+export type UpdateUserPreferencesBodyVisualTheme =
+  | (typeof UpdateUserPreferencesBodyVisualTheme)[keyof typeof UpdateUserPreferencesBodyVisualTheme]
+  | null;
+
+export const UpdateUserPreferencesBodyVisualTheme = {
+  "arctic-performance": "arctic-performance",
+  "midnight-track": "midnight-track",
+  "trail-forest": "trail-forest",
+  "championship-red": "championship-red",
+  "sunset-endurance": "sunset-endurance",
+} as const;
+
 /**
  * Partial update of UserPreferences. Omitted fields are left untouched.
 Send maxHr=null or restingHr=null to explicitly clear the configured
@@ -1321,6 +1366,7 @@ export interface UpdateUserPreferencesBody {
    */
   restingHr?: number | null;
   hrZoneModel?: UpdateUserPreferencesBodyHrZoneModel;
+  visualTheme?: UpdateUserPreferencesBodyVisualTheme;
 }
 
 /**

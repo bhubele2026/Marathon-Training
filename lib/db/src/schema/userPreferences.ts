@@ -39,6 +39,15 @@ export const userPreferencesTable = pgTable("user_preferences", {
   // expects. Stored as text; the lookup table lives in the frontend
   // (`artifacts/command-center/src/lib/run-target.ts`).
   hrZoneModel: text("hr_zone_model").notNull().default("five_zone_max"),
+  // Which visual theme palette the runner picked (Task #196). The
+  // theme picker on Settings (Task #188) originally only persisted to
+  // localStorage so the choice was per-browser; storing it on the
+  // user-preferences row lets the choice follow the runner across
+  // devices. Null means "no choice saved yet" — the provider falls
+  // back to localStorage and then to the arctic-performance default.
+  // Stored as text; the lookup table of valid theme keys lives in the
+  // frontend (`artifacts/command-center/src/lib/visual-themes.ts`).
+  visualTheme: text("visual_theme"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

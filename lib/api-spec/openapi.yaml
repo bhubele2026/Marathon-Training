@@ -2473,8 +2473,8 @@ components:
 
     UserPreferences:
       type: object
-      required: [runTargetingMode, maxHr, restingHr, hrZoneModel, updatedAt]
-      description: Single-user preferences applied across the app. Exposes the run targeting mode (Task #134) which drives how every prescribed run is displayed on Today, Week Detail, and the expanded card detail, plus the user's max heart rate (Task #141), optional resting heart rate (Task #146), and chosen HR zone model (Task #158) used to compute personalized BPM ranges for the HR Zone targeting mode.
+      required: [runTargetingMode, maxHr, restingHr, hrZoneModel, visualTheme, updatedAt]
+      description: Single-user preferences applied across the app. Exposes the run targeting mode (Task #134) which drives how every prescribed run is displayed on Today, Week Detail, and the expanded card detail, plus the user's max heart rate (Task #141), optional resting heart rate (Task #146), chosen HR zone model (Task #158) used to compute personalized BPM ranges for the HR Zone targeting mode, and chosen visual theme palette (Task #196) so the picker on Settings persists across devices instead of being per-browser.
       properties:
         runTargetingMode:
           type: string
@@ -2521,6 +2521,19 @@ components:
               - coggan_5_zone    : Coggan HR zones (% LTHR).
               - polarized_3_zone : 3-zone polarized.
             Defaults to "five_zone_max" on new accounts.
+        visualTheme:
+          type: string
+          nullable: true
+          enum: [arctic-performance, midnight-track, trail-forest, championship-red, sunset-endurance, null]
+          description: |
+            Which visual theme palette the runner picked (Task #196). The
+            five palettes match the keys in the frontend theme registry
+            (`artifacts/command-center/src/lib/visual-themes.ts`). Null
+            means the runner has never picked one — the provider falls
+            back to localStorage and then to the arctic-performance
+            default. Picking a theme on Settings writes here in addition
+            to localStorage so the choice follows the runner across
+            devices.
         updatedAt:
           type: string
           format: date-time
@@ -2572,6 +2585,10 @@ components:
         hrZoneModel:
           type: string
           enum: [five_zone_max, friel_7_zone, coggan_5_zone, polarized_3_zone]
+        visualTheme:
+          type: string
+          nullable: true
+          enum: [arctic-performance, midnight-track, trail-forest, championship-red, sunset-endurance, null]
 
     ApplyPlannerConfigResponse:
       type: object

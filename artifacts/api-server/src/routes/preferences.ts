@@ -30,6 +30,7 @@ type ApiUserPreferences = {
   maxHr: number | null;
   restingHr: number | null;
   hrZoneModel: string;
+  visualTheme: string | null;
   updatedAt: string;
 };
 
@@ -39,6 +40,7 @@ function toApi(row: UserPreferencesRow): ApiUserPreferences {
     maxHr: row.maxHr,
     restingHr: row.restingHr,
     hrZoneModel: row.hrZoneModel,
+    visualTheme: row.visualTheme,
     updatedAt: row.updatedAt.toISOString(),
   };
 }
@@ -96,6 +98,12 @@ router.put("/preferences", async (req, res) => {
   // string, not nullable; omit to leave the saved choice alone.
   if (parsed.data.hrZoneModel !== undefined) {
     updates.hrZoneModel = parsed.data.hrZoneModel;
+  }
+  // Task #196 — visual theme palette. Nullable: send `null` to clear
+  // the saved choice (provider falls back to localStorage / default);
+  // omit to leave the saved choice alone.
+  if (parsed.data.visualTheme !== undefined) {
+    updates.visualTheme = parsed.data.visualTheme;
   }
   if (Object.keys(updates).length === 0) {
     const row = await readOrSeed();

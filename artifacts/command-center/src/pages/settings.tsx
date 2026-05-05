@@ -230,8 +230,8 @@ export default function Settings() {
           <p className="text-sm text-muted-foreground">
             Pick the palette that powers the entire Command Center. Your choice
             applies instantly across light and dark mode, including phase colors
-            and chart accents, and is remembered on this device next time you
-            sign in.
+            and chart accents, and syncs to your account so the same theme
+            follows you on every device.
           </p>
           <RadioGroup
             value={themeKey}

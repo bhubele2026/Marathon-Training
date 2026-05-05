@@ -41,16 +41,21 @@ function Router() {
 function App() {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      <VisualThemeProvider>
-        <QueryClientProvider client={queryClient}>
+      <QueryClientProvider client={queryClient}>
+        {/* VisualThemeProvider lives inside the QueryClientProvider so
+            it can hydrate from the server-side user-preferences row
+            (Task #196). The provider still falls back to localStorage
+            synchronously on first render, so there's no flash of the
+            default arctic palette while the query resolves. */}
+        <VisualThemeProvider>
           <TooltipProvider>
             <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
               <Router />
             </WouterRouter>
             <Toaster />
           </TooltipProvider>
-        </QueryClientProvider>
-      </VisualThemeProvider>
+        </VisualThemeProvider>
+      </QueryClientProvider>
     </ThemeProvider>
   );
 }

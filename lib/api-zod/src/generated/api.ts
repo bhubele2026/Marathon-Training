@@ -3277,6 +3277,19 @@ export const GetUserPreferencesResponse = zod
       .describe(
         'Which HR zone model the user follows (Task #158). Drives the\nzone labels and percentage table the HR Zone targeting mode\nrenders next to each \"Zone N\" line.\n  - five_zone_max    : 5-zone % of max (legacy default).\n  - friel_7_zone     : Joe Friel running 7-zone (% LTHR).\n  - coggan_5_zone    : Coggan HR zones (% LTHR).\n  - polarized_3_zone : 3-zone polarized.\nDefaults to \"five_zone_max\" on new accounts.\n',
       ),
+    visualTheme: zod
+      .union([
+        zod.literal("arctic-performance"),
+        zod.literal("midnight-track"),
+        zod.literal("trail-forest"),
+        zod.literal("championship-red"),
+        zod.literal("sunset-endurance"),
+        zod.literal(null),
+      ])
+      .nullable()
+      .describe(
+        "Which visual theme palette the runner picked (Task #196). The\nfive palettes match the keys in the frontend theme registry\n(`artifacts\/command-center\/src\/lib\/visual-themes.ts`). Null\nmeans the runner has never picked one — the provider falls\nback to localStorage and then to the arctic-performance\ndefault. Picking a theme on Settings writes here in addition\nto localStorage so the choice follows the runner across\ndevices.\n",
+      ),
     updatedAt: zod.coerce.date(),
   })
   .describe(
@@ -3315,6 +3328,16 @@ export const UpdateUserPreferencesBody = zod
         "polarized_3_zone",
       ])
       .optional(),
+    visualTheme: zod
+      .union([
+        zod.literal("arctic-performance"),
+        zod.literal("midnight-track"),
+        zod.literal("trail-forest"),
+        zod.literal("championship-red"),
+        zod.literal("sunset-endurance"),
+        zod.literal(null),
+      ])
+      .nullish(),
   })
   .describe(
     "Partial update of UserPreferences. Omitted fields are left untouched.\nSend maxHr=null or restingHr=null to explicitly clear the configured\nvalue.\n",
@@ -3358,6 +3381,19 @@ export const UpdateUserPreferencesResponse = zod
       ])
       .describe(
         'Which HR zone model the user follows (Task #158). Drives the\nzone labels and percentage table the HR Zone targeting mode\nrenders next to each \"Zone N\" line.\n  - five_zone_max    : 5-zone % of max (legacy default).\n  - friel_7_zone     : Joe Friel running 7-zone (% LTHR).\n  - coggan_5_zone    : Coggan HR zones (% LTHR).\n  - polarized_3_zone : 3-zone polarized.\nDefaults to \"five_zone_max\" on new accounts.\n',
+      ),
+    visualTheme: zod
+      .union([
+        zod.literal("arctic-performance"),
+        zod.literal("midnight-track"),
+        zod.literal("trail-forest"),
+        zod.literal("championship-red"),
+        zod.literal("sunset-endurance"),
+        zod.literal(null),
+      ])
+      .nullable()
+      .describe(
+        "Which visual theme palette the runner picked (Task #196). The\nfive palettes match the keys in the frontend theme registry\n(`artifacts\/command-center\/src\/lib\/visual-themes.ts`). Null\nmeans the runner has never picked one — the provider falls\nback to localStorage and then to the arctic-performance\ndefault. Picking a theme on Settings writes here in addition\nto localStorage so the choice follows the runner across\ndevices.\n",
       ),
     updatedAt: zod.coerce.date(),
   })
