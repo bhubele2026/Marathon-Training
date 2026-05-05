@@ -1006,6 +1006,197 @@ describe("personalizedPace overlay on /plan/weeks/:week and /plan/today", () => 
   });
 });
 
+// Task #239: integration coverage for the long-run pace overlay on
+// /plan/weeks/:week and /plan/today. Mirrors the Wed/Fri quality
+// suite above but the personalizable row is the Sun "Long Run" and
+// the sample pool is easy aerobic work (Long Run / Aerobic Base /
+// Recovery) rather than tempo / threshold / interval work.
+describe("personalizedLongRunPace overlay on /plan/weeks/:week and /plan/today", () => {
+  // Build a week with a Sun "Long Run" plus N easy-aerobic runs in
+  // the lookback window. Mon/Tue/Wed/Thu/Fri/Sat are rest so the
+  // assertions can focus on the one personalizable row.
+  async function setupLongRunWeek(
+    week: number,
+    longRunPaces: ReadonlyArray<string>,
+    extraQuality: ReadonlyArray<string> = [],
+  ): Promise<void> {
+    const phase = "Long Run Pace Personalization";
+    await insertWeek(week, {
+      startDate: "2099-04-26",
+      endDate: "2099-05-02",
+      phase,
+    });
+    for (const d of [
+      { date: "2099-04-26", day: "Mon" },
+      { date: "2099-04-27", day: "Tue" },
+      { date: "2099-04-28", day: "Wed" },
+      { date: "2099-04-29", day: "Thu" },
+      { date: "2099-04-30", day: "Fri" },
+      { date: "2099-05-01", day: "Sat" },
+    ]) {
+      await insertPlanDay(week, phase, {
+        ...d,
+        sessionType: T_REST,
+        equipment: E_NONE,
+        isRest: true,
+      });
+    }
+    await insertPlanDay(week, phase, {
+      date: "2099-05-02",
+      day: "Sun",
+      sessionType: "Long Run",
+      equipment: E_OUTDOOR,
+      description: "Steady long run, dial in fueling.",
+      distanceMi: 12,
+      pace: "14:00",
+    });
+    let dayCursor = 0;
+    for (const pace of longRunPaces) {
+      const date = `2099-04-${String(5 + dayCursor).padStart(2, "0")}`;
+      await insertWorkout({
+        date,
+        sessionType: "Long Run",
+        equipment: E_OUTDOOR,
+        pace,
+        distanceMi: 10,
+      });
+      dayCursor += 2;
+    }
+    for (const pace of extraQuality) {
+      const date = `2099-04-${String(6 + dayCursor).padStart(2, "0")}`;
+      await insertWorkout({
+        date,
+        sessionType: "Tempo Run",
+        equipment: E_OUTDOOR,
+        pace,
+        distanceMi: 5,
+      });
+      dayCursor += 2;
+    }
+  }
+
+  it("personalizes the Sun long-run row when at least 3 easy-aerobic runs are in the window", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-05-02T12:00:00.000Z"));
+    // (780 + 810 + 840) / 3 = 810s = 13:30. No per-kind offset.
+    await setupLongRunWeek(8720, ["13:00", "13:30", "14:00"]);
+
+    const res = await request(app).get(`/api/plan/weeks/8720`);
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetPlanWeekResponse, res.body);
+
+    const days = res.body.days as Array<{
+      date: string;
+      day: string;
+      sessionType: string;
+      personalizedLongRunPace: {
+        pace: string;
+        source: "personalized" | "catalog";
+        sampleSize: number;
+        lookbackWeeks: number;
+        basisPaceSeconds: number | null;
+      } | null;
+      personalizedRacePace: unknown;
+      personalizedPace: unknown;
+    }>;
+
+    const sun = days.find((d) => d.date === "2099-05-02")!;
+    expect(sun.sessionType).toBe("Long Run");
+    expect(sun.personalizedLongRunPace).toEqual({
+      pace: "13:30",
+      source: "personalized",
+      sampleSize: 3,
+      lookbackWeeks: 8,
+      basisPaceSeconds: 810,
+    });
+    // The other two overlays stay null on a non-race, non-Wed/Fri row.
+    expect(sun.personalizedRacePace).toBeNull();
+    expect(sun.personalizedPace).toBeNull();
+
+    // Every other (rest) row has no long-run overlay attached.
+    const mon = days.find((d) => d.date === "2099-04-26")!;
+    expect(mon.personalizedLongRunPace).toBeNull();
+  });
+
+  it("falls back to the row's seeded pace when fewer than 3 easy-aerobic runs exist", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-05-02T12:00:00.000Z"));
+    await setupLongRunWeek(8721, ["13:00", "13:30"]);
+
+    const res = await request(app).get(`/api/plan/weeks/8721`);
+    expect(res.status).toBe(200);
+
+    const days = res.body.days as Array<{
+      date: string;
+      personalizedLongRunPace: {
+        pace: string;
+        source: "personalized" | "catalog";
+        sampleSize: number;
+      } | null;
+    }>;
+    const sun = days.find((d) => d.date === "2099-05-02")!;
+    expect(sun.personalizedLongRunPace).not.toBeNull();
+    expect(sun.personalizedLongRunPace!.source).toBe("catalog");
+    expect(sun.personalizedLongRunPace!.sampleSize).toBe(0);
+    expect(sun.personalizedLongRunPace!.pace).toBe("14:00");
+  });
+
+  it("excludes quality runs from the long-run sample pool", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-05-02T12:00:00.000Z"));
+    // Only 2 long runs + 3 tempos. The tempos must NOT be sampled
+    // here (those are quality, not easy aerobic), so the long-run
+    // count stays at 2 and the chip falls back to catalog.
+    await setupLongRunWeek(8722, ["13:00", "13:30"], ["10:00", "10:30", "11:00"]);
+
+    const res = await request(app).get(`/api/plan/weeks/8722`);
+    expect(res.status).toBe(200);
+    const days = res.body.days as Array<{
+      date: string;
+      personalizedLongRunPace: { source: string; sampleSize: number; pace: string } | null;
+    }>;
+    const sun = days.find((d) => d.date === "2099-05-02")!;
+    expect(sun.personalizedLongRunPace!.source).toBe("catalog");
+    expect(sun.personalizedLongRunPace!.sampleSize).toBe(0);
+    expect(sun.personalizedLongRunPace!.pace).toBe("14:00");
+  });
+
+  it("attaches the overlay to /plan/today when today is the Sun long-run row", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-05-02T12:00:00.000Z"));
+
+    await setupLongRunWeek(8723, ["13:00", "13:30", "14:00"]);
+
+    const res = await request(app).get(`/api/plan/today`);
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetTodayPlanResponse, res.body);
+    expect(res.body.plan).not.toBeNull();
+    expect(res.body.plan.day).toBe("Sun");
+    expect(res.body.plan.personalizedLongRunPace).toEqual({
+      pace: "13:30",
+      source: "personalized",
+      sampleSize: 3,
+      lookbackWeeks: 8,
+      basisPaceSeconds: 810,
+    });
+    expect(res.body.plan.personalizedRacePace).toBeNull();
+    expect(res.body.plan.personalizedPace).toBeNull();
+  });
+
+  it("returns null personalizedLongRunPace on /plan/today for non-Sun-long-run rows", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-04-26T12:00:00.000Z"));
+
+    await setupLongRunWeek(8724, ["13:00", "13:30", "14:00"]);
+
+    const res = await request(app).get(`/api/plan/today`);
+    expect(res.status).toBe(200);
+    expect(res.body.plan).not.toBeNull();
+    expect(res.body.plan.day).toBe("Mon");
+    expect(res.body.plan.personalizedLongRunPace).toBeNull();
+  });
+});
+
 describe("PATCH /api/plan/days/:id", () => {
   it("returns 404 when the plan day does not exist", async () => {
     const res = await request(app)

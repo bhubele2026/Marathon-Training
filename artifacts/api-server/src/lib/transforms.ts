@@ -139,6 +139,17 @@ export function toPlanDay(
     // other day so the UI can render the chip exclusively on the
     // matching session card.
     personalizedPace?: PersonalizedQualityPace | null;
+    // Task #239: personalized prescribed pace overlay for the Sun
+    // long-run row. Same shape as `personalizedPace` (no per-kind
+    // offset, catalog fallback is the row's own seeded `pace`); the
+    // sample pool is the runner's recent easy aerobic work (Long Run
+    // / Aerobic Base / Recovery) rather than quality work, so the
+    // chip retunes to long-run effort rather than tempo. Computed at
+    // READ time on /plan/weeks/:week and /plan/today by
+    // `fetchPersonalizationOverlays` in routes/plan.ts. Null on every
+    // non-Sun-long-run row (and on race-day Sun, which is owned by
+    // `personalizedRacePace`).
+    personalizedLongRunPace?: PersonalizedQualityPace | null;
   },
 ) {
   const customizedFields = planDayCustomizedFields(r);
@@ -193,6 +204,12 @@ export function toPlanDay(
     // to fall back without surfacing the chip (e.g. a row without a
     // catalog `pace` to fall back to).
     personalizedPace: extras?.personalizedPace ?? null,
+    // Task #239: long-run counterpart of `personalizedPace` — only
+    // populated on the Sun long-run row. See the extras-param comment
+    // above for the full contract; the route layer is responsible for
+    // computing this and `toPlanDay` just passes through what it
+    // receives.
+    personalizedLongRunPace: extras?.personalizedLongRunPace ?? null,
   };
 }
 

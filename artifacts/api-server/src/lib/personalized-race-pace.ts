@@ -279,3 +279,88 @@ export function personalizeQualityPace(args: {
     basisPaceSeconds: Math.round(avg),
   };
 }
+
+// Task #239: extends Tasks #228 / #236 from quality (tempo / threshold /
+// race-pace) personalization to the OTHER seeded pace on every recipe —
+// `recipe.longPace`, the catalog value the generator stamps on every
+// non-race-week Sun "Long Run" row (lib/plan-generator/src/index.ts:484
+// in the marathon-tail path, :2647 in `buildWeekDays`, :2227 in the
+// hybrid `buildHybridWeekDays` path). Without this overlay, a runner
+// whose actual easy / long-run paces drift faster or slower than the
+// catalog never sees a personalized recommendation on the Sun
+// long-run card. Same SQL-overlay model as the existing helpers:
+// computed at READ time on /plan/weeks/:week and /plan/today, stored
+// nowhere, so changing training paces over the campaign retunes the
+// chip without regenerating the plan.
+//
+// The sample pool is intentionally separate from the quality-pace
+// pool used by Tasks #228 / #236: long-run pace shouldn't be derived
+// from tempo / threshold / interval data (those would drag the chip
+// way too fast). Instead we average the runner's recent easy aerobic
+// work — Long Run / Aerobic Base / Recovery sessions — which sit at
+// the same effort rung as the prescribed long-run pace.
+//
+// Shape mirrors PersonalizedQualityPace (no per-kind offset, catalog
+// fallback is the row's own seeded `pace`) so the chip + tooltip
+// rendering can be shared on the client.
+export type PersonalizedLongRunPace = PersonalizedQualityPace;
+
+// True when this sessionType counts as easy aerobic work that should
+// feed the long-run pace personalization. Matches case-insensitively
+// against the canonical session_type strings the generator emits
+// ("Long Run", "Aerobic Base") plus "Recovery" — the easy-paced
+// recovery focus block. Quality work (tempo / threshold / interval /
+// VO2 / sharpener / race-pace / race) is intentionally excluded
+// because those sit at a much faster rung and would drag the
+// prescribed long-run pace too fast.
+export function isLongRunSession(sessionType: string | null | undefined): boolean {
+  if (!sessionType) return false;
+  const s = sessionType.toLowerCase();
+  return (
+    s.includes("long run") ||
+    s.includes("aerobic base") ||
+    s.includes("recovery")
+  );
+}
+
+// True when this (day, sessionType) pair is the Sun long-run slot the
+// generator seeds with `recipe.longPace`. Match is case-insensitive on
+// sessionType so a hand-edited "long run" / "LONG RUN" still
+// qualifies. The day-of-week gate keeps the personalization scoped to
+// the canonical Sun long-run slot; a hand-customized "Long Run" that
+// a runner shoehorned onto Saturday is intentionally NOT personalized
+// here, since the plan layout reserves Sun for the long run and the
+// pace model only holds inside that rhythm.
+//
+// Note: race-day Sun (sessionType `Race` or the generator's
+// "RACE DAY — <kind>" prefix) is intentionally NOT matched here — the
+// race-day chip from Task #228 already owns that row's pace overlay.
+// `personalizedRacePace` and `personalizedLongRunPace` are mutually
+// exclusive on any given Sun row.
+export function isPersonalizableLongRunPlanDay(args: {
+  day: string;
+  sessionType: string;
+}): boolean {
+  if (args.day !== "Sun") return false;
+  const s = args.sessionType.toLowerCase();
+  return s === "long run";
+}
+
+// Compute the personalized prescribed pace for a Sun long-run row.
+// Same averaging + plausibility clamp as `personalizeQualityPace`,
+// but the sample pool is the runner's recent easy aerobic work
+// (Long Run / Aerobic Base / Recovery) rather than their quality
+// work — see `isLongRunSession` for the matching contract. Falls
+// back to the row's own seeded `pace` when fewer than
+// MIN_QUALITY_SAMPLE valid paces are supplied.
+export function personalizeLongRunPace(args: {
+  longRunPaces: ReadonlyArray<string | null | undefined>;
+  catalogPace: string;
+  lookbackWeeks?: number;
+}): PersonalizedLongRunPace {
+  return personalizeQualityPace({
+    qualityPaces: args.longRunPaces,
+    catalogPace: args.catalogPace,
+    lookbackWeeks: args.lookbackWeeks,
+  });
+}

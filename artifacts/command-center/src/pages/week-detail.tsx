@@ -854,6 +854,75 @@ export default function WeekDetail() {
                           Sun and Wed/Fri quality rows never overlap,
                           so this chip and the race-day chip above
                           can never both render on the same card. */}
+                      {/* Task #239: long-run counterpart of the
+                          Wed/Fri quality chip above. Server only
+                          populates `day.personalizedLongRunPace` on
+                          Sun "Long Run" rows that carry a non-null
+                          catalog `pace`, so this block stays absent
+                          on every other card. Race-day Sun is owned
+                          by the race-day chip above, never by this
+                          one — `personalizedRacePace` and
+                          `personalizedLongRunPace` are mutually
+                          exclusive on any given Sun row. Tooltip copy
+                          is tuned for easy-aerobic work (long run /
+                          aerobic base / recovery) rather than the
+                          quality wording above. */}
+                      {(() => {
+                        const lp = day.personalizedLongRunPace ?? null;
+                        if (!lp) return null;
+                        return (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span
+                                  className={cn(
+                                    "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wider w-fit cursor-help",
+                                    lp.source === "personalized"
+                                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                                      : "bg-muted text-muted-foreground",
+                                  )}
+                                  data-testid={`badge-long-run-pace-source-${day.date}`}
+                                  data-pace-source={lp.source}
+                                  data-personalized-pace={lp.pace}
+                                >
+                                  <Sparkles className="h-3 w-3" />
+                                  {lp.source === "personalized"
+                                    ? `${lp.pace}/mi · Personalized`
+                                    : `${lp.pace}/mi · From catalog`}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent
+                                side="top"
+                                align="start"
+                                className="max-w-xs text-xs"
+                              >
+                                {lp.source === "personalized" && lp.basisPaceSeconds != null ? (
+                                  <span>
+                                    Personalized from {lp.sampleSize} easy aerobic run
+                                    {lp.sampleSize === 1 ? "" : "s"} (long run / aerobic
+                                    base / recovery) in the last {lp.lookbackWeeks} weeks.
+                                    Avg training pace{" "}
+                                    <span className="font-mono font-bold">
+                                      {Math.floor(lp.basisPaceSeconds / 60)}:
+                                      {String(lp.basisPaceSeconds % 60).padStart(2, "0")}
+                                    </span>
+                                    /mi → today's long-run target{" "}
+                                    <span className="font-mono font-bold">{lp.pace}</span>/mi.
+                                  </span>
+                                ) : (
+                                  <span>
+                                    Showing the catalog long-run pace —
+                                    not enough recent easy aerobic runs in the last{" "}
+                                    {lp.lookbackWeeks} weeks to personalize. Log a few
+                                    long runs / aerobic base sessions and this chip
+                                    will retune to your training.
+                                  </span>
+                                )}
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                        );
+                      })()}
                       {(() => {
                         const pp = day.personalizedPace ?? null;
                         if (!pp) return null;
@@ -985,9 +1054,18 @@ export default function WeekDetail() {
                             // Wed/Fri quality rows never overlap, so
                             // at most one of these two overlays is
                             // populated on any given row.
+                            // Task #239 extends Tasks #228 / #236: also
+                            // override with the long-run overlay on Sun
+                            // long-run rows. The three overlays are
+                            // mutually exclusive on any given row (race-
+                            // day Sun / Wed-Fri quality / Sun long run
+                            // never co-occur), so the precedence order
+                            // doesn't matter in practice — at most one
+                            // is populated.
                             pace={
                               day.personalizedRacePace?.pace ??
                               day.personalizedPace?.pace ??
+                              day.personalizedLongRunPace?.pace ??
                               day.pace
                             }
                             variant="prominent"

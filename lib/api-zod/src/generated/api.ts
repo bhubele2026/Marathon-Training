@@ -276,6 +276,39 @@ export const GetPlanWeekResponse = zod
               .describe(
                 "Task #236. Personalized prescribed pace overlay for the Wed steady (Z3) and Fri tempo \/ threshold \/ race-pace slots — the other quality run rows the generator seeds from the same per-recipe `tempoPace` catalog value. Computed at READ time from the same recent quality-workout history that drives `personalizedRacePace`, but with NO per-kind offset (the runner's tempo average IS the prescribed Wed\/Fri target). Falls back to the row's own seeded `pace` when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on rows the server recognised as one of those quality slots (matched by day-of-week + sessionType in `isPersonalizableQualityPlanDay`); the W51 taper Sharpener and W52 Race Shakeout are intentionally excluded because they're seeded with `easyPace`, not `tempoPace`. Null on every other day so the UI can render the chip exclusively on the matching session card. Mirrors the `personalizedRacePace` shape so the chip + tooltip rendering can be shared.\n",
               ),
+            personalizedLongRunPace: zod
+              .object({
+                pace: zod
+                  .string()
+                  .describe(
+                    'Final prescribed long-run pace string the chip should render (e.g. \"13:00\"). Either personalized from history or echoed from the row\'s catalog `pace`.',
+                  ),
+                source: zod
+                  .enum(["personalized", "catalog"])
+                  .describe(
+                    'Where the pace came from. \"personalized\" means at least 3 parseable easy-aerobic paces fed the average; \"catalog\" means we fell back to the row\'s seeded `pace`.',
+                  ),
+                sampleSize: zod
+                  .number()
+                  .describe(
+                    'Number of easy-aerobic workouts (Long Run \/ Aerobic Base \/ Recovery) that fed the average. 0 when source is \"catalog\".',
+                  ),
+                lookbackWeeks: zod
+                  .number()
+                  .describe(
+                    'Lookback window in whole weeks the easy-aerobic sample was drawn from. Mirrors the input so the UI tooltip can render \"last N weeks of training\" without re-deriving it.',
+                  ),
+                basisPaceSeconds: zod
+                  .number()
+                  .nullable()
+                  .describe(
+                    'Average pace seconds\/mile of the easy-aerobic sample. Equals the personalized pace\'s seconds value (no per-kind offset is applied — Sun long run IS the easy-aerobic rung). Null when source is \"catalog\".',
+                  ),
+              })
+              .nullable()
+              .describe(
+                "Task #239. Personalized prescribed pace overlay for the Sun long-run row — the other seeded pace on every recipe (`recipe.longPace`, the catalog value the generator stamps on every non-race-week Sun \"Long Run\" row at lib\/plan-generator\/src\/index.ts:484, :2227, :2647). Computed at READ time from the runner's recent EASY AEROBIC workouts (Long Run \/ Aerobic Base \/ Recovery sessions matched by `isLongRunSession`) — a separate sample pool from the quality pool that drives `personalizedRacePace` \/ `personalizedPace`, so quality work doesn't drag the long-run pace toward tempo speed. No per-kind offset (the runner's easy-aerobic average IS the prescribed long-run pace). Falls back to the row's own seeded `pace` when fewer than 3 parseable easy-aerobic paces exist in the lookback window. Populated ONLY on rows that `isPersonalizableLongRunPlanDay` matches (Sun + sessionType \"Long Run\"); race-day Sun is intentionally excluded — that row is owned by `personalizedRacePace` instead, so the two overlays are mutually exclusive on any given Sun. Null on every other day so the UI can render the chip exclusively on the Sun long-run card. Mirrors the `personalizedPace` shape so the chip + tooltip rendering can be shared.\n",
+              ),
           })
           .and(
             zod.object({
@@ -463,6 +496,39 @@ export const UpdatePlanDayResponse = zod.object({
     .describe(
       "Task #236. Personalized prescribed pace overlay for the Wed steady (Z3) and Fri tempo \/ threshold \/ race-pace slots — the other quality run rows the generator seeds from the same per-recipe `tempoPace` catalog value. Computed at READ time from the same recent quality-workout history that drives `personalizedRacePace`, but with NO per-kind offset (the runner's tempo average IS the prescribed Wed\/Fri target). Falls back to the row's own seeded `pace` when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on rows the server recognised as one of those quality slots (matched by day-of-week + sessionType in `isPersonalizableQualityPlanDay`); the W51 taper Sharpener and W52 Race Shakeout are intentionally excluded because they're seeded with `easyPace`, not `tempoPace`. Null on every other day so the UI can render the chip exclusively on the matching session card. Mirrors the `personalizedRacePace` shape so the chip + tooltip rendering can be shared.\n",
     ),
+  personalizedLongRunPace: zod
+    .object({
+      pace: zod
+        .string()
+        .describe(
+          'Final prescribed long-run pace string the chip should render (e.g. \"13:00\"). Either personalized from history or echoed from the row\'s catalog `pace`.',
+        ),
+      source: zod
+        .enum(["personalized", "catalog"])
+        .describe(
+          'Where the pace came from. \"personalized\" means at least 3 parseable easy-aerobic paces fed the average; \"catalog\" means we fell back to the row\'s seeded `pace`.',
+        ),
+      sampleSize: zod
+        .number()
+        .describe(
+          'Number of easy-aerobic workouts (Long Run \/ Aerobic Base \/ Recovery) that fed the average. 0 when source is \"catalog\".',
+        ),
+      lookbackWeeks: zod
+        .number()
+        .describe(
+          'Lookback window in whole weeks the easy-aerobic sample was drawn from. Mirrors the input so the UI tooltip can render \"last N weeks of training\" without re-deriving it.',
+        ),
+      basisPaceSeconds: zod
+        .number()
+        .nullable()
+        .describe(
+          'Average pace seconds\/mile of the easy-aerobic sample. Equals the personalized pace\'s seconds value (no per-kind offset is applied — Sun long run IS the easy-aerobic rung). Null when source is \"catalog\".',
+        ),
+    })
+    .nullable()
+    .describe(
+      "Task #239. Personalized prescribed pace overlay for the Sun long-run row — the other seeded pace on every recipe (`recipe.longPace`, the catalog value the generator stamps on every non-race-week Sun \"Long Run\" row at lib\/plan-generator\/src\/index.ts:484, :2227, :2647). Computed at READ time from the runner's recent EASY AEROBIC workouts (Long Run \/ Aerobic Base \/ Recovery sessions matched by `isLongRunSession`) — a separate sample pool from the quality pool that drives `personalizedRacePace` \/ `personalizedPace`, so quality work doesn't drag the long-run pace toward tempo speed. No per-kind offset (the runner's easy-aerobic average IS the prescribed long-run pace). Falls back to the row's own seeded `pace` when fewer than 3 parseable easy-aerobic paces exist in the lookback window. Populated ONLY on rows that `isPersonalizableLongRunPlanDay` matches (Sun + sessionType \"Long Run\"); race-day Sun is intentionally excluded — that row is owned by `personalizedRacePace` instead, so the two overlays are mutually exclusive on any given Sun. Null on every other day so the UI can render the chip exclusively on the Sun long-run card. Mirrors the `personalizedPace` shape so the chip + tooltip rendering can be shared.\n",
+    ),
 });
 
 export const SwapPlanDayParams = zod.object({
@@ -620,6 +686,39 @@ export const SwapPlanDayResponse = zod.object({
       .describe(
         "Task #236. Personalized prescribed pace overlay for the Wed steady (Z3) and Fri tempo \/ threshold \/ race-pace slots — the other quality run rows the generator seeds from the same per-recipe `tempoPace` catalog value. Computed at READ time from the same recent quality-workout history that drives `personalizedRacePace`, but with NO per-kind offset (the runner's tempo average IS the prescribed Wed\/Fri target). Falls back to the row's own seeded `pace` when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on rows the server recognised as one of those quality slots (matched by day-of-week + sessionType in `isPersonalizableQualityPlanDay`); the W51 taper Sharpener and W52 Race Shakeout are intentionally excluded because they're seeded with `easyPace`, not `tempoPace`. Null on every other day so the UI can render the chip exclusively on the matching session card. Mirrors the `personalizedRacePace` shape so the chip + tooltip rendering can be shared.\n",
       ),
+    personalizedLongRunPace: zod
+      .object({
+        pace: zod
+          .string()
+          .describe(
+            'Final prescribed long-run pace string the chip should render (e.g. \"13:00\"). Either personalized from history or echoed from the row\'s catalog `pace`.',
+          ),
+        source: zod
+          .enum(["personalized", "catalog"])
+          .describe(
+            'Where the pace came from. \"personalized\" means at least 3 parseable easy-aerobic paces fed the average; \"catalog\" means we fell back to the row\'s seeded `pace`.',
+          ),
+        sampleSize: zod
+          .number()
+          .describe(
+            'Number of easy-aerobic workouts (Long Run \/ Aerobic Base \/ Recovery) that fed the average. 0 when source is \"catalog\".',
+          ),
+        lookbackWeeks: zod
+          .number()
+          .describe(
+            'Lookback window in whole weeks the easy-aerobic sample was drawn from. Mirrors the input so the UI tooltip can render \"last N weeks of training\" without re-deriving it.',
+          ),
+        basisPaceSeconds: zod
+          .number()
+          .nullable()
+          .describe(
+            'Average pace seconds\/mile of the easy-aerobic sample. Equals the personalized pace\'s seconds value (no per-kind offset is applied — Sun long run IS the easy-aerobic rung). Null when source is \"catalog\".',
+          ),
+      })
+      .nullable()
+      .describe(
+        "Task #239. Personalized prescribed pace overlay for the Sun long-run row — the other seeded pace on every recipe (`recipe.longPace`, the catalog value the generator stamps on every non-race-week Sun \"Long Run\" row at lib\/plan-generator\/src\/index.ts:484, :2227, :2647). Computed at READ time from the runner's recent EASY AEROBIC workouts (Long Run \/ Aerobic Base \/ Recovery sessions matched by `isLongRunSession`) — a separate sample pool from the quality pool that drives `personalizedRacePace` \/ `personalizedPace`, so quality work doesn't drag the long-run pace toward tempo speed. No per-kind offset (the runner's easy-aerobic average IS the prescribed long-run pace). Falls back to the row's own seeded `pace` when fewer than 3 parseable easy-aerobic paces exist in the lookback window. Populated ONLY on rows that `isPersonalizableLongRunPlanDay` matches (Sun + sessionType \"Long Run\"); race-day Sun is intentionally excluded — that row is owned by `personalizedRacePace` instead, so the two overlays are mutually exclusive on any given Sun. Null on every other day so the UI can render the chip exclusively on the Sun long-run card. Mirrors the `personalizedPace` shape so the chip + tooltip rendering can be shared.\n",
+      ),
   }),
   to: zod.object({
     id: zod.number(),
@@ -762,6 +861,39 @@ export const SwapPlanDayResponse = zod.object({
       .nullable()
       .describe(
         "Task #236. Personalized prescribed pace overlay for the Wed steady (Z3) and Fri tempo \/ threshold \/ race-pace slots — the other quality run rows the generator seeds from the same per-recipe `tempoPace` catalog value. Computed at READ time from the same recent quality-workout history that drives `personalizedRacePace`, but with NO per-kind offset (the runner's tempo average IS the prescribed Wed\/Fri target). Falls back to the row's own seeded `pace` when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on rows the server recognised as one of those quality slots (matched by day-of-week + sessionType in `isPersonalizableQualityPlanDay`); the W51 taper Sharpener and W52 Race Shakeout are intentionally excluded because they're seeded with `easyPace`, not `tempoPace`. Null on every other day so the UI can render the chip exclusively on the matching session card. Mirrors the `personalizedRacePace` shape so the chip + tooltip rendering can be shared.\n",
+      ),
+    personalizedLongRunPace: zod
+      .object({
+        pace: zod
+          .string()
+          .describe(
+            'Final prescribed long-run pace string the chip should render (e.g. \"13:00\"). Either personalized from history or echoed from the row\'s catalog `pace`.',
+          ),
+        source: zod
+          .enum(["personalized", "catalog"])
+          .describe(
+            'Where the pace came from. \"personalized\" means at least 3 parseable easy-aerobic paces fed the average; \"catalog\" means we fell back to the row\'s seeded `pace`.',
+          ),
+        sampleSize: zod
+          .number()
+          .describe(
+            'Number of easy-aerobic workouts (Long Run \/ Aerobic Base \/ Recovery) that fed the average. 0 when source is \"catalog\".',
+          ),
+        lookbackWeeks: zod
+          .number()
+          .describe(
+            'Lookback window in whole weeks the easy-aerobic sample was drawn from. Mirrors the input so the UI tooltip can render \"last N weeks of training\" without re-deriving it.',
+          ),
+        basisPaceSeconds: zod
+          .number()
+          .nullable()
+          .describe(
+            'Average pace seconds\/mile of the easy-aerobic sample. Equals the personalized pace\'s seconds value (no per-kind offset is applied — Sun long run IS the easy-aerobic rung). Null when source is \"catalog\".',
+          ),
+      })
+      .nullable()
+      .describe(
+        "Task #239. Personalized prescribed pace overlay for the Sun long-run row — the other seeded pace on every recipe (`recipe.longPace`, the catalog value the generator stamps on every non-race-week Sun \"Long Run\" row at lib\/plan-generator\/src\/index.ts:484, :2227, :2647). Computed at READ time from the runner's recent EASY AEROBIC workouts (Long Run \/ Aerobic Base \/ Recovery sessions matched by `isLongRunSession`) — a separate sample pool from the quality pool that drives `personalizedRacePace` \/ `personalizedPace`, so quality work doesn't drag the long-run pace toward tempo speed. No per-kind offset (the runner's easy-aerobic average IS the prescribed long-run pace). Falls back to the row's own seeded `pace` when fewer than 3 parseable easy-aerobic paces exist in the lookback window. Populated ONLY on rows that `isPersonalizableLongRunPlanDay` matches (Sun + sessionType \"Long Run\"); race-day Sun is intentionally excluded — that row is owned by `personalizedRacePace` instead, so the two overlays are mutually exclusive on any given Sun. Null on every other day so the UI can render the chip exclusively on the Sun long-run card. Mirrors the `personalizedPace` shape so the chip + tooltip rendering can be shared.\n",
       ),
   }),
   weeksAffected: zod
@@ -933,6 +1065,39 @@ export const ResetPlanDayResponse = zod.object({
     .nullable()
     .describe(
       "Task #236. Personalized prescribed pace overlay for the Wed steady (Z3) and Fri tempo \/ threshold \/ race-pace slots — the other quality run rows the generator seeds from the same per-recipe `tempoPace` catalog value. Computed at READ time from the same recent quality-workout history that drives `personalizedRacePace`, but with NO per-kind offset (the runner's tempo average IS the prescribed Wed\/Fri target). Falls back to the row's own seeded `pace` when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on rows the server recognised as one of those quality slots (matched by day-of-week + sessionType in `isPersonalizableQualityPlanDay`); the W51 taper Sharpener and W52 Race Shakeout are intentionally excluded because they're seeded with `easyPace`, not `tempoPace`. Null on every other day so the UI can render the chip exclusively on the matching session card. Mirrors the `personalizedRacePace` shape so the chip + tooltip rendering can be shared.\n",
+    ),
+  personalizedLongRunPace: zod
+    .object({
+      pace: zod
+        .string()
+        .describe(
+          'Final prescribed long-run pace string the chip should render (e.g. \"13:00\"). Either personalized from history or echoed from the row\'s catalog `pace`.',
+        ),
+      source: zod
+        .enum(["personalized", "catalog"])
+        .describe(
+          'Where the pace came from. \"personalized\" means at least 3 parseable easy-aerobic paces fed the average; \"catalog\" means we fell back to the row\'s seeded `pace`.',
+        ),
+      sampleSize: zod
+        .number()
+        .describe(
+          'Number of easy-aerobic workouts (Long Run \/ Aerobic Base \/ Recovery) that fed the average. 0 when source is \"catalog\".',
+        ),
+      lookbackWeeks: zod
+        .number()
+        .describe(
+          'Lookback window in whole weeks the easy-aerobic sample was drawn from. Mirrors the input so the UI tooltip can render \"last N weeks of training\" without re-deriving it.',
+        ),
+      basisPaceSeconds: zod
+        .number()
+        .nullable()
+        .describe(
+          'Average pace seconds\/mile of the easy-aerobic sample. Equals the personalized pace\'s seconds value (no per-kind offset is applied — Sun long run IS the easy-aerobic rung). Null when source is \"catalog\".',
+        ),
+    })
+    .nullable()
+    .describe(
+      "Task #239. Personalized prescribed pace overlay for the Sun long-run row — the other seeded pace on every recipe (`recipe.longPace`, the catalog value the generator stamps on every non-race-week Sun \"Long Run\" row at lib\/plan-generator\/src\/index.ts:484, :2227, :2647). Computed at READ time from the runner's recent EASY AEROBIC workouts (Long Run \/ Aerobic Base \/ Recovery sessions matched by `isLongRunSession`) — a separate sample pool from the quality pool that drives `personalizedRacePace` \/ `personalizedPace`, so quality work doesn't drag the long-run pace toward tempo speed. No per-kind offset (the runner's easy-aerobic average IS the prescribed long-run pace). Falls back to the row's own seeded `pace` when fewer than 3 parseable easy-aerobic paces exist in the lookback window. Populated ONLY on rows that `isPersonalizableLongRunPlanDay` matches (Sun + sessionType \"Long Run\"); race-day Sun is intentionally excluded — that row is owned by `personalizedRacePace` instead, so the two overlays are mutually exclusive on any given Sun. Null on every other day so the UI can render the chip exclusively on the Sun long-run card. Mirrors the `personalizedPace` shape so the chip + tooltip rendering can be shared.\n",
     ),
 });
 
@@ -1217,6 +1382,39 @@ export const GetTodayPlanResponse = zod.object({
         .describe(
           "Task #236. Personalized prescribed pace overlay for the Wed steady (Z3) and Fri tempo \/ threshold \/ race-pace slots — the other quality run rows the generator seeds from the same per-recipe `tempoPace` catalog value. Computed at READ time from the same recent quality-workout history that drives `personalizedRacePace`, but with NO per-kind offset (the runner's tempo average IS the prescribed Wed\/Fri target). Falls back to the row's own seeded `pace` when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on rows the server recognised as one of those quality slots (matched by day-of-week + sessionType in `isPersonalizableQualityPlanDay`); the W51 taper Sharpener and W52 Race Shakeout are intentionally excluded because they're seeded with `easyPace`, not `tempoPace`. Null on every other day so the UI can render the chip exclusively on the matching session card. Mirrors the `personalizedRacePace` shape so the chip + tooltip rendering can be shared.\n",
         ),
+      personalizedLongRunPace: zod
+        .object({
+          pace: zod
+            .string()
+            .describe(
+              'Final prescribed long-run pace string the chip should render (e.g. \"13:00\"). Either personalized from history or echoed from the row\'s catalog `pace`.',
+            ),
+          source: zod
+            .enum(["personalized", "catalog"])
+            .describe(
+              'Where the pace came from. \"personalized\" means at least 3 parseable easy-aerobic paces fed the average; \"catalog\" means we fell back to the row\'s seeded `pace`.',
+            ),
+          sampleSize: zod
+            .number()
+            .describe(
+              'Number of easy-aerobic workouts (Long Run \/ Aerobic Base \/ Recovery) that fed the average. 0 when source is \"catalog\".',
+            ),
+          lookbackWeeks: zod
+            .number()
+            .describe(
+              'Lookback window in whole weeks the easy-aerobic sample was drawn from. Mirrors the input so the UI tooltip can render \"last N weeks of training\" without re-deriving it.',
+            ),
+          basisPaceSeconds: zod
+            .number()
+            .nullable()
+            .describe(
+              'Average pace seconds\/mile of the easy-aerobic sample. Equals the personalized pace\'s seconds value (no per-kind offset is applied — Sun long run IS the easy-aerobic rung). Null when source is \"catalog\".',
+            ),
+        })
+        .nullable()
+        .describe(
+          "Task #239. Personalized prescribed pace overlay for the Sun long-run row — the other seeded pace on every recipe (`recipe.longPace`, the catalog value the generator stamps on every non-race-week Sun \"Long Run\" row at lib\/plan-generator\/src\/index.ts:484, :2227, :2647). Computed at READ time from the runner's recent EASY AEROBIC workouts (Long Run \/ Aerobic Base \/ Recovery sessions matched by `isLongRunSession`) — a separate sample pool from the quality pool that drives `personalizedRacePace` \/ `personalizedPace`, so quality work doesn't drag the long-run pace toward tempo speed. No per-kind offset (the runner's easy-aerobic average IS the prescribed long-run pace). Falls back to the row's own seeded `pace` when fewer than 3 parseable easy-aerobic paces exist in the lookback window. Populated ONLY on rows that `isPersonalizableLongRunPlanDay` matches (Sun + sessionType \"Long Run\"); race-day Sun is intentionally excluded — that row is owned by `personalizedRacePace` instead, so the two overlays are mutually exclusive on any given Sun. Null on every other day so the UI can render the chip exclusively on the Sun long-run card. Mirrors the `personalizedPace` shape so the chip + tooltip rendering can be shared.\n",
+        ),
     })
     .nullish()
     .describe(
@@ -1365,6 +1563,39 @@ export const GetTodayPlanResponse = zod.object({
           .nullable()
           .describe(
             "Task #236. Personalized prescribed pace overlay for the Wed steady (Z3) and Fri tempo \/ threshold \/ race-pace slots — the other quality run rows the generator seeds from the same per-recipe `tempoPace` catalog value. Computed at READ time from the same recent quality-workout history that drives `personalizedRacePace`, but with NO per-kind offset (the runner's tempo average IS the prescribed Wed\/Fri target). Falls back to the row's own seeded `pace` when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on rows the server recognised as one of those quality slots (matched by day-of-week + sessionType in `isPersonalizableQualityPlanDay`); the W51 taper Sharpener and W52 Race Shakeout are intentionally excluded because they're seeded with `easyPace`, not `tempoPace`. Null on every other day so the UI can render the chip exclusively on the matching session card. Mirrors the `personalizedRacePace` shape so the chip + tooltip rendering can be shared.\n",
+          ),
+        personalizedLongRunPace: zod
+          .object({
+            pace: zod
+              .string()
+              .describe(
+                'Final prescribed long-run pace string the chip should render (e.g. \"13:00\"). Either personalized from history or echoed from the row\'s catalog `pace`.',
+              ),
+            source: zod
+              .enum(["personalized", "catalog"])
+              .describe(
+                'Where the pace came from. \"personalized\" means at least 3 parseable easy-aerobic paces fed the average; \"catalog\" means we fell back to the row\'s seeded `pace`.',
+              ),
+            sampleSize: zod
+              .number()
+              .describe(
+                'Number of easy-aerobic workouts (Long Run \/ Aerobic Base \/ Recovery) that fed the average. 0 when source is \"catalog\".',
+              ),
+            lookbackWeeks: zod
+              .number()
+              .describe(
+                'Lookback window in whole weeks the easy-aerobic sample was drawn from. Mirrors the input so the UI tooltip can render \"last N weeks of training\" without re-deriving it.',
+              ),
+            basisPaceSeconds: zod
+              .number()
+              .nullable()
+              .describe(
+                'Average pace seconds\/mile of the easy-aerobic sample. Equals the personalized pace\'s seconds value (no per-kind offset is applied — Sun long run IS the easy-aerobic rung). Null when source is \"catalog\".',
+              ),
+          })
+          .nullable()
+          .describe(
+            "Task #239. Personalized prescribed pace overlay for the Sun long-run row — the other seeded pace on every recipe (`recipe.longPace`, the catalog value the generator stamps on every non-race-week Sun \"Long Run\" row at lib\/plan-generator\/src\/index.ts:484, :2227, :2647). Computed at READ time from the runner's recent EASY AEROBIC workouts (Long Run \/ Aerobic Base \/ Recovery sessions matched by `isLongRunSession`) — a separate sample pool from the quality pool that drives `personalizedRacePace` \/ `personalizedPace`, so quality work doesn't drag the long-run pace toward tempo speed. No per-kind offset (the runner's easy-aerobic average IS the prescribed long-run pace). Falls back to the row's own seeded `pace` when fewer than 3 parseable easy-aerobic paces exist in the lookback window. Populated ONLY on rows that `isPersonalizableLongRunPlanDay` matches (Sun + sessionType \"Long Run\"); race-day Sun is intentionally excluded — that row is owned by `personalizedRacePace` instead, so the two overlays are mutually exclusive on any given Sun. Null on every other day so the UI can render the chip exclusively on the Sun long-run card. Mirrors the `personalizedPace` shape so the chip + tooltip rendering can be shared.\n",
           ),
       }),
     )
@@ -1617,6 +1848,39 @@ export const GetTodayPlanResponse = zod.object({
         .nullable()
         .describe(
           "Task #236. Personalized prescribed pace overlay for the Wed steady (Z3) and Fri tempo \/ threshold \/ race-pace slots — the other quality run rows the generator seeds from the same per-recipe `tempoPace` catalog value. Computed at READ time from the same recent quality-workout history that drives `personalizedRacePace`, but with NO per-kind offset (the runner's tempo average IS the prescribed Wed\/Fri target). Falls back to the row's own seeded `pace` when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on rows the server recognised as one of those quality slots (matched by day-of-week + sessionType in `isPersonalizableQualityPlanDay`); the W51 taper Sharpener and W52 Race Shakeout are intentionally excluded because they're seeded with `easyPace`, not `tempoPace`. Null on every other day so the UI can render the chip exclusively on the matching session card. Mirrors the `personalizedRacePace` shape so the chip + tooltip rendering can be shared.\n",
+        ),
+      personalizedLongRunPace: zod
+        .object({
+          pace: zod
+            .string()
+            .describe(
+              'Final prescribed long-run pace string the chip should render (e.g. \"13:00\"). Either personalized from history or echoed from the row\'s catalog `pace`.',
+            ),
+          source: zod
+            .enum(["personalized", "catalog"])
+            .describe(
+              'Where the pace came from. \"personalized\" means at least 3 parseable easy-aerobic paces fed the average; \"catalog\" means we fell back to the row\'s seeded `pace`.',
+            ),
+          sampleSize: zod
+            .number()
+            .describe(
+              'Number of easy-aerobic workouts (Long Run \/ Aerobic Base \/ Recovery) that fed the average. 0 when source is \"catalog\".',
+            ),
+          lookbackWeeks: zod
+            .number()
+            .describe(
+              'Lookback window in whole weeks the easy-aerobic sample was drawn from. Mirrors the input so the UI tooltip can render \"last N weeks of training\" without re-deriving it.',
+            ),
+          basisPaceSeconds: zod
+            .number()
+            .nullable()
+            .describe(
+              'Average pace seconds\/mile of the easy-aerobic sample. Equals the personalized pace\'s seconds value (no per-kind offset is applied — Sun long run IS the easy-aerobic rung). Null when source is \"catalog\".',
+            ),
+        })
+        .nullable()
+        .describe(
+          "Task #239. Personalized prescribed pace overlay for the Sun long-run row — the other seeded pace on every recipe (`recipe.longPace`, the catalog value the generator stamps on every non-race-week Sun \"Long Run\" row at lib\/plan-generator\/src\/index.ts:484, :2227, :2647). Computed at READ time from the runner's recent EASY AEROBIC workouts (Long Run \/ Aerobic Base \/ Recovery sessions matched by `isLongRunSession`) — a separate sample pool from the quality pool that drives `personalizedRacePace` \/ `personalizedPace`, so quality work doesn't drag the long-run pace toward tempo speed. No per-kind offset (the runner's easy-aerobic average IS the prescribed long-run pace). Falls back to the row's own seeded `pace` when fewer than 3 parseable easy-aerobic paces exist in the lookback window. Populated ONLY on rows that `isPersonalizableLongRunPlanDay` matches (Sun + sessionType \"Long Run\"); race-day Sun is intentionally excluded — that row is owned by `personalizedRacePace` instead, so the two overlays are mutually exclusive on any given Sun. Null on every other day so the UI can render the chip exclusively on the Sun long-run card. Mirrors the `personalizedPace` shape so the chip + tooltip rendering can be shared.\n",
         ),
     })
     .nullish()

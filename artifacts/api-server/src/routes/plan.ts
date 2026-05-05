@@ -32,10 +32,13 @@ import {
 } from "../lib/reset-undo";
 import {
   DEFAULT_LOOKBACK_WEEKS,
+  isPersonalizableLongRunPlanDay,
   isPersonalizableQualityPlanDay,
+  personalizeLongRunPace,
   personalizeQualityPace,
   personalizeRacePace,
   type PersonalizableRaceKind,
+  type PersonalizedLongRunPace,
   type PersonalizedQualityPace,
   type PersonalizedRacePace,
 } from "../lib/personalized-race-pace";
@@ -336,14 +339,13 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
   // and Fri tempo / threshold / race-pace rows. Both maps share a
   // single SQL fetch; if neither overlay applies to this week no SQL
   // is issued — see `fetchPersonalizationOverlays`.
-  const { raceByDayId, qualityByDayId } = await fetchPersonalizationOverlays(
-    days,
-    today,
-  );
+  const { raceByDayId, qualityByDayId, longRunByDayId } =
+    await fetchPersonalizationOverlays(days, today);
   const daysWithSuggestions = days.map((d) => {
     const base = toPlanDay(d, {
       personalizedRacePace: raceByDayId.get(d.id) ?? null,
       personalizedPace: qualityByDayId.get(d.id) ?? null,
+      personalizedLongRunPace: longRunByDayId.get(d.id) ?? null,
     });
     if (d.isRest) return { ...base, suggestions: null };
     const recent = recentByPair.get(pairKey(d.sessionType, d.equipment)) ?? [];
@@ -601,6 +603,37 @@ async function fetchRecentQualityRunPaces(
     .filter((p): p is string => typeof p === "string" && p.length > 0);
 }
 
+// Task #239: easy aerobic counterpart to `fetchRecentQualityRunPaces`.
+// Pulls every parseable pace string from the runner's recent Long Run /
+// Aerobic Base / Recovery sessions inside the personalization lookback
+// window. Used by the Sun long-run pace-personalization path on
+// /plan/weeks/:week and /plan/today. Match set mirrors
+// `isLongRunSession` so the SQL filter and the in-process matcher
+// agree exactly. Quality work (tempo / threshold / interval / VO2 /
+// race-pace / race) is intentionally excluded — it sits at a much
+// faster rung and would drag the prescribed long-run pace too fast.
+async function fetchRecentLongRunPaces(
+  today: string,
+  lookbackDays: number,
+): Promise<string[]> {
+  const todayMs = Date.parse(`${today}T00:00:00.000Z`);
+  const cutoffMs = todayMs - lookbackDays * 24 * 60 * 60 * 1000;
+  const cutoff = new Date(cutoffMs).toISOString().slice(0, 10);
+  const LONG_RUN_RE = "long run|aerobic base|recovery";
+  const rows = await db.execute<{ pace: string | null }>(sql`
+    SELECT pace
+    FROM workouts
+    WHERE date < ${today}
+      AND date >= ${cutoff}
+      AND pace IS NOT NULL
+      AND session_type ~* ${LONG_RUN_RE}
+    ORDER BY date DESC, created_at DESC
+  `);
+  return rows.rows
+    .map((r) => r.pace)
+    .filter((p): p is string => typeof p === "string" && p.length > 0);
+}
+
 // Task #228 + Task #236: compute personalized pace overlays for the
 // plan_days in `days`. Two parallel maps are returned, both keyed by
 // plan_day id:
@@ -622,9 +655,11 @@ async function fetchPersonalizationOverlays(
 ): Promise<{
   raceByDayId: Map<number, PersonalizedRacePace>;
   qualityByDayId: Map<number, PersonalizedQualityPace>;
+  longRunByDayId: Map<number, PersonalizedLongRunPace>;
 }> {
   const raceByDayId = new Map<number, PersonalizedRacePace>();
   const qualityByDayId = new Map<number, PersonalizedQualityPace>();
+  const longRunByDayId = new Map<number, PersonalizedLongRunPace>();
 
   const raceRows = days
     .map((d) => ({
@@ -649,13 +684,45 @@ async function fetchPersonalizationOverlays(
         sessionType: d.sessionType,
       }),
   );
-  if (raceRows.length === 0 && qualityRows.length === 0) {
-    return { raceByDayId, qualityByDayId };
+  // Task #239: same `pace != null` guard as the quality overlay above —
+  // the long-run catalog fallback is the row's own seeded `pace` string,
+  // so a Sun "Long Run" row that's somehow lost its pace can't render a
+  // useful chip and is skipped. Race-day Sun rows are NEVER picked up
+  // here because `isPersonalizableLongRunPlanDay` only matches
+  // sessionType "Long Run" — the race-day chip from Task #228 owns those
+  // rows exclusively.
+  const longRunRows = days.filter(
+    (d) =>
+      !d.isRest &&
+      d.pace != null &&
+      isPersonalizableLongRunPlanDay({
+        day: d.day,
+        sessionType: d.sessionType,
+      }),
+  );
+  if (
+    raceRows.length === 0 &&
+    qualityRows.length === 0 &&
+    longRunRows.length === 0
+  ) {
+    return { raceByDayId, qualityByDayId, longRunByDayId };
   }
 
   const lookbackWeeks = DEFAULT_LOOKBACK_WEEKS;
   const lookbackDays = lookbackWeeks * 7;
-  const qualityPaces = await fetchRecentQualityRunPaces(today, lookbackDays);
+  const qualityPaces =
+    raceRows.length === 0 && qualityRows.length === 0
+      ? []
+      : await fetchRecentQualityRunPaces(today, lookbackDays);
+  // Task #239: easy aerobic pool (Long Run / Aerobic Base / Recovery)
+  // for the Sun long-run overlay. Fetched independently from the
+  // quality pool above so quality work doesn't drag the long-run pace
+  // chip toward tempo speed. Only round-trips to the DB when at least
+  // one Sun long-run row in this fetch needs it.
+  const longRunPaces =
+    longRunRows.length === 0
+      ? []
+      : await fetchRecentLongRunPaces(today, lookbackDays);
   for (const { row, kind } of raceRows) {
     raceByDayId.set(
       row.id,
@@ -678,7 +745,18 @@ async function fetchPersonalizationOverlays(
       }),
     );
   }
-  return { raceByDayId, qualityByDayId };
+  for (const row of longRunRows) {
+    longRunByDayId.set(
+      row.id,
+      personalizeLongRunPace({
+        longRunPaces,
+        // Same `pace != null` filter guards this assertion.
+        catalogPace: row.pace!,
+        lookbackWeeks,
+      }),
+    );
+  }
+  return { raceByDayId, qualityByDayId, longRunByDayId };
 }
 
 // Number of whole UTC days between two ISO date strings (yyyy-mm-dd). Both
@@ -747,17 +825,19 @@ router.get("/plan/today", async (_req, res) => {
   // chips. Includes the pre-launch first-session preview row so a
   // runner staring at "campaign starts in N days" still sees the
   // personalized chip on whichever quality slot opens the campaign.
-  const { raceByDayId, qualityByDayId } = await fetchPersonalizationOverlays(
-    [
-      ...planRows,
-      ...(firstSessionRow && showFirstSession ? [firstSessionRow] : []),
-    ],
-    today,
-  );
+  const { raceByDayId, qualityByDayId, longRunByDayId } =
+    await fetchPersonalizationOverlays(
+      [
+        ...planRows,
+        ...(firstSessionRow && showFirstSession ? [firstSessionRow] : []),
+      ],
+      today,
+    );
   const todayPlanDay = (r: PlanDayRow) =>
     toPlanDay(r, {
       personalizedRacePace: raceByDayId.get(r.id) ?? null,
       personalizedPace: qualityByDayId.get(r.id) ?? null,
+      personalizedLongRunPace: longRunByDayId.get(r.id) ?? null,
     });
 
   res.json({

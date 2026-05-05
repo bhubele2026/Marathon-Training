@@ -8,8 +8,11 @@ import { RACE_DAY_SPECS } from "@workspace/plan-generator";
 import {
   DEFAULT_LOOKBACK_WEEKS,
   MIN_QUALITY_SAMPLE,
+  isLongRunSession,
+  isPersonalizableLongRunPlanDay,
   isPersonalizableQualityPlanDay,
   isQualityRunSession,
+  personalizeLongRunPace,
   personalizeQualityPace,
   personalizeRacePace,
 } from "./personalized-race-pace";
@@ -290,6 +293,113 @@ describe("personalizeQualityPace", () => {
     const result = personalizeQualityPace({
       qualityPaces: ["10:00", "10:30", "11:00"],
       catalogPace: "10:45",
+      lookbackWeeks: 4,
+    });
+    expect(result.lookbackWeeks).toBe(4);
+  });
+});
+
+// Task #239: unit coverage for the long-run helpers. Mirrors the
+// quality coverage above — the long-run pool is just easy aerobic
+// work (Long Run / Aerobic Base / Recovery) with no per-kind offset.
+describe("isLongRunSession", () => {
+  it("matches the generator's canonical easy-aerobic session types", () => {
+    expect(isLongRunSession("Long Run")).toBe(true);
+    expect(isLongRunSession("Aerobic Base")).toBe(true);
+    expect(isLongRunSession("Recovery")).toBe(true);
+  });
+
+  it("matches case-insensitive / hand-edited variants", () => {
+    expect(isLongRunSession("long run")).toBe(true);
+    expect(isLongRunSession("LONG RUN")).toBe(true);
+    expect(isLongRunSession("aerobic base + accessory")).toBe(true);
+    expect(isLongRunSession("Recovery jog")).toBe(true);
+  });
+
+  it("excludes quality work so tempo paces don't drag the long-run avg", () => {
+    expect(isLongRunSession("Tempo Run")).toBe(false);
+    expect(isLongRunSession("Threshold Intervals")).toBe(false);
+    expect(isLongRunSession("Sharpener")).toBe(false);
+    expect(isLongRunSession("Race")).toBe(false);
+    expect(isLongRunSession("Race-Pace Workout")).toBe(false);
+    expect(isLongRunSession("Steady Run + Accessory")).toBe(false);
+    expect(isLongRunSession("Rest")).toBe(false);
+    expect(isLongRunSession(null)).toBe(false);
+    expect(isLongRunSession(undefined)).toBe(false);
+    expect(isLongRunSession("")).toBe(false);
+  });
+});
+
+describe("isPersonalizableLongRunPlanDay", () => {
+  it("matches Sun Long Run (case-insensitive on sessionType)", () => {
+    expect(
+      isPersonalizableLongRunPlanDay({ day: "Sun", sessionType: "Long Run" }),
+    ).toBe(true);
+    expect(
+      isPersonalizableLongRunPlanDay({ day: "Sun", sessionType: "long run" }),
+    ).toBe(true);
+    expect(
+      isPersonalizableLongRunPlanDay({ day: "Sun", sessionType: "LONG RUN" }),
+    ).toBe(true);
+  });
+
+  it("excludes race-day Sun so the race-day overlay owns it exclusively", () => {
+    expect(
+      isPersonalizableLongRunPlanDay({ day: "Sun", sessionType: "Race" }),
+    ).toBe(false);
+  });
+
+  it("excludes Sun rows that aren't long runs", () => {
+    expect(
+      isPersonalizableLongRunPlanDay({ day: "Sun", sessionType: "Aerobic Base" }),
+    ).toBe(false);
+    expect(
+      isPersonalizableLongRunPlanDay({ day: "Sun", sessionType: "Tempo Run" }),
+    ).toBe(false);
+    expect(
+      isPersonalizableLongRunPlanDay({ day: "Sun", sessionType: "Rest" }),
+    ).toBe(false);
+  });
+
+  it("rejects every other day-of-week even with a Long Run sessionType", () => {
+    for (const day of ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]) {
+      expect(
+        isPersonalizableLongRunPlanDay({ day, sessionType: "Long Run" }),
+      ).toBe(false);
+    }
+  });
+});
+
+describe("personalizeLongRunPace", () => {
+  it("falls back to the supplied catalog pace when fewer than MIN_QUALITY_SAMPLE paces exist", () => {
+    const result = personalizeLongRunPace({
+      longRunPaces: ["13:00", "13:30"], // 2 < 3
+      catalogPace: "14:00",
+    });
+    expect(result.source).toBe("catalog");
+    expect(result.pace).toBe("14:00");
+    expect(result.sampleSize).toBe(0);
+    expect(result.basisPaceSeconds).toBeNull();
+    expect(result.lookbackWeeks).toBe(DEFAULT_LOOKBACK_WEEKS);
+  });
+
+  it("personalizes off the avg easy-aerobic pace with NO per-kind offset", () => {
+    // (780 + 810 + 840) / 3 = 810s = 13:30. The runner's easy-aerobic
+    // avg IS the prescribed long-run pace.
+    const result = personalizeLongRunPace({
+      longRunPaces: ["13:00", "13:30", "14:00"],
+      catalogPace: "14:00",
+    });
+    expect(result.source).toBe("personalized");
+    expect(result.pace).toBe("13:30");
+    expect(result.sampleSize).toBe(3);
+    expect(result.basisPaceSeconds).toBe(810);
+  });
+
+  it("respects an explicit lookbackWeeks override", () => {
+    const result = personalizeLongRunPace({
+      longRunPaces: ["13:00", "13:30", "14:00"],
+      catalogPace: "14:00",
       lookbackWeeks: 4,
     });
     expect(result.lookbackWeeks).toBe(4);

@@ -132,7 +132,15 @@ export default function Today() {
                       // overlay over the seeded catalog value so the
                       // pre-launch preview matches the race-day chip
                       // the runner will see on /plan and /today.
-                      pace={today.firstSession.personalizedRacePace?.pace ?? today.firstSession.pace}
+                      // Task #239: also honor the Sun long-run overlay
+                      // when the first scheduled session happens to
+                      // be a Sun "Long Run" — the three overlays are
+                      // mutually exclusive so precedence is symbolic.
+                      pace={
+                        today.firstSession.personalizedRacePace?.pace ??
+                        today.firstSession.personalizedLongRunPace?.pace ??
+                        today.firstSession.pace
+                      }
                       variant="prominent"
                       testId="first-session-run-target"
                       // Task #227: when the first scheduled session
@@ -388,7 +396,14 @@ export default function Today() {
                             // which case `personalizedRacePace.pace` IS
                             // the catalog value anyway). Mirrors the
                             // override in week-detail.tsx.
-                            pace={plan.personalizedRacePace?.pace ?? plan.pace}
+                            // Task #239: also honor the Sun long-run
+                            // overlay (mutually exclusive with the
+                            // race-day overlay above).
+                            pace={
+                              plan.personalizedRacePace?.pace ??
+                              plan.personalizedLongRunPace?.pace ??
+                              plan.pace
+                            }
                             variant="prominent"
                             testId={`today-plan-${plan.sourceEntryIndex}-run-target`}
                             // Task #227: tone the chip per race-kind on
@@ -588,7 +603,14 @@ export default function Today() {
                         // target line shown next to the actuals
                         // reflects the live race-day recommendation
                         // rather than the seeded catalog value.
-                        pace={today.plan.personalizedRacePace?.pace ?? today.plan.pace}
+                        // Task #239: also honor the Sun long-run
+                        // overlay (mutually exclusive with the race
+                        // overlay).
+                        pace={
+                          today.plan.personalizedRacePace?.pace ??
+                          today.plan.personalizedLongRunPace?.pace ??
+                          today.plan.pace
+                        }
                         variant="prominent"
                         testId={`session-today-${session.id}-run-target`}
                         // Task #227: race-kind zone tone on race day so

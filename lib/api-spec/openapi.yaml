@@ -874,6 +874,7 @@ components:
           sourceEntryIndex,
           personalizedRacePace,
           personalizedPace,
+          personalizedLongRunPace,
         ]
       properties:
         id: { type: integer }
@@ -985,6 +986,30 @@ components:
               type: integer
               nullable: true
               description: Average pace seconds/mile of the quality sample. For Wed/Fri quality rows this equals the personalized pace's seconds value (no per-kind offset is applied — these slots ARE the tempo-pace rung). Null when source is "catalog".
+        personalizedLongRunPace:
+          nullable: true
+          description: |
+            Task #239. Personalized prescribed pace overlay for the Sun long-run row — the other seeded pace on every recipe (`recipe.longPace`, the catalog value the generator stamps on every non-race-week Sun "Long Run" row at lib/plan-generator/src/index.ts:484, :2227, :2647). Computed at READ time from the runner's recent EASY AEROBIC workouts (Long Run / Aerobic Base / Recovery sessions matched by `isLongRunSession`) — a separate sample pool from the quality pool that drives `personalizedRacePace` / `personalizedPace`, so quality work doesn't drag the long-run pace toward tempo speed. No per-kind offset (the runner's easy-aerobic average IS the prescribed long-run pace). Falls back to the row's own seeded `pace` when fewer than 3 parseable easy-aerobic paces exist in the lookback window. Populated ONLY on rows that `isPersonalizableLongRunPlanDay` matches (Sun + sessionType "Long Run"); race-day Sun is intentionally excluded — that row is owned by `personalizedRacePace` instead, so the two overlays are mutually exclusive on any given Sun. Null on every other day so the UI can render the chip exclusively on the Sun long-run card. Mirrors the `personalizedPace` shape so the chip + tooltip rendering can be shared.
+          type: object
+          required: [pace, source, sampleSize, lookbackWeeks, basisPaceSeconds]
+          properties:
+            pace:
+              type: string
+              description: Final prescribed long-run pace string the chip should render (e.g. "13:00"). Either personalized from history or echoed from the row's catalog `pace`.
+            source:
+              type: string
+              enum: [personalized, catalog]
+              description: Where the pace came from. "personalized" means at least 3 parseable easy-aerobic paces fed the average; "catalog" means we fell back to the row's seeded `pace`.
+            sampleSize:
+              type: integer
+              description: Number of easy-aerobic workouts (Long Run / Aerobic Base / Recovery) that fed the average. 0 when source is "catalog".
+            lookbackWeeks:
+              type: integer
+              description: Lookback window in whole weeks the easy-aerobic sample was drawn from. Mirrors the input so the UI tooltip can render "last N weeks of training" without re-deriving it.
+            basisPaceSeconds:
+              type: integer
+              nullable: true
+              description: Average pace seconds/mile of the easy-aerobic sample. Equals the personalized pace's seconds value (no per-kind offset is applied — Sun long run IS the easy-aerobic rung). Null when source is "catalog".
 
     UpdatePlanDayBody:
       type: object
