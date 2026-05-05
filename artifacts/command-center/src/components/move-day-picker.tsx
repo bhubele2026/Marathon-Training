@@ -60,6 +60,20 @@ export function MoveDayPicker({ open, onOpenChange, day }: MoveDayPickerProps) {
   const targetWeekMeta = weeks?.find((w) => w.week === targetWeek);
   const sameWeek = targetWeek === day.week;
 
+  // Task #58: identify the race week (the week containing race day) so
+  // the picker can block moves *into* race week or later. Foundation /
+  // build sessions shouldn't displace anything in the taper-and-race
+  // window. Computed from the weeks summary + overview.raceDate so it
+  // works for any plan length, not just the 52-week marathon campaign.
+  const raceDate = overview?.raceDate ?? null;
+  const raceWeekNumber =
+    raceDate && weeks
+      ? (weeks.find((w) => w.startDate <= raceDate && raceDate <= w.endDate)
+          ?.week ?? null)
+      : null;
+  const targetIsRaceOrLater =
+    raceWeekNumber != null && targetWeek >= raceWeekNumber;
+
   // The runner shouldn't be offered themselves as a swap partner, but every
   // other day in the visible week (rest days included) is fair game.
   const candidates = (targetWeekDetail?.days ?? []).filter(
@@ -180,24 +194,17 @@ export function MoveDayPicker({ open, onOpenChange, day }: MoveDayPickerProps) {
           </div>
         )}
 
-        {overview?.raceDate && (() => {
-          const raceDate = overview.raceDate;
-          const targetEnd = targetWeekMeta?.endDate;
-          if (targetEnd && targetEnd > raceDate) {
-            return (
-              <div
-                className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
-                data-testid="alert-past-race"
-              >
-                <ShieldAlert className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                <span>
-                  This week extends past race day ({formatDate(raceDate)}). Moving a session here means it won't be completed before the race.
-                </span>
-              </div>
-            );
-          }
-          return null;
-        })()}
+        {targetIsRaceOrLater && raceDate && (
+          <div
+            className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+            data-testid="alert-past-race"
+          >
+            <ShieldAlert className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <span>
+              Race week (W{raceWeekNumber}, race day {formatDate(raceDate)}) is locked. Moving a session into the taper-and-race window would derail race-day readiness — pick an earlier week instead.
+            </span>
+          </div>
+        )}
 
         <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
           {loadingWeek && (
@@ -214,9 +221,15 @@ export function MoveDayPicker({ open, onOpenChange, day }: MoveDayPickerProps) {
             <button
               key={c.id}
               type="button"
-              disabled={swapPlanDay.isPending}
+              disabled={swapPlanDay.isPending || targetIsRaceOrLater}
               onClick={() => handleSwap(c)}
-              className="w-full flex items-center justify-between gap-3 rounded-md border border-border bg-card p-3 text-left transition-colors hover:border-primary/50 hover:bg-muted/50 disabled:opacity-50"
+              title={
+                targetIsRaceOrLater
+                  ? "Race week is locked — pick an earlier week."
+                  : undefined
+              }
+              aria-disabled={targetIsRaceOrLater || undefined}
+              className="w-full flex items-center justify-between gap-3 rounded-md border border-border bg-card p-3 text-left transition-colors hover:border-primary/50 hover:bg-muted/50 disabled:opacity-50 disabled:cursor-not-allowed"
               data-testid={`button-swap-with-${c.date}`}
             >
               <div className="flex flex-col min-w-0">
