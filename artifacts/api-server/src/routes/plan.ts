@@ -31,8 +31,11 @@ import {
 } from "../lib/reset-undo";
 import {
   DEFAULT_LOOKBACK_WEEKS,
+  isPersonalizableQualityPlanDay,
+  personalizeQualityPace,
   personalizeRacePace,
   type PersonalizableRaceKind,
+  type PersonalizedQualityPace,
   type PersonalizedRacePace,
 } from "../lib/personalized-race-pace";
 
@@ -372,14 +375,20 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
   const today = todayISO();
   const nonRestDays = days.filter((d) => !d.isRest);
   const recentByPair = await fetchRecentWorkoutsByPair(nonRestDays, today);
-  // Task #228: race-day Sun rows in this week (if any) get a
-  // personalized pace overlay derived from the runner's recent quality
-  // workouts. The fetch is skipped automatically when no race-day Sun
-  // is in the week — see `fetchPersonalizedRacePaces`.
-  const personalizedByDayId = await fetchPersonalizedRacePaces(days, today);
+  // Task #228 + Task #236: pace-personalization overlays derived from
+  // the runner's recent quality workouts. `raceByDayId` covers any
+  // race-day Sun in this week; `qualityByDayId` covers Wed steady (Z3)
+  // and Fri tempo / threshold / race-pace rows. Both maps share a
+  // single SQL fetch; if neither overlay applies to this week no SQL
+  // is issued — see `fetchPersonalizationOverlays`.
+  const { raceByDayId, qualityByDayId } = await fetchPersonalizationOverlays(
+    days,
+    today,
+  );
   const daysWithSuggestions = days.map((d) => {
     const base = toPlanDay(d, {
-      personalizedRacePace: personalizedByDayId.get(d.id) ?? null,
+      personalizedRacePace: raceByDayId.get(d.id) ?? null,
+      personalizedPace: qualityByDayId.get(d.id) ?? null,
     });
     if (d.isRest) return { ...base, suggestions: null };
     const recent = recentByPair.get(pairKey(d.sessionType, d.equipment)) ?? [];
@@ -637,18 +646,31 @@ async function fetchRecentQualityRunPaces(
     .filter((p): p is string => typeof p === "string" && p.length > 0);
 }
 
-// Task #228: compute personalized race-day pace overlays for whichever
-// plan_days in `days` are recognised race-day Sun rows. Returns a Map
-// keyed by plan_day id so the read path can stitch the overlay onto the
-// matching `toPlanDay` payload without re-running detection per row.
-// Empty when `days` contains no recognised race-day rows — in that case
-// no SQL is issued and the read path just renders `personalizedRacePace:
-// null` everywhere.
-async function fetchPersonalizedRacePaces(
+// Task #228 + Task #236: compute personalized pace overlays for the
+// plan_days in `days`. Two parallel maps are returned, both keyed by
+// plan_day id:
+//
+//   * raceByDayId — race-day Sun pace targets, only populated for rows
+//     that `detectRaceKind` recognises as a real race.
+//   * qualityByDayId — Wed steady (Z3) and Fri tempo / threshold /
+//     race-pace pace targets, only populated for rows that
+//     `isPersonalizableQualityPlanDay` matches AND that carry a
+//     non-null catalog `pace` to fall back to.
+//
+// Both overlays draw from the same recent-quality pace history, so a
+// single SQL round-trip covers them. Empty maps short-circuit the
+// fetch entirely when `days` contains neither a race-day row nor a
+// personalizable Wed/Fri quality row.
+async function fetchPersonalizationOverlays(
   days: readonly PlanDayRow[],
   today: string,
-): Promise<Map<number, PersonalizedRacePace>> {
-  const result = new Map<number, PersonalizedRacePace>();
+): Promise<{
+  raceByDayId: Map<number, PersonalizedRacePace>;
+  qualityByDayId: Map<number, PersonalizedQualityPace>;
+}> {
+  const raceByDayId = new Map<number, PersonalizedRacePace>();
+  const qualityByDayId = new Map<number, PersonalizedQualityPace>();
+
   const raceRows = days
     .map((d) => ({
       row: d,
@@ -662,13 +684,29 @@ async function fetchPersonalizedRacePaces(
       (r): r is { row: PlanDayRow; kind: PersonalizableRaceKind } =>
         r.kind !== null,
     );
-  if (raceRows.length === 0) return result;
+  // For the Wed/Fri overlay we additionally require `pace != null` —
+  // the catalog fallback for these rows is the row's own seeded pace,
+  // so a row without one (legacy rest day mis-tagged as quality, or a
+  // hand-edited row that nuked the pace string) has nothing to fall
+  // back to and we skip it instead of rendering an empty chip.
+  const qualityRows = days.filter(
+    (d) =>
+      !d.isRest &&
+      d.pace != null &&
+      isPersonalizableQualityPlanDay({
+        day: d.day,
+        sessionType: d.sessionType,
+      }),
+  );
+  if (raceRows.length === 0 && qualityRows.length === 0) {
+    return { raceByDayId, qualityByDayId };
+  }
 
   const lookbackWeeks = DEFAULT_LOOKBACK_WEEKS;
   const lookbackDays = lookbackWeeks * 7;
   const qualityPaces = await fetchRecentQualityRunPaces(today, lookbackDays);
   for (const { row, kind } of raceRows) {
-    result.set(
+    raceByDayId.set(
       row.id,
       personalizeRacePace({
         raceKind: kind,
@@ -677,7 +715,19 @@ async function fetchPersonalizedRacePaces(
       }),
     );
   }
-  return result;
+  for (const row of qualityRows) {
+    qualityByDayId.set(
+      row.id,
+      personalizeQualityPace({
+        qualityPaces,
+        // Guarded by the `d.pace != null` filter above so the
+        // non-null assertion is safe.
+        catalogPace: row.pace!,
+        lookbackWeeks,
+      }),
+    );
+  }
+  return { raceByDayId, qualityByDayId };
 }
 
 // Number of whole UTC days between two ISO date strings (yyyy-mm-dd). Both
@@ -741,10 +791,12 @@ router.get("/plan/today", async (_req, res) => {
     daysUntilStart = daysBetweenISO(today, firstSessionRow.date);
   }
 
-  // Task #228: personalized race-day pace overlays for any race-day Sun
-  // rows on today's calendar (or for the pre-launch first-session
-  // preview if it itself happens to be the race-day Sun).
-  const todayPersonalized = await fetchPersonalizedRacePaces(
+  // Task #228 + Task #236: personalized pace overlays for both the
+  // race-day Sun chip and the Wed steady (Z3) / Fri tempo / threshold
+  // chips. Includes the pre-launch first-session preview row so a
+  // runner staring at "campaign starts in N days" still sees the
+  // personalized chip on whichever quality slot opens the campaign.
+  const { raceByDayId, qualityByDayId } = await fetchPersonalizationOverlays(
     [
       ...planRows,
       ...(firstSessionRow && showFirstSession ? [firstSessionRow] : []),
@@ -752,7 +804,10 @@ router.get("/plan/today", async (_req, res) => {
     today,
   );
   const todayPlanDay = (r: PlanDayRow) =>
-    toPlanDay(r, { personalizedRacePace: todayPersonalized.get(r.id) ?? null });
+    toPlanDay(r, {
+      personalizedRacePace: raceByDayId.get(r.id) ?? null,
+      personalizedPace: qualityByDayId.get(r.id) ?? null,
+    });
 
   res.json({
     date: today,

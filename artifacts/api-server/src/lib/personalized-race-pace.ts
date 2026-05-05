@@ -176,3 +176,106 @@ export function personalizeRacePace(args: {
     basisPaceSeconds: Math.round(avg),
   };
 }
+
+// Task #236: extends Task #228 from the race-day Sun chip to the
+// other quality run slots — Wed steady (Z3) and Fri tempo /
+// threshold / race-pace — that the generator seeds with the same
+// per-recipe `tempoPace` catalog value (see
+// lib/plan-generator/src/index.ts:259/308/317/326/333/340). The same
+// recent quality history that drives the race-day chip is used to
+// retune those rows too, so a runner whose tempos drift faster sees
+// their next prescribed Wed steady / Fri tempo retune to match
+// without regenerating the plan. The W51 taper Sharpener and W52
+// Race Shakeout are deliberately NOT included — both are seeded
+// with `easyPace`, so a tempo-average overlay would convert the
+// taper into a tempo prescription.
+//
+// Shape mirrors PersonalizedRacePace deliberately so the two overlays
+// can share rendering code on the client (same chip / same tooltip
+// skeleton / same data-pace-source attribute). The semantic
+// difference is small but real:
+//   * basisPaceSeconds here equals the personalized pace's seconds
+//     value because there is no per-kind offset to apply (Wed steady
+//     / Fri tempo all sit at the same tempo-pace rung the average is
+//     computed at).
+//   * the catalog fallback is the row's own seeded `pace` rather than
+//     a global RACE_DAY_SPECS lookup — every recipe has its own
+//     `tempoPace` and the row already carries it.
+export interface PersonalizedQualityPace {
+  pace: string;
+  source: PersonalizedRacePaceSource;
+  sampleSize: number;
+  lookbackWeeks: number;
+  basisPaceSeconds: number | null;
+}
+
+// True when this (day, sessionType) pair is one of the personalizable
+// quality slots emitted by the generator. Match is case-insensitive on
+// sessionType so a hand-edited "tempo run" / "TEMPO RUN" still
+// qualifies. The day-of-week gate keeps the personalization scoped to
+// the slots the generator actually seeds with `tempoPace` — a
+// hand-customized "Tempo Run" that a runner shoehorned onto Tuesday
+// is intentionally NOT personalized here, since the plan layout
+// reserves Wed/Fri for the quality rhythm and the offset model only
+// holds inside that rhythm.
+//
+// Note: the W51 taper "Sharpener" and the W52 "Race Shakeout" are
+// deliberately EXCLUDED — both are seeded with `easyPace`, NOT
+// `tempoPace`, so applying the tempo-average overlay would convert a
+// taper recovery shake-out into a tempo prescription. Likewise,
+// cutback-week Fridays show as "Aerobic Base" (also easyPace) and
+// don't match any of the strings below.
+export function isPersonalizableQualityPlanDay(args: {
+  day: string;
+  sessionType: string;
+}): boolean {
+  const s = args.sessionType.toLowerCase();
+  if (args.day === "Wed") {
+    return s === "steady run + accessory";
+  }
+  if (args.day === "Fri") {
+    return (
+      s === "tempo run" ||
+      s === "threshold intervals" ||
+      s === "race-pace workout"
+    );
+  }
+  return false;
+}
+
+// Compute the personalized prescribed pace for a Wed steady / Fri
+// quality row. Same averaging + plausibility clamp as
+// `personalizeRacePace`, but with NO per-kind offset (the runner's
+// tempo average IS the prescribed Wed/Fri tempo target) and with the
+// per-row catalog `pace` value as the fallback when fewer than
+// MIN_QUALITY_SAMPLE valid paces are supplied.
+export function personalizeQualityPace(args: {
+  qualityPaces: ReadonlyArray<string | null | undefined>;
+  catalogPace: string;
+  lookbackWeeks?: number;
+}): PersonalizedQualityPace {
+  const lookbackWeeks = args.lookbackWeeks ?? DEFAULT_LOOKBACK_WEEKS;
+  const catalog: PersonalizedQualityPace = {
+    pace: args.catalogPace,
+    source: "catalog",
+    sampleSize: 0,
+    lookbackWeeks,
+    basisPaceSeconds: null,
+  };
+
+  const parsed = args.qualityPaces
+    .map(parsePaceToSeconds)
+    .filter((v): v is number => v != null);
+  if (parsed.length < MIN_QUALITY_SAMPLE) return catalog;
+
+  const avg = parsed.reduce((s, v) => s + v, 0) / parsed.length;
+  if (avg < MIN_PACE_SECONDS || avg > MAX_PACE_SECONDS) return catalog;
+
+  return {
+    pace: formatSecondsAsPace(avg),
+    source: "personalized",
+    sampleSize: parsed.length,
+    lookbackWeeks,
+    basisPaceSeconds: Math.round(avg),
+  };
+}

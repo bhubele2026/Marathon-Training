@@ -64,6 +64,34 @@ export type PlanDayPersonalizedRacePace = {
   basisPaceSeconds: number | null;
 } | null;
 
+/**
+ * Where the pace came from. "personalized" means at least 3 parseable quality paces fed the average; "catalog" means we fell back to the row's seeded `pace`.
+ */
+export type PlanDayPersonalizedPaceSource =
+  (typeof PlanDayPersonalizedPaceSource)[keyof typeof PlanDayPersonalizedPaceSource];
+
+export const PlanDayPersonalizedPaceSource = {
+  personalized: "personalized",
+  catalog: "catalog",
+} as const;
+
+/**
+ * Task #236. Personalized prescribed pace overlay for the Wed steady (Z3) and Fri tempo / threshold / race-pace slots — the other quality run rows the generator seeds from the same per-recipe `tempoPace` catalog value. Computed at READ time from the same recent quality-workout history that drives `personalizedRacePace`, but with NO per-kind offset (the runner's tempo average IS the prescribed Wed/Fri target). Falls back to the row's own seeded `pace` when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on rows the server recognised as one of those quality slots (matched by day-of-week + sessionType in `isPersonalizableQualityPlanDay`); the W51 taper Sharpener and W52 Race Shakeout are intentionally excluded because they're seeded with `easyPace`, not `tempoPace`. Null on every other day so the UI can render the chip exclusively on the matching session card. Mirrors the `personalizedRacePace` shape so the chip + tooltip rendering can be shared.
+
+ */
+export type PlanDayPersonalizedPace = {
+  /** Final prescribed pace string the chip should render (e.g. "10:30"). Either personalized from history or echoed from the row's catalog `pace`. */
+  pace: string;
+  /** Where the pace came from. "personalized" means at least 3 parseable quality paces fed the average; "catalog" means we fell back to the row's seeded `pace`. */
+  source: PlanDayPersonalizedPaceSource;
+  /** Number of quality workouts that fed the average. 0 when source is "catalog". */
+  sampleSize: number;
+  /** Lookback window in whole weeks the quality sample was drawn from. Mirrors the input so the UI tooltip can render "last N weeks of training" without re-deriving it. */
+  lookbackWeeks: number;
+  /** Average pace seconds/mile of the quality sample. For Wed/Fri quality rows this equals the personalized pace's seconds value (no per-kind offset is applied — these slots ARE the tempo-pace rung). Null when source is "catalog". */
+  basisPaceSeconds: number | null;
+} | null;
+
 export interface PlanDay {
   id: number;
   week: number;
@@ -104,6 +132,9 @@ export interface PlanDay {
   /** Task #228. Race-day Sun pace target overlay computed at READ time from the runner's recent quality workouts (tempo, threshold, interval, sharpener, VO2, race-pace, logged Race), with the per-kind `RACE_DAY_SPECS[raceKind].pace` catalog value as the fallback when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on race-day Sun rows that the server recognised as a real race (sessionType `Race` or the generator's "RACE DAY — <Marathon|Half|10K|5K>" description prefix); null on every other day so the UI can render the personalized chip / explainer tooltip exclusively on the race-day card. The pace string here may differ from the row-level `pace` field — that field is the seeded plan value (or any user customization), while this overlay reflects the live recommendation derived from training history.
    */
   personalizedRacePace: PlanDayPersonalizedRacePace;
+  /** Task #236. Personalized prescribed pace overlay for the Wed steady (Z3) and Fri tempo / threshold / race-pace slots — the other quality run rows the generator seeds from the same per-recipe `tempoPace` catalog value. Computed at READ time from the same recent quality-workout history that drives `personalizedRacePace`, but with NO per-kind offset (the runner's tempo average IS the prescribed Wed/Fri target). Falls back to the row's own seeded `pace` when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on rows the server recognised as one of those quality slots (matched by day-of-week + sessionType in `isPersonalizableQualityPlanDay`); the W51 taper Sharpener and W52 Race Shakeout are intentionally excluded because they're seeded with `easyPace`, not `tempoPace`. Null on every other day so the UI can render the chip exclusively on the matching session card. Mirrors the `personalizedRacePace` shape so the chip + tooltip rendering can be shared.
+   */
+  personalizedPace: PlanDayPersonalizedPace;
 }
 
 /**

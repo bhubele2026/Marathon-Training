@@ -2,7 +2,10 @@ import type { PlanDayRow } from "@workspace/db";
 import type { PlanWeekRow } from "@workspace/db";
 import type { WorkoutRow } from "@workspace/db";
 import type { MeasurementRow } from "@workspace/db";
-import type { PersonalizedRacePace } from "./personalized-race-pace";
+import type {
+  PersonalizedQualityPace,
+  PersonalizedRacePace,
+} from "./personalized-race-pace";
 
 // Normalize a possibly-NULL or possibly-empty equipment_list to a
 // guaranteed non-empty `[scalar]` fallback. Both NULL (the column was
@@ -126,7 +129,17 @@ function planDayCustomizedDiff(r: PlanDayRow): PlanDayDiffEntry[] {
 
 export function toPlanDay(
   r: PlanDayRow,
-  extras?: { personalizedRacePace?: PersonalizedRacePace | null },
+  extras?: {
+    personalizedRacePace?: PersonalizedRacePace | null;
+    // Task #236: personalized prescribed pace overlay for the Wed
+    // steady (Z3) and Fri tempo / threshold / race-pace rows.
+    // Computed at READ time on /plan/weeks/:week and /plan/today
+    // the same way `personalizedRacePace` is — see
+    // `fetchPersonalizationOverlays` in routes/plan.ts. Null on every
+    // other day so the UI can render the chip exclusively on the
+    // matching session card.
+    personalizedPace?: PersonalizedQualityPace | null;
+  },
 ) {
   const customizedFields = planDayCustomizedFields(r);
   const customizedDiff = planDayCustomizedDiff(r);
@@ -172,6 +185,14 @@ export function toPlanDay(
     // — `toPlanDay` is intentionally row-pure and just passes through
     // the value its caller hands in.
     personalizedRacePace: extras?.personalizedRacePace ?? null,
+    // Task #236: personalized prescribed pace for the Wed steady (Z3)
+    // and Fri tempo / threshold / race-pace / sharpener rows. Same
+    // shape as personalizedRacePace so the chip / tooltip skeleton in
+    // the UI can be shared. Null on rows that aren't one of those
+    // recognised quality slots, or whose route-layer overlay decided
+    // to fall back without surfacing the chip (e.g. a row without a
+    // catalog `pace` to fall back to).
+    personalizedPace: extras?.personalizedPace ?? null,
   };
 }
 

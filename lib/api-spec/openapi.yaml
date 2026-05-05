@@ -873,6 +873,7 @@ components:
           customizedDiff,
           sourceEntryIndex,
           personalizedRacePace,
+          personalizedPace,
         ]
       properties:
         id: { type: integer }
@@ -960,6 +961,30 @@ components:
               type: integer
               nullable: true
               description: Average pace seconds/mile of the quality sample BEFORE the per-kind race-day offset is applied. Null when source is "catalog". Surfaced so the tooltip can show the raw training pace alongside the personalized race-day target ("10:30 tempo avg → 11:00 race target").
+        personalizedPace:
+          nullable: true
+          description: |
+            Task #236. Personalized prescribed pace overlay for the Wed steady (Z3) and Fri tempo / threshold / race-pace slots — the other quality run rows the generator seeds from the same per-recipe `tempoPace` catalog value. Computed at READ time from the same recent quality-workout history that drives `personalizedRacePace`, but with NO per-kind offset (the runner's tempo average IS the prescribed Wed/Fri target). Falls back to the row's own seeded `pace` when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on rows the server recognised as one of those quality slots (matched by day-of-week + sessionType in `isPersonalizableQualityPlanDay`); the W51 taper Sharpener and W52 Race Shakeout are intentionally excluded because they're seeded with `easyPace`, not `tempoPace`. Null on every other day so the UI can render the chip exclusively on the matching session card. Mirrors the `personalizedRacePace` shape so the chip + tooltip rendering can be shared.
+          type: object
+          required: [pace, source, sampleSize, lookbackWeeks, basisPaceSeconds]
+          properties:
+            pace:
+              type: string
+              description: Final prescribed pace string the chip should render (e.g. "10:30"). Either personalized from history or echoed from the row's catalog `pace`.
+            source:
+              type: string
+              enum: [personalized, catalog]
+              description: Where the pace came from. "personalized" means at least 3 parseable quality paces fed the average; "catalog" means we fell back to the row's seeded `pace`.
+            sampleSize:
+              type: integer
+              description: Number of quality workouts that fed the average. 0 when source is "catalog".
+            lookbackWeeks:
+              type: integer
+              description: Lookback window in whole weeks the quality sample was drawn from. Mirrors the input so the UI tooltip can render "last N weeks of training" without re-deriving it.
+            basisPaceSeconds:
+              type: integer
+              nullable: true
+              description: Average pace seconds/mile of the quality sample. For Wed/Fri quality rows this equals the personalized pace's seconds value (no per-kind offset is applied — these slots ARE the tempo-pace rung). Null when source is "catalog".
 
     UpdatePlanDayBody:
       type: object

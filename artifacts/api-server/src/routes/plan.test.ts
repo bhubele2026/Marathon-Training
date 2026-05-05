@@ -734,6 +734,278 @@ describe("personalizedRacePace overlay on /plan/weeks/:week and /plan/today", ()
   });
 });
 
+// Task #236: prescribed-pace personalization on the Wed steady (Z3)
+// and Fri tempo / threshold / race-pace / sharpener rows. Mirrors the
+// race-day overlay tests above — same lookback, same fallback rules,
+// just attached to the new `personalizedPace` field on a non-race-day
+// row.
+describe("personalizedPace overlay on /plan/weeks/:week and /plan/today", () => {
+  // Build a week with a Wed Steady Run + Accessory and a Fri Tempo
+  // Run plus N quality runs in the lookback window. Other days are
+  // rest so the assertions can focus on the two personalizable rows.
+  async function setupQualityWeek(
+    week: number,
+    qualityPaces: ReadonlyArray<string>,
+  ): Promise<void> {
+    const phase = "Quality Pace Personalization";
+    await insertWeek(week, {
+      startDate: "2099-04-26",
+      endDate: "2099-05-02",
+      phase,
+    });
+    // Mon, Tue, Thu, Sat, Sun all rest — only Wed + Fri carry the
+    // personalizable quality sessions.
+    for (const d of [
+      { date: "2099-04-26", day: "Mon" },
+      { date: "2099-04-27", day: "Tue" },
+      { date: "2099-04-29", day: "Thu" },
+      { date: "2099-05-01", day: "Sat" },
+      { date: "2099-05-02", day: "Sun" },
+    ]) {
+      await insertPlanDay(week, phase, {
+        ...d,
+        sessionType: T_REST,
+        equipment: E_NONE,
+        isRest: true,
+      });
+    }
+    await insertPlanDay(week, phase, {
+      date: "2099-04-28",
+      day: "Wed",
+      sessionType: "Steady Run + Accessory",
+      equipment: E_OUTDOOR,
+      description: "Z3 steady aerobic with accessory strength.",
+      distanceMi: 4,
+      pace: "10:45",
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-04-30",
+      day: "Fri",
+      sessionType: "Tempo Run",
+      equipment: E_OUTDOOR,
+      description: "Tempo: 2 mi WU, 3 mi @ tempo, 1 mi CD.",
+      distanceMi: 6,
+      pace: "10:30",
+    });
+    // History inserted into the prior 4 weeks so every workout falls
+    // well inside the 56-day lookback window.
+    let dayCursor = 0;
+    for (const pace of qualityPaces) {
+      const date = `2099-04-${String(5 + dayCursor).padStart(2, "0")}`;
+      await insertWorkout({
+        date,
+        sessionType: "Tempo Run",
+        equipment: E_OUTDOOR,
+        pace,
+        distanceMi: 5,
+      });
+      dayCursor += 2;
+    }
+  }
+
+  it("personalizes Wed steady AND Fri tempo when at least 3 quality runs are in the window", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-05-02T12:00:00.000Z"));
+    // (600 + 630 + 660) / 3 = 630s avg = 10:30. No per-kind offset
+    // for Wed/Fri quality slots, so the personalized pace IS 10:30.
+    await setupQualityWeek(8710, ["10:00", "10:30", "11:00"]);
+
+    const res = await request(app).get(`/api/plan/weeks/8710`);
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetPlanWeekResponse, res.body);
+
+    const days = res.body.days as Array<{
+      date: string;
+      day: string;
+      sessionType: string;
+      personalizedPace: {
+        pace: string;
+        source: "personalized" | "catalog";
+        sampleSize: number;
+        lookbackWeeks: number;
+        basisPaceSeconds: number | null;
+      } | null;
+      personalizedRacePace: unknown;
+    }>;
+
+    const wed = days.find((d) => d.date === "2099-04-28")!;
+    expect(wed.sessionType).toBe("Steady Run + Accessory");
+    expect(wed.personalizedPace).toEqual({
+      pace: "10:30",
+      source: "personalized",
+      sampleSize: 3,
+      lookbackWeeks: 8,
+      basisPaceSeconds: 630,
+    });
+
+    const fri = days.find((d) => d.date === "2099-04-30")!;
+    expect(fri.sessionType).toBe("Tempo Run");
+    expect(fri.personalizedPace).toEqual({
+      pace: "10:30",
+      source: "personalized",
+      sampleSize: 3,
+      lookbackWeeks: 8,
+      basisPaceSeconds: 630,
+    });
+
+    // Every other (rest) row has no overlay attached.
+    const mon = days.find((d) => d.date === "2099-04-26")!;
+    expect(mon.personalizedPace).toBeNull();
+    const sun = days.find((d) => d.date === "2099-05-02")!;
+    expect(sun.personalizedPace).toBeNull();
+    // The race-day overlay is independent of this one and stays null
+    // here too because the Sun row is just a plain rest day.
+    expect(sun.personalizedRacePace).toBeNull();
+  });
+
+  it("falls back to the row's seeded pace when fewer than 3 quality runs exist", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-05-02T12:00:00.000Z"));
+    // Only 2 tempos -> below MIN_QUALITY_SAMPLE -> catalog fallback
+    // for both rows, each echoing the row's own seeded `pace`.
+    await setupQualityWeek(8711, ["10:00", "10:30"]);
+
+    const res = await request(app).get(`/api/plan/weeks/8711`);
+    expect(res.status).toBe(200);
+
+    const days = res.body.days as Array<{
+      date: string;
+      personalizedPace: {
+        pace: string;
+        source: "personalized" | "catalog";
+        sampleSize: number;
+        basisPaceSeconds: number | null;
+      } | null;
+    }>;
+    const wed = days.find((d) => d.date === "2099-04-28")!;
+    expect(wed.personalizedPace).not.toBeNull();
+    expect(wed.personalizedPace!.source).toBe("catalog");
+    expect(wed.personalizedPace!.sampleSize).toBe(0);
+    expect(wed.personalizedPace!.basisPaceSeconds).toBeNull();
+    // Catalog fallback echoes the row's own seeded pace so the chip
+    // always has something to render even on a cold start.
+    expect(wed.personalizedPace!.pace).toBe("10:45");
+
+    const fri = days.find((d) => d.date === "2099-04-30")!;
+    expect(fri.personalizedPace).not.toBeNull();
+    expect(fri.personalizedPace!.source).toBe("catalog");
+    expect(fri.personalizedPace!.pace).toBe("10:30");
+  });
+
+  it("excludes easy aerobic / long runs from the personalization sample", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-05-02T12:00:00.000Z"));
+    const week = 8712;
+    const phase = "Quality Pace Exclusion";
+    await insertWeek(week, {
+      startDate: "2099-04-26",
+      endDate: "2099-05-02",
+      phase,
+    });
+    for (const d of [
+      { date: "2099-04-26", day: "Mon" },
+      { date: "2099-04-27", day: "Tue" },
+      { date: "2099-04-29", day: "Thu" },
+      { date: "2099-05-01", day: "Sat" },
+      { date: "2099-05-02", day: "Sun" },
+    ]) {
+      await insertPlanDay(week, phase, {
+        ...d,
+        sessionType: T_REST,
+        equipment: E_NONE,
+        isRest: true,
+      });
+    }
+    await insertPlanDay(week, phase, {
+      date: "2099-04-28",
+      day: "Wed",
+      sessionType: "Steady Run + Accessory",
+      equipment: E_OUTDOOR,
+      distanceMi: 4,
+      pace: "10:45",
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-04-30",
+      day: "Fri",
+      sessionType: "Tempo Run",
+      equipment: E_OUTDOOR,
+      distanceMi: 6,
+      pace: "10:30",
+    });
+    // 3 long runs and 3 easy aerobic runs — none qualify, so both Wed
+    // and Fri must fall back to their seeded catalog pace.
+    for (const date of ["2099-04-05", "2099-04-12", "2099-04-19"]) {
+      await insertWorkout({
+        date,
+        sessionType: "Long Run",
+        equipment: E_OUTDOOR,
+        pace: "12:00",
+        distanceMi: 12,
+      });
+    }
+    for (const date of ["2099-04-07", "2099-04-14", "2099-04-21"]) {
+      await insertWorkout({
+        date,
+        sessionType: "Aerobic Base",
+        equipment: E_OUTDOOR,
+        pace: "11:30",
+        distanceMi: 5,
+      });
+    }
+
+    const res = await request(app).get(`/api/plan/weeks/${week}`);
+    expect(res.status).toBe(200);
+    const days = res.body.days as Array<{
+      date: string;
+      personalizedPace: { source: string; sampleSize: number; pace: string } | null;
+    }>;
+    const wed = days.find((d) => d.date === "2099-04-28")!;
+    expect(wed.personalizedPace!.source).toBe("catalog");
+    expect(wed.personalizedPace!.sampleSize).toBe(0);
+    expect(wed.personalizedPace!.pace).toBe("10:45");
+    const fri = days.find((d) => d.date === "2099-04-30")!;
+    expect(fri.personalizedPace!.source).toBe("catalog");
+    expect(fri.personalizedPace!.pace).toBe("10:30");
+  });
+
+  it("attaches the overlay to /plan/today when today is a personalizable Wed/Fri row", async () => {
+    // Mock today onto the Fri tempo row so /plan/today returns it and
+    // we can assert the overlay is present there too.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-04-30T12:00:00.000Z"));
+
+    await setupQualityWeek(8713, ["10:00", "10:30", "11:00"]);
+
+    const res = await request(app).get(`/api/plan/today`);
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetTodayPlanResponse, res.body);
+    expect(res.body.plan).not.toBeNull();
+    expect(res.body.plan.day).toBe("Fri");
+    expect(res.body.plan.personalizedPace).toEqual({
+      pace: "10:30",
+      source: "personalized",
+      sampleSize: 3,
+      lookbackWeeks: 8,
+      basisPaceSeconds: 630,
+    });
+    expect(res.body.plan.personalizedRacePace).toBeNull();
+  });
+
+  it("returns null personalizedPace on /plan/today for non-personalizable rows", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-04-26T12:00:00.000Z"));
+
+    // Today is the Mon rest day — not Wed/Fri, so no overlay.
+    await setupQualityWeek(8714, ["10:00", "10:30", "11:00"]);
+
+    const res = await request(app).get(`/api/plan/today`);
+    expect(res.status).toBe(200);
+    expect(res.body.plan).not.toBeNull();
+    expect(res.body.plan.day).toBe("Mon");
+    expect(res.body.plan.personalizedPace).toBeNull();
+  });
+});
+
 describe("PATCH /api/plan/days/:id", () => {
   it("returns 404 when the plan day does not exist", async () => {
     const res = await request(app)

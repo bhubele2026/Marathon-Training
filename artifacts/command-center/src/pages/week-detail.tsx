@@ -843,6 +843,74 @@ export default function WeekDetail() {
                           </div>
                         );
                       })()}
+                      {/* Task #236: same "Personalized" / "From
+                          catalog" chip rendered alongside the Wed
+                          steady (Z3) and Fri tempo / threshold /
+                          race-pace rows. The server only populates
+                          `day.personalizedPace` on rows that match
+                          `isPersonalizableQualityPlanDay` AND carry
+                          a non-null catalog `pace`, so this block
+                          stays absent on every other card. Race-day
+                          Sun and Wed/Fri quality rows never overlap,
+                          so this chip and the race-day chip above
+                          can never both render on the same card. */}
+                      {(() => {
+                        const pp = day.personalizedPace ?? null;
+                        if (!pp) return null;
+                        const lowerSession = day.sessionType.toLowerCase();
+                        return (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span
+                                  className={cn(
+                                    "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wider w-fit cursor-help",
+                                    pp.source === "personalized"
+                                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                                      : "bg-muted text-muted-foreground",
+                                  )}
+                                  data-testid={`badge-quality-pace-source-${day.date}`}
+                                  data-pace-source={pp.source}
+                                  data-personalized-pace={pp.pace}
+                                >
+                                  <Sparkles className="h-3 w-3" />
+                                  {pp.source === "personalized"
+                                    ? `${pp.pace}/mi · Personalized`
+                                    : `${pp.pace}/mi · From catalog`}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent
+                                side="top"
+                                align="start"
+                                className="max-w-xs text-xs"
+                              >
+                                {pp.source === "personalized" && pp.basisPaceSeconds != null ? (
+                                  <span>
+                                    Personalized from {pp.sampleSize} quality run
+                                    {pp.sampleSize === 1 ? "" : "s"} (tempo / threshold /
+                                    interval / VO2 / race) in the last {pp.lookbackWeeks} weeks.
+                                    Avg training pace{" "}
+                                    <span className="font-mono font-bold">
+                                      {Math.floor(pp.basisPaceSeconds / 60)}:
+                                      {String(pp.basisPaceSeconds % 60).padStart(2, "0")}
+                                    </span>
+                                    /mi → today's {lowerSession} target{" "}
+                                    <span className="font-mono font-bold">{pp.pace}</span>/mi.
+                                  </span>
+                                ) : (
+                                  <span>
+                                    Showing the catalog {lowerSession} pace —
+                                    not enough recent quality runs in the last{" "}
+                                    {pp.lookbackWeeks} weeks to personalize. Log a few
+                                    tempo / threshold / interval workouts and this chip
+                                    will retune to your training.
+                                  </span>
+                                )}
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                        );
+                      })()}
                       <h4 className="text-xl font-black uppercase tracking-tight">{day.sessionType}</h4>
                       <p className="text-sm text-muted-foreground line-clamp-2">{day.description}</p>
                       {/* Slim day card (Task #133): show just the one
@@ -907,7 +975,21 @@ export default function WeekDetail() {
                             // personalize, in which case
                             // `personalizedRacePace.pace` IS the
                             // catalog value anyway).
-                            pace={day.personalizedRacePace?.pace ?? day.pace}
+                            // Task #236 extends Task #228: the
+                            // personalized prescribed-pace overlay
+                            // (Wed steady, Fri tempo / threshold /
+                            // race-pace) likewise overrides the
+                            // seeded `day.pace`.
+                            // race-pace > quality-pace > catalog
+                            // ordering is safe — race-day Sun and
+                            // Wed/Fri quality rows never overlap, so
+                            // at most one of these two overlays is
+                            // populated on any given row.
+                            pace={
+                              day.personalizedRacePace?.pace ??
+                              day.personalizedPace?.pace ??
+                              day.pace
+                            }
                             variant="prominent"
                             testId={`day-${day.date}-run-target`}
                             // Task #227: dress the race-week pace chip
