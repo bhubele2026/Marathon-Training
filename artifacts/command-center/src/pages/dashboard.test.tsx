@@ -112,7 +112,7 @@ const SUMMARY: {
   weeklySessionsCompleted: number;
   weeklySessionsPlanned: number;
   weeklyLifestyleMinutes: number;
-  prevWeeklyLifestyleMinutes: number;
+  prevFourWeekAvgLifestyleMinutes: number | null;
   totalMilesAllTime: number;
   longestRunMi: number;
   weightStart: number;
@@ -139,7 +139,7 @@ const SUMMARY: {
   weeklySessionsCompleted: 0,
   weeklySessionsPlanned: 5,
   weeklyLifestyleMinutes: 0,
-  prevWeeklyLifestyleMinutes: 0,
+  prevFourWeekAvgLifestyleMinutes: null,
   totalMilesAllTime: 0,
   longestRunMi: 0,
   weightStart: 280,

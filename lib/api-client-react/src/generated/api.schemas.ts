@@ -709,8 +709,9 @@ export interface DashboardSummary {
   weeklySessionsCompleted: number;
   weeklySessionsPlanned: number;
   weeklyLifestyleMinutes: number;
-  /** Lifestyle minutes from the previous plan week. Null when there is no previous week (week 1). */
-  prevWeeklyLifestyleMinutes?: number | null;
+  /** Task #34. Average lifestyle minutes per plan_week across the 4 weeks immediately preceding the active plan_week. Null when fewer than 4 prior plan_weeks exist (early-campaign / pre-launch), so the dashboard hides the trend indicator until there is enough history. Used by the Week Snapshot card to show whether the current week's lifestyle minutes are trending up, down, or flat against the runner's recent baseline.
+   */
+  prevFourWeekAvgLifestyleMinutes: number | null;
   totalMilesAllTime: number;
   longestRunMi: number;
   weightStart: number;

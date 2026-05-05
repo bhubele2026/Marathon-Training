@@ -655,21 +655,29 @@ export default function Dashboard() {
                 <span>Lifestyle Minutes</span>
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-foreground">{formatDuration(summary.weeklyLifestyleMinutes)}</span>
-                  {summary.prevWeeklyLifestyleMinutes != null && (() => {
-                    const diff = summary.weeklyLifestyleMinutes - summary.prevWeeklyLifestyleMinutes;
-                    if (diff > 0) return (
-                      <span className="flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400 text-xs" data-testid="lifestyle-trend-up">
-                        <TrendingUp className="h-3 w-3" />+{Math.round(diff)}m
+                  {/* Task #34: trend versus the previous 4-week average.
+                      Backend returns null when fewer than 4 prior plan_weeks
+                      exist, which hides the indicator until there's enough
+                      history. A small +/-5 minute deadband keeps tiny
+                      week-to-week jitter from flipping the arrow. */}
+                  {summary.prevFourWeekAvgLifestyleMinutes != null && (() => {
+                    const baseline = summary.prevFourWeekAvgLifestyleMinutes;
+                    const diff = summary.weeklyLifestyleMinutes - baseline;
+                    const fmt = (n: number) =>
+                      `${n > 0 ? "+" : ""}${Math.round(n)}m vs ${Math.round(baseline)}m avg`;
+                    if (diff > 5) return (
+                      <span className="flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400 text-xs" data-testid="lifestyle-trend-up" title="vs previous 4-week average">
+                        <TrendingUp className="h-3 w-3" />{fmt(diff)}
                       </span>
                     );
-                    if (diff < 0) return (
-                      <span className="flex items-center gap-0.5 text-amber-600 dark:text-amber-400 text-xs" data-testid="lifestyle-trend-down">
-                        <TrendingDown className="h-3 w-3" />{Math.round(diff)}m
+                    if (diff < -5) return (
+                      <span className="flex items-center gap-0.5 text-amber-600 dark:text-amber-400 text-xs" data-testid="lifestyle-trend-down" title="vs previous 4-week average">
+                        <TrendingDown className="h-3 w-3" />{fmt(diff)}
                       </span>
                     );
                     return (
-                      <span className="flex items-center gap-0.5 text-muted-foreground text-xs" data-testid="lifestyle-trend-flat">
-                        <ArrowRight className="h-3 w-3" />same
+                      <span className="flex items-center gap-0.5 text-muted-foreground text-xs" data-testid="lifestyle-trend-flat" title="vs previous 4-week average">
+                        <ArrowRight className="h-3 w-3" />~{Math.round(baseline)}m avg
                       </span>
                     );
                   })()}

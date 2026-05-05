@@ -33,14 +33,28 @@ router.get("/dashboard/summary", async (_req, res) => {
   const weekLifestyle = await db.execute<{ minutes: number }>(
     sql`SELECT COALESCE(SUM(duration_min), 0)::float AS minutes FROM workouts WHERE date BETWEEN ${startDate} AND ${endDate} AND equipment = ${LIFESTYLE_EQUIPMENT}`,
   );
-  const prevWeekRow = weekRow
-    ? (await db.select().from(planWeeksTable).where(eq(planWeeksTable.week, weekRow.week - 1)).limit(1))[0]
-    : null;
-  const prevWeekLifestyle = prevWeekRow
+  // Task #34: rolling 4-week average of lifestyle minutes across the
+  // plan_weeks immediately preceding the active week. The dashboard's
+  // Lifestyle Minutes row uses this baseline to show whether the runner
+  // is trending up / down / flat versus their recent norm. Null when
+  // fewer than 4 prior plan_weeks exist (early-campaign / pre-launch),
+  // so the trend indicator stays hidden until there's enough history.
+  const priorWeeksLifestyle = weekRow
     ? await db.execute<{ minutes: number }>(
-        sql`SELECT COALESCE(SUM(duration_min), 0)::float AS minutes FROM workouts WHERE date BETWEEN ${prevWeekRow.startDate} AND ${prevWeekRow.endDate} AND equipment = ${LIFESTYLE_EQUIPMENT}`,
+        sql`SELECT COALESCE(SUM(w.duration_min), 0)::float AS minutes
+            FROM plan_weeks pw
+            LEFT JOIN workouts w
+              ON w.date BETWEEN pw.start_date AND pw.end_date
+              AND w.equipment = ${LIFESTYLE_EQUIPMENT}
+            WHERE pw.week BETWEEN ${weekRow.week - 4} AND ${weekRow.week - 1}
+            GROUP BY pw.week
+            ORDER BY pw.week ASC`,
       )
     : null;
+  const prevFourWeekAvgLifestyleMinutes =
+    priorWeeksLifestyle && priorWeeksLifestyle.rows.length === 4
+      ? priorWeeksLifestyle.rows.reduce((sum, r) => sum + (r.minutes ?? 0), 0) / 4
+      : null;
   const weekPlanned = await db.execute<{ planned_sessions: number }>(
     sql`SELECT COUNT(*)::int AS planned_sessions FROM plan_days WHERE week = ${weekRow?.week ?? 0} AND is_rest = false`,
   );
@@ -224,7 +238,7 @@ router.get("/dashboard/summary", async (_req, res) => {
     weeklySessionsCompleted: weekActuals.rows[0]?.sessions ?? 0,
     weeklySessionsPlanned: weekPlanned.rows[0]?.planned_sessions ?? 0,
     weeklyLifestyleMinutes: weekLifestyle.rows[0]?.minutes ?? 0,
-    prevWeeklyLifestyleMinutes: prevWeekLifestyle ? (prevWeekLifestyle.rows[0]?.minutes ?? 0) : null,
+    prevFourWeekAvgLifestyleMinutes,
     totalMilesAllTime: allTime.rows[0]?.total_miles ?? 0,
     longestRunMi: longestRunActual.rows[0]?.longest ?? 0,
     weightStart: START_WEIGHT,
