@@ -20,6 +20,9 @@
     },
     {
       "path": "../../lib/plan-generator"
+    },
+    {
+      "path": "../../lib/visual-themes"
     }
   ]
 }

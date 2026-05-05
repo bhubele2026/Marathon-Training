@@ -27,6 +27,7 @@ Bike/row sessions are always 20–30 min max. Big run days (Fri quality, Sun lon
 - `artifacts/api-server` (`/api`, port 8080) — Express + Drizzle + Postgres backend.
 - `artifacts/command-center` (`/`, web) — React + Vite frontend (wouter, shadcn/ui, recharts, react-hook-form + zod).
 - `artifacts/mockup-sandbox` (`/__mockup`) — design preview only.
+- `lib/visual-themes` — shared palette data (5 themes + token→CSS-var map + helpers). Imported by both the command center (`src/lib/visual-themes.ts`, which re-exports under `Theme*` aliases) and the sandbox (`src/components/mockups/_shared/palettes.ts`). Edit colors here only.
 
 ## Pages
 
