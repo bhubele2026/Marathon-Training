@@ -14,3 +14,9 @@ pnpm --filter @workspace/scripts run backfill-plan-day-equipment
 # Backfill workouts.equipment_list from the scalar on legacy rows.
 # Idempotent — safe to re-run.
 pnpm --filter @workspace/scripts run backfill-workout-equipment
+# Backfill workouts.plan_day_id on legacy rows logged before task #143
+# introduced per-plan_day attribution. Picks the best-matching plan_day
+# on the workout's date by session_type + equipment so historical
+# adherence math on stacked weeks credits the right program.
+# Idempotent — safe to re-run.
+pnpm --filter @workspace/scripts run backfill-workout-plan-day
