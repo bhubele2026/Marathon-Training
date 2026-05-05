@@ -667,6 +667,46 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
     ],
   },
   {
+    // Task #205: parity entry that mirrors the `5k_hybrid_balanced` /
+    // `10k_hybrid_balanced` naming convention at the half-marathon
+    // distance. Functionally identical to `half_marathon_hybrid`
+    // (added in #219) — same `raceKind: "half"`, same metadata, same
+    // expand shape — so picking it routes through the hybrid pipeline
+    // and the per-kind `RACE_DAY_SPECS["half"]` race-week override,
+    // ending on a 13.1 mi RACE DAY Sun with Sat = "Race Prep".
+    id: "half_hybrid_balanced",
+    name: "Half Marathon — Balanced Hybrid",
+    level: "Intermediate",
+    goalDistance: "13.1 mi",
+    raceKind: "half",
+    source: "Alex Viada",
+    citation:
+      "Alex Viada, The Hybrid Athlete — half-marathon-distance concurrent training for runners and lifters.",
+    shortDescription:
+      "Heavier hybrid split scaled to the half-marathon: 3 lifts + 3 runs per week.",
+    longDescription:
+      "Viada's hybrid model applied at half-marathon distance: three full-body lifts plus an aerobic long run, a tempo run, and an easy run. The long run climbs to 10-12 mi; race-week load is handled by the hybrid generator's internal phase scalar.",
+    minWeeks: 10,
+    maxWeeks: 16,
+    defaultWeeks: 12,
+    metadata: {
+      intensityDistribution: "Balanced lift/run with weekly tempo + long run",
+      peakLongRun: "10-12 mi",
+      peakWeeklyVolume: "22-30 mpw + 3 lift sessions",
+      taperLength: "None (single hybrid block; load tapers via internal phase scalar)",
+      cutbackCadence: "Every 4th week ~25% reduction",
+      mandatoryRestDays: 1,
+      equipmentMixHint: "Lifts (Tonal/barbell) + Tread/Outdoor runs",
+    },
+    tags: ["half-marathon", "intermediate", "hybrid", "lift-and-run", "balanced", "viada"],
+    expand: (n) => [
+      makeBlock("Custom", n, {
+        customName: "Half Marathon Hybrid (Balanced)",
+        customNotes: "[hybrid-mix:balanced] [hybrid-days:5] [hybrid-level:intermediate]",
+      }),
+    ],
+  },
+  {
     id: "marathon",
     name: "Marathon",
     level: "Advanced",

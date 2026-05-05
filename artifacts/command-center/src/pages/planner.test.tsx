@@ -1323,6 +1323,9 @@ const EXPECTED_LEVELS: Record<string, "Beginner" | "Intermediate" | "Advanced"> 
   // `10k_hybrid_balanced` (the recipe-driven `half_marathon` and
   // `hm_pfitz` stay at Advanced).
   half_marathon_hybrid: "Intermediate",
+  // Task #205 — parity-named alias for `half_marathon_hybrid` keeping
+  // the `5k_hybrid_balanced` / `10k_hybrid_balanced` id convention.
+  half_hybrid_balanced: "Intermediate",
   // Advanced — half-marathon and marathon, run-only → heavier hybrid.
   half_marathon: "Advanced",
   hm_pfitz: "Advanced",

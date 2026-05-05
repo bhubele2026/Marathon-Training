@@ -1310,7 +1310,7 @@ describe("previewWeeklyMileage matches generatePlanFromConfig", () => {
     marathonDate: string;
     raceDistanceMi: number;
     descriptionPrefix: string;
-    previewRaceKind: "5k" | "10k";
+    previewRaceKind: "5k" | "10k" | "half";
   }> = [
     {
       name: "10K hybrid",
@@ -1333,6 +1333,23 @@ describe("previewWeeklyMileage matches generatePlanFromConfig", () => {
       raceDistanceMi: 3.1,
       descriptionPrefix: "RACE DAY — 5K (3.1 mi)",
       previewRaceKind: "5k",
+    },
+    {
+      // Task #205: half-marathon hybrid parity. The new
+      // `half_hybrid_balanced` template declares `raceKind: "half"`
+      // and routes through the same per-kind `RACE_DAY_SPECS["half"]`
+      // override as the recipe-driven half templates, so its trailing
+      // Sun must be a 13.1 mi RACE DAY and trailing Sat must be
+      // "Race Prep" — exactly like the 5K / 10K hybrid cases above.
+      name: "half hybrid",
+      // half_hybrid_balanced at its `defaultWeeks` of 12. Mon
+      // 2026-05-04 → Sun 2026-07-26 spans 12 weeks.
+      templateId: "half_hybrid_balanced",
+      weeks: 12,
+      marathonDate: "2026-07-26",
+      raceDistanceMi: 13.1,
+      descriptionPrefix: "RACE DAY — Half (13.1 mi)",
+      previewRaceKind: "half",
     },
   ];
 

@@ -39,6 +39,11 @@ describe("PLAN_TEMPLATES", () => {
         // the 10K hybrid (`10k_hybrid_balanced`); the recipe-driven
         // `half_marathon` and `hm_pfitz` stay at Advanced.
         "half_marathon_hybrid",
+        // Task #205: parity-named alias for `half_marathon_hybrid` that
+        // mirrors the `5k_hybrid_balanced` / `10k_hybrid_balanced` id
+        // convention. Same `raceKind: "half"` shape and Intermediate
+        // level — see comment in `templates.ts`.
+        "half_hybrid_balanced",
         // Advanced — half-marathon and marathon, run-only → heavier hybrid.
         "half_marathon",
         "hm_pfitz",
@@ -49,19 +54,21 @@ describe("PLAN_TEMPLATES", () => {
     );
   });
 
-  it("ships 16 templates split 5 / 6 / 5 across the three levels (Task #169 + Task #219)", () => {
+  it("ships 17 templates split 5 / 7 / 5 across the three levels (Task #169 + Task #219 + Task #205)", () => {
     // Task #219 added `half_marathon_hybrid` at the Intermediate level
     // (sitting alongside `10k_hybrid_balanced`), bumping the Intermediate
-    // bucket from 5 → 6 and the total from 15 → 16. Beginner and Advanced
-    // are unchanged.
-    expect(PLAN_TEMPLATES).toHaveLength(16);
+    // bucket from 5 → 6 and the total from 15 → 16. Task #205 added the
+    // parity-named `half_hybrid_balanced` (same shape as
+    // `5k_hybrid_balanced` / `10k_hybrid_balanced`), bumping Intermediate
+    // 6 → 7 and the total 16 → 17. Beginner and Advanced are unchanged.
+    expect(PLAN_TEMPLATES).toHaveLength(17);
     const counts = PLAN_TEMPLATES.reduce<Record<string, number>>(
       (acc, t) => ({ ...acc, [t.level]: (acc[t.level] ?? 0) + 1 }),
       {},
     );
     expect(counts).toEqual({
       Beginner: 5,
-      Intermediate: 6,
+      Intermediate: 7,
       Advanced: 5,
     });
   });
@@ -110,6 +117,10 @@ describe("PLAN_TEMPLATES", () => {
       // same min/default/max picker behavior whether they choose run-
       // only or the hybrid variant.
       half_marathon_hybrid: [10, 12, 16],
+      // Task #205 — parity-named alias mirrors the same week range so
+      // the picker behaves identically whether the runner picks
+      // `half_marathon_hybrid` or the parity-named `half_hybrid_balanced`.
+      half_hybrid_balanced: [10, 12, 16],
       // Advanced — half-marathon and marathon, run-only → heavier hybrid.
       half_marathon: [10, 12, 16],
       hm_pfitz: [10, 12, 16],
