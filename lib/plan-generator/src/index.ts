@@ -16,6 +16,7 @@ import {
   liftPrimaryKind,
   primaryMachineKind,
   projectEntries,
+  buildRaceDaySunRow,
   buildRaceEveSatRow,
   RACE_DAY_SPECS,
   type HybridFitnessLevel,
@@ -423,41 +424,33 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
     }
 
     // ---------- SUN: LONG RUN (no lift) or RACE ----------
-    // Race-day Sun (race week) reads its distance, description, run
-    // minutes, and total_load from the shared `RACE_DAY_SPECS.half`
-    // table (Task #218) — the same single source of truth that the
-    // recipe-driven `buildWeekDays` and hybrid `buildHybridWeekDays`
-    // race-day branches consume. Before this migration the legacy
-    // generator inlined "Half Marathon (13.1 mi)" copy, `run_min =
-    // round(13.1 * 12) = 157`, `pace = "12:00"`, and `total_load = 260`,
-    // which silently disagreed with `RACE_DAY_SPECS.half`'s "Half
-    // (13.1 mi)" copy, `runMinPerMi = 11` (→ run_min 144), and
-    // `totalLoad = 200`. Pace mirrors what the templated branch does
-    // (`recipe.tempoPace`) by reading the legacy generator's local
-    // `tempoPace` so the pace chip stays consistent with every other
-    // run shown that week.
+    // Race-day Sun (race week, w === TOTAL_WEEKS) is built end-to-end by
+    // the shared `buildRaceDaySunRow` helper (Task #217) so every field —
+    // distance / description / run_min / total_load / equipment list /
+    // session_type — is read from the same `RACE_DAY_SPECS[raceKind]`
+    // table the other two race-week Sun branches in `buildWeekDays`
+    // (recipe-driven) and `buildHybridWeekDays` (hybrid-driven) consume.
+    // The canonical 52-week plan classifies as `raceKind: "half"` (the
+    // template ends on a half marathon), so it pulls the half spec
+    // here. Before the Task #217/#218 consolidation, this branch inlined
+    // "Half Marathon (13.1 mi)" copy, `run_min = round(13.1 * 12) = 157`,
+    // and `total_load = 260`, which silently disagreed with the spec
+    // table's "Half (13.1 mi)" copy, `runMinPerMi = 11` (→ run_min 144),
+    // and `totalLoad = 200`; the helper now drives all of those from
+    // `RACE_DAY_SPECS.half`. Pace is caller-owned (parity with
+    // `buildRaceEveSatRow`); we pass the legacy generator's local
+    // `tempoPace` (Task #218) so the race-day pace chip stays consistent
+    // with the other run rows shown that week, mirroring what the
+    // templated branch does with `recipe.tempoPace`.
     let sunDay: DailyRow;
     if (isRaceWeek) {
-      const halfRaceSpec = RACE_DAY_SPECS.half;
-      const raceMin = Math.round(halfRaceSpec.distanceMi * halfRaceSpec.runMinPerMi);
-      sunDay = {
-        week: w,
+      sunDay = buildRaceDaySunRow({
+        weekNumber: w,
         phase,
         date: fmt(addDays(wkStart, 6)),
-        day: "Sun",
-        strength_load: 0,
-        equipment: "Outdoor",
-        equipment_list: ["Outdoor"],
-        description: halfRaceSpec.description,
-        strength_min: 0,
-        cardio_min: 0,
-        run_min: raceMin,
-        distance_mi: halfRaceSpec.distanceMi,
+        raceKind: "half",
         pace: tempoPace,
-        session_type: "Race",
-        is_rest: false,
-        total_load: halfRaceSpec.totalLoad,
-      };
+      });
     } else {
       const longEquipment = w % 2 === 0 ? "Outdoor" : "Peloton Tread";
       const longDesc =
@@ -2139,32 +2132,21 @@ function buildHybridWeekDays(opts: {
       });
     }
     if (isRaceWeek && dayOffset === 6 && raceKind !== "none") {
-      // Race day Sunday: pull the per-kind race-day spec (Task #200).
-      // marathon → 26.2, half → 13.1, 10K → 6.2, 5K → 3.1. Mirrors the
-      // non-hybrid race-day branch in `buildWeekDays` (same
-      // description, distance, pace, run_min, session_type, total_load)
-      // so a hybrid race plan ends on the same race-day Sunday as its
-      // recipe-driven counterpart at the matching distance.
-      const spec = RACE_DAY_SPECS[raceKind];
-      const raceMin = Math.round(spec.distanceMi * spec.runMinPerMi);
-      return {
-        week: weekNumber,
+      // Race day Sunday: built end-to-end by the shared
+      // `buildRaceDaySunRow` helper (Task #217) so every field reads
+      // from the same `RACE_DAY_SPECS[raceKind]` table the canonical
+      // 52-week (`generatePlan`, line ~441) and recipe-driven
+      // (`buildWeekDays`, line ~2614) race-day Sun branches consume.
+      // marathon → 26.2, half → 13.1, 10K → 6.2, 5K → 3.1 — distance,
+      // description, run_min, total_load all come from the spec; this
+      // branch supplies the hybrid quality pace.
+      return buildRaceDaySunRow({
+        weekNumber,
         phase,
         date,
-        day,
-        strength_load: 0,
-        equipment: "Outdoor",
-        equipment_list: ["Outdoor"],
-        description: spec.description,
-        strength_min: 0,
-        cardio_min: 0,
-        run_min: raceMin,
-        distance_mi: spec.distanceMi,
+        raceKind,
         pace: qualityPace,
-        session_type: "Race",
-        is_rest: false,
-        total_load: spec.totalLoad,
-      };
+      });
     }
 
     if (slot.kind === "rest") {
@@ -2614,34 +2596,26 @@ function buildWeekDays(opts: {
   const machine: PrimaryMachineKind | null = primaryMachineKind(block.customNotes);
 
   // ---------- SUN: LONG RUN or RACE ----------
+  // Race-day Sun (race week, non-"none" raceKind) is built end-to-end
+  // by the shared `buildRaceDaySunRow` helper (Task #217). Every field
+  // — distance, description, run_min, total_load, equipment list,
+  // session_type, pace — reads from the same `RACE_DAY_SPECS[raceKind]`
+  // table the canonical 52-week (`generatePlan`, line ~441) and hybrid
+  // (`buildHybridWeekDays`, line ~2130) race-day Sun branches consume.
+  // Marathon keeps the exact numbers task #184 / earlier tests pinned
+  // (distance 26.2, run_min 288, total_load 350); half / 10K / 5K each
+  // pull their own distance / description / load from the spec table so
+  // a Higdon Novice 5K plan ends on a real 3.1 mi race-day Sunday
+  // instead of the trailing Taper recipe's natural ~4 mi long run.
   let sunDay: DailyRow;
   if (isRaceWeek && raceKind !== "none") {
-    // Per-kind race-day spec (task #191). Marathon keeps the exact
-    // numbers task #184 / earlier tests pinned (distance 26.2,
-    // run_min 288, total_load 350); half / 10K / 5K each pull their
-    // own distance / description / load from the spec table so a
-    // Higdon Novice 5K plan ends on a real 3.1 mi race-day Sunday
-    // instead of the trailing Taper recipe's natural ~4 mi long run.
-    const spec = RACE_DAY_SPECS[raceKind];
-    const raceMin = Math.round(spec.distanceMi * spec.runMinPerMi);
-    sunDay = {
-      week: weekNumber,
+    sunDay = buildRaceDaySunRow({
+      weekNumber,
       phase,
       date: fmt(addDays(wkStart, 6)),
-      day: "Sun",
-      strength_load: 0,
-      equipment: "Outdoor",
-      equipment_list: ["Outdoor"],
-      description: spec.description,
-      strength_min: 0,
-      cardio_min: 0,
-      run_min: raceMin,
-      distance_mi: spec.distanceMi,
+      raceKind,
       pace: recipe.tempoPace,
-      session_type: "Race",
-      is_rest: false,
-      total_load: spec.totalLoad,
-    };
+    });
   } else {
     const longRun = recipe.longRunMi(weekInBlock, blockWeeks, isCutback, isTrailingBlock);
     const longEquipment = weekNumber % 2 === 0 ? "Outdoor" : "Peloton Tread";

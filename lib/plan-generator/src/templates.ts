@@ -1428,6 +1428,68 @@ export const RACE_DAY_SPECS: Readonly<
   },
 };
 
+// Build the entire race-day Sunday `DailyRow` from the shared
+// `RACE_DAY_SPECS[raceKind]` table. All three race-week Sun branches in
+// `index.ts` (generatePlan canonical 52-week, buildWeekDays recipe-driven,
+// buildHybridWeekDays hybrid pipeline) call this helper so every field —
+// strength_load (always 0; the heavy weekend lift is dropped on race day),
+// equipment / equipment_list (always Outdoor on race day), description,
+// minutes (strength_min / cardio_min always 0; run_min derived from the
+// spec's distance × per-mile pace estimate), distance_mi, session_type
+// ("Race"), is_rest, total_load — has exactly one source of truth and
+// cannot drift across branches (Task #217). Mirrors the race-eve Sat
+// helper (`buildRaceEveSatRow`, Task #215) so the campaign-final weekend
+// is fully centralized.
+//
+// Inputs:
+//   - weekNumber: written to the row's `week` field.
+//   - phase: phase label for the row (race-week phase string set by caller).
+//   - date: pre-formatted ISO date string for the Sunday row. Callers
+//     compute this themselves (`fmt(addDays(wkStart, 6))` or the recipe's
+//     own per-day date) so this helper stays free of date arithmetic.
+//   - raceKind: which `RACE_DAY_SPECS` entry to pull. Must be a
+//     non-"none" race kind (the caller's race-day gate has already
+//     verified `raceKind !== "none"`).
+//   - pace: the runner-facing pace string surfaced on the row. Each
+//     caller picks its own (canonical 52-week plan uses the legacy
+//     "12:00", `buildWeekDays` uses `recipe.tempoPace`,
+//     `buildHybridWeekDays` uses the resolved hybrid quality pace).
+//   - customSuffix: optional trailing text appended to the description.
+//     Currently unused by all three callers (the spec description owns
+//     the full race-day prose), but accepted for symmetry with
+//     `buildRaceEveSatRow` so a future per-recipe note can be threaded
+//     through without touching the helper signature again.
+export function buildRaceDaySunRow(args: {
+  weekNumber: number;
+  phase: string;
+  date: string;
+  raceKind: Exclude<PlanRaceKind, "none">;
+  pace: string | null;
+  customSuffix?: string;
+}): DailyRow {
+  const { weekNumber, phase, date, raceKind, pace, customSuffix = "" } = args;
+  const spec = RACE_DAY_SPECS[raceKind];
+  const raceMin = Math.round(spec.distanceMi * spec.runMinPerMi);
+  return {
+    week: weekNumber,
+    phase,
+    date,
+    day: "Sun",
+    strength_load: 0,
+    equipment: "Outdoor",
+    equipment_list: ["Outdoor"],
+    description: spec.description + customSuffix,
+    strength_min: 0,
+    cardio_min: 0,
+    run_min: raceMin,
+    distance_mi: spec.distanceMi,
+    pace,
+    session_type: "Race",
+    is_rest: false,
+    total_load: spec.totalLoad,
+  };
+}
+
 // Opinionated starter shortcuts surfaced as one-click "Use this starter"
 // buttons. Each starter is a COMPOSITION of TemplateEntry objects — an
 // Aerobic Base lead-in followed by a race-specific template — so that
