@@ -281,6 +281,12 @@ paths:
         - in: query
           name: equipment
           schema: { type: string }
+        - in: query
+          name: timeOfDay
+          description: Filter to workouts with a matching timeOfDay tag. Combines with equipment/date filters. Omit to include all rows regardless of tag.
+          schema:
+            type: string
+            enum: [AM, PM, Other]
       responses:
         "200":
           description: OK

@@ -36,14 +36,12 @@ export default function Log() {
 
   const queryParams = {
     ...(equipment !== "All" ? { equipment } : {}),
+    ...(timeOfDay !== "All" ? { timeOfDay: timeOfDay as "AM" | "PM" | "Other" } : {}),
     ...(from ? { from } : {}),
     ...(to ? { to } : {}),
   };
 
-  const { data: rawWorkouts, isLoading } = useListWorkouts(queryParams);
-  const workouts = timeOfDay === "All"
-    ? rawWorkouts
-    : rawWorkouts?.filter((w) => (w.timeOfDay ?? "Other") === timeOfDay);
+  const { data: workouts, isLoading } = useListWorkouts(queryParams);
   const deleteWorkout = useDeleteWorkout();
   const { toast } = useToast();
   const queryClient = useQueryClient();

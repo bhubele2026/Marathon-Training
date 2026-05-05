@@ -1912,6 +1912,12 @@ export const ListWorkoutsQueryParams = zod.object({
   from: zod.coerce.string().optional(),
   to: zod.coerce.string().optional(),
   equipment: zod.coerce.string().optional(),
+  timeOfDay: zod
+    .enum(["AM", "PM", "Other"])
+    .optional()
+    .describe(
+      "Filter to workouts with a matching timeOfDay tag. Combines with equipment\/date filters. Omit to include all rows regardless of tag.",
+    ),
 });
 
 export const ListWorkoutsResponseItem = zod.object({

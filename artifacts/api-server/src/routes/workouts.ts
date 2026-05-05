@@ -83,11 +83,12 @@ router.get("/workouts", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
-  const { limit, from, to, equipment } = parsed.data;
+  const { limit, from, to, equipment, timeOfDay } = parsed.data;
   const conditions = [];
   if (from) conditions.push(gte(workoutsTable.date, from));
   if (to) conditions.push(lte(workoutsTable.date, to));
   if (equipment) conditions.push(eq(workoutsTable.equipment, equipment));
+  if (timeOfDay) conditions.push(eq(workoutsTable.timeOfDay, timeOfDay));
   // Left join the matched plan day so each Workout row carries the
   // prescribed run-target snapshot (Task #140). Rows with no
   // `planDayId`, or whose referenced plan day was deleted, get a NULL

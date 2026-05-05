@@ -1198,7 +1198,20 @@ export type ListWorkoutsParams = {
   from?: string;
   to?: string;
   equipment?: string;
+  /**
+   * Filter to workouts with a matching timeOfDay tag. Combines with equipment/date filters. Omit to include all rows regardless of tag.
+   */
+  timeOfDay?: ListWorkoutsTimeOfDay;
 };
+
+export type ListWorkoutsTimeOfDay =
+  (typeof ListWorkoutsTimeOfDay)[keyof typeof ListWorkoutsTimeOfDay];
+
+export const ListWorkoutsTimeOfDay = {
+  AM: "AM",
+  PM: "PM",
+  Other: "Other",
+} as const;
 
 export type GetRecentLifestyleActivities200Item = {
   sessionType: string;
