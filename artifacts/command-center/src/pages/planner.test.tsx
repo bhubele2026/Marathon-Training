@@ -2854,6 +2854,48 @@ describe("Custom hybrid builder card (Task #136)", () => {
     expect(raceSun.textContent).toContain("26.2 mi");
   });
 
+  // Task #212: when the loaded config classifies as a non-marathon
+  // race (here: half via a single half_hybrid_balanced entry that lands
+  // its trailing Sunday on the pinned marathonDate), the race-week
+  // preview must show the matching 13.1 mi RACE DAY — NOT the legacy
+  // 26.2 mi default. Pre-task #212 the entries branch already routed
+  // this case correctly, but the cursor branch still returned
+  // "marathon" — pinning this end-to-end with a 13.1 mi assertion
+  // guards against either branch silently regressing back to the
+  // marathon default.
+  it("mounts the race-week preview at 13.1 mi when the config classifies as a half-marathon hybrid", () => {
+    renderPlanner({
+      config: {
+        ...SAMPLE_CONFIG,
+        startDate: "2026-05-04",
+        // 12 weeks × 7 - 1 = 83 days after 2026-05-04 → 2026-07-26 Sun.
+        marathonDate: "2026-07-26",
+        blocks: [
+          {
+            focusType: "Custom",
+            weeks: 12,
+            customName: "Half Marathon Hybrid (Balanced)",
+            customNotes: null,
+          },
+        ],
+        entries: [
+          {
+            templateId: "half_hybrid_balanced",
+            weeks: 12,
+            customName: null,
+            customNotes: null,
+            startDate: null,
+          },
+        ],
+      } as unknown as typeof SAMPLE_CONFIG,
+    });
+    const raceSun = screen.getByTestId("planner-hybrid-preview-race-week-sun");
+    expect(raceSun.getAttribute("data-race-day")).toBe("true");
+    expect(raceSun.textContent).toContain("RACE DAY");
+    expect(raceSun.textContent).toContain("13.1 mi");
+    expect(raceSun.textContent).not.toContain("26.2 mi");
+  });
+
   it("encodes slider/days/level into customNotes when the runner clicks Build", () => {
     // Start from a blank config so the new entry is the first one and
     // the Composition badge is unambiguous.

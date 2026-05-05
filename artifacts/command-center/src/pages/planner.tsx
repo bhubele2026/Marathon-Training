@@ -1064,6 +1064,18 @@ export default function Planner() {
     setIsMarathonMode(
       !(Array.isArray(cfgEntries) && cfgEntries.length > 0) && !hasLiftPrimary,
     );
+    // Task #212: scope `lastAppliedTemplate` to the selected config so a
+    // template id from a previously-edited config can't leak into the
+    // current config's `hybridRaceKind` cursor branch and produce the
+    // wrong race-week distance. When the loaded config has entries, seed
+    // from the trailing entry (same anchor `entriesRaceKind` reads from);
+    // otherwise reset to null so the cursor branch falls back to its
+    // legacy "marathon" default until the runner applies a template.
+    const lastEntry =
+      Array.isArray(cfgEntries) && cfgEntries.length > 0
+        ? cfgEntries[cfgEntries.length - 1]
+        : null;
+    setLastAppliedTemplate(lastEntry?.templateId ?? null);
     setHydratedForId(selectedId);
   }, [selectedId, hydratedForId, detailQuery.data]);
 
@@ -1917,8 +1929,14 @@ export default function Planner() {
   //      Apply path uses to set marathonDate. When this end matches
   //      the runner's pinned marathonDate Sunday, the hybrid IS the
   //      campaign-final block and the race-week preview applies. In
-  //      this branch the raceKind defaults to "marathon" since
-  //      marathonDate is, by name, the marathon Sunday.
+  //      this branch the raceKind is inferred from `lastAppliedTemplate`
+  //      (Task #212) — whichever template most recently anchored
+  //      marathonDate. So a runner who applied `half_hybrid_intermediate`
+  //      and then dropped into blocks-mode to tweak the phases still
+  //      gets a 13.1 mi race-day Sunday in the preview instead of
+  //      defaulting to 26.2 mi. Falls back to "marathon" when the
+  //      anchoring template is unknown / non-race (e.g. the runner
+  //      typed marathonDate manually) so the legacy behavior holds.
   // Marathon mode (legacy block-based) does NOT trigger race-week
   // preview here — in that mode the auto-pinned 16w Marathon-Specific
   // tail is the actual race-day finisher, not the hybrid block.
@@ -1949,13 +1967,27 @@ export default function Planner() {
       }
     }
     const end = addDaysISO(cursor, hybridBuilderWeeks * 7 - 1);
-    return end === marathonDate ? "marathon" : "none";
+    if (end !== marathonDate) return "none";
+    // Task #212: infer the race kind from whichever template most
+    // recently anchored marathonDate. In blocks-mode there's no
+    // per-entry templateId to read, but `lastAppliedTemplate` holds
+    // the id the runner clicked Apply on (or the trailing entry from
+    // the last entries-mode session) — same template that pinned the
+    // current marathonDate. Falls back to "marathon" when the signal
+    // is missing or the template isn't race-targeted (e.g. the runner
+    // edited marathonDate by hand) so the prior default behavior
+    // holds for legacy marathon configs.
+    const inferred = lastAppliedTemplate
+      ? templateRaceKindById(lastAppliedTemplate)
+      : "none";
+    return inferred !== "none" ? inferred : "marathon";
   }, [
     isEntriesMode,
     entries,
     marathonDate,
     startDate,
     hybridBuilderWeeks,
+    lastAppliedTemplate,
   ]);
   const hybridIsRaceWeek = hybridRaceKind !== "none";
   // Task #156: clamp the preview-week selector to 1..hybridBuilderWeeks
