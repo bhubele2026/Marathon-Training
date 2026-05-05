@@ -17,6 +17,7 @@ vi.mock("@/hooks/use-run-targeting-mode", () => ({
   useRunTargetingMode: () => "pace",
   useMaxHr: () => null,
   useRestingHr: () => null,
+  useHrZoneModel: () => "five_zone_max",
 }));
 
 import { RunTargetLine } from "./run-target-line";

@@ -1,4 +1,5 @@
 import {
+  useHrZoneModel,
   useMaxHr,
   useRestingHr,
   useRunTargetingMode,
@@ -57,6 +58,7 @@ export function RunTargetLine({
   const mode = useRunTargetingMode();
   const maxHr = useMaxHr();
   const restingHr = useRestingHr();
+  const hrZoneModel = useHrZoneModel();
   if (!isRunSession({ sessionType, runMin, distanceMi })) return null;
   const { primary, modeLabel, bucket } = formatRunTarget(mode, {
     sessionType,
@@ -66,6 +68,7 @@ export function RunTargetLine({
     pace,
     maxHr,
     restingHr,
+    hrZoneModel,
   });
 
   const showZoneSwatch = mode === "hr_zones";

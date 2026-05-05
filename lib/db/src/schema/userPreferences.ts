@@ -31,6 +31,14 @@ export const userPreferencesTable = pgTable("user_preferences", {
   // Stored as a small integer in a realistic range (30-110); the API
   // and UI both clamp to the same window.
   restingHr: integer("resting_hr"),
+  // Which HR zone model the user follows (Task #158). Drives the zone
+  // labels and percentage table the HR Zone targeting mode renders. The
+  // 5-zone % of max model is the legacy default; runners coached on
+  // Friel's 7-zone, Coggan's HR zones, or a polarized 3-zone framework
+  // pick their preferred model here so "Zone 2" means what their plan
+  // expects. Stored as text; the lookup table lives in the frontend
+  // (`artifacts/command-center/src/lib/run-target.ts`).
+  hrZoneModel: text("hr_zone_model").notNull().default("five_zone_max"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -45,3 +53,19 @@ export const RUN_TARGETING_MODES = [
   "pace",
 ] as const;
 export type RunTargetingMode = (typeof RUN_TARGETING_MODES)[number];
+
+// Supported HR zone models (Task #158). Each one ships with its own
+// label set and percentage table in the frontend run-target lookup.
+//   - five_zone_max    : default. 50/60/70/80/90% of max, Z1-Z5.
+//   - friel_7_zone     : Joe Friel's running 7-zone model (% LTHR
+//                        converted to % HRmax).
+//   - coggan_5_zone    : Coggan HR zones (% LTHR converted to % HRmax).
+//   - polarized_3_zone : 3-zone polarized model (Z1 below VT1, Z2
+//                        between VT1-VT2, Z3 above VT2).
+export const HR_ZONE_MODELS = [
+  "five_zone_max",
+  "friel_7_zone",
+  "coggan_5_zone",
+  "polarized_3_zone",
+] as const;
+export type HrZoneModel = (typeof HR_ZONE_MODELS)[number];

@@ -30,6 +30,7 @@ vi.mock("@workspace/api-client-react", () => ({
       runTargetingMode: runTargetingModeRef.current,
       maxHr: maxHrRef.current,
       restingHr: null,
+      hrZoneModel: "five_zone_max",
     },
     isLoading: false,
   }),
@@ -43,6 +44,12 @@ vi.mock("@workspace/api-client-react", () => ({
     intervals: "intervals",
     hr_zones: "hr_zones",
     pace: "pace",
+  },
+  UserPreferencesHrZoneModel: {
+    five_zone_max: "five_zone_max",
+    friel_7_zone: "friel_7_zone",
+    coggan_5_zone: "coggan_5_zone",
+    polarized_3_zone: "polarized_3_zone",
   },
 }));
 

@@ -1187,6 +1187,27 @@ export const UserPreferencesRunTargetingMode = {
 } as const;
 
 /**
+ * Which HR zone model the user follows (Task #158). Drives the
+zone labels and percentage table the HR Zone targeting mode
+renders next to each "Zone N" line.
+  - five_zone_max    : 5-zone % of max (legacy default).
+  - friel_7_zone     : Joe Friel running 7-zone (% LTHR).
+  - coggan_5_zone    : Coggan HR zones (% LTHR).
+  - polarized_3_zone : 3-zone polarized.
+Defaults to "five_zone_max" on new accounts.
+
+ */
+export type UserPreferencesHrZoneModel =
+  (typeof UserPreferencesHrZoneModel)[keyof typeof UserPreferencesHrZoneModel];
+
+export const UserPreferencesHrZoneModel = {
+  five_zone_max: "five_zone_max",
+  friel_7_zone: "friel_7_zone",
+  coggan_5_zone: "coggan_5_zone",
+  polarized_3_zone: "polarized_3_zone",
+} as const;
+
+/**
  * Single-user preferences applied across the app. Exposes the run targeting mode (Task
  */
 export interface UserPreferences {
@@ -1221,6 +1242,16 @@ average. When null, the HR Zone math falls back to the simple
    * @maximum 110
    */
   restingHr: number | null;
+  /** Which HR zone model the user follows (Task #158). Drives the
+zone labels and percentage table the HR Zone targeting mode
+renders next to each "Zone N" line.
+  - five_zone_max    : 5-zone % of max (legacy default).
+  - friel_7_zone     : Joe Friel running 7-zone (% LTHR).
+  - coggan_5_zone    : Coggan HR zones (% LTHR).
+  - polarized_3_zone : 3-zone polarized.
+Defaults to "five_zone_max" on new accounts.
+ */
+  hrZoneModel: UserPreferencesHrZoneModel;
   updatedAt: string;
 }
 
@@ -1232,6 +1263,16 @@ export const UpdateUserPreferencesBodyRunTargetingMode = {
   intervals: "intervals",
   hr_zones: "hr_zones",
   pace: "pace",
+} as const;
+
+export type UpdateUserPreferencesBodyHrZoneModel =
+  (typeof UpdateUserPreferencesBodyHrZoneModel)[keyof typeof UpdateUserPreferencesBodyHrZoneModel];
+
+export const UpdateUserPreferencesBodyHrZoneModel = {
+  five_zone_max: "five_zone_max",
+  friel_7_zone: "friel_7_zone",
+  coggan_5_zone: "coggan_5_zone",
+  polarized_3_zone: "polarized_3_zone",
 } as const;
 
 /**
@@ -1252,6 +1293,7 @@ export interface UpdateUserPreferencesBody {
    * @maximum 110
    */
   restingHr?: number | null;
+  hrZoneModel?: UpdateUserPreferencesBodyHrZoneModel;
 }
 
 /**

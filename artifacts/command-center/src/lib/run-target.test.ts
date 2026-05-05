@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { formatRunTarget, hrZoneBpmRange } from "./run-target";
+import {
+  formatRunTarget,
+  getHrZoneModelDef,
+  hrZoneBpmRange,
+  hrZoneLabel,
+  resolveHrZoneModel,
+} from "./run-target";
 
 describe("hrZoneBpmRange", () => {
   it("returns null when maxHr is missing", () => {
@@ -145,6 +151,87 @@ describe("formatRunTarget hr_zones mode", () => {
   // swatch shown next to "Zone N · …". Locking it in so the buckets
   // stay aligned with the Settings preview ramp (1=grey, 2=green,
   // 3=yellow, 4=orange, 5=red).
+  // Task #158 — alternate zone models
+  describe("alternate HR zone models", () => {
+    it("five_zone_max stays the default and matches the legacy ranges", () => {
+      // Bucket 2 = Zone 2 = 60-70% of 200 = 120-140 — same as the
+      // baseline test above, but routed through the explicit model
+      // parameter to lock in equivalence.
+      expect(hrZoneBpmRange(2, 200, null, "five_zone_max")).toEqual({
+        low: 120,
+        high: 140,
+      });
+      expect(hrZoneLabel(2, "five_zone_max")).toBe("Zone 2");
+    });
+
+    it("friel_7_zone exposes 7 zones and renders Friel zone labels", () => {
+      const def = getHrZoneModelDef("friel_7_zone");
+      expect(def.zones.map((z) => z.label)).toEqual([
+        "Zone 1",
+        "Zone 2",
+        "Zone 3",
+        "Zone 4",
+        "Zone 5a",
+        "Zone 5b",
+        "Zone 5c",
+      ]);
+      // intensityBucket("tempo run") = 4 → Friel Zone 4 (84-88% max).
+      expect(
+        formatRunTarget("hr_zones", {
+          sessionType: "tempo run",
+          week: 4,
+          runMin: 30,
+          maxHr: 200,
+          hrZoneModel: "friel_7_zone",
+        }),
+      ).toEqual({
+        primary: "Zone 4 · 168-176 bpm",
+        modeLabel: "HR Zone",
+        bucket: 4,
+      });
+      // bucket 5 (vo2/intervals) is mapped to Z5b, not Z5c.
+      expect(hrZoneLabel(5, "friel_7_zone")).toBe("Zone 5b");
+    });
+
+    it("polarized_3_zone collapses easy/long to Z1 and tempo to Z2", () => {
+      // Easy run (bucket 2) → Polarized Z1.
+      expect(
+        formatRunTarget("hr_zones", {
+          sessionType: "easy run",
+          week: 4,
+          runMin: 30,
+          maxHr: 200,
+          hrZoneModel: "polarized_3_zone",
+        }).primary,
+      ).toBe("Z1 Easy · 100-160 bpm");
+      // Tempo run (bucket 4) → Polarized Z2.
+      expect(hrZoneLabel(4, "polarized_3_zone")).toBe("Z2 Threshold");
+      // VO2 (bucket 5) → Polarized Z3.
+      expect(hrZoneLabel(5, "polarized_3_zone")).toBe("Z3 Hard");
+    });
+
+    it("coggan_5_zone uses Coggan-style names", () => {
+      expect(hrZoneLabel(1, "coggan_5_zone")).toBe("Z1 Active Recovery");
+      expect(hrZoneLabel(4, "coggan_5_zone")).toBe("Z4 Threshold");
+      // Karvonen still applies — Coggan Z4 is 85-94% of HRR over a
+      // 200/50 athlete = 50 + (150 * .85)..50 + (150 * .94) = 178-191.
+      expect(hrZoneBpmRange(4, 200, 50, "coggan_5_zone")).toEqual({
+        low: 178,
+        high: 191,
+      });
+    });
+
+    it("resolveHrZoneModel falls back to five_zone_max for null/unknown values", () => {
+      expect(resolveHrZoneModel(null)).toBe("five_zone_max");
+      expect(resolveHrZoneModel(undefined)).toBe("five_zone_max");
+      // Casts a bogus string to satisfy the union; we want runtime
+      // resilience, not a compile error.
+      expect(
+        resolveHrZoneModel("nonsense" as unknown as Parameters<typeof resolveHrZoneModel>[0]),
+      ).toBe("five_zone_max");
+    });
+  });
+
   it("returns the intensity bucket so HR-zone callers can color the swatch", () => {
     expect(
       formatRunTarget("hr_zones", { ...baseInput, sessionType: "recovery jog" })

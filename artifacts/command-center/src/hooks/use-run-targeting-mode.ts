@@ -1,6 +1,7 @@
 import {
   useGetUserPreferences,
   type UserPreferencesRunTargetingMode,
+  type UserPreferencesHrZoneModel,
 } from "@workspace/api-client-react";
 
 // Tiny convenience hook that returns the active run targeting mode (Task
@@ -29,4 +30,14 @@ export function useMaxHr(): number | null {
 export function useRestingHr(): number | null {
   const { data } = useGetUserPreferences();
   return data?.restingHr ?? null;
+}
+
+// Companion hook (Task #158) returning the user's chosen HR zone
+// model, or "five_zone_max" while the prefs query is loading / errored
+// or for accounts that never picked one. Drives the zone labels and
+// percentage table the HR Zone targeting mode renders, plus the
+// Settings preview table.
+export function useHrZoneModel(): UserPreferencesHrZoneModel {
+  const { data } = useGetUserPreferences();
+  return data?.hrZoneModel ?? "five_zone_max";
 }

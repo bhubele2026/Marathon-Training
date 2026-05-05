@@ -15,6 +15,7 @@ type ApiUserPreferences = {
   runTargetingMode: string;
   maxHr: number | null;
   restingHr: number | null;
+  hrZoneModel: string;
   updatedAt: string;
 };
 
@@ -23,6 +24,7 @@ function toApi(row: UserPreferencesRow): ApiUserPreferences {
     runTargetingMode: row.runTargetingMode,
     maxHr: row.maxHr,
     restingHr: row.restingHr,
+    hrZoneModel: row.hrZoneModel,
     updatedAt: row.updatedAt.toISOString(),
   };
 }
@@ -75,6 +77,11 @@ router.put("/preferences", async (req, res) => {
   // Same convention for restingHr (Task #146): null clears, omit leaves alone.
   if (parsed.data.restingHr !== undefined) {
     updates.restingHr = parsed.data.restingHr;
+  }
+  // Task #158 — HR zone model. Treated like runTargetingMode: enum
+  // string, not nullable; omit to leave the saved choice alone.
+  if (parsed.data.hrZoneModel !== undefined) {
+    updates.hrZoneModel = parsed.data.hrZoneModel;
   }
   if (Object.keys(updates).length === 0) {
     const row = await readOrSeed();

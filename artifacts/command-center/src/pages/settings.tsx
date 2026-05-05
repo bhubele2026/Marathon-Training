@@ -4,17 +4,32 @@ import {
   useUpdateUserPreferences,
   getGetUserPreferencesQueryKey,
   UserPreferencesRunTargetingMode,
+  UserPreferencesHrZoneModel,
   type UserPreferencesRunTargetingMode as RunTargetingMode,
+  type UserPreferencesHrZoneModel as HrZoneModel,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { hrZoneBpmRange, HR_ZONE_COLORS } from "@/lib/run-target";
+import {
+  HR_ZONE_COLORS,
+  HR_ZONE_MODEL_DESCRIPTIONS,
+  HR_ZONE_MODEL_LABELS,
+  getHrZoneModelDef,
+  resolveHrZoneModel,
+} from "@/lib/run-target";
 import { useVisualTheme } from "@/lib/visual-theme";
 import { type ThemeKey } from "@/lib/visual-themes";
 
@@ -90,6 +105,8 @@ export default function Settings() {
   });
 
   const value: RunTargetingMode = data?.runTargetingMode ?? "effort";
+  const hrZoneModel: HrZoneModel = resolveHrZoneModel(data?.hrZoneModel);
+  const hrZoneModelDef = getHrZoneModelDef(hrZoneModel);
 
   // Local form state for the max HR input. Seeded from the saved value
   // and re-synced whenever the prefs query returns fresh data so the
@@ -140,13 +157,35 @@ export default function Settings() {
     parsedRestingHr < parsedMaxHr;
   const previewRestingHr = previewUsesKarvonen ? parsedRestingHr : null;
 
-  const zoneBuckets = [1, 2, 3, 4, 5] as const;
+  // Task #158 — preview rows iterate the active model's zone table
+  // rather than the hard-coded 1-5 buckets. Friel ships 7 rows,
+  // polarized 3, etc. We still expose `zone-preview-{row,swatch,range}-N`
+  // test ids keyed by the 1-indexed zone number so existing
+  // bucket-1..5 assertions keep working under the 5-zone default.
   const zonePreviews =
     parsedMaxHr != null && isMaxHrValid
-      ? zoneBuckets.map((bucket) => ({
-          bucket,
-          range: hrZoneBpmRange(bucket, parsedMaxHr, previewRestingHr),
-        }))
+      ? hrZoneModelDef.zones.map((zone, idx) => {
+          const reserve =
+            previewUsesKarvonen && parsedMaxHr != null && previewRestingHr != null
+              ? parsedMaxHr - previewRestingHr
+              : null;
+          const range =
+            reserve != null && previewRestingHr != null
+              ? {
+                  low: Math.round(reserve * zone.lowPct + previewRestingHr),
+                  high: Math.round(reserve * zone.highPct + previewRestingHr),
+                }
+              : {
+                  low: Math.round(parsedMaxHr * zone.lowPct),
+                  high: Math.round(parsedMaxHr * zone.highPct),
+                };
+          return {
+            zoneNumber: idx + 1,
+            label: zone.label,
+            swatchClass: zone.swatchClass,
+            range,
+          };
+        })
       : null;
 
   function handleSaveMaxHr() {
@@ -322,11 +361,12 @@ export default function Settings() {
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
             Set your maximum heart rate to personalize the BPM ranges shown alongside
-            each "Zone N" label when the HR Zone targeting mode is active. We use the
-            standard % of max model: Zone 1 50-60%, Zone 2 60-70%, Zone 3 70-80%, Zone 4
-            80-90%, Zone 5 90-100%. Leave blank to fall back to generic zone labels.
-            Add your resting HR too and the zones switch to the more accurate Karvonen
-            (heart-rate-reserve) formula.
+            each "Zone N" label when the HR Zone targeting mode is active. The default
+            5-zone % of max model splits things 50 / 60 / 70 / 80 / 90 / 100. Coached
+            runners can swap to Friel's 7-zone, Coggan, or polarized 3-zone via the
+            Zone model dropdown. Leave max HR blank to fall back to generic zone
+            labels; add your resting HR too and the zones switch to the more accurate
+            Karvonen (heart-rate-reserve) formula.
           </p>
 
           {isLoading ? (
@@ -334,6 +374,50 @@ export default function Settings() {
           ) : (
             <div className="space-y-4">
               <div className="space-y-2">
+                <Label
+                  htmlFor="hr-zone-model-select"
+                  className="text-xs uppercase tracking-wider font-bold"
+                >
+                  Zone model
+                </Label>
+                <Select
+                  value={hrZoneModel}
+                  onValueChange={(next) =>
+                    update.mutate({
+                      data: { hrZoneModel: next as HrZoneModel },
+                    })
+                  }
+                >
+                  <SelectTrigger
+                    id="hr-zone-model-select"
+                    className="max-w-sm"
+                    data-testid="select-hr-zone-model"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(
+                      Object.values(UserPreferencesHrZoneModel) as HrZoneModel[]
+                    ).map((m) => (
+                      <SelectItem
+                        key={m}
+                        value={m}
+                        data-testid={`option-hr-zone-model-${m}`}
+                      >
+                        {HR_ZONE_MODEL_LABELS[m]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p
+                  className="text-xs text-muted-foreground italic"
+                  data-testid="text-hr-zone-model-description"
+                >
+                  {HR_ZONE_MODEL_DESCRIPTIONS[hrZoneModel]}
+                </p>
+              </div>
+
+              <div className="space-y-2 pt-2 border-t border-border">
                 <Label htmlFor="max-hr-input" className="text-xs uppercase tracking-wider font-bold">
                   Max heart rate (bpm)
                 </Label>
@@ -375,46 +459,66 @@ export default function Settings() {
                     className="rounded-md border border-border bg-muted/30 p-3"
                     data-testid="zone-preview-table"
                     data-preview-model={previewUsesKarvonen ? "karvonen" : "pct-of-max"}
+                    data-zone-model={hrZoneModel}
                   >
                     <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground mb-2">
-                      Preview{previewUsesKarvonen ? " · Karvonen" : ""}
+                      Preview · {HR_ZONE_MODEL_LABELS[hrZoneModel]}
+                      {previewUsesKarvonen ? " · Karvonen" : ""}
                     </p>
                     <ul className="space-y-1">
-                      {zonePreviews.map(({ bucket, range }) => (
-                        <li
-                          key={bucket}
-                          className="flex items-center justify-between gap-4 text-xs"
-                          data-testid={`zone-preview-row-${bucket}`}
-                        >
-                          <span className="flex items-center gap-2">
-                            {/* Task #167: gate the colored swatch on
-                                the active mode being hr_zones so the
-                                Settings preview matches RunTargetLine's
-                                behaviour — the swatch is only
-                                meaningful when the user has actually
-                                opted into HR-zone targeting. The BPM
-                                range column stays visible in every
-                                mode so the preview table is still
-                                informative when picking modes. */}
-                            {value === "hr_zones" && (
-                              <span
-                                aria-hidden="true"
-                                className={`inline-block h-3 w-3 rounded-sm ring-1 ring-inset ring-black/10 dark:ring-white/15 ${HR_ZONE_COLORS[bucket].swatchClass}`}
-                                data-testid={`zone-preview-swatch-${bucket}`}
-                              />
-                            )}
-                            <span className="font-bold uppercase tracking-wider">
-                              Zone {bucket}
-                            </span>
-                          </span>
-                          <span
-                            className="font-mono tabular-nums text-muted-foreground"
-                            data-testid={`zone-preview-range-${bucket}`}
+                      {zonePreviews.map(({ zoneNumber, label, swatchClass, range }) => {
+                        // Task #158: swatch class comes from the active
+                        // model's zone definition so models with extra
+                        // (or fewer) zones still get a sensible color
+                        // ramp. The 5-zone default keeps the legacy
+                        // HR_ZONE_COLORS palette so existing fixtures
+                        // (Settings swatch tests #167 / #171) keep
+                        // matching the same Tailwind tokens.
+                        const fivezoneSwatch =
+                          hrZoneModel === "five_zone_max" &&
+                          (zoneNumber === 1 ||
+                            zoneNumber === 2 ||
+                            zoneNumber === 3 ||
+                            zoneNumber === 4 ||
+                            zoneNumber === 5)
+                            ? HR_ZONE_COLORS[zoneNumber].swatchClass
+                            : swatchClass;
+                        return (
+                          <li
+                            key={zoneNumber}
+                            className="flex items-center justify-between gap-4 text-xs"
+                            data-testid={`zone-preview-row-${zoneNumber}`}
                           >
-                            {range ? `${range.low}-${range.high} bpm` : "—"}
-                          </span>
-                        </li>
-                      ))}
+                            <span className="flex items-center gap-2">
+                              {/* Task #167: gate the colored swatch on
+                                  the active mode being hr_zones so the
+                                  Settings preview matches RunTargetLine's
+                                  behaviour — the swatch is only
+                                  meaningful when the user has actually
+                                  opted into HR-zone targeting. The BPM
+                                  range column stays visible in every
+                                  mode so the preview table is still
+                                  informative when picking modes. */}
+                              {value === "hr_zones" && (
+                                <span
+                                  aria-hidden="true"
+                                  className={`inline-block h-3 w-3 rounded-sm ring-1 ring-inset ring-black/10 dark:ring-white/15 ${fivezoneSwatch}`}
+                                  data-testid={`zone-preview-swatch-${zoneNumber}`}
+                                />
+                              )}
+                              <span className="font-bold uppercase tracking-wider">
+                                {label}
+                              </span>
+                            </span>
+                            <span
+                              className="font-mono tabular-nums text-muted-foreground"
+                              data-testid={`zone-preview-range-${zoneNumber}`}
+                            >
+                              {range ? `${range.low}-${range.high} bpm` : "—"}
+                            </span>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                 )}

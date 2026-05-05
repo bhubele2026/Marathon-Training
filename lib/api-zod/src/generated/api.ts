@@ -3267,6 +3267,16 @@ export const GetUserPreferencesResponse = zod
       .describe(
         "User's resting heart rate in BPM (optional). When both maxHr and\nrestingHr are set, the HR Zone targeting mode switches to the\nKarvonen \/ heart-rate-reserve formula\n(((maxHr - restingHr) \* pct) + restingHr), which is meaningfully\nmore accurate for fitter athletes whose resting HR is well below\naverage. When null, the HR Zone math falls back to the simple\n% of max model. Defaults to null on new accounts.\n",
       ),
+    hrZoneModel: zod
+      .enum([
+        "five_zone_max",
+        "friel_7_zone",
+        "coggan_5_zone",
+        "polarized_3_zone",
+      ])
+      .describe(
+        'Which HR zone model the user follows (Task #158). Drives the\nzone labels and percentage table the HR Zone targeting mode\nrenders next to each \"Zone N\" line.\n  - five_zone_max    : 5-zone % of max (legacy default).\n  - friel_7_zone     : Joe Friel running 7-zone (% LTHR).\n  - coggan_5_zone    : Coggan HR zones (% LTHR).\n  - polarized_3_zone : 3-zone polarized.\nDefaults to \"five_zone_max\" on new accounts.\n',
+      ),
     updatedAt: zod.coerce.date(),
   })
   .describe(
@@ -3297,6 +3307,14 @@ export const UpdateUserPreferencesBody = zod
       .min(updateUserPreferencesBodyRestingHrMin)
       .max(updateUserPreferencesBodyRestingHrMax)
       .nullish(),
+    hrZoneModel: zod
+      .enum([
+        "five_zone_max",
+        "friel_7_zone",
+        "coggan_5_zone",
+        "polarized_3_zone",
+      ])
+      .optional(),
   })
   .describe(
     "Partial update of UserPreferences. Omitted fields are left untouched.\nSend maxHr=null or restingHr=null to explicitly clear the configured\nvalue.\n",
@@ -3330,6 +3348,16 @@ export const UpdateUserPreferencesResponse = zod
       .nullable()
       .describe(
         "User's resting heart rate in BPM (optional). When both maxHr and\nrestingHr are set, the HR Zone targeting mode switches to the\nKarvonen \/ heart-rate-reserve formula\n(((maxHr - restingHr) \* pct) + restingHr), which is meaningfully\nmore accurate for fitter athletes whose resting HR is well below\naverage. When null, the HR Zone math falls back to the simple\n% of max model. Defaults to null on new accounts.\n",
+      ),
+    hrZoneModel: zod
+      .enum([
+        "five_zone_max",
+        "friel_7_zone",
+        "coggan_5_zone",
+        "polarized_3_zone",
+      ])
+      .describe(
+        'Which HR zone model the user follows (Task #158). Drives the\nzone labels and percentage table the HR Zone targeting mode\nrenders next to each \"Zone N\" line.\n  - five_zone_max    : 5-zone % of max (legacy default).\n  - friel_7_zone     : Joe Friel running 7-zone (% LTHR).\n  - coggan_5_zone    : Coggan HR zones (% LTHR).\n  - polarized_3_zone : 3-zone polarized.\nDefaults to \"five_zone_max\" on new accounts.\n',
       ),
     updatedAt: zod.coerce.date(),
   })
