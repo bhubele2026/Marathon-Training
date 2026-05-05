@@ -24,7 +24,12 @@ import {
   type TemplateEntry,
 } from "@workspace/plan-generator";
 import { readActiveConfigName, readLastAppliedPlannerConfig } from "./planner";
-import { toPlanDay, toPlanWeek, toWorkout } from "../lib/transforms";
+import {
+  toPlanDay,
+  toPlanWeek,
+  toWorkout,
+  type PlanWeekProgramSummary,
+} from "../lib/transforms";
 import {
   consumeResetSnapshot,
   releaseResetSnapshot,
@@ -47,6 +52,12 @@ import {
 } from "../lib/personalized-race-pace";
 
 const router: IRouter = Router();
+
+// Task #144 / #162: Canonical fallback label for synthetic / legacy
+// plan_day rows where source_entry_label is NULL. Mirrors the
+// dashboard's identical constant so /plan and /dashboard agree on what
+// to call a single-program campaign's lone "program".
+const FALLBACK_PROGRAM_LABEL = "Marathon Plan";
 
 const RACE_DATE = "2027-05-02";
 const START_DATE = "2026-05-04";
@@ -298,6 +309,64 @@ router.get("/plan/weeks", async (_req, res) => {
   const wedSteadyByWeek = new Map(
     wedSteadyRows.rows.map((r) => [r.week, r.wed_steady]),
   );
+  // Task #162: per-program completion breakdown for each week. Mirrors
+  // the combined `completed_sessions` / `total_sessions` / `missed_sessions`
+  // SQL above but groups by `source_entry_index` so weekly summary cards
+  // can render "Tonal Lift 3/4 · 5K Improver 2/4" alongside the combined
+  // ratio. Same plan_day-level attribution rules apply: a logged workout
+  // counts toward a program when its `plan_day_id` links back to that
+  // program's row, with the same legacy `plan_day_id IS NULL` date
+  // fallback so single-program history still credits completion.
+  const programWeekRows = await db.execute<{
+    week: number;
+    source_entry_index: number;
+    label: string | null;
+    total_sessions: number;
+    completed_sessions: number;
+    missed_sessions: number;
+  }>(
+    sql`
+      SELECT pd.week,
+        pd.source_entry_index,
+        MAX(pd.source_entry_label) AS label,
+        COUNT(*) FILTER (WHERE pd.is_rest = false)::int AS total_sessions,
+        COUNT(*) FILTER (
+          WHERE pd.is_rest = false
+            AND EXISTS (
+              SELECT 1 FROM workouts w
+              WHERE w.session_type <> 'Skipped'
+                AND (
+                  w.plan_day_id = pd.id
+                  OR (w.plan_day_id IS NULL AND w.date = pd.date)
+                )
+            )
+        )::int AS completed_sessions,
+        COUNT(*) FILTER (
+          WHERE pd.is_rest = false
+            AND pd.date < ${today}
+            AND NOT EXISTS (
+              SELECT 1 FROM workouts w
+              WHERE w.plan_day_id = pd.id
+                 OR (w.plan_day_id IS NULL AND w.date = pd.date)
+            )
+        )::int AS missed_sessions
+      FROM plan_days pd
+      GROUP BY pd.week, pd.source_entry_index
+      ORDER BY pd.week ASC, pd.source_entry_index ASC
+    `,
+  );
+  const programsByWeek = new Map<number, PlanWeekProgramSummary[]>();
+  for (const r of programWeekRows.rows) {
+    const list = programsByWeek.get(r.week) ?? [];
+    list.push({
+      sourceEntryIndex: r.source_entry_index,
+      label: r.label ?? FALLBACK_PROGRAM_LABEL,
+      completedSessions: r.completed_sessions,
+      totalSessions: r.total_sessions,
+      missedSessions: r.missed_sessions,
+    });
+    programsByWeek.set(r.week, list);
+  }
   res.json(
     weeks.map((w) => {
       const a = byWeek.get(w.week);
@@ -310,6 +379,7 @@ router.get("/plan/weeks", async (_req, res) => {
         customizedDays: customizedByWeek.get(w.week) ?? 0,
         dominantCardioEquipment: dominantByWeek.get(w.week) ?? null,
         wedSteady: wedSteadyByWeek.get(w.week) ?? null,
+        programs: programsByWeek.get(w.week) ?? null,
       });
     }),
   );
@@ -363,6 +433,54 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
   );
   const totalSessions = days.filter((d) => !d.isRest).length;
   const today = todayISO();
+  // Task #162: per-program completion breakdown for THIS week. Same
+  // attribution rules as the combined `completedRow` above but grouped
+  // by `source_entry_index` so the Week Detail page can render
+  // "Tonal Lift 3/4 · 5K Improver 2/4" alongside the combined ratio.
+  const programWeekRows = await db.execute<{
+    source_entry_index: number;
+    label: string | null;
+    total_sessions: number;
+    completed_sessions: number;
+    missed_sessions: number;
+  }>(
+    sql`
+      SELECT pd.source_entry_index,
+        MAX(pd.source_entry_label) AS label,
+        COUNT(*) FILTER (WHERE pd.is_rest = false)::int AS total_sessions,
+        COUNT(*) FILTER (
+          WHERE pd.is_rest = false
+            AND EXISTS (
+              SELECT 1 FROM workouts w
+              WHERE w.session_type <> 'Skipped'
+                AND (
+                  w.plan_day_id = pd.id
+                  OR (w.plan_day_id IS NULL AND w.date = pd.date)
+                )
+            )
+        )::int AS completed_sessions,
+        COUNT(*) FILTER (
+          WHERE pd.is_rest = false
+            AND pd.date < ${today}
+            AND NOT EXISTS (
+              SELECT 1 FROM workouts w
+              WHERE w.plan_day_id = pd.id
+                 OR (w.plan_day_id IS NULL AND w.date = pd.date)
+            )
+        )::int AS missed_sessions
+      FROM plan_days pd
+      WHERE pd.week = ${week}
+      GROUP BY pd.source_entry_index
+      ORDER BY pd.source_entry_index ASC
+    `,
+  );
+  const programs: PlanWeekProgramSummary[] = programWeekRows.rows.map((r) => ({
+    sourceEntryIndex: r.source_entry_index,
+    label: r.label ?? FALLBACK_PROGRAM_LABEL,
+    completedSessions: r.completed_sessions,
+    totalSessions: r.total_sessions,
+    missedSessions: r.missed_sessions,
+  }));
   const nonRestDays = days.filter((d) => !d.isRest);
   const recentByPair = await fetchRecentWorkoutsByPair(nonRestDays, today);
   // Task #228 + Task #236: pace-personalization overlays derived from
@@ -419,6 +537,7 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
       totalSessions,
       dominantCardioEquipment,
       wedSteady,
+      programs,
     }),
     days: daysWithSuggestions,
   });

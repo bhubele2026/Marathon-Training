@@ -230,6 +230,13 @@ export function toPlanWeek(
     // reflected on the calendar chip. Null when no Wed plan_day exists
     // yet (legacy / freshly seeded weeks).
     wedSteady?: boolean | null;
+    // Task #162: per-program completion breakdown for the week. Each
+    // entry pairs one TemplateEntry that contributes plan_days this
+    // week with its own completed / total / missed counts so weekly
+    // summary cards on /plan and /plan/:week can render
+    // "Tonal Lift 3/4 · 5K Improver 2/4" alongside the combined
+    // numbers above. Null on weeks with no plan_days yet.
+    programs?: PlanWeekProgramSummary[] | null;
   },
 ) {
   return {
@@ -250,7 +257,16 @@ export function toPlanWeek(
     customizedDays: extras?.customizedDays ?? null,
     dominantCardioEquipment: extras?.dominantCardioEquipment ?? null,
     wedSteady: extras?.wedSteady ?? null,
+    programs: extras?.programs ?? null,
   };
+}
+
+export interface PlanWeekProgramSummary {
+  sourceEntryIndex: number;
+  label: string;
+  completedSessions: number;
+  totalSessions: number;
+  missedSessions: number;
 }
 
 // Subset of the matched plan day used to render the Training Log's

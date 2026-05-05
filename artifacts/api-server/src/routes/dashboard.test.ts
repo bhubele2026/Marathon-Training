@@ -231,6 +231,9 @@ describe("GET /api/dashboard/summary programs breakdown (Task #144)", () => {
         weeklyLoadActual: number;
         weeklySessionsPlanned: number;
         weeklySessionsCompleted: number;
+        adherencePlanned: number;
+        adherenceCompleted: number;
+        adherencePct: number;
       }>;
     };
 
@@ -238,10 +241,13 @@ describe("GET /api/dashboard/summary programs breakdown (Task #144)", () => {
     const tonal = body.programs.find((p) => p.sourceEntryIndex === 0);
     const improver = body.programs.find((p) => p.sourceEntryIndex === 1);
 
-    expect(tonal).toEqual({
+    // Task #162: per-program adherence is campaign-wide, so the global
+    // seeded plan_days dilute it. Assert weekly fields exactly and
+    // sanity-check the per-program adherence shape (must include the
+    // workout we attributed via plan_day_id).
+    expect(tonal).toMatchObject({
       sourceEntryIndex: 0,
       label: "Tonal Lift",
-      // Latest plan_day for this program is 2099-06-15 (week + 1).
       endDate: "2099-06-15",
       weeklyMilesPlanned: 0,
       weeklyMilesActual: 0,
@@ -250,10 +256,13 @@ describe("GET /api/dashboard/summary programs breakdown (Task #144)", () => {
       weeklySessionsPlanned: 1,
       weeklySessionsCompleted: 1,
     });
-    expect(improver).toEqual({
+    expect(typeof tonal!.adherencePlanned).toBe("number");
+    expect(tonal!.adherenceCompleted).toBeGreaterThanOrEqual(1);
+    expect(tonal!.adherencePct).toBeGreaterThanOrEqual(0);
+    expect(tonal!.adherencePct).toBeLessThanOrEqual(100);
+    expect(improver).toMatchObject({
       sourceEntryIndex: 1,
       label: "5K Improver",
-      // Latest plan_day for this program is 2099-06-04 (this week).
       endDate: "2099-06-04",
       weeklyMilesPlanned: 10,
       weeklyMilesActual: 5,
@@ -262,6 +271,8 @@ describe("GET /api/dashboard/summary programs breakdown (Task #144)", () => {
       weeklySessionsPlanned: 2,
       weeklySessionsCompleted: 1,
     });
+    expect(typeof improver!.adherencePlanned).toBe("number");
+    expect(improver!.adherenceCompleted).toBeGreaterThanOrEqual(1);
   });
 
   it("orders programs by endDate ascending (closest race date first) when 3+ overlap (Task #159)", async () => {

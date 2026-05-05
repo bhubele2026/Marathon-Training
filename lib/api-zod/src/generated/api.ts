@@ -106,6 +106,34 @@ export const ListPlanWeeksResponseItem = zod.object({
     .describe(
       'Task #175. True when this week\'s Wednesday plan day is a\nSteady (Z3) Run + Accessory session — i.e. the same gating\nthe generator uses to upgrade the mid-week run on\nMarathon-Specific weeks (recipe `wedKind: \"Steady\"`,\nnon-cutback, non-race-week). Sourced directly from\n`plan_days.session_type` so customizations that swap Wed\naway from steady are reflected here. Drives the amber-400\n\"Steady\" chip on the plan calendar week strip so runners\ncan see at a glance which weeks earn the Z3 stimulus\nwithout opening each week. Null on weeks with no Wed plan\nday yet (freshly seeded \/ legacy data).\n',
     ),
+  programs: zod
+    .array(
+      zod.object({
+        sourceEntryIndex: zod.number(),
+        label: zod
+          .string()
+          .describe(
+            'Human-readable program name; falls back to \"Marathon Plan\" for legacy single-program campaigns.',
+          ),
+        completedSessions: zod
+          .number()
+          .describe(
+            "Non-rest plan_days for this program in this week with at least one logged (non-Skipped) workout attributed to them.",
+          ),
+        totalSessions: zod
+          .number()
+          .describe("Non-rest plan_days for this program in this week."),
+        missedSessions: zod
+          .number()
+          .describe(
+            "Non-rest plan_days for this program in this week whose date is in the past with no logged workout attributed to them.",
+          ),
+      }),
+    )
+    .nullish()
+    .describe(
+      'Task #162. Per-program completion breakdown for this week,\nfor runners stacking concurrent programs (e.g. a Tonal lift\nprogram alongside a 5K running program). Each entry pairs a\nTemplateEntry contributing plan_days this week with its own\ncompleted \/ total \/ missed session counts so weekly summary\ncards can render \"Tonal Lift 3\/4 · 5K Improver 2\/4\" instead\nof rolling everything into a single combined ratio. The\nexisting `completedSessions` \/ `totalSessions` \/\n`missedSessions` fields above remain the COMBINED totals\nacross all programs. Null on weeks with no plan_days yet\n(freshly seeded \/ legacy data); a single-element array for\nsingle-program campaigns. Ordered by `sourceEntryIndex`\nascending.\n',
+    ),
 });
 export const ListPlanWeeksResponse = zod.array(ListPlanWeeksResponseItem);
 
@@ -151,6 +179,34 @@ export const GetPlanWeekResponse = zod
       .nullish()
       .describe(
         'Task #175. True when this week\'s Wednesday plan day is a\nSteady (Z3) Run + Accessory session — i.e. the same gating\nthe generator uses to upgrade the mid-week run on\nMarathon-Specific weeks (recipe `wedKind: \"Steady\"`,\nnon-cutback, non-race-week). Sourced directly from\n`plan_days.session_type` so customizations that swap Wed\naway from steady are reflected here. Drives the amber-400\n\"Steady\" chip on the plan calendar week strip so runners\ncan see at a glance which weeks earn the Z3 stimulus\nwithout opening each week. Null on weeks with no Wed plan\nday yet (freshly seeded \/ legacy data).\n',
+      ),
+    programs: zod
+      .array(
+        zod.object({
+          sourceEntryIndex: zod.number(),
+          label: zod
+            .string()
+            .describe(
+              'Human-readable program name; falls back to \"Marathon Plan\" for legacy single-program campaigns.',
+            ),
+          completedSessions: zod
+            .number()
+            .describe(
+              "Non-rest plan_days for this program in this week with at least one logged (non-Skipped) workout attributed to them.",
+            ),
+          totalSessions: zod
+            .number()
+            .describe("Non-rest plan_days for this program in this week."),
+          missedSessions: zod
+            .number()
+            .describe(
+              "Non-rest plan_days for this program in this week whose date is in the past with no logged workout attributed to them.",
+            ),
+        }),
+      )
+      .nullish()
+      .describe(
+        'Task #162. Per-program completion breakdown for this week,\nfor runners stacking concurrent programs (e.g. a Tonal lift\nprogram alongside a 5K running program). Each entry pairs a\nTemplateEntry contributing plan_days this week with its own\ncompleted \/ total \/ missed session counts so weekly summary\ncards can render \"Tonal Lift 3\/4 · 5K Improver 2\/4\" instead\nof rolling everything into a single combined ratio. The\nexisting `completedSessions` \/ `totalSessions` \/\n`missedSessions` fields above remain the COMBINED totals\nacross all programs. Null on weeks with no plan_days yet\n(freshly seeded \/ legacy data); a single-element array for\nsingle-program campaigns. Ordered by `sourceEntryIndex`\nascending.\n',
       ),
   })
   .and(
@@ -2263,6 +2319,21 @@ export const GetDashboardSummaryResponse = zod.object({
         weeklyLoadActual: zod.number(),
         weeklySessionsPlanned: zod.number(),
         weeklySessionsCompleted: zod.number(),
+        adherencePlanned: zod
+          .number()
+          .describe(
+            "Task #162. Non-rest plan_days for this program from campaign start through today (inclusive). Drives the per-program adherence slice on the dashboard so a runner stacking a Tonal lift program alongside a 5K running program can spot which program is dragging the combined `adherencePct` down.\n",
+          ),
+        adherenceCompleted: zod
+          .number()
+          .describe(
+            "Task #162. Subset of `adherencePlanned` for this program that has at least one logged (non-Skipped) workout attributed to it via plan_day_id (or, for legacy workouts with no plan_day_id, a same-date match).\n",
+          ),
+        adherencePct: zod
+          .number()
+          .describe(
+            "Task #162. `adherenceCompleted \/ adherencePlanned \* 100`, clamped to [0, 100]. Returns 0 when `adherencePlanned` is 0 (program hasn't started yet).\n",
+          ),
       }),
     )
     .describe(

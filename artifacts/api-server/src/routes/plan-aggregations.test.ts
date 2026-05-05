@@ -284,6 +284,107 @@ describe("GET /api/plan/weeks", () => {
     );
   });
 
+  it("attributes per-program completion ratios on each weekly summary (task #162)", async () => {
+    // Two overlapping programs in the same week. The combined headline
+    // ratio stays the existing 2/4, but the per-program breakdown must
+    // surface "Tonal Lift 1/2 · 5K Improver 1/2" so a runner can see
+    // which program drags adherence down.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-10-08T12:00:00.000Z"));
+
+    const week = 8260;
+    const phase = "Stack Phase";
+    await insertWeek(week, {
+      startDate: "2099-10-05",
+      endDate: "2099-10-11",
+      phase,
+    });
+    const tonalDay = await insertPlanDay(week, phase, {
+      date: "2099-10-05", day: "Mon", sessionType: T_STRENGTH, equipment: E_GYM,
+      sourceEntryIndex: 0, sourceEntryLabel: "Tonal Lift",
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-10-07", day: "Wed", sessionType: T_STRENGTH, equipment: E_GYM,
+      sourceEntryIndex: 0, sourceEntryLabel: "Tonal Lift",
+    });
+    const improverDay = await insertPlanDay(week, phase, {
+      date: "2099-10-06", day: "Tue", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 4,
+      sourceEntryIndex: 1, sourceEntryLabel: "5K Improver",
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-10-08", day: "Thu", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 5,
+      sourceEntryIndex: 1, sourceEntryLabel: "5K Improver",
+    });
+    // One workout per program — both attributed via plan_day_id so the
+    // ratio is exactly 1/2 for each program.
+    await insertWorkout({
+      date: "2099-10-05", sessionType: T_STRENGTH, equipment: E_GYM,
+      planDayId: tonalDay.id,
+    });
+    await insertWorkout({
+      date: "2099-10-06", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 4,
+      planDayId: improverDay.id,
+    });
+
+    const res = await request(app).get("/api/plan/weeks");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(ListPlanWeeksResponse, res.body);
+    const rows = res.body as Array<{
+      week: number;
+      completedSessions: number | null;
+      totalSessions: number | null;
+      programs: Array<{
+        sourceEntryIndex: number;
+        label: string;
+        completedSessions: number;
+        totalSessions: number;
+        missedSessions: number;
+      }> | null;
+    }>;
+    const ours = rows.find((r) => r.week === week);
+    expect(ours).toBeDefined();
+    expect(ours!.completedSessions).toBe(2);
+    expect(ours!.totalSessions).toBe(4);
+    expect(ours!.programs).toBeDefined();
+    expect(ours!.programs).toHaveLength(2);
+    const tonal = ours!.programs!.find((p) => p.sourceEntryIndex === 0);
+    const improver = ours!.programs!.find((p) => p.sourceEntryIndex === 1);
+    expect(tonal).toMatchObject({
+      label: "Tonal Lift",
+      completedSessions: 1,
+      totalSessions: 2,
+    });
+    expect(improver).toMatchObject({
+      label: "5K Improver",
+      completedSessions: 1,
+      totalSessions: 2,
+    });
+
+    // Same per-program shape on the single-week endpoint so /plan/:week
+    // can render the breakdown without a second roundtrip.
+    const detail = await request(app).get(`/api/plan/weeks/${week}`);
+    expect(detail.status).toBe(200);
+    const detailBody = detail.body as {
+      programs: Array<{
+        sourceEntryIndex: number;
+        label: string;
+        completedSessions: number;
+        totalSessions: number;
+      }>;
+    };
+    expect(detailBody.programs).toHaveLength(2);
+    expect(detailBody.programs.map((p) => p.label).sort()).toEqual([
+      "5K Improver",
+      "Tonal Lift",
+    ]);
+    expect(
+      detailBody.programs.find((p) => p.sourceEntryIndex === 0)?.completedSessions,
+    ).toBe(1);
+    expect(
+      detailBody.programs.find((p) => p.sourceEntryIndex === 1)?.completedSessions,
+    ).toBe(1);
+  });
+
   it("surfaces the dominant cardio machine for bike-only / row-only weeks (task #107)", async () => {
     // Bike-only week: 0 planned miles, plannedCardio reflects the cardio
     // bucket time, and every non-rest day uses the same Peloton-Bike-style

@@ -198,6 +198,51 @@ router.get("/dashboard/summary", async (_req, res) => {
   const completed = adherence.rows[0]?.completed ?? 0;
   const adherencePct = planned > 0 ? Math.min(100, (completed / planned) * 100) : 0;
 
+  // Task #162: per-program adherence (campaign-to-date) so the dashboard
+  // can surface which program is dragging the combined `adherencePct`
+  // down. Same plan_day-level attribution rules as the combined query
+  // above but grouped by `source_entry_index`.
+  const adherenceByProgram = await db.execute<{
+    source_entry_index: number;
+    planned: number;
+    completed: number;
+  }>(
+    sql`
+      SELECT pd.source_entry_index,
+        COUNT(*) FILTER (WHERE pd.is_rest = false AND pd.date <= ${today})::int AS planned,
+        COUNT(*) FILTER (
+          WHERE pd.is_rest = false
+            AND pd.date <= ${today}
+            AND EXISTS (
+              SELECT 1 FROM workouts w
+              WHERE w.session_type <> 'Skipped'
+                AND (
+                  w.plan_day_id = pd.id
+                  OR (w.plan_day_id IS NULL AND w.date = pd.date)
+                )
+            )
+        )::int AS completed
+      FROM plan_days pd
+      GROUP BY pd.source_entry_index
+    `,
+  );
+  const adherenceByIndex = new Map(
+    adherenceByProgram.rows.map((r) => [
+      r.source_entry_index,
+      { planned: r.planned, completed: r.completed },
+    ]),
+  );
+  const programsWithAdherence = programs.map((p) => {
+    const a = adherenceByIndex.get(p.sourceEntryIndex) ?? { planned: 0, completed: 0 };
+    const pct = a.planned > 0 ? Math.min(100, (a.completed / a.planned) * 100) : 0;
+    return {
+      ...p,
+      adherencePlanned: a.planned,
+      adherenceCompleted: a.completed,
+      adherencePct: pct,
+    };
+  });
+
   // Anchor on the runner's chosen marathon date when they've applied a
   // custom Planner config; otherwise fall back to the canonical race date.
   const activeRaceDate = await readActiveRaceDate();
@@ -248,7 +293,7 @@ router.get("/dashboard/summary", async (_req, res) => {
     weightToGoal: currentWeight !== null ? Math.max(0, currentWeight - GOAL_WEIGHT) : START_WEIGHT - GOAL_WEIGHT,
     adherencePct,
     daysToRace,
-    programs,
+    programs: programsWithAdherence,
     raceKind,
     activeConfigName: await readActiveConfigName(),
   });

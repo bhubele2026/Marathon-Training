@@ -701,6 +701,28 @@ export default function Plan() {
                           data-adherence={adherenceStatus(week.completedSessions, week.totalSessions)}
                           data-testid={`progress-adherence-week-${week.week}`}
                         />
+                        {week.programs && week.programs.length > 1 && (
+                          <div
+                            className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] uppercase tracking-wider text-muted-foreground"
+                            data-testid={`week-program-breakdown-${week.week}`}
+                          >
+                            {week.programs.map((p, i) => (
+                              <span
+                                key={p.sourceEntryIndex}
+                                className="font-bold"
+                                data-testid={`week-program-${week.week}-${p.sourceEntryIndex}`}
+                              >
+                                {i > 0 && (
+                                  <span className="text-muted-foreground/50 mr-2">·</span>
+                                )}
+                                <span className="text-foreground/80">{p.label}</span>{" "}
+                                <span className="text-muted-foreground">
+                                  {p.completedSessions}/{p.totalSessions}
+                                </span>
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>

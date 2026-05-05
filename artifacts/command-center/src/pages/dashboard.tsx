@@ -623,7 +623,7 @@ export default function Dashboard() {
                             )}
                           </div>
                         </div>
-                        <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                           <div>
                             <div className="text-[10px] uppercase font-bold text-muted-foreground">Miles</div>
                             <div className="font-mono">
@@ -640,6 +640,18 @@ export default function Dashboard() {
                             <div className="text-[10px] uppercase font-bold text-muted-foreground">Sessions</div>
                             <div className="font-mono">
                               {p.weeklySessionsCompleted} / {p.weeklySessionsPlanned}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase font-bold text-muted-foreground">Adherence</div>
+                            <div
+                              className="font-mono"
+                              data-testid={`snapshot-program-adherence-${p.sourceEntryIndex}`}
+                            >
+                              {p.adherencePct.toFixed(0)}%
+                              <span className="text-muted-foreground ml-1">
+                                ({p.adherenceCompleted}/{p.adherencePlanned})
+                              </span>
                             </div>
                           </div>
                         </div>

@@ -487,6 +487,24 @@ export default function WeekDetail() {
           >
             {week.completedSessions || 0} / {week.totalSessions || 0}
           </p>
+          {week.programs && week.programs.length > 1 && (
+            <div
+              className="mt-1 flex flex-col gap-0.5 text-[10px] uppercase font-bold tracking-wider text-muted-foreground"
+              data-testid="week-program-breakdown"
+            >
+              {week.programs.map((p) => (
+                <span
+                  key={p.sourceEntryIndex}
+                  data-testid={`week-program-${p.sourceEntryIndex}`}
+                >
+                  <span className="text-foreground/80">{p.label}</span>{" "}
+                  <span>
+                    {p.completedSessions}/{p.totalSessions}
+                  </span>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

@@ -257,6 +257,18 @@ export interface UndoPlanResetResponse {
   weeksAffected: number[];
 }
 
+export interface PlanWeekProgram {
+  sourceEntryIndex: number;
+  /** Human-readable program name; falls back to "Marathon Plan" for legacy single-program campaigns. */
+  label: string;
+  /** Non-rest plan_days for this program in this week with at least one logged (non-Skipped) workout attributed to them. */
+  completedSessions: number;
+  /** Non-rest plan_days for this program in this week. */
+  totalSessions: number;
+  /** Non-rest plan_days for this program in this week whose date is in the past with no logged workout attributed to them. */
+  missedSessions: number;
+}
+
 export interface PlanWeek {
   week: number;
   phase: string;
@@ -301,6 +313,21 @@ without opening each week. Null on weeks with no Wed plan
 day yet (freshly seeded / legacy data).
  */
   wedSteady?: boolean | null;
+  /** Task #162. Per-program completion breakdown for this week,
+for runners stacking concurrent programs (e.g. a Tonal lift
+program alongside a 5K running program). Each entry pairs a
+TemplateEntry contributing plan_days this week with its own
+completed / total / missed session counts so weekly summary
+cards can render "Tonal Lift 3/4 · 5K Improver 2/4" instead
+of rolling everything into a single combined ratio. The
+existing `completedSessions` / `totalSessions` /
+`missedSessions` fields above remain the COMBINED totals
+across all programs. Null on weeks with no plan_days yet
+(freshly seeded / legacy data); a single-element array for
+single-program campaigns. Ordered by `sourceEntryIndex`
+ascending.
+ */
+  programs?: PlanWeekProgram[] | null;
 }
 
 /**
@@ -696,6 +723,15 @@ export interface DashboardSummaryProgram {
   weeklyLoadActual: number;
   weeklySessionsPlanned: number;
   weeklySessionsCompleted: number;
+  /** Task #162. Non-rest plan_days for this program from campaign start through today (inclusive). Drives the per-program adherence slice on the dashboard so a runner stacking a Tonal lift program alongside a 5K running program can spot which program is dragging the combined `adherencePct` down.
+   */
+  adherencePlanned: number;
+  /** Task #162. Subset of `adherencePlanned` for this program that has at least one logged (non-Skipped) workout attributed to it via plan_day_id (or, for legacy workouts with no plan_day_id, a same-date match).
+   */
+  adherenceCompleted: number;
+  /** Task #162. `adherenceCompleted / adherencePlanned * 100`, clamped to [0, 100]. Returns 0 when `adherencePlanned` is 0 (program hasn't started yet).
+   */
+  adherencePct: number;
 }
 
 export interface DashboardSummary {

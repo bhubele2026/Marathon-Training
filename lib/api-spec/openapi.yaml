@@ -1356,6 +1356,49 @@ components:
             can see at a glance which weeks earn the Z3 stimulus
             without opening each week. Null on weeks with no Wed plan
             day yet (freshly seeded / legacy data).
+        programs:
+          type: array
+          nullable: true
+          description: |
+            Task #162. Per-program completion breakdown for this week,
+            for runners stacking concurrent programs (e.g. a Tonal lift
+            program alongside a 5K running program). Each entry pairs a
+            TemplateEntry contributing plan_days this week with its own
+            completed / total / missed session counts so weekly summary
+            cards can render "Tonal Lift 3/4 · 5K Improver 2/4" instead
+            of rolling everything into a single combined ratio. The
+            existing `completedSessions` / `totalSessions` /
+            `missedSessions` fields above remain the COMBINED totals
+            across all programs. Null on weeks with no plan_days yet
+            (freshly seeded / legacy data); a single-element array for
+            single-program campaigns. Ordered by `sourceEntryIndex`
+            ascending.
+          items: { $ref: "#/components/schemas/PlanWeekProgram" }
+
+    PlanWeekProgram:
+      type: object
+      required:
+        [
+          sourceEntryIndex,
+          label,
+          completedSessions,
+          totalSessions,
+          missedSessions,
+        ]
+      properties:
+        sourceEntryIndex: { type: integer }
+        label:
+          type: string
+          description: Human-readable program name; falls back to "Marathon Plan" for legacy single-program campaigns.
+        completedSessions:
+          type: integer
+          description: Non-rest plan_days for this program in this week with at least one logged (non-Skipped) workout attributed to them.
+        totalSessions:
+          type: integer
+          description: Non-rest plan_days for this program in this week.
+        missedSessions:
+          type: integer
+          description: Non-rest plan_days for this program in this week whose date is in the past with no logged workout attributed to them.
 
     PlanDayWithSuggestions:
       allOf:
@@ -1819,6 +1862,9 @@ components:
           weeklyLoadActual,
           weeklySessionsPlanned,
           weeklySessionsCompleted,
+          adherencePlanned,
+          adherenceCompleted,
+          adherencePct,
         ]
       properties:
         sourceEntryIndex:
@@ -1849,6 +1895,27 @@ components:
         weeklyLoadActual: { type: number }
         weeklySessionsPlanned: { type: integer }
         weeklySessionsCompleted: { type: integer }
+        adherencePlanned:
+          type: integer
+          description: >
+            Task #162. Non-rest plan_days for this program from campaign
+            start through today (inclusive). Drives the per-program
+            adherence slice on the dashboard so a runner stacking a
+            Tonal lift program alongside a 5K running program can spot
+            which program is dragging the combined `adherencePct` down.
+        adherenceCompleted:
+          type: integer
+          description: >
+            Task #162. Subset of `adherencePlanned` for this program
+            that has at least one logged (non-Skipped) workout
+            attributed to it via plan_day_id (or, for legacy workouts
+            with no plan_day_id, a same-date match).
+        adherencePct:
+          type: number
+          description: >
+            Task #162. `adherenceCompleted / adherencePlanned * 100`,
+            clamped to [0, 100]. Returns 0 when `adherencePlanned` is
+            0 (program hasn't started yet).
 
     WeightPoint:
       type: object
