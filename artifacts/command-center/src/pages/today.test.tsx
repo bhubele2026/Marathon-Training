@@ -1043,6 +1043,117 @@ describe("Today page — race-day personalized pace chip (task #235)", () => {
     expect(target.textContent).toContain("10:30");
   });
 
+  // Task #237: post-log Mission Accomplished card must keep the
+  // race-day badge + personalized vs catalog chip pair visible so a
+  // runner who just logged the race sees the same explainer alongside
+  // the actual-vs-planned readout. Mirrors the Mission Brief chip
+  // expectations above but keys testIds off the logged session id.
+  it("renders the race-day badge + personalized chip on the post-log Mission Accomplished card", () => {
+    runTargetingModeRef.current = "pace";
+    const racePlan = {
+      ...racePlanBase,
+      id: 7042,
+      personalizedRacePace: {
+        pace: "10:55",
+        source: "personalized",
+        sampleSize: 5,
+        lookbackWeeks: 6,
+        basisPaceSeconds: 630,
+      },
+    };
+    const loggedSession = {
+      id: 9001,
+      date: racePlan.date,
+      sessionType: "Race",
+      equipment: "Outdoor",
+      durationMin: 245,
+      strengthMin: null,
+      cardioMin: null,
+      runMin: 245,
+      distanceMi: 26.2,
+      pace: "10:48",
+      avgHr: 158,
+      rpe: 9,
+      strengthLoad: null,
+      totalLoad: 245,
+      notes: "Crossed the line.",
+      timeOfDay: null,
+      modality: "cardio",
+      planDayId: racePlan.id,
+    };
+    renderWithData({
+      date: racePlan.date,
+      hasPlan: true,
+      plan: racePlan,
+      loggedWorkouts: [loggedSession],
+      suggestions: null,
+      daysUntilStart: null,
+      firstSession: null,
+    });
+
+    expect(
+      screen.getByTestId(`badge-race-day-today-session-${loggedSession.id}`),
+    ).toBeTruthy();
+    const chip = screen.getByTestId(
+      `badge-race-pace-source-today-session-${loggedSession.id}`,
+    );
+    expect(chip.getAttribute("data-pace-source")).toBe("personalized");
+    expect(chip.getAttribute("data-personalized-pace")).toBe("10:55");
+    expect(chip.textContent).toContain("10:55/mi");
+    expect(chip.textContent).toContain("Personalized");
+  });
+
+  it("renders the From catalog chip variant on the post-log Mission Accomplished card", () => {
+    runTargetingModeRef.current = "pace";
+    const racePlan = {
+      ...racePlanBase,
+      id: 7043,
+      personalizedRacePace: {
+        pace: "10:30",
+        source: "catalog",
+        sampleSize: 0,
+        lookbackWeeks: 6,
+        basisPaceSeconds: null,
+      },
+    };
+    const loggedSession = {
+      id: 9002,
+      date: racePlan.date,
+      sessionType: "Race",
+      equipment: "Outdoor",
+      durationMin: 250,
+      strengthMin: null,
+      cardioMin: null,
+      runMin: 250,
+      distanceMi: 26.2,
+      pace: "10:33",
+      avgHr: 156,
+      rpe: 9,
+      strengthLoad: null,
+      totalLoad: 250,
+      notes: null,
+      timeOfDay: null,
+      modality: "cardio",
+      planDayId: racePlan.id,
+    };
+    renderWithData({
+      date: racePlan.date,
+      hasPlan: true,
+      plan: racePlan,
+      loggedWorkouts: [loggedSession],
+      suggestions: null,
+      daysUntilStart: null,
+      firstSession: null,
+    });
+
+    const chip = screen.getByTestId(
+      `badge-race-pace-source-today-session-${loggedSession.id}`,
+    );
+    expect(chip.getAttribute("data-pace-source")).toBe("catalog");
+    expect(chip.textContent).toContain("10:30/mi");
+    expect(chip.textContent).toContain("From catalog");
+  });
+
   // Task #50: AM/PM ordering passthrough. The Today page renders
   // `loggedWorkouts` in the order returned by the API (server-side
   // sort by AM/PM tag, then createdAt asc), so the rendered DOM order

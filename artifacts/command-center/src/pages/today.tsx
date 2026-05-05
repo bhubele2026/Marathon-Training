@@ -558,6 +558,86 @@ export default function Today() {
                 </div>
               </CardHeader>
               <CardContent className="p-6 space-y-4">
+                {/* Task #237: mirror the race-day badge + personalized
+                    vs catalog pace chip pair from the Mission Brief card
+                    above so the explainer stays visible after the runner
+                    logs the race-day session. The IIFE no-ops on every
+                    non-race row so this is invisible for normal
+                    weekday sessions. testIds are keyed off the logged
+                    session id so they don't collide with the Mission
+                    Brief chips when both cards co-render. */}
+                {(() => {
+                  if (!matchedPlan) return null;
+                  const race = raceDayLabel(
+                    matchedPlan.distanceMi,
+                    matchedPlan.description,
+                    matchedPlan.sessionType,
+                  );
+                  if (!race) return null;
+                  const prp = matchedPlan.personalizedRacePace ?? null;
+                  return (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className="inline-flex items-center gap-1 text-[10px] bg-primary/15 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider w-fit"
+                        data-testid={`badge-race-day-today-session-${session.id}`}
+                        data-race-kind={race.kind}
+                      >
+                        <Activity className="h-3 w-3" />
+                        {race.label}
+                      </span>
+                      {prp && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wider w-fit cursor-help",
+                                prp.source === "personalized"
+                                  ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                                  : "bg-muted text-muted-foreground",
+                              )}
+                              data-testid={`badge-race-pace-source-today-session-${session.id}`}
+                              data-pace-source={prp.source}
+                              data-personalized-pace={prp.pace}
+                            >
+                              <Sparkles className="h-3 w-3" />
+                              {prp.source === "personalized"
+                                ? `${prp.pace}/mi · Personalized`
+                                : `${prp.pace}/mi · From catalog`}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent
+                            side="top"
+                            align="start"
+                            className="max-w-xs text-xs"
+                          >
+                            {prp.source === "personalized" && prp.basisPaceSeconds != null ? (
+                              <span>
+                                Personalized from {prp.sampleSize} quality run
+                                {prp.sampleSize === 1 ? "" : "s"} (tempo / threshold /
+                                interval / VO2 / race) in the last {prp.lookbackWeeks} weeks.
+                                Avg training pace{" "}
+                                <span className="font-mono font-bold">
+                                  {Math.floor(prp.basisPaceSeconds / 60)}:
+                                  {String(prp.basisPaceSeconds % 60).padStart(2, "0")}
+                                </span>
+                                /mi → race-day target{" "}
+                                <span className="font-mono font-bold">{prp.pace}</span>/mi.
+                              </span>
+                            ) : (
+                              <span>
+                                Showing the catalog {race.label.toLowerCase()} pace —
+                                not enough recent quality runs in the last{" "}
+                                {prp.lookbackWeeks} weeks to personalize. Log a few
+                                tempo / threshold / interval workouts and this chip
+                                will retune to your training.
+                              </span>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </div>
+                  );
+                })()}
                 {/* Slim collapsed view (Task #133): show only the one
                     headline actual-vs-planned number. The full per-bucket
                     ActualBreakdown, distance, pace, RPE, avg HR, load,
