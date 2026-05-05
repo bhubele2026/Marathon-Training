@@ -837,6 +837,23 @@ export default function WeekDetail() {
                             pace={day.pace}
                             variant="prominent"
                             testId={`day-${day.date}-run-target`}
+                            // Task #227: dress the race-week pace chip
+                            // in the runner's actual race-kind zone
+                            // tone (5K → VO2 red, 10K → threshold
+                            // orange, marathon-pace → steady amber)
+                            // so the day card communicates the
+                            // intended effort instead of leaving the
+                            // generic primary tone read identically
+                            // for "10:30" 5K pace and "11:30"
+                            // marathon pace. Returns undefined for
+                            // non-race rows.
+                            zoneBucket={
+                              raceDayLabel(
+                                day.distanceMi,
+                                day.description,
+                                day.sessionType,
+                              )?.zoneBucket
+                            }
                           />
                         </div>
                       </SessionDetailDisclosure>

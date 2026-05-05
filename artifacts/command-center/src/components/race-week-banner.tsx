@@ -12,6 +12,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Trophy, Flag, ListChecks } from "lucide-react";
 import { formatDistance } from "@/lib/format";
 import { raceDayLabel } from "@/lib/race-day-label";
+import { HR_ZONE_TONES } from "@/lib/run-target";
+import { cn } from "@/lib/utils";
 
 export function RaceWeekBanner() {
   const { data, isLoading } = useGetRaceWeek({
@@ -201,9 +203,21 @@ function RaceDayHero({ data }: { data: RaceWeekStatus }) {
         {plan ? (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <PlanStat label="Distance" value={formatDistance(plan.distanceMi)} />
+            {/* Task #227: race-week pace chip picks up the runner's
+                actual race-kind zone tone (5K → VO2 red, 10K →
+                threshold orange, marathon-pace → steady amber) instead
+                of the generic muted card surface. The bucket is looked
+                up from `race?.zoneBucket` (single source of truth in
+                race-day-label.ts) so every surface that paints this
+                chip — dashboard hero, Today's Mission Brief, the
+                week-detail day card — stays in lockstep. Falls back to
+                untoned styling when the row isn't a recognised race
+                kind. */}
             <PlanStat
               label="Target Pace"
               value={plan.targetPace ? `${plan.targetPace}/mi` : "Run by feel"}
+              zoneBucket={race?.zoneBucket}
+              testId="race-day-target-pace"
             />
             <PlanStat
               label="Fueling"
@@ -222,10 +236,37 @@ function RaceDayHero({ data }: { data: RaceWeekStatus }) {
   );
 }
 
-function PlanStat({ label, value }: { label: string; value: string }) {
+function PlanStat({
+  label,
+  value,
+  zoneBucket,
+  testId,
+}: {
+  label: string;
+  value: string;
+  // Task #227: when set, the chip wrapper picks up the zone-N tone
+  // (border + bg + label color) from HR_ZONE_TONES instead of the
+  // generic background/border. Used by the race-day Target Pace chip
+  // to communicate that 5K race pace is meant to feel VO2 (red) etc.
+  zoneBucket?: 1 | 2 | 3 | 4 | 5;
+  testId?: string;
+}) {
+  const tone = zoneBucket != null ? HR_ZONE_TONES[zoneBucket] : null;
   return (
-    <div className="bg-background/60 rounded-md border border-border p-4">
-      <p className="text-xs uppercase tracking-wider font-bold text-muted-foreground">
+    <div
+      className={cn(
+        "rounded-md border p-4",
+        tone ? cn(tone.borderClass, tone.bgClass) : "bg-background/60 border-border",
+      )}
+      data-testid={testId}
+      data-zone-bucket={zoneBucket ?? undefined}
+    >
+      <p
+        className={cn(
+          "text-xs uppercase tracking-wider font-bold",
+          tone ? tone.labelClass : "text-muted-foreground",
+        )}
+      >
         {label}
       </p>
       <p className="mt-1 text-lg font-black">{value}</p>

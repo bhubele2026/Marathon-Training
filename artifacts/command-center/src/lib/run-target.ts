@@ -118,6 +118,47 @@ export const HR_ZONE_COLORS: Record<
   5: { swatchClass: "bg-red-500" },
 };
 
+// Task #227: chip-surface tones keyed off the same 5-zone bucket as
+// HR_ZONE_COLORS so any pace/target chip we want to dress in the
+// runner's actual zone (e.g. the race-week pace chip — VO2 red for 5K,
+// threshold orange for 10K, steady amber for marathon pace) can pull
+// border / background / eyebrow-label classes from one place. The
+// border/background opacities (40% / 10%) match the existing generic
+// "border-primary/30 bg-primary/5" prominent-chip surface so the
+// re-toned variant doesn't suddenly read as a louder/different
+// element. The label tones use 700 in light / 300 in dark for AA
+// contrast against the 10% wash background in either theme.
+export const HR_ZONE_TONES: Record<
+  1 | 2 | 3 | 4 | 5,
+  { borderClass: string; bgClass: string; labelClass: string }
+> = {
+  1: {
+    borderClass: "border-slate-400/40",
+    bgClass: "bg-slate-400/10",
+    labelClass: "text-slate-700 dark:text-slate-300",
+  },
+  2: {
+    borderClass: "border-emerald-500/40",
+    bgClass: "bg-emerald-500/10",
+    labelClass: "text-emerald-700 dark:text-emerald-300",
+  },
+  3: {
+    borderClass: "border-amber-500/40",
+    bgClass: "bg-amber-500/10",
+    labelClass: "text-amber-700 dark:text-amber-300",
+  },
+  4: {
+    borderClass: "border-orange-500/40",
+    bgClass: "bg-orange-500/10",
+    labelClass: "text-orange-700 dark:text-orange-300",
+  },
+  5: {
+    borderClass: "border-red-500/40",
+    bgClass: "bg-red-500/10",
+    labelClass: "text-red-700 dark:text-red-300",
+  },
+};
+
 // Standard 5-zone "% of max heart rate" model (Task #141). Each zone is
 // a [low, high] fraction of the user's max HR. Zone 1 starts at 50% so
 // that a fully personalized "Zone 1 · 100-120 bpm" line still

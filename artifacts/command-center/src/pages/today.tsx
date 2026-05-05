@@ -16,6 +16,7 @@ import {
   getPrimaryMetricCompare,
 } from "@/lib/primary-metric";
 import { RunTargetLine } from "@/components/run-target-line";
+import { raceDayLabel } from "@/lib/race-day-label";
 import { format, parseISO } from "date-fns";
 
 export default function Today() {
@@ -122,6 +123,18 @@ export default function Today() {
                       pace={today.firstSession.pace}
                       variant="prominent"
                       testId="first-session-run-target"
+                      // Task #227: when the first scheduled session
+                      // happens to be a race-day Sun (rare — campaign-
+                      // final week), recolor the chip to the race-kind
+                      // zone tone so the pre-launch preview already
+                      // signals the right effort.
+                      zoneBucket={
+                        raceDayLabel(
+                          today.firstSession.distanceMi,
+                          today.firstSession.description,
+                          today.firstSession.sessionType,
+                        )?.zoneBucket
+                      }
                     />
                     <PlannedBreakdown
                       totalMin={today.firstSession.totalMin}
@@ -281,6 +294,19 @@ export default function Today() {
                             pace={plan.pace}
                             variant="prominent"
                             testId={`today-plan-${plan.sourceEntryIndex}-run-target`}
+                            // Task #227: tone the chip per race-kind on
+                            // race day (Sun) so the runner sees that
+                            // 5K is meant to feel VO2 (red), 10K
+                            // threshold (orange), marathon-pace steady
+                            // (amber). Returns undefined for non-race
+                            // rows so the generic primary tone holds.
+                            zoneBucket={
+                              raceDayLabel(
+                                plan.distanceMi,
+                                plan.description,
+                                plan.sessionType,
+                              )?.zoneBucket
+                            }
                           />
                           <PlannedBreakdown
                             totalMin={plan.totalMin}
@@ -463,6 +489,16 @@ export default function Today() {
                         pace={today.plan.pace}
                         variant="prominent"
                         testId={`session-today-${session.id}-run-target`}
+                        // Task #227: race-kind zone tone on race day so
+                        // the post-log target line keeps the same
+                        // visual cue the pre-log Mission Brief carries.
+                        zoneBucket={
+                          raceDayLabel(
+                            today.plan.distanceMi,
+                            today.plan.description,
+                            today.plan.sessionType,
+                          )?.zoneBucket
+                        }
                       />
                     )}
                     <ActualBreakdown

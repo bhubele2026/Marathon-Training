@@ -3,7 +3,12 @@ import {
   useRestingHr,
   useRunTargetingMode,
 } from "@/hooks/use-run-targeting-mode";
-import { formatRunTarget, HR_ZONE_COLORS, isRunSession } from "@/lib/run-target";
+import {
+  formatRunTarget,
+  HR_ZONE_COLORS,
+  HR_ZONE_TONES,
+  isRunSession,
+} from "@/lib/run-target";
 import { cn } from "@/lib/utils";
 
 interface RunTargetLineProps {
@@ -14,6 +19,17 @@ interface RunTargetLineProps {
   pace?: string | null;
   variant?: "prominent" | "compact";
   testId?: string;
+  // Task #227: when set, the prominent chip wrapper picks up the
+  // zone-N tone from `HR_ZONE_TONES[zoneBucket]` (border + bg + eyebrow
+  // label color) instead of the generic primary tone. Used by
+  // race-week pace chips on dashboard / Today / week-detail so the
+  // 5K race-day pace reads as VO2 (red), 10K as threshold (orange),
+  // and marathon-pace as steady (amber). Race callers look the bucket
+  // up via `RACE_DAY_ZONE_BUCKET[kind]` (race-day-label.ts) so the
+  // mapping has one source of truth. Independent of the user's
+  // active run-targeting mode — the tone fires whether the prescription
+  // string is a pace, an effort label, or an HR-zone range.
+  zoneBucket?: 1 | 2 | 3 | 4 | 5;
 }
 
 // Single source of truth for the prescribed-run target line (Task #134).
@@ -36,6 +52,7 @@ export function RunTargetLine({
   pace,
   variant = "prominent",
   testId,
+  zoneBucket,
 }: RunTargetLineProps) {
   const mode = useRunTargetingMode();
   const maxHr = useMaxHr();
@@ -83,15 +100,26 @@ export function RunTargetLine({
     );
   }
 
+  // Task #227: when a zoneBucket override is supplied (race-week pace
+  // chip) the wrapper picks up the zone-N border / background / label
+  // tone from HR_ZONE_TONES so the prescription's intensity reads at a
+  // glance. Otherwise we fall through to the generic primary tone the
+  // chip has used since Task #134.
+  const tone = zoneBucket != null ? HR_ZONE_TONES[zoneBucket] : null;
+  const wrapperClass = tone
+    ? cn("rounded-md border px-4 py-3", tone.borderClass, tone.bgClass)
+    : cn("rounded-md border border-primary/30 bg-primary/5 px-4 py-3");
+  const labelClass = tone
+    ? cn("text-[10px] uppercase font-bold tracking-widest", tone.labelClass)
+    : "text-[10px] text-primary uppercase font-bold tracking-widest";
   return (
     <div
-      className={cn(
-        "rounded-md border border-primary/30 bg-primary/5 px-4 py-3",
-      )}
+      className={wrapperClass}
       data-testid={testId}
       data-run-targeting-mode={mode}
+      data-zone-bucket={zoneBucket ?? undefined}
     >
-      <p className="text-[10px] text-primary uppercase font-bold tracking-widest">
+      <p className={labelClass}>
         Run Target · {modeLabel}
       </p>
       <p

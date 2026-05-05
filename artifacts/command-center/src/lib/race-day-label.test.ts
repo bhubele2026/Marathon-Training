@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { raceDayLabel } from "./race-day-label";
+import { raceDayLabel, RACE_DAY_ZONE_BUCKET } from "./race-day-label";
 
 describe("raceDayLabel — task #201 per-kind Sunday label", () => {
   it("classifies the four real race kinds from the generator description prefix (no sessionType needed)", () => {
@@ -70,5 +70,55 @@ describe("raceDayLabel — task #201 per-kind Sunday label", () => {
     expect(raceDayLabel(13.1, null, "Race")).toMatchObject({ kind: "half", shortLabel: "Half", distanceMi: 13.1 });
     expect(raceDayLabel(6.2, null, "Race")).toMatchObject({ kind: "10k", shortLabel: "10K", distanceMi: 6.2 });
     expect(raceDayLabel(3.1, null, "Race")).toMatchObject({ kind: "5k", shortLabel: "5K", distanceMi: 3.1 });
+  });
+});
+
+// Task #227: pin the race-kind → 5-zone bucket mapping. The race-week
+// pace chip on dashboard / Today / week-detail dresses itself in the
+// HR_ZONE_TONES tone for this bucket so the runner sees the intended
+// effort at a glance — VO2 red for 5K, threshold orange for 10K /
+// half, steady amber for marathon pace. Pinning the table here means
+// a future change to RACE_DAY_SPECS pace ladder must also revisit
+// these buckets (or this snapshot fails) so the visual cue stays in
+// lockstep with the actual prescribed pace.
+describe("RACE_DAY_ZONE_BUCKET — task #227 single source of truth", () => {
+  it("maps each race kind to its training-zone bucket", () => {
+    expect(RACE_DAY_ZONE_BUCKET).toEqual({
+      marathon: 3, // amber — steady marathon-pace effort
+      half: 3, // amber — paired with marathon as "race-pace" tone
+      "10k": 4, // orange — lactate threshold
+      "5k": 5, // red — VO2max
+    });
+  });
+
+  it("pairs marathon and half on the same race-pace tone (per task #227 brief)", () => {
+    expect(RACE_DAY_ZONE_BUCKET.half).toBe(RACE_DAY_ZONE_BUCKET.marathon);
+  });
+
+  it("is exposed on the per-kind RaceDayLabelInfo so callers with only the row in hand can look the bucket up", () => {
+    expect(raceDayLabel(26.2, null, "Race")?.zoneBucket).toBe(3);
+    expect(raceDayLabel(13.1, null, "Race")?.zoneBucket).toBe(3);
+    expect(raceDayLabel(6.2, null, "Race")?.zoneBucket).toBe(4);
+    expect(raceDayLabel(3.1, null, "Race")?.zoneBucket).toBe(5);
+  });
+
+  it("does not return a zoneBucket on non-race rows (raceDayLabel returns null first)", () => {
+    // Distance-only fallback is gated on a race signal — a 13.1 mi
+    // long run, 3.1 mi shakeout, etc. should NOT pick up a zoneBucket
+    // off the distance alone.
+    expect(raceDayLabel(13.1, "Long aerobic effort")).toBeNull();
+    expect(raceDayLabel(3.1, "Easy shakeout", "Recovery Run")).toBeNull();
+  });
+
+  it("orders the buckets so 5K is the hottest tone and marathon/half is the coolest", () => {
+    // Sanity guard: the bucket ordering encodes the relative effort
+    // ramp across race kinds. A future tweak that swaps marathon and
+    // 5K (or drops 10K below the marathon/half race-pace tier) would
+    // silently mis-color the chip, so assert the strict ordering
+    // directly. Marathon and half share a tone (race-pace), so the
+    // 10K tier sits strictly above both.
+    expect(RACE_DAY_ZONE_BUCKET["5k"]).toBeGreaterThan(RACE_DAY_ZONE_BUCKET["10k"]);
+    expect(RACE_DAY_ZONE_BUCKET["10k"]).toBeGreaterThan(RACE_DAY_ZONE_BUCKET.half);
+    expect(RACE_DAY_ZONE_BUCKET["10k"]).toBeGreaterThan(RACE_DAY_ZONE_BUCKET.marathon);
   });
 });
