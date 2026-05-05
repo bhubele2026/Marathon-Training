@@ -16,7 +16,7 @@ import {
 } from "@workspace/plan-generator";
 
 describe("PLAN_TEMPLATES", () => {
-  it("registers the curated skill-level catalog (Task #169 — exactly 15 templates, 5 per level)", () => {
+  it("registers the curated skill-level catalog (Task #169 + Task #219 — 16 templates after the half-marathon hybrid was added)", () => {
     const ids = PLAN_TEMPLATES.map((t) => t.id).sort();
     expect(ids).toEqual(
       [
@@ -26,12 +26,16 @@ describe("PLAN_TEMPLATES", () => {
         "higdon_5k_novice",
         "5k_strength_lite",
         "5k_hybrid_balanced",
-        // Intermediate — 10K race focus, run-only → heavier hybrid.
+        // Intermediate — 10K race focus + half-marathon hybrid, run-only → heavier hybrid.
         "10k_higdon_int",
         "10k_daniels",
         "10k_pfitz",
         "10k_strength_lite",
         "10k_hybrid_balanced",
+        // Task #219: half-marathon hybrid sits at Intermediate alongside
+        // the 10K hybrid (`10k_hybrid_balanced`); the recipe-driven
+        // `half_marathon` and `hm_pfitz` stay at Advanced.
+        "half_marathon_hybrid",
         // Advanced — half-marathon and marathon, run-only → heavier hybrid.
         "half_marathon",
         "hm_pfitz",
@@ -42,15 +46,19 @@ describe("PLAN_TEMPLATES", () => {
     );
   });
 
-  it("ships exactly 15 templates split 5 / 5 / 5 across the three levels (Task #169)", () => {
-    expect(PLAN_TEMPLATES).toHaveLength(15);
+  it("ships 16 templates split 5 / 6 / 5 across the three levels (Task #169 + Task #219)", () => {
+    // Task #219 added `half_marathon_hybrid` at the Intermediate level
+    // (sitting alongside `10k_hybrid_balanced`), bumping the Intermediate
+    // bucket from 5 → 6 and the total from 15 → 16. Beginner and Advanced
+    // are unchanged.
+    expect(PLAN_TEMPLATES).toHaveLength(16);
     const counts = PLAN_TEMPLATES.reduce<Record<string, number>>(
       (acc, t) => ({ ...acc, [t.level]: (acc[t.level] ?? 0) + 1 }),
       {},
     );
     expect(counts).toEqual({
       Beginner: 5,
-      Intermediate: 5,
+      Intermediate: 6,
       Advanced: 5,
     });
   });
@@ -94,6 +102,11 @@ describe("PLAN_TEMPLATES", () => {
       "10k_pfitz": [8, 10, 12],
       "10k_strength_lite": [8, 10, 12],
       "10k_hybrid_balanced": [8, 10, 12],
+      // Task #219 — Intermediate half-marathon hybrid mirrors the
+      // recipe-driven half_marathon week range so the runner gets the
+      // same min/default/max picker behavior whether they choose run-
+      // only or the hybrid variant.
+      half_marathon_hybrid: [10, 12, 16],
       // Advanced — half-marathon and marathon, run-only → heavier hybrid.
       half_marathon: [10, 12, 16],
       hm_pfitz: [10, 12, 16],

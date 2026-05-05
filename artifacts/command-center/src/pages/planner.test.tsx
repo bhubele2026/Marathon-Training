@@ -1111,12 +1111,17 @@ const EXPECTED_LEVELS: Record<string, "Beginner" | "Intermediate" | "Advanced"> 
   higdon_5k_novice: "Beginner",
   "5k_strength_lite": "Beginner",
   "5k_hybrid_balanced": "Beginner",
-  // Intermediate — 10K race focus, run-only → heavier hybrid.
+  // Intermediate — 10K race focus + half-marathon hybrid (Task #219),
+  // run-only → heavier hybrid.
   "10k_higdon_int": "Intermediate",
   "10k_daniels": "Intermediate",
   "10k_pfitz": "Intermediate",
   "10k_strength_lite": "Intermediate",
   "10k_hybrid_balanced": "Intermediate",
+  // Task #219 — the hybrid half-marathon sits at Intermediate alongside
+  // `10k_hybrid_balanced` (the recipe-driven `half_marathon` and
+  // `hm_pfitz` stay at Advanced).
+  half_marathon_hybrid: "Intermediate",
   // Advanced — half-marathon and marathon, run-only → heavier hybrid.
   half_marathon: "Advanced",
   hm_pfitz: "Advanced",
