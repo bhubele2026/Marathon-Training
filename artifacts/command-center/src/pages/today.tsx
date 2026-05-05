@@ -423,6 +423,136 @@ export default function Today() {
                           </div>
                         );
                       })()}
+                      {/* Task #239 (Today mirror): Sun long-run
+                          personalized pace chip. Mirrors the IIFE in
+                          week-detail.tsx so the same Sparkles chip /
+                          tooltip appears whether the runner lands on
+                          /plan/weeks/:week or /plan/today. */}
+                      {(() => {
+                        const lp = plan.personalizedLongRunPace ?? null;
+                        if (!lp) return null;
+                        return (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span
+                                  className={cn(
+                                    "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wider w-fit cursor-help",
+                                    lp.source === "personalized"
+                                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                                      : "bg-muted text-muted-foreground",
+                                  )}
+                                  data-testid={`badge-long-run-pace-source-today-${plan.date}`}
+                                  data-pace-source={lp.source}
+                                  data-personalized-pace={lp.pace}
+                                >
+                                  <Sparkles className="h-3 w-3" />
+                                  {lp.source === "personalized"
+                                    ? `${lp.pace}/mi · Personalized`
+                                    : `${lp.pace}/mi · From catalog`}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent
+                                side="top"
+                                align="start"
+                                className="max-w-xs text-xs"
+                              >
+                                {lp.source === "personalized" && lp.basisPaceSeconds != null ? (
+                                  <span>
+                                    Personalized from {lp.sampleSize} easy aerobic run
+                                    {lp.sampleSize === 1 ? "" : "s"} (long run / aerobic
+                                    base / recovery) in the last {lp.lookbackWeeks} weeks.
+                                    Avg training pace{" "}
+                                    <span className="font-mono font-bold">
+                                      {Math.floor(lp.basisPaceSeconds / 60)}:
+                                      {String(lp.basisPaceSeconds % 60).padStart(2, "0")}
+                                    </span>
+                                    /mi → today's long-run target{" "}
+                                    <span className="font-mono font-bold">{lp.pace}</span>/mi.
+                                  </span>
+                                ) : (
+                                  <span>
+                                    Showing the catalog long-run pace —
+                                    not enough recent easy aerobic runs in the last{" "}
+                                    {lp.lookbackWeeks} weeks to personalize. Log a few
+                                    long runs / aerobic base sessions and this chip
+                                    will retune to your training.
+                                  </span>
+                                )}
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                        );
+                      })()}
+                      {/* Task #240: Wed steady (Z3) / Fri tempo /
+                          threshold / race-pace personalized pace chip
+                          mirrored from week-detail.tsx so the same
+                          Sparkles chip + tooltip explainer renders on
+                          the dedicated /plan/today page too. Server
+                          only populates `plan.personalizedPace` on
+                          rows that match `isPersonalizableQualityPlanDay`
+                          AND carry a non-null catalog `pace`, so this
+                          block stays absent on every other card.
+                          Race-day Sun and Wed/Fri quality rows never
+                          overlap, so this chip and the race-day chip
+                          above can never both render on the same card. */}
+                      {(() => {
+                        const pp = plan.personalizedPace ?? null;
+                        if (!pp) return null;
+                        const lowerSession = plan.sessionType.toLowerCase();
+                        return (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span
+                                  className={cn(
+                                    "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wider w-fit cursor-help",
+                                    pp.source === "personalized"
+                                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                                      : "bg-muted text-muted-foreground",
+                                  )}
+                                  data-testid={`badge-quality-pace-source-today-${plan.date}`}
+                                  data-pace-source={pp.source}
+                                  data-personalized-pace={pp.pace}
+                                >
+                                  <Sparkles className="h-3 w-3" />
+                                  {pp.source === "personalized"
+                                    ? `${pp.pace}/mi · Personalized`
+                                    : `${pp.pace}/mi · From catalog`}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent
+                                side="top"
+                                align="start"
+                                className="max-w-xs text-xs"
+                              >
+                                {pp.source === "personalized" && pp.basisPaceSeconds != null ? (
+                                  <span>
+                                    Personalized from {pp.sampleSize} quality run
+                                    {pp.sampleSize === 1 ? "" : "s"} (tempo / threshold /
+                                    interval / VO2 / race) in the last {pp.lookbackWeeks} weeks.
+                                    Avg training pace{" "}
+                                    <span className="font-mono font-bold">
+                                      {Math.floor(pp.basisPaceSeconds / 60)}:
+                                      {String(pp.basisPaceSeconds % 60).padStart(2, "0")}
+                                    </span>
+                                    /mi → today's {lowerSession} target{" "}
+                                    <span className="font-mono font-bold">{pp.pace}</span>/mi.
+                                  </span>
+                                ) : (
+                                  <span>
+                                    Showing the catalog {lowerSession} pace —
+                                    not enough recent quality runs in the last{" "}
+                                    {pp.lookbackWeeks} weeks to personalize. Log a few
+                                    tempo / threshold / interval workouts and this chip
+                                    will retune to your training.
+                                  </span>
+                                )}
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                        );
+                      })()}
                       <div className="flex flex-wrap items-baseline gap-3">
                         <span className="font-black text-2xl uppercase tracking-tight">{plan.sessionType}</span>
                       </div>
@@ -477,8 +607,15 @@ export default function Today() {
                             // Task #239: also honor the Sun long-run
                             // overlay (mutually exclusive with the
                             // race-day overlay above).
+                            // Task #240: extend the precedence chain
+                            // to also honor the Wed/Fri quality
+                            // overlay (`personalizedPace`). The three
+                            // overlays are mutually exclusive so the
+                            // order is symbolic — any non-null wins
+                            // over the seeded catalog `plan.pace`.
                             pace={
                               plan.personalizedRacePace?.pace ??
+                              plan.personalizedPace?.pace ??
                               plan.personalizedLongRunPace?.pace ??
                               plan.pace
                             }
