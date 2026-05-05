@@ -135,6 +135,75 @@ describe("RaceWeekBanner — race-day Target Pace tile (Task #227)", () => {
   });
 });
 
+describe("RaceWeekBanner — sibling Distance + Fueling tiles toned per race kind (Task #233)", () => {
+  // The Distance and Fueling chips share the race-day stat row with
+  // the louder Target Pace chip. Task #233 adds a hairline accent
+  // (border + eyebrow-label color from the same HR_ZONE_TONES bucket)
+  // so the trio reads as one race-kind unit. The full bg wash is
+  // reserved for Target Pace so the pace chip still anchors the row.
+  it("5K race day → Z5 red border accent on Distance + Fueling, no full bg wash", () => {
+    setupRaceDay({ distanceMi: 3.1, description: "RACE DAY — 5K.", targetPace: "10:30" });
+    render(<RaceWeekBanner />);
+    for (const id of ["race-day-distance", "race-day-fueling"]) {
+      const chip = screen.getByTestId(id);
+      expect(chip.getAttribute("data-accent-zone-bucket")).toBe("5");
+      expect(chip.getAttribute("data-zone-bucket")).toBeNull();
+      expect(chip.className).toContain("border-red-500/40");
+      // Hairline only — keep the muted background, no full bg wash.
+      expect(chip.className).toContain("bg-background/60");
+      expect(chip.className).not.toContain("bg-red-500/10");
+      // Eyebrow label picks up the toned color rather than muted.
+      const eyebrow = chip.querySelector("p");
+      expect(eyebrow).not.toBeNull();
+      expect(eyebrow!.className).toContain("text-red-700");
+      expect(eyebrow!.className).not.toContain("text-muted-foreground");
+    }
+  });
+
+  it("10K race day → Z4 orange border accent on Distance + Fueling", () => {
+    setupRaceDay({ distanceMi: 6.2, description: "RACE DAY — 10K.", targetPace: "11:00" });
+    render(<RaceWeekBanner />);
+    for (const id of ["race-day-distance", "race-day-fueling"]) {
+      const chip = screen.getByTestId(id);
+      expect(chip.getAttribute("data-accent-zone-bucket")).toBe("4");
+      expect(chip.className).toContain("border-orange-500/40");
+      expect(chip.className).not.toContain("bg-orange-500/10");
+    }
+  });
+
+  it("Half marathon race day → Z3 amber border accent on Distance + Fueling", () => {
+    setupRaceDay({ distanceMi: 13.1, description: "RACE DAY — Half." });
+    render(<RaceWeekBanner />);
+    for (const id of ["race-day-distance", "race-day-fueling"]) {
+      const chip = screen.getByTestId(id);
+      expect(chip.getAttribute("data-accent-zone-bucket")).toBe("3");
+      expect(chip.className).toContain("border-amber-500/40");
+      expect(chip.className).not.toContain("bg-amber-500/10");
+    }
+  });
+
+  it("Marathon race day → Z3 amber border accent on Distance + Fueling", () => {
+    setupRaceDay({ distanceMi: 26.2, description: "RACE DAY — Marathon." });
+    render(<RaceWeekBanner />);
+    for (const id of ["race-day-distance", "race-day-fueling"]) {
+      const chip = screen.getByTestId(id);
+      expect(chip.getAttribute("data-accent-zone-bucket")).toBe("3");
+      expect(chip.className).toContain("border-amber-500/40");
+    }
+  });
+
+  it("falls back to muted tone on Distance + Fueling when racePlan distance isn't a real race kind", () => {
+    setupRaceDay({ distanceMi: 8, description: "RACE DAY — Custom." });
+    render(<RaceWeekBanner />);
+    for (const id of ["race-day-distance", "race-day-fueling"]) {
+      const chip = screen.getByTestId(id);
+      expect(chip.getAttribute("data-accent-zone-bucket")).toBeNull();
+      expect(chip.className).toContain("border-border");
+      expect(chip.className).not.toMatch(/border-(amber|orange|red)-500\/40/);
+    }
+  });
+});
+
 describe("RaceWeekBanner — post-race result form / summary (Task #40)", () => {
   function setupPostRace(raceResult: unknown = null, daysAfterRace = 2) {
     useGetRaceWeekMock.mockReturnValue({

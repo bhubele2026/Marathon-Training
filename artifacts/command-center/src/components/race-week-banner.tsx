@@ -562,7 +562,18 @@ function RaceDayHero({ data }: { data: RaceWeekStatus }) {
 
         {plan ? (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <PlanStat label="Distance" value={formatDistance(plan.distanceMi)} />
+            {/* Task #233: the sibling Distance + Fueling tiles pick up
+                a hairline accent in the same race-kind zone tone via
+                `accentZoneBucket` (border + eyebrow-label color only,
+                no full bg wash) so the runner reads the whole race-day
+                stat trio as one toned unit while the Target Pace tile
+                still carries the louder full tone from Task #227. */}
+            <PlanStat
+              label="Distance"
+              value={formatDistance(plan.distanceMi)}
+              accentZoneBucket={race?.zoneBucket}
+              testId="race-day-distance"
+            />
             {/* Task #227: race-week pace chip picks up the runner's
                 actual race-kind zone tone (5K → VO2 red, 10K →
                 threshold orange, marathon-pace → steady amber) instead
@@ -582,6 +593,8 @@ function RaceDayHero({ data }: { data: RaceWeekStatus }) {
             <PlanStat
               label="Fueling"
               value={plan.fuelingNote ?? "Per plan"}
+              accentZoneBucket={race?.zoneBucket}
+              testId="race-day-fueling"
             />
           </div>
         ) : null}
@@ -600,6 +613,7 @@ function PlanStat({
   label,
   value,
   zoneBucket,
+  accentZoneBucket,
   testId,
 }: {
   label: string;
@@ -609,22 +623,42 @@ function PlanStat({
   // generic background/border. Used by the race-day Target Pace chip
   // to communicate that 5K race pace is meant to feel VO2 (red) etc.
   zoneBucket?: 1 | 2 | 3 | 4 | 5;
+  // Task #233: hairline-accent variant. When set (and `zoneBucket` is
+  // not), the chip keeps the muted background but borrows just the
+  // border + eyebrow-label color from HR_ZONE_TONES so the sibling
+  // race-day stat tiles (Distance, Fueling) read as part of the same
+  // toned trio as the louder Target Pace chip without competing with
+  // it visually.
+  accentZoneBucket?: 1 | 2 | 3 | 4 | 5;
   testId?: string;
 }) {
   const tone = zoneBucket != null ? HR_ZONE_TONES[zoneBucket] : null;
+  const accent =
+    tone == null && accentZoneBucket != null
+      ? HR_ZONE_TONES[accentZoneBucket]
+      : null;
   return (
     <div
       className={cn(
         "rounded-md border p-4",
-        tone ? cn(tone.borderClass, tone.bgClass) : "bg-background/60 border-border",
+        tone
+          ? cn(tone.borderClass, tone.bgClass)
+          : accent
+            ? cn("bg-background/60", accent.borderClass)
+            : "bg-background/60 border-border",
       )}
       data-testid={testId}
       data-zone-bucket={zoneBucket ?? undefined}
+      data-accent-zone-bucket={accentZoneBucket ?? undefined}
     >
       <p
         className={cn(
           "text-xs uppercase tracking-wider font-bold",
-          tone ? tone.labelClass : "text-muted-foreground",
+          tone
+            ? tone.labelClass
+            : accent
+              ? accent.labelClass
+              : "text-muted-foreground",
         )}
       >
         {label}
