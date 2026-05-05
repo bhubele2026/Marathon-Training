@@ -160,10 +160,45 @@ export default function Dashboard() {
 
   if (!summary) return <div>Failed to load dashboard</div>;
 
+  // Task #209: per-kind race-campaign framing for the dashboard header
+  // — same labels /plan uses (Task #204) so the two surfaces stay in
+  // lock-step. `summary.raceKind` is null on tonal-first / non-race
+  // campaigns (lift_primary blocks, ad-hoc Custom blocks) so the
+  // header collapses to no campaign title in those cases instead of
+  // presupposing a marathon. Marathon plans intentionally collapse to
+  // plain "Race Campaign" so the long-running flagship copy stays
+  // unchanged after this task.
+  const raceKind = summary.raceKind ?? null;
+  const RACE_CAMPAIGN_LABELS: Record<NonNullable<typeof raceKind>, string> = {
+    marathon: "Race Campaign",
+    half: "Half Marathon Campaign",
+    "10k": "10K Campaign",
+    "5k": "5K Campaign",
+  };
+  const raceCampaignLabel = raceKind ? RACE_CAMPAIGN_LABELS[raceKind] : null;
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-      <RaceWeekBanner />
+      {raceCampaignLabel && (
+        <div data-testid="dashboard-header" className="flex flex-col gap-1">
+          <h2
+            className="text-3xl font-black uppercase tracking-tight text-primary"
+            data-testid="dashboard-header-title"
+            data-race-kind={raceKind ?? ""}
+          >
+            {raceCampaignLabel}
+          </h2>
+          <p
+            className="text-muted-foreground uppercase font-medium tracking-widest text-sm"
+            data-testid="dashboard-header-subtitle"
+          >
+            {summary.daysToRace} Days to Race Day
+          </p>
+        </div>
+      )}
+
+      <RaceWeekBanner raceKind={raceKind} />
 
       {/* Top Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

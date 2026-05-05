@@ -15,7 +15,29 @@ import { raceDayLabel } from "@/lib/race-day-label";
 import { HR_ZONE_TONES } from "@/lib/run-target";
 import { cn } from "@/lib/utils";
 
-export function RaceWeekBanner() {
+// Task #209: per-kind race-week eyebrow / post-race title so a
+// half / 10K / 5K campaign reads "Half Marathon · Race Week" / "Day N
+// Half Marathon Recovery" instead of always saying "Race Week" /
+// "Race Complete". Marathon collapses to plain "Race Week" so the
+// existing flagship copy is unchanged.
+type DashboardRaceKind = "marathon" | "half" | "10k" | "5k";
+const RACE_KIND_LABELS: Record<DashboardRaceKind, string> = {
+  marathon: "Marathon",
+  half: "Half Marathon",
+  "10k": "10K",
+  "5k": "5K",
+};
+
+interface RaceWeekBannerProps {
+  // Task #209: per-kind framing flows from the dashboard summary so the
+  // banner copy matches the dashboard header. Optional / nullable so
+  // callers without raceKind context (or campaigns with no recognised
+  // race row) still render the generic "Race Week" / "Race Complete"
+  // copy unchanged.
+  raceKind?: DashboardRaceKind | null;
+}
+
+export function RaceWeekBanner({ raceKind = null }: RaceWeekBannerProps = {}) {
   const { data, isLoading } = useGetRaceWeek({
     query: {
       queryKey: getGetRaceWeekQueryKey(),
@@ -30,16 +52,29 @@ export function RaceWeekBanner() {
   if (!data || !data.inWindow) return null;
 
   if (data.racePassed) {
-    return <PostRaceRecovery data={data} />;
+    return <PostRaceRecovery data={data} raceKind={raceKind} />;
   }
   if (data.isRaceDay) {
     return <RaceDayHero data={data} />;
   }
-  return <RaceWeekCountdown data={data} />;
+  return <RaceWeekCountdown data={data} raceKind={raceKind} />;
 }
 
-function RaceWeekCountdown({ data }: { data: RaceWeekStatus }) {
+function RaceWeekCountdown({
+  data,
+  raceKind,
+}: {
+  data: RaceWeekStatus;
+  raceKind: DashboardRaceKind | null;
+}) {
   const showHours = data.daysToRace <= 7;
+  // Marathon collapses to the existing "Race Week" copy so flagship
+  // marathon framing is unchanged; shorter races prepend the kind so a
+  // 5K / 10K / Half campaign reads "Half Marathon · Race Week".
+  const eyebrow =
+    raceKind && raceKind !== "marathon"
+      ? `${RACE_KIND_LABELS[raceKind]} · Race Week`
+      : "Race Week";
   return (
     <Card
       className="border-primary/40 bg-gradient-to-br from-primary/15 via-primary/5 to-background overflow-hidden"
@@ -52,8 +87,12 @@ function RaceWeekCountdown({ data }: { data: RaceWeekStatus }) {
               <Flag className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] font-bold text-primary">
-                Race Week
+              <p
+                className="text-xs uppercase tracking-[0.2em] font-bold text-primary"
+                data-testid="race-week-eyebrow"
+                data-race-kind={raceKind ?? ""}
+              >
+                {eyebrow}
               </p>
               <h2 className="text-xl md:text-2xl font-black uppercase tracking-wider">
                 Final Approach
@@ -123,7 +162,20 @@ function RaceWeekCountdown({ data }: { data: RaceWeekStatus }) {
   );
 }
 
-function PostRaceRecovery({ data }: { data: RaceWeekStatus }) {
+function PostRaceRecovery({
+  data,
+  raceKind,
+}: {
+  data: RaceWeekStatus;
+  raceKind: DashboardRaceKind | null;
+}) {
+  // Marathon collapses to the existing "Race Complete" copy; shorter
+  // races call out the kind so post-race framing reads e.g. "5K
+  // Complete — Day 2 Recovery" instead of generic "Race Complete".
+  const completedLabel =
+    raceKind && raceKind !== "marathon"
+      ? `${RACE_KIND_LABELS[raceKind]} Complete`
+      : "Race Complete";
   return (
     <Card
       className="border-emerald-500/40 bg-gradient-to-br from-emerald-500/15 via-emerald-500/5 to-background overflow-hidden"
@@ -138,8 +190,12 @@ function PostRaceRecovery({ data }: { data: RaceWeekStatus }) {
             <p className="text-xs uppercase tracking-[0.2em] font-bold text-emerald-600 dark:text-emerald-400">
               Recovery Mode
             </p>
-            <h2 className="text-xl md:text-2xl font-black uppercase tracking-wider">
-              Race Complete — Day {data.daysAfterRace ?? 0} Recovery
+            <h2
+              className="text-xl md:text-2xl font-black uppercase tracking-wider"
+              data-testid="post-race-headline"
+              data-race-kind={raceKind ?? ""}
+            >
+              {completedLabel} — Day {data.daysAfterRace ?? 0} Recovery
             </h2>
           </div>
         </div>

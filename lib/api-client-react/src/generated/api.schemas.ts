@@ -586,6 +586,36 @@ export interface UpdateMeasurementBody {
   notes?: string | null;
 }
 
+/**
+ * Task #209. Kind of race the campaign is anchored on, derived
+from the trailing plan_day Sunday — same detection logic as
+`PlanOverview.raceKind` (Task #204) so the dashboard header
+and race-week banner stay in lock-step with /plan. Populated
+when that final row is a recognised race day (sessionType
+`Race` or the generator's "RACE DAY — <Marathon|Half|10K|5K>"
+description prefix); resolved from the description first so
+a runner who edits the distance still gets the right kind,
+then falls back to `distance_mi`. Null on tonal-first /
+non-race plans (lift_primary blocks, ad-hoc Custom blocks)
+and on legacy / freshly seeded campaigns with no plan_days
+yet — the dashboard header keeps generic copy in those cases
+so we don't presuppose a race. Drives the "Race Campaign" /
+per-kind ("5K Campaign", "10K Campaign", "Half Marathon
+Campaign") framing on the dashboard header and the
+RaceWeekBanner countdown / post-race copy.
+
+ */
+export type DashboardSummaryRaceKind =
+  | (typeof DashboardSummaryRaceKind)[keyof typeof DashboardSummaryRaceKind]
+  | null;
+
+export const DashboardSummaryRaceKind = {
+  marathon: "marathon",
+  half: "half",
+  "10k": "10k",
+  "5k": "5k",
+} as const;
+
 export interface DashboardSummaryProgram {
   /** Stable identifier for this program within the active planner config (0..N-1). */
   sourceEntryIndex: number;
@@ -629,6 +659,24 @@ export interface DashboardSummary {
   /** Task #144. Per-program breakdown of the current week's planned and actual training load for runners stacking concurrent programs (e.g. a Tonal lift program alongside a 5K running program). Each program corresponds to one TemplateEntry currently contributing rows to plan_days. Headline weekly* fields above are the COMBINED totals across all programs; this array lets the dashboard drill in to per-program totals. Always present — for legacy single-program campaigns it contains exactly one element labelled "Marathon Plan". Programs are ordered by sourceEntryIndex ascending.
    */
   programs: DashboardSummaryProgram[];
+  /** Task #209. Kind of race the campaign is anchored on, derived
+from the trailing plan_day Sunday — same detection logic as
+`PlanOverview.raceKind` (Task #204) so the dashboard header
+and race-week banner stay in lock-step with /plan. Populated
+when that final row is a recognised race day (sessionType
+`Race` or the generator's "RACE DAY — <Marathon|Half|10K|5K>"
+description prefix); resolved from the description first so
+a runner who edits the distance still gets the right kind,
+then falls back to `distance_mi`. Null on tonal-first /
+non-race plans (lift_primary blocks, ad-hoc Custom blocks)
+and on legacy / freshly seeded campaigns with no plan_days
+yet — the dashboard header keeps generic copy in those cases
+so we don't presuppose a race. Drives the "Race Campaign" /
+per-kind ("5K Campaign", "10K Campaign", "Half Marathon
+Campaign") framing on the dashboard header and the
+RaceWeekBanner countdown / post-race copy.
+ */
+  raceKind?: DashboardSummaryRaceKind;
 }
 
 export interface WeightPoint {

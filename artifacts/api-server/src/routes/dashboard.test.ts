@@ -386,6 +386,88 @@ describe("GET /api/dashboard/summary adherence per program (task #143)", () => {
   });
 });
 
+describe("GET /api/dashboard/summary raceKind per-kind framing (task #209)", () => {
+  // Mirrors the trailing-Sunday detection /plan/overview uses (task
+  // #204) so the dashboard header / race-week banner read the same
+  // per-kind label as /plan instead of always defaulting to "Race
+  // Campaign". One non-marathon kind is enough to pin the wiring; the
+  // shared `detectRaceKind` helper is exhaustively covered in
+  // plan-aggregations.test.ts.
+  it.each([
+    {
+      kind: "5k",
+      distanceMi: 3.1,
+      description:
+        "RACE DAY — 5K (3.1 mi). Execute race plan at VO2 effort, go hard from the gun, finish strong.",
+    },
+    {
+      kind: "half",
+      distanceMi: 13.1,
+      description:
+        "RACE DAY — Half (13.1 mi). Execute race plan, fuel every 4 mi, finish strong.",
+    },
+  ])(
+    "reports raceKind=$kind when the trailing plan_day is the matching race row",
+    async ({ kind, distanceMi, description }) => {
+      const week = 8501;
+      const phase = "Dashboard Race Tail";
+      await insertWeek(week, {
+        startDate: "2099-10-04",
+        endDate: "2099-10-10",
+        phase,
+      });
+      // Lead-in Saturday + race-day Sunday; the trailing-day query
+      // orders by date DESC so Sunday wins regardless of insertion.
+      await insertPlanDay(week, phase, {
+        date: "2099-10-09",
+        day: "Sat",
+        sessionType: T_RUN,
+        equipment: E_OUTDOOR,
+        distanceMi: 2,
+      });
+      await insertPlanDay(week, phase, {
+        date: "2099-10-10",
+        day: "Sun",
+        sessionType: "Race",
+        equipment: E_OUTDOOR,
+        distanceMi,
+        description,
+      });
+
+      const res = await request(app).get("/api/dashboard/summary");
+      expect(res.status).toBe(200);
+      expectMatchesSchema(GetDashboardSummaryResponse, res.body);
+      expect(res.body.raceKind).toBe(kind);
+    },
+  );
+
+  it("returns raceKind=null when the trailing plan_day is a non-race row at a canonical race distance", async () => {
+    // A 13.1 mi long-run Sunday must NOT be classified as a half
+    // marathon race day from distance alone — without the explicit
+    // race signal the dashboard header collapses to its generic copy
+    // instead of presupposing a race kind.
+    const week = 8511;
+    const phase = "Dashboard Long Run Tail";
+    await insertWeek(week, {
+      startDate: "2099-11-01",
+      endDate: "2099-11-07",
+      phase,
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-11-07",
+      day: "Sun",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      distanceMi: 13.1,
+      description: "Long run, easy effort.",
+    });
+    const res = await request(app).get("/api/dashboard/summary");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetDashboardSummaryResponse, res.body);
+    expect(res.body.raceKind).toBeNull();
+  });
+});
+
 describe("GET /api/dashboard/summary daysToRace anchored on applied Planner config", () => {
   it("counts down to the runner's APPLIED marathon date, not the canonical 2027 date", async () => {
     vi.useFakeTimers();

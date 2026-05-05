@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, planWeeksTable, planDaysTable, workoutsTable, measurementsTable } from "@workspace/db";
 import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
-import { LIFESTYLE_EQUIPMENT } from "@workspace/plan-generator";
+import { LIFESTYLE_EQUIPMENT, detectRaceKind } from "@workspace/plan-generator";
 import { toWorkout } from "../lib/transforms";
 import { readActiveRaceDate } from "./planner";
 
@@ -189,6 +189,30 @@ router.get("/dashboard/summary", async (_req, res) => {
   const activeRaceDate = await readActiveRaceDate();
   const daysToRace = Math.max(0, Math.ceil((new Date(activeRaceDate).getTime() - Date.now()) / (24 * 3600 * 1000)));
 
+  // Task #209: per-kind race-campaign framing for the dashboard header
+  // and race-week banner. Mirrors the trailing-Sunday detection used by
+  // /plan/overview (Task #204 / #210) — same shared `detectRaceKind`
+  // helper from `@workspace/plan-generator` — so the dashboard reads
+  // "5K Campaign" / "10K Campaign" / "Half Marathon Campaign" / "Race
+  // Campaign" in lock-step with /plan instead of always defaulting to
+  // marathon framing. Tonal-first / ad-hoc Custom blocks produce no
+  // recognised race row, so this stays null and the dashboard keeps
+  // its generic header copy.
+  const lastDayRows = await db.execute<{
+    distance_mi: number | null;
+    description: string | null;
+    session_type: string | null;
+  }>(
+    sql`SELECT distance_mi, description, session_type
+        FROM plan_days
+        ORDER BY date DESC, source_entry_index ASC
+        LIMIT 1`,
+  );
+  const lastDay = lastDayRows.rows[0];
+  const raceKind = lastDay
+    ? detectRaceKind(lastDay.distance_mi, lastDay.description, lastDay.session_type)
+    : null;
+
   res.json({
     currentWeek: weekRow?.week ?? 1,
     currentPhase: weekRow?.phase ?? "Foundation Build",
@@ -211,6 +235,7 @@ router.get("/dashboard/summary", async (_req, res) => {
     adherencePct,
     daysToRace,
     programs,
+    raceKind,
   });
 });
 

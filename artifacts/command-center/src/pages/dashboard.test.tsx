@@ -85,7 +85,36 @@ const mockLongRun = vi.mocked(useGetLongRunProgression);
 const mockActivity = vi.mocked(useGetRecentActivity);
 const mockToday = vi.mocked(useGetTodayPlan);
 
-const SUMMARY = {
+// `raceKind` is widened explicitly so per-test overrides can pin it to
+// any of the four canonical race kinds (or null) without the inferred
+// type narrowing it to just `null`.
+const SUMMARY: {
+  currentWeek: number;
+  currentPhase: string;
+  totalWeeks: number;
+  weeksRemaining: number;
+  raceDate: string;
+  startDate: string;
+  weeklyMilesActual: number;
+  weeklyMilesPlanned: number;
+  weeklyLoadActual: number;
+  weeklyLoadPlanned: number;
+  weeklySessionsCompleted: number;
+  weeklySessionsPlanned: number;
+  weeklyLifestyleMinutes: number;
+  prevWeeklyLifestyleMinutes: number;
+  totalMilesAllTime: number;
+  longestRunMi: number;
+  weightStart: number;
+  weightCurrent: number;
+  weightGoal: number;
+  weightLost: number;
+  weightToGoal: number;
+  adherencePct: number;
+  daysToRace: number;
+  programs: Array<unknown>;
+  raceKind: "marathon" | "half" | "10k" | "5k" | null;
+} = {
   currentWeek: 34,
   currentPhase: "Marathon-Specific",
   totalWeeks: 52,
@@ -110,11 +139,15 @@ const SUMMARY = {
   adherencePct: 90,
   daysToRace: 120,
   programs: [],
+  raceKind: "marathon",
 };
 
-function setupHooks(mileage: ReadonlyArray<Record<string, unknown>>) {
+function setupHooks(
+  mileage: ReadonlyArray<Record<string, unknown>>,
+  summaryOverrides: Partial<typeof SUMMARY> = {},
+) {
   mockSummary.mockReturnValue({
-    data: SUMMARY,
+    data: { ...SUMMARY, ...summaryOverrides },
     isLoading: false,
   } as unknown as ReturnType<typeof useGetDashboardSummary>);
   mockWeight.mockReturnValue({
@@ -311,5 +344,66 @@ describe("Dashboard mileage chart — Steady Wed marker (Task #183)", () => {
     expect(legend.textContent).toMatch(/1\s+wk\b/);
     expect(legend.textContent).not.toMatch(/wks/);
     expect(screen.getByTestId("mileage-chart-steady-w40")).toBeTruthy();
+  });
+});
+
+describe("Dashboard header — race-campaign framing (task #209)", () => {
+  // The dashboard used to default to marathon framing everywhere
+  // (race week banner, charts, copy) regardless of which race the
+  // active campaign was actually anchored on. Task #209 reuses the
+  // server-side `summary.raceKind` (mirrors /plan/overview from
+  // task #204) so the dashboard header reads the same per-kind
+  // "<X> Campaign" label as /plan. Tonal-first / non-race plans
+  // (raceKind === null) keep the generic dashboard surface — no
+  // header — so we don't presuppose a race.
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("uses '5K Campaign · Days to Race Day' on a 5K campaign", () => {
+    setupHooks([], { raceKind: "5k", daysToRace: 21 });
+    render(<Dashboard />);
+    const title = screen.getByTestId("dashboard-header-title");
+    expect(title.textContent).toBe("5K Campaign");
+    expect(title.getAttribute("data-race-kind")).toBe("5k");
+    const subtitle = screen.getByTestId("dashboard-header-subtitle");
+    expect(subtitle.textContent).toContain("21 Days to Race Day");
+  });
+
+  it("uses 'Half Marathon Campaign' on a half campaign", () => {
+    setupHooks([], { raceKind: "half" });
+    render(<Dashboard />);
+    const title = screen.getByTestId("dashboard-header-title");
+    expect(title.textContent).toBe("Half Marathon Campaign");
+    expect(title.getAttribute("data-race-kind")).toBe("half");
+  });
+
+  it("uses '10K Campaign' on a 10K campaign", () => {
+    setupHooks([], { raceKind: "10k" });
+    render(<Dashboard />);
+    const title = screen.getByTestId("dashboard-header-title");
+    expect(title.textContent).toBe("10K Campaign");
+    expect(title.getAttribute("data-race-kind")).toBe("10k");
+  });
+
+  it("keeps marathon plans on plain 'Race Campaign' so flagship copy is unchanged", () => {
+    setupHooks([], { raceKind: "marathon" });
+    render(<Dashboard />);
+    const title = screen.getByTestId("dashboard-header-title");
+    expect(title.textContent).toBe("Race Campaign");
+    expect(title.getAttribute("data-race-kind")).toBe("marathon");
+  });
+
+  it("hides the campaign header on tonal-first / non-race plans (raceKind null)", () => {
+    // No race signal → the dashboard MUST NOT presuppose a race day.
+    // The campaign header is omitted entirely so the runner sees the
+    // generic dashboard surface (Mission Status / Days to Race / etc.)
+    // without a misleading "Race Campaign" framing on a lift_primary
+    // block / ad-hoc Custom block.
+    setupHooks([], { raceKind: null });
+    render(<Dashboard />);
+    expect(screen.queryByTestId("dashboard-header")).toBeNull();
+    expect(screen.queryByTestId("dashboard-header-title")).toBeNull();
   });
 });

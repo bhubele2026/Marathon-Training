@@ -1970,6 +1970,12 @@ export const GetDashboardSummaryResponse = zod.object({
     .describe(
       'Task #144. Per-program breakdown of the current week\'s planned and actual training load for runners stacking concurrent programs (e.g. a Tonal lift program alongside a 5K running program). Each program corresponds to one TemplateEntry currently contributing rows to plan_days. Headline weekly\* fields above are the COMBINED totals across all programs; this array lets the dashboard drill in to per-program totals. Always present — for legacy single-program campaigns it contains exactly one element labelled \"Marathon Plan\". Programs are ordered by sourceEntryIndex ascending.\n',
     ),
+  raceKind: zod
+    .enum(["marathon", "half", "10k", "5k"])
+    .nullish()
+    .describe(
+      'Task #209. Kind of race the campaign is anchored on, derived\nfrom the trailing plan_day Sunday — same detection logic as\n`PlanOverview.raceKind` (Task #204) so the dashboard header\nand race-week banner stay in lock-step with \/plan. Populated\nwhen that final row is a recognised race day (sessionType\n`Race` or the generator\'s \"RACE DAY — <Marathon|Half|10K|5K>\"\ndescription prefix); resolved from the description first so\na runner who edits the distance still gets the right kind,\nthen falls back to `distance_mi`. Null on tonal-first \/\nnon-race plans (lift_primary blocks, ad-hoc Custom blocks)\nand on legacy \/ freshly seeded campaigns with no plan_days\nyet — the dashboard header keeps generic copy in those cases\nso we don\'t presuppose a race. Drives the \"Race Campaign\" \/\nper-kind (\"5K Campaign\", \"10K Campaign\", \"Half Marathon\nCampaign\") framing on the dashboard header and the\nRaceWeekBanner countdown \/ post-race copy.\n',
+    ),
 });
 
 export const GetWeightTrendResponseItem = zod.object({
