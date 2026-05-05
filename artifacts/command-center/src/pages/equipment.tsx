@@ -14,7 +14,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { formatDistance, formatDuration, formatLoad, formatDate } from "@/lib/format";
-import { Activity, Dumbbell, Clock, Route, AlertTriangle, Timer } from "lucide-react";
+import { Activity, Dumbbell, Clock, Route, AlertTriangle, Timer, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { phaseColor } from "@/lib/phase-colors";
 
@@ -260,6 +260,72 @@ export default function Equipment() {
         </p>
       </div>
 
+      {!loadingUsage && usage && usage.length > 0 && (() => {
+        const behindMachines = usage.filter(
+          (eq) => paceStatus(eq.sessions, eq.plannedToDateSessions) === "behind",
+        );
+        if (behindMachines.length === 0) {
+          return (
+            <Card
+              className="border-emerald-500/40 bg-emerald-500/5"
+              data-testid="behind-machines-banner-on-track"
+            >
+              <CardContent className="p-4 flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                <span className="font-black uppercase tracking-wider text-sm">
+                  All Arsenal On Track
+                </span>
+                <span className="text-xs uppercase tracking-wider text-muted-foreground ml-1">
+                  Every machine at or above 85% of plan-to-date
+                </span>
+              </CardContent>
+            </Card>
+          );
+        }
+        return (
+          <Card
+            className="border-amber-500/40 bg-amber-500/5"
+            data-testid="behind-machines-banner"
+          >
+            <CardContent className="p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                <span className="font-black uppercase tracking-wider text-sm">
+                  {behindMachines.length} Machine{behindMachines.length === 1 ? "" : "s"} Need Attention
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {behindMachines.map((eq) => {
+                  const shortfall = Math.max(0, eq.plannedToDateSessions - eq.sessions);
+                  const ratio = eq.plannedToDateSessions > 0
+                    ? Math.round((eq.sessions / eq.plannedToDateSessions) * 100)
+                    : 0;
+                  return (
+                    <button
+                      key={eq.equipment}
+                      type="button"
+                      onClick={() => setSelectedEquipment(eq.equipment)}
+                      className="flex items-center justify-between gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-left transition-colors hover:bg-amber-500/20"
+                      data-testid={`behind-machine-${eq.equipment.toLowerCase().replace(/\s+/g, "-")}`}
+                    >
+                      <span className="font-bold uppercase tracking-wider text-xs truncate">
+                        {eq.equipment}
+                      </span>
+                      <span className="text-[11px] font-mono text-amber-600 dark:text-amber-400 shrink-0 text-right">
+                        {shortfall} session{shortfall === 1 ? "" : "s"} behind
+                        <span className="block text-[9px] uppercase tracking-wider text-amber-600/70 dark:text-amber-400/70">
+                          {eq.sessions}/{eq.plannedToDateSessions} · {ratio}%
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       {loadingUsage ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (
@@ -448,50 +514,6 @@ export default function Equipment() {
           ))}
         </div>
       )}
-
-      {(() => {
-        const behindMachines = (usage ?? [])
-          .map((eq) => ({ eq, metric: paceMetricFor(eq) }))
-          .filter(({ metric }) => paceStatus(metric.actual, metric.plannedToDate) === "behind");
-        if (behindMachines.length === 0) return null;
-        return (
-          <Card
-            className="border-amber-500/40 bg-amber-500/5"
-            data-testid="behind-machines-banner"
-          >
-            <CardContent className="p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                <span className="font-black uppercase tracking-wider text-sm">
-                  {behindMachines.length} Machine{behindMachines.length === 1 ? "" : "s"} Behind Pace
-                </span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {behindMachines.map(({ eq, metric }) => {
-                  const ratio = metric.plannedToDate > 0
-                    ? Math.round((metric.actual / metric.plannedToDate) * 100)
-                    : 0;
-                  const unitLabel = metric.unit === "min" ? " min" : "";
-                  return (
-                    <button
-                      key={eq.equipment}
-                      type="button"
-                      onClick={() => setSelectedEquipment(eq.equipment)}
-                      className="flex items-center justify-between rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-left transition-colors hover:bg-amber-500/20"
-                      data-testid={`behind-machine-${eq.equipment.toLowerCase().replace(/\s+/g, "-")}`}
-                    >
-                      <span className="font-bold uppercase tracking-wider text-xs">{eq.equipment}</span>
-                      <span className="text-xs font-mono text-amber-600 dark:text-amber-400">
-                        {metric.actual}/{metric.plannedToDate}{unitLabel} ({ratio}%)
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })()}
 
       <div className="pt-6 border-t border-border">
         <div className="mb-4">
