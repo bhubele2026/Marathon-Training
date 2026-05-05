@@ -1,7 +1,9 @@
 import { useState } from "react";
 import {
+  getGetPlanWeekQueryKey,
   useFullResetPlan,
   useGetPlanOverview,
+  useGetPlanWeek,
   useListPlanWeeks,
   useResetPlan,
   useUndoPlanReset,
@@ -42,6 +44,101 @@ import {
 import { cn } from "@/lib/utils";
 import { phaseColor } from "@/lib/phase-colors";
 import { adherenceBarClass, adherenceStatus, adherenceTextClass } from "@/lib/adherence";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { customizedFieldLabel, formatDiffValue } from "@/lib/customized-diff";
+
+// Lazy-loaded popover for the per-week "Edited" badge on the plan overview.
+// Fetches the week's days only when the popover opens (so a campaign with
+// dozens of weeks doesn't pay the cost up front), then groups field-level
+// before/after diffs by day so the runner sees exactly what changed without
+// having to drill into the week page. Stops click propagation so opening
+// the popover doesn't also navigate into the week.
+function WeekCustomizedBadge({
+  week,
+  customizedDays,
+}: {
+  week: number;
+  customizedDays: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const { data: weekDetail, isLoading } = useGetPlanWeek(week, {
+    query: {
+      enabled: open,
+      queryKey: getGetPlanWeekQueryKey(week),
+    },
+  });
+  const editedDays = (weekDetail?.days ?? []).filter((d) => d.isCustomized);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          onClick={(e) => e.stopPropagation()}
+          className="flex items-center gap-1 text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25 transition-colors px-1.5 py-0.5 rounded font-bold uppercase tracking-wider cursor-pointer"
+          data-testid={`badge-customized-week-${week}`}
+          aria-label="Show what changed this week"
+        >
+          <Sparkles className="h-2.5 w-2.5" />
+          {customizedDays} Edited
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-80 p-3 max-h-96 overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+        data-testid={`popover-customized-week-${week}`}
+      >
+        <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
+          Edited from original — Week {week}
+        </div>
+        {isLoading && !weekDetail ? (
+          <div className="text-xs text-muted-foreground">Loading…</div>
+        ) : editedDays.length === 0 ? (
+          <div className="text-xs text-muted-foreground">No edited days.</div>
+        ) : (
+          <ul className="space-y-3">
+            {editedDays.map((day) => (
+              <li
+                key={day.id}
+                className="space-y-1.5"
+                data-testid={`popover-customized-week-${week}-day-${day.date}`}
+              >
+                <div className="text-[11px] font-bold uppercase tracking-wider text-foreground">
+                  {day.day} · {day.date}
+                </div>
+                {(day.customizedDiff ?? []).length === 0 ? (
+                  <div className="text-xs text-muted-foreground pl-2">
+                    No field-level diff available.
+                  </div>
+                ) : (
+                  <ul className="space-y-1 pl-2 border-l-2 border-amber-500/30">
+                    {(day.customizedDiff ?? []).map((entry) => (
+                      <li
+                        key={`${day.id}-${entry.field}`}
+                        className="text-xs flex flex-col gap-0.5"
+                        data-testid={`diff-row-week-${week}-${day.date}-${entry.field}`}
+                      >
+                        <span className="font-semibold text-foreground">
+                          {customizedFieldLabel(entry.field)}
+                        </span>
+                        <span className="font-mono text-muted-foreground">
+                          <span>{formatDiffValue(entry.field, entry.before)}</span>
+                          <span className="mx-1.5">→</span>
+                          <span className="text-amber-600 dark:text-amber-400">
+                            {formatDiffValue(entry.field, entry.after)}
+                          </span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 const RESET_PLAN_CONFIRM_PHRASE = "RESET PLAN";
 
@@ -584,13 +681,10 @@ export default function Plan() {
                               </span>
                             )}
                             {(week.customizedDays ?? 0) > 0 && (
-                              <span
-                                className="flex items-center gap-1 bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider"
-                                data-testid={`badge-customized-week-${week.week}`}
-                              >
-                                <Sparkles className="h-2.5 w-2.5" />
-                                {week.customizedDays} Edited
-                              </span>
+                              <WeekCustomizedBadge
+                                week={week.week}
+                                customizedDays={week.customizedDays!}
+                              />
                             )}
                             {(week.missedSessions ?? 0) > 0 && (
                               <span

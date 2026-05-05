@@ -72,40 +72,10 @@ import {
   getPrimaryMetricCompare,
 } from "@/lib/primary-metric";
 import { RunTargetLine } from "@/components/run-target-line";
+import { customizedFieldLabel, formatDiffValue } from "@/lib/customized-diff";
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
-}
-
-// Human-readable labels for the camelCase field names returned by the API in
-// PlanDay.customizedFields. Keep keys aligned with planDayCustomizedFields()
-// in the api-server transforms.
-const CUSTOMIZED_FIELD_LABELS: Record<string, string> = {
-  sessionType: "Session type",
-  equipment: "Equipment",
-  description: "Description",
-  distanceMi: "Distance",
-  strengthMin: "Lift minutes",
-  cardioMin: "Cardio minutes",
-  runMin: "Run minutes",
-  pace: "Pace",
-  strengthLoad: "Strength load",
-  totalLoad: "Total load",
-  isRest: "Rest day",
-};
-
-// Format a stringified diff value for display in the "Edited" popover.
-// Field-specific suffixes keep the diff readable (4 mi, 45 min, 8:30/mi)
-// even though the wire format is a plain string. Empty/null becomes an
-// em-dash so an "added" or "cleared" field is still visually present.
-function formatDiffValue(field: string, value: string | null): string {
-  if (value == null || value === "") return "—";
-  if (field === "distanceMi") return `${value} mi`;
-  if (field === "strengthMin" || field === "cardioMin" || field === "runMin") {
-    return `${value} min`;
-  }
-  if (field === "isRest") return value === "true" ? "Rest" : "Active";
-  return value;
 }
 
 function CustomizedBadge({ day }: { day: PlanDay }) {
@@ -136,7 +106,7 @@ function CustomizedBadge({ day }: { day: PlanDay }) {
         ) : (
           <ul className="space-y-1.5">
             {diff.map((entry) => {
-              const label = CUSTOMIZED_FIELD_LABELS[entry.field] ?? entry.field;
+              const label = customizedFieldLabel(entry.field);
               return (
                 <li
                   key={entry.field}
