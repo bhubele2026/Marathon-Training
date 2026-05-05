@@ -44,6 +44,10 @@ vi.mock("@/components/quick-log-activity", () => ({
   QuickLogActivity: () => <div data-testid="quick-log-stub" />,
 }));
 
+vi.mock("@/components/race-week-banner", () => ({
+  ChecklistNudge: () => null,
+}));
+
 import { useGetTodayPlan } from "@workspace/api-client-react";
 import { HR_ZONE_COLORS } from "@/lib/run-target";
 import { TooltipProvider } from "@/components/ui/tooltip";

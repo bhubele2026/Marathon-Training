@@ -912,6 +912,15 @@ empty "Log your race" form and a "saved result" summary card.
  */
   raceResult?: RaceResult | null;
   checklist: RaceWeekChecklistItem[];
+  /**
+   * Task #39. Count of taper checklist items still unchecked. Used by
+the dashboard header and Today page to render a compact reminder
+badge during race week. Falls to 0 once everything is checked, so
+the UI can hide the nudge without recomputing client-side.
+
+   * @minimum 0
+   */
+  uncheckedCount: number;
 }
 
 export interface SetRaceResultBody {

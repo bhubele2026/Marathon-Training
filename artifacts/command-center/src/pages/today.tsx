@@ -22,6 +22,7 @@ import {
 } from "@/lib/primary-metric";
 import { RunTargetLine } from "@/components/run-target-line";
 import { raceDayLabel } from "@/lib/race-day-label";
+import { ChecklistNudge } from "@/components/race-week-banner";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 
@@ -49,11 +50,12 @@ export default function Today() {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-3xl font-black uppercase tracking-tight text-primary">Today's Mission</h2>
           <p className="text-muted-foreground uppercase font-medium tracking-widest">{today.date}</p>
         </div>
+        <ChecklistNudge testId="today-checklist-reminder" />
       </div>
 
       {showCountdown && today.firstSession ? (

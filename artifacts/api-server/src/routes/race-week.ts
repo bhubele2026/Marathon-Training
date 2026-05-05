@@ -131,6 +131,10 @@ router.get("/race-week", async (_req, res) => {
       isCustom: true,
     }));
   const checklist = [...defaults, ...customs];
+  // Task #39: surface the unchecked count so the dashboard header and
+  // Today page can render a compact reminder badge without
+  // recomputing it client-side.
+  const uncheckedCount = checklist.filter((c) => !c.checked).length;
 
   res.json({
     raceDate,
@@ -143,6 +147,7 @@ router.get("/race-week", async (_req, res) => {
     racePlan,
     raceResult,
     checklist,
+    uncheckedCount,
   });
 });
 

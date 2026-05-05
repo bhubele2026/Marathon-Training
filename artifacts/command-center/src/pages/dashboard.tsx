@@ -30,7 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Activity, CalendarDays, CheckCircle2, TrendingDown, TrendingUp, ArrowRight, Target, Zap, Edit, Trash2, ExternalLink, Pencil, XCircle } from "lucide-react";
 import { useMissionActions } from "@/hooks/use-mission-actions";
 import { QuickLogActivity } from "@/components/quick-log-activity";
-import { RaceWeekBanner } from "@/components/race-week-banner";
+import { RaceWeekBanner, ChecklistNudge } from "@/components/race-week-banner";
 import { TimeOfDayBadge } from "@/components/time-of-day-badge";
 import { phaseColor } from "@/lib/phase-colors";
 
@@ -180,7 +180,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-      <div data-testid="dashboard-header" className="flex flex-col gap-1">
+      <div data-testid="dashboard-header" className="flex flex-col gap-2">
         <h2
           className="text-3xl font-black uppercase tracking-tight text-primary"
           data-testid="dashboard-header-title"
@@ -188,13 +188,18 @@ export default function Dashboard() {
         >
           {headerTitle}
         </h2>
-        {raceKind !== null && (
-          <p
-            className="text-muted-foreground uppercase font-medium tracking-widest text-sm"
-            data-testid="dashboard-header-subtitle"
-          >
-            {summary.daysToRace} Days to Race Day
-          </p>
+        {raceKind !== null ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <p
+              className="text-muted-foreground uppercase font-medium tracking-widest text-sm"
+              data-testid="dashboard-header-subtitle"
+            >
+              {summary.daysToRace} Days to Race Day
+            </p>
+            <ChecklistNudge testId="dashboard-checklist-reminder" />
+          </div>
+        ) : (
+          <ChecklistNudge testId="dashboard-checklist-reminder" />
         )}
       </div>
 

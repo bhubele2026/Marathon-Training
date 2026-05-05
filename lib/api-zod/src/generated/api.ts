@@ -3327,6 +3327,8 @@ export const UpdateUserPreferencesResponse = zod
 
 export const getRaceWeekResponseRaceResultOneFeltRatingMax = 5;
 
+export const getRaceWeekResponseUncheckedCountMin = 0;
+
 export const GetRaceWeekResponse = zod.object({
   raceDate: zod.string(),
   daysToRace: zod.number(),
@@ -3395,6 +3397,12 @@ export const GetRaceWeekResponse = zod.object({
         ),
     }),
   ),
+  uncheckedCount: zod
+    .number()
+    .min(getRaceWeekResponseUncheckedCountMin)
+    .describe(
+      "Task #39. Count of taper checklist items still unchecked. Used by\nthe dashboard header and Today page to render a compact reminder\nbadge during race week. Falls to 0 once everything is checked, so\nthe UI can hide the nudge without recomputing client-side.\n",
+    ),
 });
 
 /**

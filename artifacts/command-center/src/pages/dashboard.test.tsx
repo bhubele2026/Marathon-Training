@@ -42,6 +42,7 @@ vi.mock("@/hooks/use-mission-actions", () => ({
 
 vi.mock("@/components/race-week-banner", () => ({
   RaceWeekBanner: () => null,
+  ChecklistNudge: () => null,
 }));
 
 vi.mock("@/components/quick-log-activity", () => ({

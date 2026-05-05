@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Trophy, Flag, ListChecks, Plus, X, Pencil } from "lucide-react";
+import { Trophy, Flag, ListChecks, Plus, X, Pencil, AlertCircle } from "lucide-react";
 import { formatDistance } from "@/lib/format";
 import { raceDayLabel } from "@/lib/race-day-label";
 import { HR_ZONE_TONES } from "@/lib/run-target";
@@ -45,6 +45,42 @@ interface RaceWeekBannerProps {
   // race row) still render the generic "Race Week" / "Race Complete"
   // copy unchanged.
   raceKind?: DashboardRaceKind | null;
+}
+
+// Task #39: compact taper-checklist reminder for the dashboard header
+// and Today page. Renders a small badge ("3 checklist items remaining")
+// only while race week is active, the race hasn't passed, and at least
+// one item is still unchecked. Once everything is checked the badge
+// disappears so the runner only sees the nudge when there's actually
+// something to do. Reuses the same `useGetRaceWeek` query the banner
+// already runs so there's no extra round-trip.
+export function ChecklistNudge({ testId }: { testId?: string } = {}) {
+  const { data } = useGetRaceWeek({
+    query: {
+      queryKey: getGetRaceWeekQueryKey(),
+      refetchOnWindowFocus: true,
+      refetchInterval: 60_000,
+    },
+  });
+  if (!data) return null;
+  if (!data.inWindow || data.racePassed) return null;
+  if (data.uncheckedCount === 0) return null;
+  const urgent = data.daysToRace <= 2;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-bold uppercase tracking-wider border w-fit",
+        urgent
+          ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+          : "border-primary/40 bg-primary/10 text-primary",
+      )}
+      data-testid={testId ?? "checklist-reminder-badge"}
+      data-unchecked-count={data.uncheckedCount}
+    >
+      {urgent ? <AlertCircle className="h-3.5 w-3.5" /> : <ListChecks className="h-3.5 w-3.5" />}
+      {data.uncheckedCount} checklist item{data.uncheckedCount === 1 ? "" : "s"} remaining
+    </span>
+  );
 }
 
 export function RaceWeekBanner({ raceKind = null }: RaceWeekBannerProps = {}) {
