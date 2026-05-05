@@ -1585,6 +1585,16 @@ export const STARTER_SHORTCUTS: StarterShortcut[] = [
     ],
   },
   {
+    id: "hm_hybrid_18w",
+    name: "HM Hybrid — 18 weeks",
+    description:
+      "6-week Higdon Novice 5K aerobic-base lead-in feeding into 12 weeks of Viada's balanced hybrid half-marathon block. Ends on a 13.1 mi RACE DAY Sunday with the shared race-eve Saturday shake-out.",
+    entries: [
+      { templateId: "higdon_5k_novice", weeks: 6 },
+      { templateId: "half_marathon_hybrid", weeks: 12 },
+    ],
+  },
+  {
     id: "marathon_first_timer_24w",
     name: "Marathon First-Timer — 24 weeks",
     description:

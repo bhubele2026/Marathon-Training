@@ -198,12 +198,13 @@ describe("getTemplateById", () => {
 });
 
 describe("STARTER_SHORTCUTS", () => {
-  it("registers the curated 4 starter shortcuts (Task #132)", () => {
+  it("registers the curated 5 starter shortcuts (Task #132 + Task #222 — hybrid HM starter added)", () => {
     expect(STARTER_SHORTCUTS.map((s) => s.id).sort()).toEqual(
       [
         "couch_to_hm_24w",
         "get_faster_5k_14w",
         "hm_beginner_16w",
+        "hm_hybrid_18w",
         "marathon_first_timer_24w",
       ].sort(),
     );
