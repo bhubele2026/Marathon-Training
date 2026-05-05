@@ -1645,6 +1645,17 @@ export const STARTER_SHORTCUTS: StarterShortcut[] = [
     ],
   },
   {
+    id: "get_faster_10k_14w",
+    name: "Get Faster 10K — 14 weeks",
+    description:
+      "6-week NHS Couch to 5K lead-in + 8-week 10K-with-strength-accessory build. Ends on a 1-week sharpening taper into a 6.2 mi race day.",
+    style: "run_only",
+    entries: [
+      { templateId: "couch_to_5k", weeks: 6 },
+      { templateId: "10k_strength_lite", weeks: 8 },
+    ],
+  },
+  {
     id: "couch_to_hm_24w",
     name: "Couch → Half Marathon — 24 weeks",
     description:

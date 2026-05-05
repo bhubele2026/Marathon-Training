@@ -661,17 +661,28 @@ describe("Planner template library (entries-mode)", () => {
       within(rail).queryByTestId("planner-starter-marathon_first_timer_24w"),
     ).toBeNull();
 
-    // "10K": no starters today — empty-state placeholder renders so the
-    // rail doesn't silently collapse.
+    // "10K": Task #232 added the run-only Get Faster 10K starter, so
+    // the rail now renders that single card under the run_only group
+    // (no hybrid 10K starter yet, no empty-state placeholder).
     fireEvent.click(
       within(filter).getByTestId("planner-starter-distance-10k"),
     );
-    expect(within(rail).getByTestId("planner-starter-empty")).toBeTruthy();
+    expect(within(rail).queryByTestId("planner-starter-empty")).toBeNull();
     expect(
-      within(rail).queryByTestId("planner-starter-group-run_only"),
-    ).toBeNull();
+      within(rail).getByTestId("planner-starter-get_faster_10k_14w"),
+    ).toBeTruthy();
+    expect(
+      within(rail).getByTestId("planner-starter-group-run_only"),
+    ).toBeTruthy();
     expect(
       within(rail).queryByTestId("planner-starter-group-hybrid"),
+    ).toBeNull();
+    // Other-distance starters are filtered out.
+    expect(
+      within(rail).queryByTestId("planner-starter-get_faster_5k_14w"),
+    ).toBeNull();
+    expect(
+      within(rail).queryByTestId("planner-starter-marathon_first_timer_24w"),
     ).toBeNull();
 
     // Back to "All" restores the full rail (and clears the empty state).

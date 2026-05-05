@@ -200,11 +200,12 @@ describe("getTemplateById", () => {
 });
 
 describe("STARTER_SHORTCUTS", () => {
-  it("registers the curated 5 starter shortcuts (Task #132 + Task #222 — hybrid HM starter added)", () => {
+  it("registers the curated 6 starter shortcuts (Task #132 + Task #222 — hybrid HM starter added; Task #232 — 10K starter added)", () => {
     expect(STARTER_SHORTCUTS.map((s) => s.id).sort()).toEqual(
       [
         "couch_to_hm_24w",
         "get_faster_5k_14w",
+        "get_faster_10k_14w",
         "hm_beginner_16w",
         "hm_hybrid_18w",
         "marathon_first_timer_24w",
@@ -245,6 +246,14 @@ describe("STARTER_SHORTCUTS", () => {
     expect(s.entries.map((e) => [e.templateId, e.weeks])).toEqual([
       ["couch_to_5k", 6],
       ["5k_strength_lite", 8],
+    ]);
+  });
+
+  it("Get Faster 10K = 6w Couch to 5K + 8w 10K-with-strength-accessory (14w total) — Task #232", () => {
+    const s = STARTER_SHORTCUTS.find((x) => x.id === "get_faster_10k_14w")!;
+    expect(s.entries.map((e) => [e.templateId, e.weeks])).toEqual([
+      ["couch_to_5k", 6],
+      ["10k_strength_lite", 8],
     ]);
   });
 
@@ -465,6 +474,29 @@ describe("STARTER_SHORTCUTS", () => {
       expect(finalSun.session_type).toBe("Race");
       expect(finalSun.distance_mi).toBe(3.1);
       expect(finalSun.description).toMatch(/RACE DAY .*5K \(3\.1 mi\)/);
+    });
+
+    it("get_faster_10k_14w lays down a 14-week plan ending on a 6.2 mi race-day Sunday — Task #232", () => {
+      const { config, totalWeeks, raceDateISO } = buildConfig(
+        "get_faster_10k_14w",
+      );
+      expect(totalWeeks).toBe(14);
+
+      const { daily, weekly } = generatePlanFromConfig(config);
+
+      // Span lock — exactly 14 Mon..Sun weeks, 14 * 7 = 98 daily rows.
+      expect(weekly).toHaveLength(14);
+      expect(daily).toHaveLength(14 * 7);
+      expect(weekly[weekly.length - 1]!.week).toBe(14);
+
+      // Final Sunday is the canonical 10K race-day row, sourced from
+      // `RACE_DAY_SPECS["10k"]` via `buildRaceDaySunRow` (Task #217).
+      const finalSun = daily[daily.length - 1]!;
+      expect(finalSun.day).toBe("Sun");
+      expect(finalSun.date).toBe(raceDateISO);
+      expect(finalSun.session_type).toBe("Race");
+      expect(finalSun.distance_mi).toBe(6.2);
+      expect(finalSun.description).toMatch(/RACE DAY .*10K \(6\.2 mi\)/);
     });
 
     it("couch_to_hm_24w lays down a 24-week plan ending on a 13.1 mi race-day Sunday", () => {
