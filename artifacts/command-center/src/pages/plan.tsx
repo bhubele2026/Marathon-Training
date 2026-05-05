@@ -228,13 +228,34 @@ export default function Plan() {
           </p>
           <div className="flex flex-wrap items-center gap-3 mt-2">
             {totalMissed > 0 && (
-              <span
-                className="flex items-center gap-1 text-xs bg-destructive/15 text-destructive px-2 py-1 rounded font-bold uppercase tracking-wider"
-                data-testid="badge-total-missed"
-              >
-                <AlertTriangle className="h-3 w-3" />
-                {totalMissed} Missed
-              </span>
+              nextMissedWeek ? (
+                <button
+                  type="button"
+                  className="flex items-center gap-1 text-xs bg-destructive/15 text-destructive hover:bg-destructive/25 transition-colors px-2 py-1 rounded font-bold uppercase tracking-wider"
+                  onClick={() => {
+                    const el = document.querySelector(
+                      `[data-week-card="${nextMissedWeek.week}"]`,
+                    );
+                    if (el) {
+                      el.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }
+                  }}
+                  title={`Scroll to first missed week (W${nextMissedWeek.week})`}
+                  data-testid="badge-total-missed"
+                >
+                  <AlertTriangle className="h-3 w-3" />
+                  {totalMissed} Missed Session{totalMissed === 1 ? "" : "s"}
+                  <ChevronRight className="h-3 w-3 ml-0.5" />
+                </button>
+              ) : (
+                <span
+                  className="flex items-center gap-1 text-xs bg-destructive/15 text-destructive px-2 py-1 rounded font-bold uppercase tracking-wider"
+                  data-testid="badge-total-missed"
+                >
+                  <AlertTriangle className="h-3 w-3" />
+                  {totalMissed} Missed Session{totalMissed === 1 ? "" : "s"}
+                </span>
+              )
             )}
             {totalCustomized > 0 && (
               <span
@@ -244,17 +265,6 @@ export default function Plan() {
                 <Sparkles className="h-3 w-3" />
                 {totalCustomized} Edited
               </span>
-            )}
-            {nextMissedWeek && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-xs uppercase font-bold tracking-wider text-destructive h-auto py-1 px-2"
-                onClick={() => setLocation(`/plan/${nextMissedWeek.week}`)}
-                data-testid="button-jump-to-missed"
-              >
-                Jump to W{nextMissedWeek.week} <ChevronRight className="h-3 w-3 ml-0.5" />
-              </Button>
             )}
           </div>
         </div>
@@ -396,8 +406,9 @@ export default function Plan() {
                 return (
                   <Card 
                     key={week.week} 
+                    data-week-card={week.week}
                     className={cn(
-                      "cursor-pointer transition-all hover:shadow-md border-l-4",
+                      "cursor-pointer transition-all hover:shadow-md border-l-4 scroll-mt-24",
                       isCurrent
                         ? "ring-2 ring-primary shadow-sm bg-primary/5"
                         : "hover:border-primary/30"
