@@ -17,6 +17,8 @@ const setRaceResultMutate = vi.fn();
 vi.mock("@workspace/api-client-react", () => ({
   useGetRaceWeek: (...args: unknown[]) => useGetRaceWeekMock(...args),
   useSetRaceWeekChecklistItem: () => ({ mutate: vi.fn(), isPending: false }),
+  useCreateRaceWeekChecklistItem: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeleteRaceWeekChecklistItem: () => ({ mutate: vi.fn(), isPending: false }),
   useSetRaceResult: (opts: { mutation?: { onSuccess?: () => void } } = {}) => ({
     mutate: (vars: unknown) => {
       setRaceResultMutate(vars);
@@ -294,5 +296,125 @@ describe("RaceWeekBanner — post-race result form / summary (Task #40)", () => 
     setupPostRace(null, 10);
     rerender(<RaceWeekBanner />);
     expect(screen.getByTestId("recovery-phase-3")).toBeTruthy();
+  });
+});
+
+describe("RaceWeekBanner — per-kind banner branding (Task #241)", () => {
+  function setupCountdown() {
+    useGetRaceWeekMock.mockReturnValue({
+      data: {
+        inWindow: true,
+        isRaceDay: false,
+        racePassed: false,
+        daysToRace: 5,
+        hoursToRace: 120,
+        racePlan: null,
+        checklist: [],
+      },
+      isLoading: false,
+    });
+  }
+
+  function setupRaceDayPlain(distanceMi: number, description: string) {
+    useGetRaceWeekMock.mockReturnValue({
+      data: {
+        inWindow: true,
+        isRaceDay: true,
+        racePassed: false,
+        daysToRace: 0,
+        hoursToRace: 0,
+        racePlan: { distanceMi, description, targetPace: "10:30", fuelingNote: "Per plan" },
+        checklist: [],
+      },
+      isLoading: false,
+    });
+  }
+
+  function setupPostRaceKind() {
+    useGetRaceWeekMock.mockReturnValue({
+      data: {
+        inWindow: true,
+        isRaceDay: false,
+        racePassed: true,
+        daysToRace: 0,
+        hoursToRace: 0,
+        daysAfterRace: 2,
+        racePlan: null,
+        raceResult: null,
+        checklist: [],
+      },
+      isLoading: false,
+    });
+  }
+
+  it("countdown banner picks per-kind icon + accent for 5K", () => {
+    setupCountdown();
+    render(<RaceWeekBanner raceKind="5k" />);
+    const card = screen.getByTestId("race-week-banner");
+    expect(card.getAttribute("data-banner-kind")).toBe("5k");
+    expect(card.className).toContain("border-red-500/40");
+    expect(card.className).toContain("from-red-500/15");
+    expect(card.className).not.toContain("border-primary/40");
+  });
+
+  it("countdown banner picks sky tone for half marathon", () => {
+    setupCountdown();
+    render(<RaceWeekBanner raceKind="half" />);
+    const card = screen.getByTestId("race-week-banner");
+    expect(card.getAttribute("data-banner-kind")).toBe("half");
+    expect(card.className).toContain("border-sky-500/40");
+    expect(card.className).toContain("from-sky-500/15");
+  });
+
+  it("countdown banner picks amber tone for 10K", () => {
+    setupCountdown();
+    render(<RaceWeekBanner raceKind="10k" />);
+    const card = screen.getByTestId("race-week-banner");
+    expect(card.getAttribute("data-banner-kind")).toBe("10k");
+    expect(card.className).toContain("border-amber-500/40");
+    expect(card.className).toContain("from-amber-500/15");
+  });
+
+  it("countdown banner keeps primary/Flag flagship look for marathon", () => {
+    setupCountdown();
+    render(<RaceWeekBanner raceKind="marathon" />);
+    const card = screen.getByTestId("race-week-banner");
+    expect(card.getAttribute("data-banner-kind")).toBe("marathon");
+    expect(card.className).toContain("border-primary/40");
+    expect(card.className).toContain("from-primary/15");
+  });
+
+  it("race-day hero picks red tone for 5K", () => {
+    setupRaceDayPlain(3.1, "RACE DAY — 5K.");
+    render(<RaceWeekBanner raceKind="5k" />);
+    const card = screen.getByTestId("race-day-hero");
+    expect(card.getAttribute("data-banner-kind")).toBe("5k");
+    expect(card.className).toContain("border-red-500");
+    expect(card.className).toContain("from-red-500/30");
+    expect(card.className).not.toContain("border-primary");
+  });
+
+  it("race-day hero falls back to plan-derived kind when no prop is supplied", () => {
+    setupRaceDayPlain(13.1, "RACE DAY — Half.");
+    render(<RaceWeekBanner />);
+    const card = screen.getByTestId("race-day-hero");
+    expect(card.getAttribute("data-banner-kind")).toBe("half");
+    expect(card.className).toContain("border-sky-500");
+  });
+
+  it("post-race banner keeps emerald recovery surface but tints the icon per kind", () => {
+    setupPostRaceKind();
+    render(<RaceWeekBanner raceKind="5k" />);
+    const card = screen.getByTestId("post-race-banner");
+    // Recovery palette unchanged on the surface so the "Recovery
+    // Mode" semantic isn't lost.
+    expect(card.className).toContain("border-emerald-500/40");
+    expect(card.className).toContain("from-emerald-500/15");
+    expect(card.getAttribute("data-banner-kind")).toBe("5k");
+    // The kind icon picks up the per-kind accent.
+    const iconBadge = card.querySelector(".bg-red-500\\/20");
+    expect(iconBadge).not.toBeNull();
+    const kindIcon = iconBadge?.querySelector("svg.text-red-600");
+    expect(kindIcon).not.toBeNull();
   });
 });

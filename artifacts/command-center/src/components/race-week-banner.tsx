@@ -19,7 +19,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Trophy, Flag, ListChecks, Plus, X, Pencil, AlertCircle } from "lucide-react";
+import {
+  Trophy,
+  Flag,
+  ListChecks,
+  Plus,
+  X,
+  Pencil,
+  AlertCircle,
+  Route,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
 import { formatDistance } from "@/lib/format";
 import { raceDayLabel } from "@/lib/race-day-label";
 import { HR_ZONE_TONES } from "@/lib/run-target";
@@ -37,6 +48,115 @@ const RACE_KIND_LABELS: Record<DashboardRaceKind, string> = {
   "10k": "10K",
   "5k": "5K",
 };
+
+// Task #241: per-kind banner branding so a 5K / 10K / Half campaign
+// gets a distinct icon + accent color on the dashboard race-week
+// banner instead of inheriting the marathon flagship orange + Flag
+// look. Marathon stays on primary/Flag so the existing flagship
+// styling is unchanged. Tailwind classes are listed in full so the
+// JIT picks them up.
+type BannerTheme = {
+  Icon: LucideIcon;
+  // RaceWeekCountdown surface (lighter gradient).
+  countdown: {
+    card: string;
+    iconBg: string;
+    iconColor: string;
+    eyebrowColor: string;
+    daysColor: string;
+  };
+  // RaceDayHero surface (heavier gradient).
+  hero: {
+    card: string;
+    iconBg: string;
+    iconColor: string;
+    eyebrowColor: string;
+  };
+  // PostRaceRecovery accent on the kind icon (the recovery copy +
+  // emerald palette stay so the "Recovery Mode" semantic isn't lost;
+  // only the icon + eyebrow tint pick up the kind color).
+  recoveryIconColor: string;
+  recoveryIconBg: string;
+};
+
+const BANNER_THEME_BY_KIND: Record<DashboardRaceKind, BannerTheme> = {
+  marathon: {
+    Icon: Flag,
+    countdown: {
+      card: "border-primary/40 bg-gradient-to-br from-primary/15 via-primary/5 to-background",
+      iconBg: "bg-primary/20",
+      iconColor: "text-primary",
+      eyebrowColor: "text-primary",
+      daysColor: "text-primary",
+    },
+    hero: {
+      card: "border-primary bg-gradient-to-br from-primary/30 via-primary/10 to-background",
+      iconBg: "bg-primary/30",
+      iconColor: "text-primary",
+      eyebrowColor: "text-primary",
+    },
+    recoveryIconColor: "text-primary",
+    recoveryIconBg: "bg-primary/20",
+  },
+  half: {
+    Icon: Route,
+    countdown: {
+      card: "border-sky-500/40 bg-gradient-to-br from-sky-500/15 via-sky-500/5 to-background",
+      iconBg: "bg-sky-500/20",
+      iconColor: "text-sky-600 dark:text-sky-400",
+      eyebrowColor: "text-sky-600 dark:text-sky-400",
+      daysColor: "text-sky-600 dark:text-sky-400",
+    },
+    hero: {
+      card: "border-sky-500 bg-gradient-to-br from-sky-500/30 via-sky-500/10 to-background",
+      iconBg: "bg-sky-500/30",
+      iconColor: "text-sky-600 dark:text-sky-400",
+      eyebrowColor: "text-sky-600 dark:text-sky-400",
+    },
+    recoveryIconColor: "text-sky-600 dark:text-sky-400",
+    recoveryIconBg: "bg-sky-500/20",
+  },
+  "10k": {
+    Icon: Zap,
+    countdown: {
+      card: "border-amber-500/40 bg-gradient-to-br from-amber-500/15 via-amber-500/5 to-background",
+      iconBg: "bg-amber-500/20",
+      iconColor: "text-amber-600 dark:text-amber-400",
+      eyebrowColor: "text-amber-600 dark:text-amber-400",
+      daysColor: "text-amber-600 dark:text-amber-400",
+    },
+    hero: {
+      card: "border-amber-500 bg-gradient-to-br from-amber-500/30 via-amber-500/10 to-background",
+      iconBg: "bg-amber-500/30",
+      iconColor: "text-amber-600 dark:text-amber-400",
+      eyebrowColor: "text-amber-600 dark:text-amber-400",
+    },
+    recoveryIconColor: "text-amber-600 dark:text-amber-400",
+    recoveryIconBg: "bg-amber-500/20",
+  },
+  "5k": {
+    Icon: Zap,
+    countdown: {
+      card: "border-red-500/40 bg-gradient-to-br from-red-500/15 via-red-500/5 to-background",
+      iconBg: "bg-red-500/20",
+      iconColor: "text-red-600 dark:text-red-400",
+      eyebrowColor: "text-red-600 dark:text-red-400",
+      daysColor: "text-red-600 dark:text-red-400",
+    },
+    hero: {
+      card: "border-red-500 bg-gradient-to-br from-red-500/30 via-red-500/10 to-background",
+      iconBg: "bg-red-500/30",
+      iconColor: "text-red-600 dark:text-red-400",
+      eyebrowColor: "text-red-600 dark:text-red-400",
+    },
+    recoveryIconColor: "text-red-600 dark:text-red-400",
+    recoveryIconBg: "bg-red-500/20",
+  },
+};
+
+function bannerTheme(kind: DashboardRaceKind | null | undefined): BannerTheme {
+  return BANNER_THEME_BY_KIND[kind ?? "marathon"];
+}
 
 interface RaceWeekBannerProps {
   // Task #209: per-kind framing flows from the dashboard summary so the
@@ -101,7 +221,7 @@ export function RaceWeekBanner({ raceKind = null }: RaceWeekBannerProps = {}) {
     return <PostRaceRecovery data={data} raceKind={raceKind} />;
   }
   if (data.isRaceDay) {
-    return <RaceDayHero data={data} />;
+    return <RaceDayHero data={data} raceKind={raceKind} />;
   }
   return <RaceWeekCountdown data={data} raceKind={raceKind} />;
 }
@@ -121,20 +241,28 @@ function RaceWeekCountdown({
     raceKind && raceKind !== "marathon"
       ? `${RACE_KIND_LABELS[raceKind]} · Race Week`
       : "Race Week";
+  // Task #241: per-kind banner palette + icon. Marathon collapses to
+  // the existing primary/Flag flagship look so unchanged.
+  const theme = bannerTheme(raceKind);
+  const Icon = theme.Icon;
   return (
     <Card
-      className="border-primary/40 bg-gradient-to-br from-primary/15 via-primary/5 to-background overflow-hidden"
+      className={cn(theme.countdown.card, "overflow-hidden")}
       data-testid="race-week-banner"
+      data-banner-kind={raceKind ?? "marathon"}
     >
       <CardContent className="p-6 space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="rounded-md bg-primary/20 p-2">
-              <Flag className="h-6 w-6 text-primary" />
+            <div className={cn("rounded-md p-2", theme.countdown.iconBg)}>
+              <Icon className={cn("h-6 w-6", theme.countdown.iconColor)} />
             </div>
             <div>
               <p
-                className="text-xs uppercase tracking-[0.2em] font-bold text-primary"
+                className={cn(
+                  "text-xs uppercase tracking-[0.2em] font-bold",
+                  theme.countdown.eyebrowColor,
+                )}
                 data-testid="race-week-eyebrow"
                 data-race-kind={raceKind ?? ""}
               >
@@ -148,7 +276,10 @@ function RaceWeekCountdown({
           <div className="flex items-baseline gap-3 md:gap-4 flex-wrap">
             <div className="flex items-baseline gap-1.5">
               <span
-                className="text-4xl md:text-5xl font-black text-primary tabular-nums leading-none"
+                className={cn(
+                  "text-4xl md:text-5xl font-black tabular-nums leading-none",
+                  theme.countdown.daysColor,
+                )}
                 data-testid="race-week-days"
               >
                 {data.daysToRace}
@@ -224,15 +355,23 @@ function PostRaceRecovery({
       ? `${RACE_KIND_LABELS[raceKind]} Complete`
       : "Race Complete";
   const daysAfter = data.daysAfterRace ?? 0;
+  // Task #241: per-kind icon accent on the post-race banner so a 5K
+  // / 10K / Half campaign keeps its branding through recovery. The
+  // emerald recovery palette stays on the surface + body copy so the
+  // "Recovery Mode" semantic isn't lost; only the icon picks up the
+  // kind tone.
+  const theme = bannerTheme(raceKind);
+  const Icon = theme.Icon;
   return (
     <Card
       className="border-emerald-500/40 bg-gradient-to-br from-emerald-500/15 via-emerald-500/5 to-background overflow-hidden"
       data-testid="post-race-banner"
+      data-banner-kind={raceKind ?? "marathon"}
     >
       <CardContent className="p-6 space-y-5">
         <div className="flex items-center gap-3">
-          <div className="rounded-md bg-emerald-500/20 p-2">
-            <Trophy className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+          <div className={cn("rounded-md p-2", theme.recoveryIconBg)}>
+            <Icon className={cn("h-6 w-6", theme.recoveryIconColor)} />
           </div>
           <div>
             <p className="text-xs uppercase tracking-[0.2em] font-bold text-emerald-600 dark:text-emerald-400">
@@ -526,7 +665,13 @@ function RaceResultForm({
   );
 }
 
-function RaceDayHero({ data }: { data: RaceWeekStatus }) {
+function RaceDayHero({
+  data,
+  raceKind,
+}: {
+  data: RaceWeekStatus;
+  raceKind: DashboardRaceKind | null;
+}) {
   const plan = data.racePlan;
   // Task #201: surface the per-kind label ("5K Day" / "10K Day" /
   // "Half Marathon Day" / "Marathon Day") in the eyebrow above the
@@ -536,19 +681,30 @@ function RaceDayHero({ data }: { data: RaceWeekStatus }) {
   // row is missing or its distance doesn't match a real race kind.
   const race = plan ? raceDayLabel(plan.distanceMi, plan.description) : null;
   const eyebrow = race ? race.label : "Race Day";
+  // Task #241: per-kind hero palette + icon. Prefer the prop (single
+  // source of truth from the dashboard summary) and fall back to the
+  // detected race kind from the plan distance for older callers.
+  const themeKind: DashboardRaceKind | null =
+    raceKind ?? (race?.kind as DashboardRaceKind | undefined) ?? null;
+  const theme = bannerTheme(themeKind);
+  const Icon = theme.Icon;
   return (
     <Card
-      className="border-primary bg-gradient-to-br from-primary/30 via-primary/10 to-background overflow-hidden"
+      className={cn(theme.hero.card, "overflow-hidden")}
       data-testid="race-day-hero"
+      data-banner-kind={themeKind ?? "marathon"}
     >
       <CardContent className="p-6 space-y-5">
         <div className="flex items-center gap-3">
-          <div className="rounded-md bg-primary/30 p-2">
-            <Trophy className="h-6 w-6 text-primary" />
+          <div className={cn("rounded-md p-2", theme.hero.iconBg)}>
+            <Icon className={cn("h-6 w-6", theme.hero.iconColor)} />
           </div>
           <div>
             <p
-              className="text-xs uppercase tracking-[0.2em] font-bold text-primary"
+              className={cn(
+                "text-xs uppercase tracking-[0.2em] font-bold",
+                theme.hero.eyebrowColor,
+              )}
               data-testid="race-day-hero-eyebrow"
               data-race-kind={race?.kind ?? "unknown"}
             >
