@@ -441,10 +441,7 @@ describe("GET /api/dashboard/summary adherence per program (task #143)", () => {
               AND EXISTS (
                 SELECT 1 FROM workouts w
                 WHERE w.session_type <> 'Skipped'
-                  AND (
-                    w.plan_day_id = pd.id
-                    OR (w.plan_day_id IS NULL AND w.date = pd.date)
-                  )
+                  AND w.plan_day_id = pd.id
               )
           ) AS completed`,
       );

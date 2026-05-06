@@ -156,12 +156,15 @@ router.get("/plan/overview", async (_req, res) => {
   }));
 
   // Task #33: earliest past non-rest plan_day with no workout
-  // attributed to it (either via workouts.plan_day_id, or via the
-  // legacy date-only fallback when plan_day_id is NULL). Used by the
-  // /plan header to render a "Next Missed" shortcut that jumps the
-  // runner straight to the day they need to back-fill. Mirrors the
-  // missed-day predicate used in /plan/weeks so the badge counts and
-  // this shortcut never disagree on which dates count as missed.
+  // attributed to it via workouts.plan_day_id. Used by the /plan
+  // header to render a "Next Missed" shortcut that jumps the runner
+  // straight to the day they need to back-fill. Mirrors the missed-day
+  // predicate used in /plan/weeks so the badge counts and this
+  // shortcut never disagree on which dates count as missed. The legacy
+  // date-only fallback (`plan_day_id IS NULL AND w.date = pd.date`)
+  // was retired in Task #295 once every workout carries a real
+  // `plan_day_id` (backfilled by `backfill-workout-plan-day`, with a
+  // post-merge orphan check guarding against regressions).
   const today = todayISO();
   const nextMissedRows = await db.execute<{ id: number; date: string; week: number }>(
     sql`SELECT pd.id, pd.date, pd.week
@@ -171,7 +174,6 @@ router.get("/plan/overview", async (_req, res) => {
           AND NOT EXISTS (
             SELECT 1 FROM workouts w
             WHERE w.plan_day_id = pd.id
-               OR (w.plan_day_id IS NULL AND w.date = pd.date)
           )
         ORDER BY pd.date ASC, pd.source_entry_index ASC
         LIMIT 1`,
@@ -217,9 +219,10 @@ router.get("/plan/weeks", async (_req, res) => {
   // (Task #135) two plan_days can share a calendar date — each program
   // earns its own completion credit when a workout is logged against
   // its plan_day_id, and is missed independently when no such workout
-  // exists. Legacy workouts that pre-date plan_day attribution
-  // (planDayId IS NULL) fall back to date-only matching so single-program
-  // history still counts toward completion.
+  // exists. Task #295 retired the legacy `plan_day_id IS NULL AND
+  // w.date = pd.date` date-only fallback once every workout carried a
+  // real `plan_day_id` (backfilled by `backfill-workout-plan-day` and
+  // guarded by a post-merge orphan check).
   const actuals = await db.execute<{
     week: number;
     actual_miles: number;
@@ -240,10 +243,7 @@ router.get("/plan/weeks", async (_req, res) => {
             AND EXISTS (
               SELECT 1 FROM workouts w2
               WHERE w2.session_type <> 'Skipped'
-                AND (
-                  w2.plan_day_id = pd.id
-                  OR (w2.plan_day_id IS NULL AND w2.date = pd.date)
-                )
+                AND w2.plan_day_id = pd.id
             )
         )::int AS completed_sessions,
         (SELECT COUNT(*) FROM plan_days pd WHERE pd.week = pw.week AND pd.is_rest = false)::int AS total_sessions,
@@ -256,7 +256,6 @@ router.get("/plan/weeks", async (_req, res) => {
             AND NOT EXISTS (
               SELECT 1 FROM workouts w2
               WHERE w2.plan_day_id = pd.id
-                 OR (w2.plan_day_id IS NULL AND w2.date = pd.date)
             )
         )::int AS missed_sessions
       FROM plan_weeks pw
@@ -314,8 +313,9 @@ router.get("/plan/weeks", async (_req, res) => {
   // can render "Tonal Lift 3/4 · 5K Improver 2/4" alongside the combined
   // ratio. Same plan_day-level attribution rules apply: a logged workout
   // counts toward a program when its `plan_day_id` links back to that
-  // program's row, with the same legacy `plan_day_id IS NULL` date
-  // fallback so single-program history still credits completion.
+  // program's row. The legacy `plan_day_id IS NULL` date fallback was
+  // retired in Task #295 once every workout carried a real
+  // `plan_day_id` (backfill + post-merge orphan check).
   const programWeekRows = await db.execute<{
     week: number;
     source_entry_index: number;
@@ -334,10 +334,7 @@ router.get("/plan/weeks", async (_req, res) => {
             AND EXISTS (
               SELECT 1 FROM workouts w
               WHERE w.session_type <> 'Skipped'
-                AND (
-                  w.plan_day_id = pd.id
-                  OR (w.plan_day_id IS NULL AND w.date = pd.date)
-                )
+                AND w.plan_day_id = pd.id
             )
         )::int AS completed_sessions,
         COUNT(*) FILTER (
@@ -346,7 +343,6 @@ router.get("/plan/weeks", async (_req, res) => {
             AND NOT EXISTS (
               SELECT 1 FROM workouts w
               WHERE w.plan_day_id = pd.id
-                 OR (w.plan_day_id IS NULL AND w.date = pd.date)
             )
         )::int AS missed_sessions
       FROM plan_days pd
@@ -434,8 +430,9 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
   // Task #143: completedSessions is per plan_day, not per workout, so
   // concurrent overlapping programs (Task #135) each get their own
   // completion credit when a workout links back to that program's
-  // plan_day_id. Legacy workouts (planDayId IS NULL) fall back to
-  // date-only matching so single-program history still counts.
+  // plan_day_id. Task #295 retired the legacy `plan_day_id IS NULL`
+  // date-only fallback once every workout carried a real plan_day_id
+  // (backfill + post-merge orphan check).
   const completedRow = await db.execute<{ completed: number }>(
     sql`SELECT COUNT(*)::int AS completed
         FROM plan_days pd
@@ -444,10 +441,7 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
           AND EXISTS (
             SELECT 1 FROM workouts w2
             WHERE w2.session_type <> 'Skipped'
-              AND (
-                w2.plan_day_id = pd.id
-                OR (w2.plan_day_id IS NULL AND w2.date = pd.date)
-              )
+              AND w2.plan_day_id = pd.id
           )`,
   );
   const totalSessions = days.filter((d) => !d.isRest).length;
@@ -472,10 +466,7 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
             AND EXISTS (
               SELECT 1 FROM workouts w
               WHERE w.session_type <> 'Skipped'
-                AND (
-                  w.plan_day_id = pd.id
-                  OR (w.plan_day_id IS NULL AND w.date = pd.date)
-                )
+                AND w.plan_day_id = pd.id
             )
         )::int AS completed_sessions,
         COUNT(*) FILTER (
@@ -484,7 +475,6 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
             AND NOT EXISTS (
               SELECT 1 FROM workouts w
               WHERE w.plan_day_id = pd.id
-                 OR (w.plan_day_id IS NULL AND w.date = pd.date)
             )
         )::int AS missed_sessions
       FROM plan_days pd

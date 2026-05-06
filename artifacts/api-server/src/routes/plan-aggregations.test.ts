@@ -214,7 +214,7 @@ describe("GET /api/plan/weeks", () => {
       plannedTotalLoad: 2000,
     });
     // 3 planned non-rest sessions + 1 rest day -> totalSessions should be 3.
-    await insertPlanDay(week, phase, {
+    const monDay = await insertPlanDay(week, phase, {
       date: "2099-09-07",
       day: "Mon",
       sessionType: T_RUN,
@@ -227,7 +227,7 @@ describe("GET /api/plan/weeks", () => {
       sessionType: T_STRENGTH,
       equipment: E_GYM,
     });
-    await insertPlanDay(week, phase, {
+    const wedDay = await insertPlanDay(week, phase, {
       date: "2099-09-09",
       day: "Wed",
       sessionType: T_RUN,
@@ -243,9 +243,11 @@ describe("GET /api/plan/weeks", () => {
     });
 
     // Two workouts inside the week range plus one outside it (the latter must
-    // not be counted in actualMiles or completedSessions).
-    await insertWorkout({ date: "2099-09-07", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 5 });
-    await insertWorkout({ date: "2099-09-09", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 8 });
+    // not be counted in actualMiles or completedSessions). Each in-range
+    // workout carries its real plan_day_id — Task #295 retired the
+    // date-only fallback, so completion credit requires attribution.
+    await insertWorkout({ date: "2099-09-07", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 5, planDayId: monDay.id });
+    await insertWorkout({ date: "2099-09-09", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 8, planDayId: wedDay.id });
     await insertWorkout({ date: "2099-09-20", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 4 });
 
     const res = await request(app).get("/api/plan/weeks");
@@ -614,11 +616,14 @@ describe("GET /api/plan/weeks", () => {
     expect(detail.body.completedSessions).toBe(2);
   });
 
-  it("falls back to date-only completion for legacy workouts with planDayId IS NULL (task #143)", async () => {
-    // A single-program week (no concurrent overlap) plus a workout that
-    // pre-dates plan_day attribution must still earn completion credit
-    // via the date-only fallback so existing history doesn't disappear
-    // from the rolled-up adherence numbers.
+  it("does NOT credit completion for legacy workouts with planDayId IS NULL (task #295)", async () => {
+    // Once `backfill-workout-plan-day` runs (and the post-merge orphan
+    // check passes) every workout that has a matching plan_day on its
+    // date carries a real plan_day_id. Any remaining NULL row is
+    // genuinely off-plan (quick-logged Lifestyle, off-plan run) and
+    // must not earn completion credit for the planned day on that
+    // date — otherwise a casual walk would silently mark the day's
+    // Tonal lift as crushed.
     const week = 8951;
     const phase = "Legacy Workouts";
     await insertWeek(week, {
@@ -631,7 +636,7 @@ describe("GET /api/plan/weeks", () => {
       date: "2099-12-28", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 5,
     });
     await insertWorkout({
-      // planDayId omitted -> null, simulating a pre-attribution row.
+      // planDayId omitted -> null, simulating an off-plan quick log.
       date: "2099-12-28", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 5,
     });
 
@@ -641,10 +646,10 @@ describe("GET /api/plan/weeks", () => {
     }>).find((r) => r.week === week);
     expect(row).toBeDefined();
     expect(row!.totalSessions).toBe(1);
-    expect(row!.completedSessions).toBe(1);
+    expect(row!.completedSessions).toBe(0);
 
     const detail = await request(app).get(`/api/plan/weeks/${week}`);
-    expect(detail.body.completedSessions).toBe(1);
+    expect(detail.body.completedSessions).toBe(0);
   });
 
   it("surfaces wedSteady from plan_days.session_type so the calendar chip mirrors the generator (task #175)", async () => {

@@ -20,3 +20,9 @@ pnpm --filter @workspace/scripts run backfill-workout-equipment
 # adherence math on stacked weeks credits the right program.
 # Idempotent — safe to re-run.
 pnpm --filter @workspace/scripts run backfill-workout-plan-day
+# Task #295 guard: after the backfill, no workout that has a matching
+# plan_day on its date should be left with plan_day_id IS NULL. The
+# /plan + /dashboard adherence queries no longer fall back to date-only
+# matching, so any orphan would silently undercount the runner's
+# completion. Fail the merge if one shows up. Read-only, idempotent.
+pnpm --filter @workspace/scripts run check-workout-orphans

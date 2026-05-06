@@ -11,6 +11,7 @@
     "backfill-plan-day-equipment": "tsx ./src/backfill-plan-day-equipment.ts",
     "backfill-workout-equipment": "tsx ./src/backfill-workout-equipment.ts",
     "backfill-workout-plan-day": "tsx ./src/backfill-workout-plan-day.ts",
+    "check-workout-orphans": "tsx ./src/check-workout-orphans.ts",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
