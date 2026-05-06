@@ -1334,10 +1334,10 @@ const EXPECTED_LEVELS: Record<string, "Beginner" | "Intermediate" | "Advanced"> 
   "10k_hybrid_balanced": "Intermediate",
   // Task #219 — the hybrid half-marathon sits at Intermediate alongside
   // `10k_hybrid_balanced` (the recipe-driven `half_marathon` and
-  // `hm_pfitz` stay at Advanced).
-  half_marathon_hybrid: "Intermediate",
-  // Task #205 — parity-named alias for `half_marathon_hybrid` keeping
-  // the `5k_hybrid_balanced` / `10k_hybrid_balanced` id convention.
+  // `hm_pfitz` stay at Advanced). Task #205 added a parity-named copy
+  // (`half_hybrid_balanced`) and Task #251 consolidated the two: only
+  // the canonical `half_hybrid_balanced` remains in the catalog;
+  // `half_marathon_hybrid` is now resolved through TEMPLATE_ID_ALIASES.
   half_hybrid_balanced: "Intermediate",
   // Advanced — half-marathon and marathon, run-only → heavier hybrid.
   half_marathon: "Advanced",

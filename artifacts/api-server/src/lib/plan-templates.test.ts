@@ -19,7 +19,7 @@ import {
 } from "@workspace/plan-generator";
 
 describe("PLAN_TEMPLATES", () => {
-  it("registers the curated skill-level catalog (Task #169 + Task #219 — 16 templates after the half-marathon hybrid was added)", () => {
+  it("registers the curated skill-level catalog (Task #169 + Task #219 + Task #251 — 16 templates after the duplicate half-marathon hybrid was consolidated)", () => {
     const ids = PLAN_TEMPLATES.map((t) => t.id).sort();
     expect(ids).toEqual(
       [
@@ -35,14 +35,14 @@ describe("PLAN_TEMPLATES", () => {
         "10k_pfitz",
         "10k_strength_lite",
         "10k_hybrid_balanced",
-        // Task #219: half-marathon hybrid sits at Intermediate alongside
-        // the 10K hybrid (`10k_hybrid_balanced`); the recipe-driven
-        // `half_marathon` and `hm_pfitz` stay at Advanced.
-        "half_marathon_hybrid",
-        // Task #205: parity-named alias for `half_marathon_hybrid` that
-        // mirrors the `5k_hybrid_balanced` / `10k_hybrid_balanced` id
-        // convention. Same `raceKind: "half"` shape and Intermediate
-        // level — see comment in `templates.ts`.
+        // Task #219 introduced the half-marathon hybrid at Intermediate
+        // (alongside `10k_hybrid_balanced`) under the id
+        // `half_marathon_hybrid`. Task #205 added a parity-named copy
+        // (`half_hybrid_balanced`) matching the 5K/10K naming convention.
+        // Task #251 consolidated the two: `half_hybrid_balanced` is the
+        // canonical id and `half_marathon_hybrid` is now a deprecated
+        // alias resolved at lookup time via TEMPLATE_ID_ALIASES (it does
+        // NOT appear in the live catalog).
         "half_hybrid_balanced",
         // Advanced — half-marathon and marathon, run-only → heavier hybrid.
         "half_marathon",
@@ -54,21 +54,21 @@ describe("PLAN_TEMPLATES", () => {
     );
   });
 
-  it("ships 17 templates split 5 / 7 / 5 across the three levels (Task #169 + Task #219 + Task #205)", () => {
-    // Task #219 added `half_marathon_hybrid` at the Intermediate level
+  it("ships 16 templates split 5 / 6 / 5 across the three levels (Task #169 + Task #219 + Task #251)", () => {
+    // Task #219 added the half-marathon hybrid at the Intermediate level
     // (sitting alongside `10k_hybrid_balanced`), bumping the Intermediate
-    // bucket from 5 → 6 and the total from 15 → 16. Task #205 added the
-    // parity-named `half_hybrid_balanced` (same shape as
-    // `5k_hybrid_balanced` / `10k_hybrid_balanced`), bumping Intermediate
-    // 6 → 7 and the total 16 → 17. Beginner and Advanced are unchanged.
-    expect(PLAN_TEMPLATES).toHaveLength(17);
+    // bucket from 5 → 6 and the total from 15 → 16. Task #205 briefly
+    // bumped this to 17 by introducing a parity-named duplicate, but
+    // Task #251 consolidated the two back to the single canonical
+    // `half_hybrid_balanced` entry. Beginner and Advanced are unchanged.
+    expect(PLAN_TEMPLATES).toHaveLength(16);
     const counts = PLAN_TEMPLATES.reduce<Record<string, number>>(
       (acc, t) => ({ ...acc, [t.level]: (acc[t.level] ?? 0) + 1 }),
       {},
     );
     expect(counts).toEqual({
       Beginner: 5,
-      Intermediate: 7,
+      Intermediate: 6,
       Advanced: 5,
     });
   });
@@ -116,10 +116,9 @@ describe("PLAN_TEMPLATES", () => {
       // recipe-driven half_marathon week range so the runner gets the
       // same min/default/max picker behavior whether they choose run-
       // only or the hybrid variant.
-      half_marathon_hybrid: [10, 12, 16],
-      // Task #205 — parity-named alias mirrors the same week range so
-      // the picker behaves identically whether the runner picks
-      // `half_marathon_hybrid` or the parity-named `half_hybrid_balanced`.
+      // Task #251 consolidated the duplicate `half_marathon_hybrid` /
+      // `half_hybrid_balanced` entries into a single canonical id;
+      // `half_marathon_hybrid` now resolves through TEMPLATE_ID_ALIASES.
       half_hybrid_balanced: [10, 12, 16],
       // Advanced — half-marathon and marathon, run-only → heavier hybrid.
       half_marathon: [10, 12, 16],
@@ -386,7 +385,7 @@ describe("STARTER_SHORTCUTS", () => {
       expect(weekly[weekly.length - 1]!.week).toBe(18);
 
       // Final Sunday is the half-marathon race-day row from
-      // `RACE_DAY_SPECS.half` — `half_marathon_hybrid` declares
+      // `RACE_DAY_SPECS.half` — `half_hybrid_balanced` declares
       // `raceKind: "half"` and the hybrid pipeline force-overrides the
       // trailing Sunday via `buildRaceDaySunRow` (Task #200 / #217).
       const finalSun = daily[daily.length - 1]!;
@@ -1101,6 +1100,72 @@ describe("archived template registry (legacy-campaign migration safety)", () => 
       expect(isArchivedTemplateId(t.id)).toBe(false);
     }
     expect(isArchivedTemplateId("does_not_exist_anywhere")).toBe(false);
+  });
+});
+
+// Task #251 — `half_marathon_hybrid` (added by #219) and
+// `half_hybrid_balanced` (added by #205 for naming-convention parity)
+// were functionally identical. The duplicate was consolidated under
+// the canonical `half_hybrid_balanced` id; the legacy
+// `half_marathon_hybrid` id is now a deprecated alias resolved at
+// lookup time so saved configs and any out-of-band tooling that still
+// reference it keep working.
+describe("template id aliases (Task #251)", () => {
+  it("does NOT register the deprecated `half_marathon_hybrid` id in the live catalog", () => {
+    const ids = PLAN_TEMPLATES.map((t) => t.id);
+    expect(ids).not.toContain("half_marathon_hybrid");
+    expect(ids).toContain("half_hybrid_balanced");
+  });
+
+  it("getTemplateById resolves `half_marathon_hybrid` to the canonical `half_hybrid_balanced` template", () => {
+    const aliased = getTemplateById("half_marathon_hybrid");
+    const canonical = getTemplateById("half_hybrid_balanced");
+    expect(aliased).not.toBeNull();
+    expect(canonical).not.toBeNull();
+    // Same template object — alias is a pure lookup shim, not a copy.
+    expect(aliased).toBe(canonical);
+    expect(aliased!.id).toBe("half_hybrid_balanced");
+  });
+
+  it("validatePlannerConfig accepts the deprecated `half_marathon_hybrid` id without flagging it as unknown", () => {
+    const cfg = {
+      startDate: "2026-05-04", // Monday
+      // 12 weeks × 7 - 1 = 83 days after 2026-05-04 → 2026-07-26 Sun.
+      marathonDate: "2026-07-26",
+      blocks: [],
+      entries: [
+        {
+          templateId: "half_marathon_hybrid",
+          weeks: 12,
+          startDate: "2026-05-04",
+        },
+      ],
+    } as unknown as PlannerConfig;
+    const issues = validatePlannerConfig(cfg);
+    const unknown = issues.find((i) => /unknown template id/.test(i.message));
+    expect(unknown).toBeUndefined();
+  });
+
+  it("generatePlanFromConfig regenerates a half-marathon hybrid plan when the entry uses the deprecated id", () => {
+    const cfg = {
+      startDate: "2026-05-04",
+      marathonDate: "2026-07-26",
+      blocks: [],
+      entries: [
+        {
+          templateId: "half_marathon_hybrid",
+          weeks: 12,
+          startDate: "2026-05-04",
+        },
+      ],
+    } as unknown as PlannerConfig;
+    const { weekly, daily } = generatePlanFromConfig(cfg);
+    expect(weekly).toHaveLength(12);
+    expect(daily).toHaveLength(12 * 7);
+    const finalSun = daily[daily.length - 1]!;
+    expect(finalSun.day).toBe("Sun");
+    expect(finalSun.session_type).toBe("Race");
+    expect(finalSun.distance_mi).toBe(13.1);
   });
 });
 

@@ -3449,6 +3449,8 @@ export {
   STARTER_SHORTCUTS,
   getTemplateById,
   isArchivedTemplateId,
+  resolveTemplateId,
+  TEMPLATE_ID_ALIASES,
   templateRaceKind,
   templateRaceKindById,
   entriesEndOnMarathonRace,

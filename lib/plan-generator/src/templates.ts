@@ -620,60 +620,25 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       ]),
   },
   {
-    id: "half_marathon_hybrid",
-    name: "Half Marathon — Balanced Hybrid",
-    level: "Intermediate",
-    goalDistance: "13.1 mi",
-    // Hybrid half-marathon plans end on a true RACE DAY Sunday too
+    // Task #251: canonical half-marathon hybrid template. Mirrors the
+    // `5k_hybrid_balanced` / `10k_hybrid_balanced` naming convention.
+    // Originally introduced as `half_marathon_hybrid` (task #219) and
+    // duplicated as `half_hybrid_balanced` (task #205) for naming
+    // parity; the duplicate was consolidated here and the legacy
+    // `half_marathon_hybrid` id is now a deprecated alias resolved at
+    // lookup time via `TEMPLATE_ID_ALIASES` so saved configs and
+    // out-of-band tooling that still reference it keep working.
+    //
+    // Hybrid half-marathon plans end on a true RACE DAY Sunday
     // (task #200 wired the per-kind race-day spec through the hybrid
-    // pipeline). `buildHybridWeekDays` already honors `raceKind: "half"`:
+    // pipeline). `buildHybridWeekDays` honors `raceKind: "half"`:
     // the trailing Saturday is force-overridden to the shared race-eve
     // protocol via `buildRaceEveSatRow`, the trailing Sunday is force-
     // overridden to a 13.1 mi race day via `RACE_DAY_SPECS.half`, and
     // Mon-Fri keep the schedule's normal lift/run/rest layout (the
     // marathon-specific Mon-Fri taper override is gated on
     // `raceKind === "marathon"` so half/10K/5K hybrid race weeks keep
-    // their existing shape — half doesn't need the marathon-style
-    // five-day light taper). Setting `raceKind: "half"` here routes
-    // this template through the same race-week flag the recipe-driven
-    // `half_marathon` / `hm_pfitz` templates get, mirroring how
-    // `marathon_hybrid` is classified for marathon (task #192).
-    raceKind: "half",
-    source: "Alex Viada",
-    citation:
-      "Alex Viada, The Hybrid Athlete — half-marathon-distance concurrent training for runners and lifters.",
-    shortDescription:
-      "Heavier hybrid split scaled to the half-marathon: 3 lifts + 3 runs per week.",
-    longDescription:
-      "Viada's hybrid model applied at half-marathon distance: three full-body lifts plus an aerobic long run, a tempo run, and an easy run. The long run climbs to 10-12 mi; race-week load is handled by the hybrid generator's internal phase scalar.",
-    minWeeks: 10,
-    maxWeeks: 16,
-    defaultWeeks: 12,
-    metadata: {
-      intensityDistribution: "Balanced lift/run with weekly tempo + long run",
-      peakLongRun: "10-12 mi",
-      peakWeeklyVolume: "22-30 mpw + 3 lift sessions",
-      taperLength: "None (single hybrid block; load tapers via internal phase scalar)",
-      cutbackCadence: "Every 4th week ~25% reduction",
-      mandatoryRestDays: 1,
-      equipmentMixHint: "Lifts (Tonal/barbell) + Tread/Outdoor runs",
-    },
-    tags: ["half-marathon", "intermediate", "hybrid", "lift-and-run", "balanced", "viada"],
-    expand: (n) => [
-      makeBlock("Custom", n, {
-        customName: "Half Marathon Hybrid (Balanced)",
-        customNotes: "[hybrid-mix:balanced] [hybrid-days:5] [hybrid-level:intermediate]",
-      }),
-    ],
-  },
-  {
-    // Task #205: parity entry that mirrors the `5k_hybrid_balanced` /
-    // `10k_hybrid_balanced` naming convention at the half-marathon
-    // distance. Functionally identical to `half_marathon_hybrid`
-    // (added in #219) — same `raceKind: "half"`, same metadata, same
-    // expand shape — so picking it routes through the hybrid pipeline
-    // and the per-kind `RACE_DAY_SPECS["half"]` race-week override,
-    // ending on a 13.1 mi RACE DAY Sun with Sat = "Race Prep".
+    // their existing shape).
     id: "half_hybrid_balanced",
     name: "Half Marathon — Balanced Hybrid",
     level: "Intermediate",
@@ -1272,10 +1237,36 @@ export function isArchivedTemplateId(id: string): boolean {
   return ARCHIVED_TEMPLATE_ID_SET.has(id);
 }
 
+// Task #251: legacy template ids that have been consolidated into a
+// canonical id. Resolved at lookup time so saved planner configs,
+// out-of-band tooling, and any legacy callers that still reference the
+// retired id keep working without a destructive data migration.
+//
+// Keys are deprecated ids; values are the canonical id they resolve
+// to. Aliases are NOT registered in `PLAN_TEMPLATES`, so they never
+// appear in the catalog / picker — they only exist as a back-compat
+// shim for `getTemplateById`.
+export const TEMPLATE_ID_ALIASES: Readonly<Record<string, string>> = {
+  // Task #205 introduced `half_hybrid_balanced` as a parity-named copy
+  // of `half_marathon_hybrid` (added by task #219). Task #251
+  // consolidated the two; `half_marathon_hybrid` now aliases to the
+  // canonical `half_hybrid_balanced` so older configs / tests still
+  // resolve to the same template.
+  half_marathon_hybrid: "half_hybrid_balanced",
+};
+
+// Resolve a (possibly deprecated) template id to its canonical form.
+// Unknown / non-aliased ids pass through untouched so callers can use
+// this unconditionally before doing further lookups.
+export function resolveTemplateId(id: string): string {
+  return TEMPLATE_ID_ALIASES[id] ?? id;
+}
+
 export function getTemplateById(id: string): PlanTemplate | null {
-  const live = PLAN_TEMPLATES.find((t) => t.id === id);
+  const canonicalId = resolveTemplateId(id);
+  const live = PLAN_TEMPLATES.find((t) => t.id === canonicalId);
   if (live) return live;
-  const archived = ARCHIVED_PLAN_TEMPLATES.find((t) => t.id === id);
+  const archived = ARCHIVED_PLAN_TEMPLATES.find((t) => t.id === canonicalId);
   return archived ?? null;
 }
 
@@ -1748,7 +1739,7 @@ export const STARTER_SHORTCUTS: StarterShortcut[] = [
     style: "hybrid",
     entries: [
       { templateId: "higdon_5k_novice", weeks: 6 },
-      { templateId: "half_marathon_hybrid", weeks: 12 },
+      { templateId: "half_hybrid_balanced", weeks: 12 },
     ],
   },
   {
