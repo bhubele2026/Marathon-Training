@@ -55,6 +55,7 @@ import type {
   TodayPlan,
   UndoPlanResetBody,
   UndoPlanResetResponse,
+  UnlinkedWorkoutsCount,
   UpdateMeasurementBody,
   UpdatePlanDayBody,
   UpdatePlannerConfigBody,
@@ -1160,6 +1161,79 @@ export const useCreateWorkout = <
 > => {
   return useMutation(getCreateWorkoutMutationOptions(options));
 };
+
+/**
+ * Number of logged workouts whose `plan_day_id` is NULL — i.e. legacy rows that the Task #161 retro-link backfill couldn't match to a plan day (logged before the active config existed, or on a date with no plan_day on file). Drives the small "N legacy workouts unlinked — review" badge on /log so the runner can spot orphaned rows and either reassign them or accept them as truly off-plan.
+
+ */
+export const getGetUnlinkedWorkoutsCountUrl = () => {
+  return `/api/workouts/unlinked-count`;
+};
+
+export const getUnlinkedWorkoutsCount = async (
+  options?: RequestInit,
+): Promise<UnlinkedWorkoutsCount> => {
+  return customFetch<UnlinkedWorkoutsCount>(getGetUnlinkedWorkoutsCountUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetUnlinkedWorkoutsCountQueryKey = () => {
+  return [`/api/workouts/unlinked-count`] as const;
+};
+
+export const getGetUnlinkedWorkoutsCountQueryOptions = <
+  TData = Awaited<ReturnType<typeof getUnlinkedWorkoutsCount>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getUnlinkedWorkoutsCount>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetUnlinkedWorkoutsCountQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getUnlinkedWorkoutsCount>>
+  > = ({ signal }) => getUnlinkedWorkoutsCount({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getUnlinkedWorkoutsCount>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetUnlinkedWorkoutsCountQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getUnlinkedWorkoutsCount>>
+>;
+export type GetUnlinkedWorkoutsCountQueryError = ErrorType<unknown>;
+
+export function useGetUnlinkedWorkoutsCount<
+  TData = Awaited<ReturnType<typeof getUnlinkedWorkoutsCount>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getUnlinkedWorkoutsCount>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetUnlinkedWorkoutsCountQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 export const getUpdateWorkoutUrl = (id: number) => {
   return `/api/workouts/${id}`;

@@ -664,6 +664,87 @@ describe("workouts equipmentList contract", () => {
   });
 });
 
+describe("GET /api/workouts/unlinked-count (Task #294)", () => {
+  // The Task #161 retro-link backfill matches legacy workouts to a
+  // plan_day on their date. Rows logged on a date with no plan_day on
+  // file (or before the active config existed) stay NULL forever and
+  // would otherwise quietly fall back to date-only matching. The
+  // /log page surfaces this count as a small "N unlinked — review"
+  // badge so the runner can spot orphans.
+  it("returns 0 when every workout has a planDayId", async () => {
+    const planDay = await insertPlanDay(8294, "Foundation Build", {
+      date: "2099-09-01",
+      day: "Mon",
+      sessionType: "Long Run",
+      equipment: E_OUTDOOR,
+    });
+    await insertWorkout({
+      date: "2099-09-01",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      planDayId: planDay.id,
+    });
+
+    const res = await request(app).get("/api/workouts/unlinked-count");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ count: 0 });
+  });
+
+  it("returns 0 when no workouts have been logged", async () => {
+    const res = await request(app).get("/api/workouts/unlinked-count");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ count: 0 });
+  });
+
+  it("counts workouts whose planDayId is NULL", async () => {
+    const planDay = await insertPlanDay(8295, "Foundation Build", {
+      date: "2099-09-10",
+      day: "Mon",
+      sessionType: "Long Run",
+      equipment: E_OUTDOOR,
+    });
+    // Linked.
+    await insertWorkout({
+      date: "2099-09-10",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      planDayId: planDay.id,
+    });
+    // Two orphans on dates with no matching plan_day.
+    await insertWorkout({
+      date: "2099-09-11",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+    });
+    await insertWorkout({
+      date: "2099-09-12",
+      sessionType: T_STRENGTH,
+      equipment: E_GYM,
+    });
+
+    const res = await request(app).get("/api/workouts/unlinked-count");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ count: 2 });
+  });
+
+  it("decrements after the orphaned row is deleted", async () => {
+    const orphan = await insertWorkout({
+      date: "2099-09-20",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+    });
+
+    const before = await request(app).get("/api/workouts/unlinked-count");
+    expect(before.body).toEqual({ count: 1 });
+
+    const del = await request(app).delete(`/api/workouts/${orphan.id}`);
+    expect(del.status).toBe(204);
+
+    const after = await request(app).get("/api/workouts/unlinked-count");
+    expect(after.body).toEqual({ count: 0 });
+  });
+});
+
 describe("DELETE /api/workouts/:id", () => {
   it("deletes the workout and returns 204", async () => {
     const { id } = await insertWorkout({

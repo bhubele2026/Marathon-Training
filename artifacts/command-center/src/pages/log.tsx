@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { useListWorkouts, useDeleteWorkout } from "@workspace/api-client-react";
+import {
+  useListWorkouts,
+  useDeleteWorkout,
+  useGetUnlinkedWorkoutsCount,
+} from "@workspace/api-client-react";
 import { LIFESTYLE_EQUIPMENT } from "@workspace/plan-generator";
 import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -34,6 +38,10 @@ export default function Log() {
   const [timeOfDay, setTimeOfDay] = useState<string>("All");
   const [from, setFrom] = useState<string>("");
   const [to, setTo] = useState<string>("");
+  // Task #294: when true, hide every row whose `planDayId` is set so
+  // the runner can isolate the legacy unlinked rows that the Task #161
+  // backfill couldn't match. Toggled by the badge in the page header.
+  const [onlyUnlinked, setOnlyUnlinked] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editWorkout, setEditWorkout] = useState<any>(null);
 
@@ -45,6 +53,11 @@ export default function Log() {
   };
 
   const { data: workouts, isLoading } = useListWorkouts(queryParams);
+  const { data: unlinked } = useGetUnlinkedWorkoutsCount();
+  const unlinkedCount = unlinked?.count ?? 0;
+  const visibleWorkouts = onlyUnlinked
+    ? workouts?.filter((w) => w.planDayId == null)
+    : workouts;
   const deleteWorkout = useDeleteWorkout();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -75,9 +88,28 @@ export default function Log() {
           <h2 className="text-3xl font-black uppercase tracking-tight text-primary">Training Log</h2>
           <p className="text-muted-foreground uppercase font-medium tracking-widest mt-1">Activity History</p>
         </div>
-        <Button onClick={handleCreate} className="uppercase font-bold tracking-wider">
-          <Plus className="h-4 w-4 mr-2" /> Log New
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Task #294: surface the count of legacy workouts the
+              retro-link backfill couldn't match to a plan day. Click
+              toggles a client-side filter that isolates the orphaned
+              rows so the runner can reassign them via the existing
+              edit form (or accept they're truly off-plan). */}
+          {unlinkedCount > 0 && (
+            <Button
+              type="button"
+              variant={onlyUnlinked ? "default" : "outline"}
+              onClick={() => setOnlyUnlinked((prev) => !prev)}
+              className="uppercase font-bold tracking-wider text-xs"
+              data-testid="badge-unlinked-workouts"
+              title="Legacy workouts not linked to a plan day"
+            >
+              {unlinkedCount} unlinked — {onlyUnlinked ? "show all" : "review"}
+            </Button>
+          )}
+          <Button onClick={handleCreate} className="uppercase font-bold tracking-wider">
+            <Plus className="h-4 w-4 mr-2" /> Log New
+          </Button>
+        </div>
       </div>
 
       <div className="bg-card border border-border rounded-lg p-4 flex flex-col md:flex-row gap-4 items-end">
@@ -143,12 +175,14 @@ export default function Log() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {workouts?.length === 0 ? (
+              {visibleWorkouts?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">No workouts found</TableCell>
+                  <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
+                    {onlyUnlinked ? "No unlinked workouts" : "No workouts found"}
+                  </TableCell>
                 </TableRow>
               ) : (
-                workouts?.flatMap((workout) => [
+                visibleWorkouts?.flatMap((workout) => [
                   <TableRow key={workout.id} className="hover:bg-muted/30 border-b-0">
                     <TableCell className="font-medium whitespace-nowrap">{formatDate(workout.date)}</TableCell>
                     <TableCell className="font-bold">{workout.sessionType}</TableCell>

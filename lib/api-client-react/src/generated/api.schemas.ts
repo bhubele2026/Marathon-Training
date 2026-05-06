@@ -720,6 +720,11 @@ export interface UpdateWorkoutBody {
   modality?: UpdateWorkoutBodyModality;
 }
 
+export interface UnlinkedWorkoutsCount {
+  /** Number of `workouts` rows where `plan_day_id IS NULL`. Zero when every logged workout has been retro-linked to a plan day (or when no workouts have been logged yet). */
+  count: number;
+}
+
 export interface Measurement {
   id: number;
   date: string;

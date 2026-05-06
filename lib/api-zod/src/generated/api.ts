@@ -2110,6 +2110,18 @@ export const CreateWorkoutBody = zod.object({
   modality: zod.enum(["Cardio", "Strength", "Mixed"]).nullish(),
 });
 
+/**
+ * Number of logged workouts whose `plan_day_id` is NULL — i.e. legacy rows that the Task #161 retro-link backfill couldn't match to a plan day (logged before the active config existed, or on a date with no plan_day on file). Drives the small "N legacy workouts unlinked — review" badge on /log so the runner can spot orphaned rows and either reassign them or accept them as truly off-plan.
+
+ */
+export const GetUnlinkedWorkoutsCountResponse = zod.object({
+  count: zod
+    .number()
+    .describe(
+      "Number of `workouts` rows where `plan_day_id IS NULL`. Zero when every logged workout has been retro-linked to a plan day (or when no workouts have been logged yet).",
+    ),
+});
+
 export const UpdateWorkoutParams = zod.object({
   id: zod.coerce.number(),
 });

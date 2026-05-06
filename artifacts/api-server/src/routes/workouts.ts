@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, planDaysTable, workoutsTable } from "@workspace/db";
-import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, lte, sql } from "drizzle-orm";
 import { CreateWorkoutBody, UpdateWorkoutBody, ListWorkoutsQueryParams } from "@workspace/api-zod";
 import { LIFESTYLE_EQUIPMENT } from "@workspace/plan-generator";
 import { toWorkout, type PrescribedRunTargetSource } from "../lib/transforms";
@@ -76,6 +76,22 @@ async function fetchPrescribedRunTarget(
     .limit(1);
   return rows[0] ?? null;
 }
+
+// Task #294: count of legacy workouts that the Task #161 retro-link
+// backfill couldn't match to a plan day (logged before the active
+// config existed, or on a date with no plan_day on file). Surfaced as a
+// small badge on /log so the runner can spot orphans and either
+// reassign them via the existing edit form or accept they're truly
+// off-plan. Re-runs of the backfill or PATCHes that set planDayId clear
+// the count automatically — no extra invalidation plumbing needed
+// because the badge re-fetches whenever the workouts list does.
+router.get("/workouts/unlinked-count", async (_req, res): Promise<void> => {
+  const rows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(workoutsTable)
+    .where(isNull(workoutsTable.planDayId));
+  res.json({ count: rows[0]?.count ?? 0 });
+});
 
 router.get("/workouts", async (req, res): Promise<void> => {
   const parsed = ListWorkoutsQueryParams.safeParse(req.query);

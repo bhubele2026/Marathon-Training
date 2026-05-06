@@ -23,6 +23,10 @@ const { runTargetingModeRef } = vi.hoisted(() => ({
 vi.mock("@workspace/api-client-react", () => ({
   useListWorkouts: vi.fn(),
   useDeleteWorkout: () => ({ mutate: vi.fn() }),
+  // Task #294: page now also reads the unlinked-count badge. Default
+  // mock returns 0 so the badge stays hidden in tests that don't care
+  // about it.
+  useGetUnlinkedWorkoutsCount: () => ({ data: { count: 0 } }),
   useGetUserPreferences: () => ({
     data: {
       runTargetingMode: runTargetingModeRef.current,
