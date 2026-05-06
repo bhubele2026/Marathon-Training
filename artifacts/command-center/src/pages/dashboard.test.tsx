@@ -359,6 +359,85 @@ describe("Dashboard mileage chart — Steady Wed marker (Task #183)", () => {
   });
 });
 
+describe("Dashboard — per-program color coding (task #160)", () => {
+  // Task #160 assigns each program a stable color (keyed by
+  // sourceEntryIndex) and reuses it across the Week Snapshot per-
+  // program rows, the Mileage Volume stacked planned bar, and the
+  // Arsenal Usage per-program lines, plus a small legend.
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("renders the program legend and color-keyed snapshot rows when 2+ programs are stacked", () => {
+    const programs = [
+      {
+        sourceEntryIndex: 0,
+        label: "Tonal Lift",
+        endDate: "2027-02-01",
+        weeklyMilesPlanned: 0,
+        weeklyMilesActual: 0,
+        weeklyLoadPlanned: 50,
+        weeklyLoadActual: 0,
+        weeklySessionsPlanned: 3,
+        weeklySessionsCompleted: 0,
+        adherencePlanned: 3,
+        adherenceCompleted: 0,
+        adherencePct: 0,
+      },
+      {
+        sourceEntryIndex: 1,
+        label: "5K Improver",
+        endDate: "2026-09-13",
+        weeklyMilesPlanned: 12,
+        weeklyMilesActual: 0,
+        weeklyLoadPlanned: 50,
+        weeklyLoadActual: 0,
+        weeklySessionsPlanned: 2,
+        weeklySessionsCompleted: 0,
+        adherencePlanned: 2,
+        adherenceCompleted: 0,
+        adherencePct: 0,
+      },
+    ];
+    setupHooks([], { programs });
+    render(<Dashboard />);
+
+    const legend = screen.getByTestId("dashboard-program-legend");
+    expect(legend.textContent).toContain("Tonal Lift");
+    expect(legend.textContent).toContain("5K Improver");
+
+    const row0 = screen.getByTestId("snapshot-program-0") as HTMLElement;
+    const row1 = screen.getByTestId("snapshot-program-1") as HTMLElement;
+    const c0 = row0.style.borderLeftColor;
+    const c1 = row1.style.borderLeftColor;
+    expect(c0).not.toBe("");
+    expect(c1).not.toBe("");
+    expect(c0).not.toBe(c1);
+  });
+
+  it("hides the program legend when only one program is active", () => {
+    setupHooks([], {
+      programs: [
+        {
+          sourceEntryIndex: 0,
+          label: "Marathon Plan",
+          endDate: "2027-05-02",
+          weeklyMilesPlanned: 30,
+          weeklyMilesActual: 0,
+          weeklyLoadPlanned: 100,
+          weeklyLoadActual: 0,
+          weeklySessionsPlanned: 5,
+          weeklySessionsCompleted: 0,
+        },
+      ],
+    });
+    render(<Dashboard />);
+    expect(screen.queryByTestId("dashboard-program-legend")).toBeNull();
+    expect(screen.queryByTestId("snapshot-programs-breakdown")).toBeNull();
+  });
+});
+
 describe("Dashboard header — title from active planner config name (task #244)", () => {
   // Task #244 stops hardcoding the dashboard title from raceKind and
   // reads it from `summary.activeConfigName` — the runner's own

@@ -34,6 +34,7 @@ import { RunTargetLine } from "@/components/run-target-line";
 import { RaceWeekBanner, ChecklistNudge } from "@/components/race-week-banner";
 import { TimeOfDayBadge } from "@/components/time-of-day-badge";
 import { phaseColor } from "@/lib/phase-colors";
+import { programColor } from "@/lib/program-colors";
 
 type MileageTooltipRow = {
   phase?: string;
@@ -110,6 +111,11 @@ export function MileageTooltipContent({
               className="flex items-center gap-2"
               data-testid={`mileage-tooltip-program-${p.sourceEntryIndex}`}
             >
+              <span
+                className="h-2 w-2 rounded-sm shrink-0"
+                style={{ backgroundColor: programColor(p.sourceEntryIndex) }}
+                aria-hidden
+              />
               <span className="text-muted-foreground">{p.label}</span>
               <span className="ml-auto font-mono">
                 {p.plannedMiles.toFixed(1)} mi
@@ -580,8 +586,33 @@ export default function Dashboard() {
                   className="border-t border-border pt-4 space-y-3"
                   data-testid="snapshot-programs-breakdown"
                 >
-                  <div className="text-xs uppercase tracking-wider font-bold text-muted-foreground">
-                    Per Program
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <div className="text-xs uppercase tracking-wider font-bold text-muted-foreground">
+                      Per Program
+                    </div>
+                    <div
+                      className="flex flex-wrap items-center gap-x-3 gap-y-1"
+                      data-testid="dashboard-program-legend"
+                    >
+                      {summary.programs.map((p) => (
+                        <div
+                          key={`legend-${p.sourceEntryIndex}`}
+                          className="flex items-center gap-1.5"
+                          data-testid={`dashboard-program-legend-${p.sourceEntryIndex}`}
+                        >
+                          <span
+                            className="h-2.5 w-2.5 rounded-sm shrink-0"
+                            style={{
+                              backgroundColor: programColor(p.sourceEntryIndex),
+                            }}
+                            aria-hidden
+                          />
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+                            {p.label}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                   {summary.programs.map((p) => {
                     const programEndsEarly =
@@ -599,7 +630,8 @@ export default function Dashboard() {
                     return (
                       <div
                         key={`snapshot-program-${p.sourceEntryIndex}`}
-                        className="rounded border border-border bg-muted/30 p-3 space-y-2"
+                        className="rounded border border-border bg-muted/30 p-3 space-y-2 border-l-4"
+                        style={{ borderLeftColor: programColor(p.sourceEntryIndex) }}
                         data-testid={`snapshot-program-${p.sourceEntryIndex}`}
                       >
                         <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -723,9 +755,26 @@ export default function Dashboard() {
                       `plan_days.session_type` so customizations that swap
                       Wed away from steady drop the marker on the next
                       refetch. */}
+                  {/* Task #160: when the campaign stacks 2+ programs we
+                      split the planned-miles bar into one stacked
+                      segment per program (colored by `programColor`)
+                      so a runner can visually trace each program's
+                      contribution week by week. The aggregate
+                      `plannedMiles` bar is suppressed in that case to
+                      avoid double-counting. Single-program campaigns
+                      keep the legacy single bar. */}
                   <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={mileage}>
+                      <BarChart
+                        data={(mileage ?? []).map((row) => {
+                          const augmented: Record<string, unknown> = { ...row };
+                          for (const p of row.programs ?? []) {
+                            augmented[`prog_${p.sourceEntryIndex}_planned`] =
+                              p.plannedMiles;
+                          }
+                          return augmented;
+                        })}
+                      >
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
                         <XAxis dataKey="week" tickFormatter={(v) => `W${v}`} />
                         <YAxis yAxisId="miles" />
@@ -794,7 +843,33 @@ export default function Dashboard() {
                               }}
                             />
                           ))}
-                        <Bar yAxisId="miles" dataKey="plannedMiles" name="Planned" fill="hsl(var(--muted-foreground))" opacity={0.3} radius={[2, 2, 0, 0]} />
+                        {summary.programs.length > 1 ? (
+                          summary.programs.map((p, i) => (
+                            <Bar
+                              key={`prog-bar-${p.sourceEntryIndex}`}
+                              yAxisId="miles"
+                              dataKey={`prog_${p.sourceEntryIndex}_planned`}
+                              name={`Planned · ${p.label}`}
+                              stackId="planned"
+                              fill={programColor(p.sourceEntryIndex)}
+                              opacity={0.55}
+                              radius={
+                                i === summary.programs.length - 1
+                                  ? [2, 2, 0, 0]
+                                  : [0, 0, 0, 0]
+                              }
+                            />
+                          ))
+                        ) : (
+                          <Bar
+                            yAxisId="miles"
+                            dataKey="plannedMiles"
+                            name="Planned"
+                            fill="hsl(var(--muted-foreground))"
+                            opacity={0.3}
+                            radius={[2, 2, 0, 0]}
+                          />
+                        )}
                         <Bar yAxisId="miles" dataKey="actualMiles" name="Actual" radius={[2, 2, 0, 0]}>
                           {(mileage ?? []).map((row, i) => (
                             <Cell
@@ -1043,7 +1118,16 @@ export default function Dashboard() {
                                 className="flex items-center justify-between gap-2"
                                 data-testid={`arsenal-row-${eq.equipment}-program-${p.sourceEntryIndex}`}
                               >
-                                <span className="uppercase tracking-wider font-bold truncate">{p.label}</span>
+                                <span className="flex items-center gap-1.5 min-w-0">
+                                  <span
+                                    className="h-2 w-2 rounded-sm shrink-0"
+                                    style={{
+                                      backgroundColor: programColor(p.sourceEntryIndex),
+                                    }}
+                                    aria-hidden
+                                  />
+                                  <span className="uppercase tracking-wider font-bold truncate">{p.label}</span>
+                                </span>
                                 <span className="font-mono shrink-0">
                                   {p.plannedSessions}× · {Math.round(p.plannedMinutes)}m
                                 </span>
