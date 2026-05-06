@@ -134,6 +134,12 @@ export const ListPlanWeeksResponseItem = zod.object({
     .describe(
       'Task #162. Per-program completion breakdown for this week,\nfor runners stacking concurrent programs (e.g. a Tonal lift\nprogram alongside a 5K running program). Each entry pairs a\nTemplateEntry contributing plan_days this week with its own\ncompleted \/ total \/ missed session counts so weekly summary\ncards can render \"Tonal Lift 3\/4 · 5K Improver 2\/4\" instead\nof rolling everything into a single combined ratio. The\nexisting `completedSessions` \/ `totalSessions` \/\n`missedSessions` fields above remain the COMBINED totals\nacross all programs. Null on weeks with no plan_days yet\n(freshly seeded \/ legacy data); a single-element array for\nsingle-program campaigns. Ordered by `sourceEntryIndex`\nascending.\n',
     ),
+  raceKind: zod
+    .enum(["marathon", "half", "10k", "5k"])
+    .nullish()
+    .describe(
+      'Task #242. Kind of race the campaign is anchored on, mirrored\non per-week responses so the \/plan\/:week eyebrow can switch\nto \"5K Campaign\" \/ \"10K Campaign\" \/ \"Half Marathon Campaign\"\n\/ \"Race Campaign\" framing without a second round-trip to\n\/plan\/overview. Same detection as `PlanOverview.raceKind`\n(trailing plan_day Sunday with an explicit race signal),\npopulated only on the per-week detail endpoint\n(`getPlanWeek`); list aggregations (`\/plan\/weeks`) leave it\nnull since they don\'t drive the eyebrow.\n',
+    ),
 });
 export const ListPlanWeeksResponse = zod.array(ListPlanWeeksResponseItem);
 
@@ -207,6 +213,12 @@ export const GetPlanWeekResponse = zod
       .nullish()
       .describe(
         'Task #162. Per-program completion breakdown for this week,\nfor runners stacking concurrent programs (e.g. a Tonal lift\nprogram alongside a 5K running program). Each entry pairs a\nTemplateEntry contributing plan_days this week with its own\ncompleted \/ total \/ missed session counts so weekly summary\ncards can render \"Tonal Lift 3\/4 · 5K Improver 2\/4\" instead\nof rolling everything into a single combined ratio. The\nexisting `completedSessions` \/ `totalSessions` \/\n`missedSessions` fields above remain the COMBINED totals\nacross all programs. Null on weeks with no plan_days yet\n(freshly seeded \/ legacy data); a single-element array for\nsingle-program campaigns. Ordered by `sourceEntryIndex`\nascending.\n',
+      ),
+    raceKind: zod
+      .enum(["marathon", "half", "10k", "5k"])
+      .nullish()
+      .describe(
+        'Task #242. Kind of race the campaign is anchored on, mirrored\non per-week responses so the \/plan\/:week eyebrow can switch\nto \"5K Campaign\" \/ \"10K Campaign\" \/ \"Half Marathon Campaign\"\n\/ \"Race Campaign\" framing without a second round-trip to\n\/plan\/overview. Same detection as `PlanOverview.raceKind`\n(trailing plan_day Sunday with an explicit race signal),\npopulated only on the per-week detail endpoint\n(`getPlanWeek`); list aggregations (`\/plan\/weeks`) leave it\nnull since they don\'t drive the eyebrow.\n',
       ),
   })
   .and(

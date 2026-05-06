@@ -5,6 +5,7 @@ import {
   GetPlanWeekResponse,
   GetTodayPlanResponse,
 } from "@workspace/api-zod";
+import { RACE_DAY_SPECS } from "@workspace/plan-generator";
 import app from "../app";
 import {
   TEST_WEEK_MAX,
@@ -266,6 +267,67 @@ describe("GET /api/plan/weeks/:week", () => {
       paceSource: null,
       sampleSize: 0,
     });
+  });
+});
+
+// Task #242: per-week endpoint must echo the same campaign-level
+// raceKind that /plan/overview detects from the trailing plan_day
+// Sunday, so the week-detail eyebrow can render "5K Campaign" / "Half
+// Marathon · Race Week" / etc. without forcing the page to also fetch
+// /plan/overview. Mirrors the parametric fixture style in
+// plan-aggregations.test.ts so a future RACE_DAY_SPECS tweak can't
+// silently desync the per-week eyebrow from the /plan header.
+describe("GET /api/plan/weeks/:week — raceKind (task #242)", () => {
+  it.each([
+    { kind: "5k" as const },
+    { kind: "10k" as const },
+    { kind: "half" as const },
+    { kind: "marathon" as const },
+  ])(
+    "echoes raceKind=$kind detected from the trailing plan_day Sunday",
+    async ({ kind }) => {
+      const week = 8242;
+      const phase = "Race Tail";
+      await insertWeek(week, {
+        startDate: "2099-10-04",
+        endDate: "2099-10-10",
+        phase,
+      });
+      await insertPlanDay(week, phase, {
+        date: "2099-10-10",
+        day: "Sun",
+        sessionType: "Race",
+        equipment: E_OUTDOOR,
+        distanceMi: RACE_DAY_SPECS[kind].distanceMi,
+        description: RACE_DAY_SPECS[kind].description,
+      });
+      const res = await request(app).get(`/api/plan/weeks/${week}`);
+      expect(res.status).toBe(200);
+      expectMatchesSchema(GetPlanWeekResponse, res.body);
+      expect(res.body.raceKind).toBe(kind);
+    },
+  );
+
+  it("returns raceKind=null when the trailing plan_day is not a recognised race row", async () => {
+    const week = 8243;
+    const phase = "Long Run Tail";
+    await insertWeek(week, {
+      startDate: "2099-11-01",
+      endDate: "2099-11-07",
+      phase,
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-11-07",
+      day: "Sun",
+      sessionType: T_LONG_RUN,
+      equipment: E_OUTDOOR,
+      distanceMi: 13.1,
+      description: "Long run, easy effort.",
+    });
+    const res = await request(app).get(`/api/plan/weeks/${week}`);
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetPlanWeekResponse, res.body);
+    expect(res.body.raceKind).toBeNull();
   });
 });
 

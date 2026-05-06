@@ -392,6 +392,26 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
     res.status(404).json({ error: "week not found" });
     return;
   }
+  // Task #242: campaign-level race kind detected from the trailing
+  // plan_day Sunday — same query / resolution as /plan/overview so
+  // the per-week eyebrow on the week-detail page can switch to the
+  // per-kind framing (5K / 10K / Half / Marathon) without forcing the
+  // page to also fetch /plan/overview. Null on tonal-first / non-race
+  // plans where the trailing Sun isn't a recognised race day.
+  const lastDayRows = await db.execute<{
+    distance_mi: number | null;
+    description: string | null;
+    session_type: string | null;
+  }>(
+    sql`SELECT distance_mi, description, session_type
+        FROM plan_days
+        ORDER BY date DESC, source_entry_index ASC
+        LIMIT 1`,
+  );
+  const lastDay = lastDayRows.rows[0];
+  const raceKind = lastDay
+    ? detectRaceKind(lastDay.distance_mi, lastDay.description, lastDay.session_type)
+    : null;
   // Order by date ascending and then by source_entry_index ascending so
   // concurrent overlapping programs (Task #135) on the same calendar
   // date are returned in a stable program order. The week-detail UI
@@ -538,6 +558,7 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
       dominantCardioEquipment,
       wedSteady,
       programs,
+      raceKind,
     }),
     days: daysWithSuggestions,
   });

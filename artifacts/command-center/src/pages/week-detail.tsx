@@ -57,6 +57,7 @@ import { cn } from "@/lib/utils";
 import { phaseColor } from "@/lib/phase-colors";
 import { adherenceStatus, adherenceTextClass } from "@/lib/adherence";
 import { raceDayLabel } from "@/lib/race-day-label";
+import type { RaceDayKind } from "@/lib/race-day-label";
 import { PlanDayForm } from "@/components/plan-day-form";
 import { MoveDayPicker } from "@/components/move-day-picker";
 import { sortWorkoutsByTimeOfDay } from "@/lib/time-of-day";
@@ -223,6 +224,55 @@ export default function WeekDetail() {
 
   if (!week) return <div>Week not found</div>;
 
+  // Task #242: per-kind campaign framing for the week-detail eyebrow
+  // mirrors the dashboard header (Task #209) and the /plan overview
+  // (Task #204). `week.raceKind` echoes /plan/overview's same trailing-
+  // Sunday detection so half / 10K / 5K plans get the per-kind label
+  // ("5K Campaign", "10K Campaign", "Half Marathon Campaign") instead
+  // of the generic "Marathon" framing the page used to fall back to,
+  // and tonal-first / non-race plans render no eyebrow at all instead
+  // of presupposing a race day.
+  //
+  // Race-week and post-race weeks override that "<Kind> Campaign"
+  // baseline with the same per-kind copy the dashboard banner uses
+  // ("5K · Race Week" / "5K Complete"), so a runner navigating
+  // dashboard → plan → week-detail sees consistent framing on the
+  // race week itself. Marathon collapses to the existing flagship
+  // "Race Week" / "Race Complete" / "Race Campaign" copy unchanged.
+  // Detection is local to the rendered week's days so we don't need a
+  // separate /race-week round-trip:
+  //   - isRaceWeek: any non-rest day in the week is a recognised race
+  //     row (delegates to the shared `raceDayLabel` helper that the
+  //     per-day badge already uses).
+  //   - isPostRace: that race day is strictly in the past.
+  const todayDate = todayISO();
+  const raceKind: RaceDayKind | null = (week.raceKind ?? null) as RaceDayKind | null;
+  const raceDayInWeek = week.days.find(
+    (d) => raceDayLabel(d.distanceMi, d.description, d.sessionType) != null,
+  );
+  const isRaceWeek = raceDayInWeek != null;
+  const isPostRace = isRaceWeek && raceDayInWeek!.date < todayDate;
+  const RACE_KIND_LABELS: Record<RaceDayKind, string> = {
+    marathon: "Marathon",
+    half: "Half Marathon",
+    "10k": "10K",
+    "5k": "5K",
+  };
+  let weekEyebrow: string | null = null;
+  if (raceKind != null) {
+    const label = RACE_KIND_LABELS[raceKind];
+    if (isPostRace) {
+      weekEyebrow =
+        raceKind === "marathon" ? "Race Complete" : `${label} Complete`;
+    } else if (isRaceWeek) {
+      weekEyebrow =
+        raceKind === "marathon" ? "Race Week" : `${label} · Race Week`;
+    } else {
+      weekEyebrow =
+        raceKind === "marathon" ? "Race Campaign" : `${label} Campaign`;
+    }
+  }
+
   // Task #143: group logged workouts by the plan_day they were logged
   // against so concurrent programs each get their own attributed
   // sessions, completion badge and missed-day status. Workouts that
@@ -381,6 +431,17 @@ export default function WeekDetail() {
           <ChevronLeft className="h-4 w-4 mr-1" /> Prev Week
         </Button>
         <div className="text-center">
+          {weekEyebrow && (
+            <p
+              className="text-[10px] uppercase tracking-[0.2em] font-bold text-primary mb-1"
+              data-testid="week-detail-eyebrow"
+              data-race-kind={raceKind ?? ""}
+              data-race-week={isRaceWeek ? "true" : undefined}
+              data-post-race={isPostRace ? "true" : undefined}
+            >
+              {weekEyebrow}
+            </p>
+          )}
           <h2 className="text-2xl font-black uppercase tracking-tight text-primary">Week {week.week}</h2>
           <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest mt-1">{formatDate(week.startDate)} - {formatDate(week.endDate)}</p>
         </div>

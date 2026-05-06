@@ -237,6 +237,14 @@ export function toPlanWeek(
     // "Tonal Lift 3/4 · 5K Improver 2/4" alongside the combined
     // numbers above. Null on weeks with no plan_days yet.
     programs?: PlanWeekProgramSummary[] | null;
+    // Task #242: campaign-level race kind, mirrored from /plan/overview
+    // onto the per-week detail response so the week-detail eyebrow can
+    // switch to "5K Campaign" / "10K Campaign" / "Half Marathon
+    // Campaign" / "Race Campaign" framing (and the per-kind race-week /
+    // post-race copy) without a second round-trip. Null on tonal-first
+    // / non-race plans and on the list aggregation that doesn't drive
+    // the eyebrow.
+    raceKind?: "marathon" | "half" | "10k" | "5k" | null;
   },
 ) {
   return {
@@ -258,6 +266,7 @@ export function toPlanWeek(
     dominantCardioEquipment: extras?.dominantCardioEquipment ?? null,
     wedSteady: extras?.wedSteady ?? null,
     programs: extras?.programs ?? null,
+    raceKind: extras?.raceKind ?? null,
   };
 }
 

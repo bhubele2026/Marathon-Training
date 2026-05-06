@@ -1301,3 +1301,128 @@ describe("Week detail — Tonal-only lift-primary week rendering (task #95)", ()
     }
   });
 });
+
+// Task #242: per-week eyebrow above the "Week N" header should mirror
+// the dashboard / plan header framing (Task #209 / Task #204) so
+// runners on half / 10K / 5K plans don't get a generic "Week N" with
+// no race-context, and tonal-first / non-race plans don't presuppose
+// a race day either.
+//
+// Coverage matrix: each non-marathon kind exercises the three
+// possible week roles (campaign · race week · post race) so the
+// per-kind label survives every state. Marathon collapses to the
+// flagship "Race Week / Race Complete / Race Campaign" copy. Null
+// raceKind renders no eyebrow at all.
+describe("Week detail — per-kind eyebrow (task #242)", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    vi.useRealTimers();
+  });
+
+  // RACE_DAY_SPECS["5k"] description prefix is "RACE DAY — 5K · ...";
+  // the client `raceDayLabel` helper accepts that prefix as the
+  // race-day signal so we can fabricate a race row without bringing
+  // in plan-generator here.
+  function raceDay(kind: "5k" | "10k" | "half" | "marathon", date: string) {
+    const labels = { "5k": "5K", "10k": "10K", half: "Half Marathon", marathon: "Marathon" } as const;
+    return {
+      id: 99,
+      week: 1,
+      phase: "Race Week",
+      date,
+      day: "Sun",
+      sessionType: "Race",
+      description: `RACE DAY — ${labels[kind]}: lay it on the line.`,
+      equipment: "Outdoor",
+      equipmentList: ["Outdoor"],
+      isRest: false,
+      isCustomized: false,
+      customizedFields: [],
+      customizedDiff: [],
+      strengthLoad: 0,
+      strengthMin: 0,
+      cardioMin: 0,
+      runMin: 0,
+      distanceMi: { "5k": 3.1, "10k": 6.2, half: 13.1, marathon: 26.2 }[kind],
+      pace: null,
+      totalMin: 0,
+      totalLoad: 0,
+      sourceEntryIndex: 0,
+      sourceEntryLabel: null,
+      suggestions: null,
+    };
+  }
+
+  function baseWeek(extras: Record<string, unknown>) {
+    return {
+      week: 1,
+      phase: "Race Week",
+      startDate: "2026-05-04",
+      endDate: "2026-05-10",
+      plannedStrength: 0,
+      plannedCardio: 0,
+      plannedTotalLoad: 0,
+      plannedMiles: 0,
+      longRunMi: 0,
+      actualMiles: 0,
+      actualCardio: 0,
+      completedSessions: 0,
+      totalSessions: 0,
+      missedSessions: 0,
+      dominantCardioEquipment: null,
+      days: [],
+      ...extras,
+    };
+  }
+
+  it("renders no eyebrow when raceKind is null (tonal-first plan)", () => {
+    renderWith(baseWeek({ raceKind: null }));
+    expect(screen.queryByTestId("week-detail-eyebrow")).toBeNull();
+  });
+
+  it.each([
+    { kind: "5k", label: "5K Campaign" },
+    { kind: "10k", label: "10K Campaign" },
+    { kind: "half", label: "Half Marathon Campaign" },
+    { kind: "marathon", label: "Race Campaign" },
+  ])("renders '$label' for raceKind=$kind on a non-race week", ({ kind, label }) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-05T12:00:00.000Z"));
+    renderWith(baseWeek({ raceKind: kind }));
+    const eyebrow = screen.getByTestId("week-detail-eyebrow");
+    expect(eyebrow.textContent).toBe(label);
+    expect(eyebrow.getAttribute("data-race-week")).toBeNull();
+    expect(eyebrow.getAttribute("data-post-race")).toBeNull();
+  });
+
+  it.each([
+    { kind: "5k" as const, label: "5K · Race Week" },
+    { kind: "10k" as const, label: "10K · Race Week" },
+    { kind: "half" as const, label: "Half Marathon · Race Week" },
+    { kind: "marathon" as const, label: "Race Week" },
+  ])("renders '$label' on the race week itself for raceKind=$kind", ({ kind, label }) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-08T12:00:00.000Z")); // race in 2 days
+    renderWith(baseWeek({ raceKind: kind, days: [raceDay(kind, "2026-05-10")] }));
+    const eyebrow = screen.getByTestId("week-detail-eyebrow");
+    expect(eyebrow.textContent).toBe(label);
+    expect(eyebrow.getAttribute("data-race-week")).toBe("true");
+    expect(eyebrow.getAttribute("data-post-race")).toBeNull();
+  });
+
+  it.each([
+    { kind: "5k" as const, label: "5K Complete" },
+    { kind: "10k" as const, label: "10K Complete" },
+    { kind: "half" as const, label: "Half Marathon Complete" },
+    { kind: "marathon" as const, label: "Race Complete" },
+  ])("renders '$label' after the race day for raceKind=$kind", ({ kind, label }) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-12T12:00:00.000Z")); // race was 2 days ago
+    renderWith(baseWeek({ raceKind: kind, days: [raceDay(kind, "2026-05-10")] }));
+    const eyebrow = screen.getByTestId("week-detail-eyebrow");
+    expect(eyebrow.textContent).toBe(label);
+    expect(eyebrow.getAttribute("data-race-week")).toBe("true");
+    expect(eyebrow.getAttribute("data-post-race")).toBe("true");
+  });
+});

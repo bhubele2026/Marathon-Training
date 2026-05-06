@@ -257,6 +257,29 @@ export interface UndoPlanResetResponse {
   weeksAffected: number[];
 }
 
+/**
+ * Task #242. Kind of race the campaign is anchored on, mirrored
+on per-week responses so the /plan/:week eyebrow can switch
+to "5K Campaign" / "10K Campaign" / "Half Marathon Campaign"
+/ "Race Campaign" framing without a second round-trip to
+/plan/overview. Same detection as `PlanOverview.raceKind`
+(trailing plan_day Sunday with an explicit race signal),
+populated only on the per-week detail endpoint
+(`getPlanWeek`); list aggregations (`/plan/weeks`) leave it
+null since they don't drive the eyebrow.
+
+ */
+export type PlanWeekRaceKind =
+  | (typeof PlanWeekRaceKind)[keyof typeof PlanWeekRaceKind]
+  | null;
+
+export const PlanWeekRaceKind = {
+  marathon: "marathon",
+  half: "half",
+  "10k": "10k",
+  "5k": "5k",
+} as const;
+
 export interface PlanWeekProgram {
   sourceEntryIndex: number;
   /** Human-readable program name; falls back to "Marathon Plan" for legacy single-program campaigns. */
@@ -328,6 +351,17 @@ single-program campaigns. Ordered by `sourceEntryIndex`
 ascending.
  */
   programs?: PlanWeekProgram[] | null;
+  /** Task #242. Kind of race the campaign is anchored on, mirrored
+on per-week responses so the /plan/:week eyebrow can switch
+to "5K Campaign" / "10K Campaign" / "Half Marathon Campaign"
+/ "Race Campaign" framing without a second round-trip to
+/plan/overview. Same detection as `PlanOverview.raceKind`
+(trailing plan_day Sunday with an explicit race signal),
+populated only on the per-week detail endpoint
+(`getPlanWeek`); list aggregations (`/plan/weeks`) leave it
+null since they don't drive the eyebrow.
+ */
+  raceKind?: PlanWeekRaceKind;
 }
 
 /**

@@ -1374,6 +1374,20 @@ components:
             single-program campaigns. Ordered by `sourceEntryIndex`
             ascending.
           items: { $ref: "#/components/schemas/PlanWeekProgram" }
+        raceKind:
+          type: string
+          enum: [marathon, half, "10k", "5k"]
+          nullable: true
+          description: |
+            Task #242. Kind of race the campaign is anchored on, mirrored
+            on per-week responses so the /plan/:week eyebrow can switch
+            to "5K Campaign" / "10K Campaign" / "Half Marathon Campaign"
+            / "Race Campaign" framing without a second round-trip to
+            /plan/overview. Same detection as `PlanOverview.raceKind`
+            (trailing plan_day Sunday with an explicit race signal),
+            populated only on the per-week detail endpoint
+            (`getPlanWeek`); list aggregations (`/plan/weeks`) leave it
+            null since they don't drive the eyebrow.
 
     PlanWeekProgram:
       type: object
