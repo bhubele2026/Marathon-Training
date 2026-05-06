@@ -3135,3 +3135,162 @@ describe("Tag-cloud sort toggle — quick-add popover", () => {
     expect(tags).toEqual([...tags].sort((a, b) => a.localeCompare(b)));
   });
 });
+
+// Task #285 — multi-pin compare board. The hybrid builder card
+// supports stacking multiple pinned snapshots (Lift / Lift-leaning /
+// Balanced / Run-leaning / Run) as their own columns with per-column
+// clear and a baseline anchor toggle that reroutes the Δ comparison.
+describe("Hybrid builder — multi-pin compare board (Task #285)", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    window.localStorage.clear();
+  });
+
+  it("starts with no pinned snapshots and exposes a Pin to compare button", () => {
+    renderPlanner();
+    expect(screen.getByTestId("planner-hybrid-pin")).toBeTruthy();
+    // The compare grid is always mounted (Live is one column), but it
+    // carries data-pinned-count="0" until the first pin lands and the
+    // Clear all button stays absent.
+    const grid = screen.getByTestId("planner-hybrid-compare");
+    expect(grid.getAttribute("data-pinned-count")).toBe("0");
+    expect(screen.queryByTestId("planner-hybrid-unpin-all")).toBeNull();
+    // No baseline badge or per-column delta when only Live is mounted.
+    expect(
+      screen.queryByTestId("planner-hybrid-compare-live-baseline-badge"),
+    ).toBeNull();
+    expect(
+      screen.queryByTestId("planner-hybrid-compare-live-delta"),
+    ).toBeNull();
+  });
+
+  it("renders multiple pinned columns side-by-side after stacking pins", () => {
+    renderPlanner();
+    const pinBtn = screen.getByTestId("planner-hybrid-pin");
+    // Pin #1 at the default (Balanced/5/Beginner, week 1).
+    fireEvent.click(pinBtn);
+    // Move the live preview to a different week so the second pin is
+    // not "already pinned"-disabled, then pin again.
+    fireEvent.click(screen.getByTestId("planner-hybrid-preview-week-next"));
+    fireEvent.click(pinBtn);
+    fireEvent.click(screen.getByTestId("planner-hybrid-preview-week-next"));
+    fireEvent.click(pinBtn);
+    const grid = screen.getByTestId("planner-hybrid-compare");
+    expect(grid.getAttribute("data-pinned-count")).toBe("3");
+    // Live + 3 pinned columns must all be mounted.
+    expect(screen.getByTestId("planner-hybrid-compare-live")).toBeTruthy();
+    expect(screen.getByTestId("planner-hybrid-compare-pinned-0")).toBeTruthy();
+    expect(screen.getByTestId("planner-hybrid-compare-pinned-1")).toBeTruthy();
+    expect(screen.getByTestId("planner-hybrid-compare-pinned-2")).toBeTruthy();
+  });
+
+  it("disables the Pin button when the current spec is already pinned", () => {
+    renderPlanner();
+    const pinBtn = screen.getByTestId("planner-hybrid-pin") as HTMLButtonElement;
+    fireEvent.click(pinBtn);
+    // Same live spec → second click would dupe; button must disable.
+    expect(pinBtn.disabled).toBe(true);
+    // Stepping the live preview to another week makes the spec unique
+    // again, re-enabling the Pin button.
+    fireEvent.click(screen.getByTestId("planner-hybrid-preview-week-next"));
+    expect(pinBtn.disabled).toBe(false);
+  });
+
+  it("clears a single pin via its per-column × button without nuking the rest", () => {
+    renderPlanner();
+    const pinBtn = screen.getByTestId("planner-hybrid-pin");
+    fireEvent.click(pinBtn);
+    fireEvent.click(screen.getByTestId("planner-hybrid-preview-week-next"));
+    fireEvent.click(pinBtn);
+    // Two pins → clear the first one only.
+    fireEvent.click(
+      screen.getByTestId("planner-hybrid-compare-pinned-0-clear"),
+    );
+    const grid = screen.getByTestId("planner-hybrid-compare");
+    expect(grid.getAttribute("data-pinned-count")).toBe("1");
+    // The remaining pin slides into index 0 — exactly one pinned column
+    // is present after the clear.
+    expect(screen.getByTestId("planner-hybrid-compare-pinned-0")).toBeTruthy();
+    expect(
+      screen.queryByTestId("planner-hybrid-compare-pinned-1"),
+    ).toBeNull();
+  });
+
+  it("Clear all wipes every pin and returns to the unpinned single-strip layout", () => {
+    renderPlanner();
+    const pinBtn = screen.getByTestId("planner-hybrid-pin");
+    fireEvent.click(pinBtn);
+    fireEvent.click(screen.getByTestId("planner-hybrid-preview-week-next"));
+    fireEvent.click(pinBtn);
+    fireEvent.click(screen.getByTestId("planner-hybrid-unpin-all"));
+    // Grid stays mounted (Live is one column) but the pinned count
+    // resets to 0 and the Clear-all + per-column-delta affordances
+    // unmount.
+    const grid = screen.getByTestId("planner-hybrid-compare");
+    expect(grid.getAttribute("data-pinned-count")).toBe("0");
+    expect(screen.queryByTestId("planner-hybrid-unpin-all")).toBeNull();
+    expect(
+      screen.queryByTestId("planner-hybrid-compare-pinned-0"),
+    ).toBeNull();
+  });
+
+  it("promotes a pinned column to baseline and reroutes delta line copy to it", () => {
+    renderPlanner();
+    const pinBtn = screen.getByTestId("planner-hybrid-pin");
+    fireEvent.click(pinBtn);
+    fireEvent.click(screen.getByTestId("planner-hybrid-preview-week-next"));
+    fireEvent.click(pinBtn);
+    // Default baseline is Live, so Live carries the BASE badge and the
+    // pinned columns each render a delta line vs Live.
+    expect(
+      screen.getByTestId("planner-hybrid-compare-live-baseline-badge"),
+    ).toBeTruthy();
+    const pinnedDeltaBefore = screen.getByTestId(
+      "planner-hybrid-compare-pinned-0-delta",
+    );
+    expect(pinnedDeltaBefore.textContent).toContain("vs Live");
+    // Promote Pinned 1 (index 0) to baseline. After the swap, the BASE
+    // badge moves to that pin, the live column shows a delta line vs
+    // Pinned 1, and the originally-baseline pin no longer renders one.
+    fireEvent.click(
+      screen.getByTestId("planner-hybrid-compare-pinned-0-set-baseline"),
+    );
+    expect(
+      screen.getByTestId("planner-hybrid-compare-pinned-0-baseline-badge"),
+    ).toBeTruthy();
+    expect(
+      screen.queryByTestId("planner-hybrid-compare-live-baseline-badge"),
+    ).toBeNull();
+    expect(
+      screen.getByTestId("planner-hybrid-compare-live-delta").textContent,
+    ).toContain("vs Pinned 1");
+    expect(
+      screen.queryByTestId("planner-hybrid-compare-pinned-0-delta"),
+    ).toBeNull();
+  });
+
+  it("falls back to Live as baseline when the chosen baseline pin gets cleared", () => {
+    renderPlanner();
+    const pinBtn = screen.getByTestId("planner-hybrid-pin");
+    fireEvent.click(pinBtn);
+    fireEvent.click(screen.getByTestId("planner-hybrid-preview-week-next"));
+    fireEvent.click(pinBtn);
+    // Promote pinned-0 to baseline, then clear it. The remaining pin
+    // (now at index 0) must render a delta vs Live again — the
+    // baseline transparently falls back to "live" without leaving a
+    // dangling stale id.
+    fireEvent.click(
+      screen.getByTestId("planner-hybrid-compare-pinned-0-set-baseline"),
+    );
+    fireEvent.click(
+      screen.getByTestId("planner-hybrid-compare-pinned-0-clear"),
+    );
+    expect(
+      screen.getByTestId("planner-hybrid-compare-live-baseline-badge"),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId("planner-hybrid-compare-pinned-0-delta").textContent,
+    ).toContain("vs Live");
+  });
+});

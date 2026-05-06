@@ -824,15 +824,18 @@ export default function Planner() {
   // mileage arc (peak weeks, every-4th-week cutbacks, etc.) before
   // committing to a block length.
   const [hybridPreviewWeek, setHybridPreviewWeek] = useState<number>(1);
-  // ---- Pin-to-compare snapshot (Task #152) ----
-  // Lets the runner freeze the current preview shape (position +
-  // days/week + level + blockWeeks + race-week branch + scrubbed week)
-  // so a second preview card renders next to the live one. Picking the
-  // right Lift-leaning vs Balanced blend is much easier when both
-  // Mon-Sun strips and totals are visible at the same time instead
-  // of sliding back and forth and remembering numbers. Includes
-  // `weekInBlock` so the snapshot also remembers what week of the
-  // block (Task #156) the runner was scrubbed to when they pinned.
+  // ---- Pin-to-compare snapshots (Task #152, expanded in Task #285) ----
+  // Lets the runner freeze multiple preview shapes (position + days/week
+  // + level + blockWeeks + race-week branch + scrubbed week) so each
+  // pinned snapshot renders as its own column next to the live preview.
+  // Picking between Lift / Lift-leaning / Balanced / Run-leaning / Run
+  // is much easier when 3+ Mon-Sun strips and totals can be eyeballed
+  // side-by-side instead of cycling through pairs. Includes
+  // `weekInBlock` so each snapshot remembers the scrubbed week.
+  // The optional `compareBaselineId` chooses which column the delta
+  // line is computed against — defaults to the live preview ("live")
+  // but can be set to any pinned snapshot's id so the runner can
+  // anchor on, say, the Balanced mix and see how the others diverge.
   type HybridSnapshot = {
     position: HybridMixPosition;
     daysPerWeek: number;
@@ -842,8 +845,12 @@ export default function Planner() {
     isRaceWeek: boolean;
     raceKind: PlanRaceKind;
   };
-  const [pinnedHybridSnapshot, setPinnedHybridSnapshot] =
-    useState<HybridSnapshot | null>(null);
+  type PinnedHybridSnapshot = HybridSnapshot & { id: string };
+  const HYBRID_PIN_LIMIT = 5;
+  const [pinnedHybridSnapshots, setPinnedHybridSnapshots] = useState<
+    PinnedHybridSnapshot[]
+  >([]);
+  const [compareBaselineId, setCompareBaselineId] = useState<string>("live");
   // Reset the "show hidden" toggles whenever the runner clears their
   // filters so the next filter session starts from the
   // collapsed-by-default state instead of remembering a stale
@@ -3161,15 +3168,17 @@ export default function Planner() {
                           each non-rest slot, a Cutback badge on
                           deload weeks, and a totals line.
 
-                          Pin-to-compare (Task #152): the "Pin" button
-                          snapshots the live spec into
-                          `pinnedHybridSnapshot`. When pinned, the
-                          preview area splits into a 2-column grid
-                          (pinned · live) so the runner can compare
-                          two different mixes side-by-side without
-                          sliding the slider back and forth. A delta
-                          line below shows the mileage / lift count
-                          difference between the two.
+                          Pin-to-compare (Task #152, expanded in Task
+                          #285): the "Pin" button snapshots the live
+                          spec into `pinnedHybridSnapshots[]`. Each
+                          pinned snapshot becomes its own column next
+                          to the live preview so the runner can stack
+                          up to HYBRID_PIN_LIMIT mixes side-by-side.
+                          A delta line under every non-baseline column
+                          shows mileage / lift count diffs vs. the
+                          chosen baseline (Live by default; any pin
+                          can be promoted via the column header
+                          anchor toggle).
                         */}
                         {/*
                           Task #156: week-of-block stepper. Lets the
@@ -3243,15 +3252,19 @@ export default function Planner() {
                           );
                         })()}
                         {/*
-                          Pin-to-compare branch (Task #152) — wraps the
-                          live preview(s) so the runner can snapshot the
-                          current shape and view it next to a freshly
-                          edited one. Plays nicely with Task #156's
-                          week-of-block stepper: the snapshot also
-                          captures `weekInBlock` so the pinned strip
-                          stays on whatever week the runner had
-                          scrubbed to, while the live strip continues
-                          to follow the stepper.
+                          Pin-to-compare branch (Task #152, expanded in
+                          Task #285) — the live preview is always shown
+                          as one column; each pinned snapshot adds its
+                          own column so the runner can stack 2+ mixes
+                          (e.g. Lift / Lift-leaning / Balanced /
+                          Run-leaning / Run) and audition them all at
+                          once instead of cycling through pairs. Each
+                          pinned column has its own clear (×) button,
+                          and the delta line under every non-baseline
+                          column shows Δ miles / Δ lifts vs. whichever
+                          column is the current baseline (Live by
+                          default; the runner can promote any pin to
+                          baseline via the anchor toggle).
                         */}
                         {(() => {
                           const liveBlockWeeks =
@@ -3269,306 +3282,383 @@ export default function Planner() {
                             isRaceWeek: hybridIsRaceWeek,
                             raceKind: hybridRaceKind,
                           };
-                          const isPinned = pinnedHybridSnapshot !== null;
-                          // Same-as-live detection so the runner doesn't
-                          // pin the *current* shape and immediately get
-                          // an identical-looking pair. The button stays
-                          // mounted as a no-op label in that case.
-                          const sameAsLive =
-                            isPinned &&
-                            pinnedHybridSnapshot.position ===
-                              liveSpec.position &&
-                            pinnedHybridSnapshot.daysPerWeek ===
-                              liveSpec.daysPerWeek &&
-                            pinnedHybridSnapshot.level === liveSpec.level &&
-                            pinnedHybridSnapshot.blockWeeks ===
-                              liveSpec.blockWeeks &&
-                            pinnedHybridSnapshot.weekInBlock ===
-                              liveSpec.weekInBlock &&
-                            pinnedHybridSnapshot.isRaceWeek ===
-                              liveSpec.isRaceWeek &&
-                            pinnedHybridSnapshot.raceKind ===
-                              liveSpec.raceKind;
-                          // Totals are computed from the same pure
-                          // generator helper the preview component uses
-                          // — keeps the delta line locked to the visible
-                          // strip with zero drift risk. Passes
-                          // `weekInBlock` so the totals reflect the
-                          // scrubbed week (peak / cutback) rather than
-                          // the default week 1.
-                          const liveTotals = previewHybridWeek(
-                            {
-                              position: liveSpec.position,
-                              daysPerWeek: liveSpec.daysPerWeek,
-                              level: liveSpec.level,
-                            },
-                            {
-                              blockWeeks: liveSpec.blockWeeks,
-                              weekInBlock: liveSpec.weekInBlock,
-                              isRaceWeek: liveSpec.isRaceWeek,
-                              raceKind: liveSpec.raceKind,
-                            },
-                          ).totals;
-                          const pinnedTotals = pinnedHybridSnapshot
-                            ? previewHybridWeek(
-                                {
-                                  position: pinnedHybridSnapshot.position,
-                                  daysPerWeek:
-                                    pinnedHybridSnapshot.daysPerWeek,
-                                  level: pinnedHybridSnapshot.level,
-                                },
-                                {
-                                  blockWeeks:
-                                    pinnedHybridSnapshot.blockWeeks,
-                                  weekInBlock:
-                                    pinnedHybridSnapshot.weekInBlock,
-                                  isRaceWeek:
-                                    pinnedHybridSnapshot.isRaceWeek,
-                                  raceKind: pinnedHybridSnapshot.raceKind,
-                                },
-                              ).totals
-                            : null;
-                          const milesDelta = pinnedTotals
-                            ? liveTotals.miles - pinnedTotals.miles
-                            : 0;
-                          const liftsDelta = pinnedTotals
-                            ? liveTotals.lifts - pinnedTotals.lifts
-                            : 0;
+                          const specsEqual = (
+                            a: HybridSnapshot,
+                            b: HybridSnapshot,
+                          ) =>
+                            a.position === b.position &&
+                            a.daysPerWeek === b.daysPerWeek &&
+                            a.level === b.level &&
+                            a.blockWeeks === b.blockWeeks &&
+                            a.weekInBlock === b.weekInBlock &&
+                            a.isRaceWeek === b.isRaceWeek &&
+                            a.raceKind === b.raceKind;
+                          const totalsFor = (s: HybridSnapshot) =>
+                            previewHybridWeek(
+                              {
+                                position: s.position,
+                                daysPerWeek: s.daysPerWeek,
+                                level: s.level,
+                              },
+                              {
+                                blockWeeks: s.blockWeeks,
+                                weekInBlock: s.weekInBlock,
+                                isRaceWeek: s.isRaceWeek,
+                                raceKind: s.raceKind,
+                              },
+                            ).totals;
+                          const hasPins = pinnedHybridSnapshots.length > 0;
+                          const pinLimitReached =
+                            pinnedHybridSnapshots.length >= HYBRID_PIN_LIMIT;
+                          // The "Pin current" button is a no-op when the
+                          // current live spec is already pinned — keeps
+                          // the runner from accidentally stacking
+                          // identical-looking columns.
+                          const liveAlreadyPinned =
+                            pinnedHybridSnapshots.some((p) =>
+                              specsEqual(p, liveSpec),
+                            );
+                          // The runner can anchor the delta computation
+                          // on any pinned snapshot (or Live, the
+                          // default). If the chosen baseline pin gets
+                          // cleared, fall back to Live transparently so
+                          // the delta line never points at a stale id.
+                          const baselineExists =
+                            compareBaselineId === "live" ||
+                            pinnedHybridSnapshots.some(
+                              (p) => p.id === compareBaselineId,
+                            );
+                          const effectiveBaselineId = baselineExists
+                            ? compareBaselineId
+                            : "live";
+                          const baselineSnapshot:
+                            | { kind: "live"; spec: HybridSnapshot }
+                            | {
+                                kind: "pin";
+                                spec: PinnedHybridSnapshot;
+                              } =
+                            effectiveBaselineId === "live"
+                              ? { kind: "live", spec: liveSpec }
+                              : {
+                                  kind: "pin",
+                                  spec: pinnedHybridSnapshots.find(
+                                    (p) => p.id === effectiveBaselineId,
+                                  )!,
+                                };
+                          const baselineTotals = totalsFor(
+                            baselineSnapshot.spec,
+                          );
+                          const baselineLabel =
+                            baselineSnapshot.kind === "live"
+                              ? "Live"
+                              : `Pinned ${
+                                  pinnedHybridSnapshots.findIndex(
+                                    (p) => p.id === baselineSnapshot.spec.id,
+                                  ) + 1
+                                }`;
                           const fmtSigned = (n: number, digits = 0) =>
                             `${n > 0 ? "+" : n < 0 ? "−" : "±"}${Math.abs(n).toFixed(digits)}`;
+                          const newPinId = () =>
+                            typeof crypto !== "undefined" &&
+                            "randomUUID" in crypto
+                              ? crypto.randomUUID()
+                              : `pin-${Date.now()}-${Math.random()
+                                  .toString(36)
+                                  .slice(2, 8)}`;
+
+                          // Renders a single column (Live or one pin)
+                          // with its preview, optional race-week strip,
+                          // delta vs. baseline, and per-column controls.
+                          const renderColumn = (
+                            opts:
+                              | {
+                                  kind: "live";
+                                  spec: HybridSnapshot;
+                                }
+                              | {
+                                  kind: "pin";
+                                  spec: PinnedHybridSnapshot;
+                                  index: number;
+                                },
+                          ) => {
+                            const spec = opts.spec;
+                            const id =
+                              opts.kind === "live" ? "live" : opts.spec.id;
+                            const isBaseline = effectiveBaselineId === id;
+                            const totals = totalsFor(spec);
+                            const milesDelta =
+                              totals.miles - baselineTotals.miles;
+                            const liftsDelta =
+                              totals.lifts - baselineTotals.lifts;
+                            const colTestId =
+                              opts.kind === "live"
+                                ? "planner-hybrid-compare-live"
+                                : `planner-hybrid-compare-pinned-${opts.index}`;
+                            const headerLabel =
+                              opts.kind === "live"
+                                ? "Live"
+                                : `Pinned ${opts.index + 1}`;
+                            return (
+                              <div
+                                key={id}
+                                className={
+                                  "space-y-1.5 rounded-md p-1 " +
+                                  (isBaseline
+                                    ? "ring-1 ring-accent/40 bg-accent/5"
+                                    : "")
+                                }
+                                data-testid={colTestId}
+                                data-baseline={
+                                  isBaseline ? "true" : undefined
+                                }
+                              >
+                                <div className="flex items-center justify-between gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                                  <span className="inline-flex items-center gap-1">
+                                    {opts.kind === "pin" && (
+                                      <Pin className="h-3 w-3" />
+                                    )}
+                                    {headerLabel}
+                                    {" · w"}
+                                    {spec.weekInBlock}
+                                    {isBaseline && hasPins && (
+                                      <span
+                                        className="ml-1 rounded bg-accent/20 px-1 text-[9px] font-mono tracking-wider text-accent"
+                                        data-testid={`${colTestId}-baseline-badge`}
+                                      >
+                                        BASE
+                                      </span>
+                                    )}
+                                  </span>
+                                  <div className="flex items-center gap-0.5">
+                                    <Button
+                                      type="button"
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-5 w-5"
+                                      onClick={() =>
+                                        setCompareBaselineId(
+                                          isBaseline ? "live" : id,
+                                        )
+                                      }
+                                      disabled={
+                                        isBaseline && id === "live"
+                                      }
+                                      title={
+                                        isBaseline
+                                          ? "This column is the comparison baseline"
+                                          : "Use this column as the comparison baseline"
+                                      }
+                                      data-testid={`${colTestId}-set-baseline`}
+                                    >
+                                      <Pin
+                                        className={
+                                          "h-3 w-3 " +
+                                          (isBaseline
+                                            ? "fill-current text-accent"
+                                            : "")
+                                        }
+                                      />
+                                    </Button>
+                                    {opts.kind === "pin" && (
+                                      <Button
+                                        type="button"
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                                        onClick={() => {
+                                          setPinnedHybridSnapshots((prev) =>
+                                            prev.filter(
+                                              (p) => p.id !== opts.spec.id,
+                                            ),
+                                          );
+                                          if (
+                                            compareBaselineId ===
+                                            opts.spec.id
+                                          ) {
+                                            setCompareBaselineId("live");
+                                          }
+                                        }}
+                                        title="Clear this pinned snapshot"
+                                        data-testid={`${colTestId}-clear`}
+                                      >
+                                        <PinOff className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                                <div
+                                  className="text-[10px] text-muted-foreground"
+                                  data-testid={`${colTestId}-spec`}
+                                >
+                                  {HYBRID_POSITION_LABEL[spec.position]}
+                                  {" · "}
+                                  {spec.daysPerWeek}d
+                                  {" · "}
+                                  {spec.level}
+                                </div>
+                                <HybridWeekPreview
+                                  position={spec.position}
+                                  daysPerWeek={spec.daysPerWeek}
+                                  level={spec.level}
+                                  blockWeeks={spec.blockWeeks}
+                                  weekInBlock={spec.weekInBlock}
+                                />
+                                {spec.isRaceWeek && (
+                                  <HybridWeekPreview
+                                    position={spec.position}
+                                    daysPerWeek={spec.daysPerWeek}
+                                    level={spec.level}
+                                    blockWeeks={spec.blockWeeks}
+                                    isRaceWeek
+                                    raceKind={spec.raceKind}
+                                  />
+                                )}
+                                {hasPins &&
+                                  (isBaseline ? (
+                                    <div
+                                      className="text-[10px] text-muted-foreground/70 italic"
+                                      data-testid={`${colTestId}-baseline-note`}
+                                    >
+                                      baseline
+                                    </div>
+                                  ) : (
+                                    <div
+                                      className="text-[10px] text-muted-foreground tabular-nums flex flex-wrap gap-x-2 gap-y-0.5"
+                                      data-testid={`${colTestId}-delta`}
+                                    >
+                                      <span>
+                                        Δ mi{" "}
+                                        <span
+                                          className={
+                                            milesDelta > 0
+                                              ? "text-sky-600 dark:text-sky-400 font-semibold"
+                                              : milesDelta < 0
+                                                ? "text-amber-600 dark:text-amber-400 font-semibold"
+                                                : "text-muted-foreground"
+                                          }
+                                          data-testid={`${colTestId}-delta-miles`}
+                                        >
+                                          {fmtSigned(milesDelta, 1)}
+                                        </span>
+                                      </span>
+                                      <span>
+                                        Δ lifts{" "}
+                                        <span
+                                          className={
+                                            liftsDelta > 0
+                                              ? "text-amber-600 dark:text-amber-400 font-semibold"
+                                              : liftsDelta < 0
+                                                ? "text-sky-600 dark:text-sky-400 font-semibold"
+                                                : "text-muted-foreground"
+                                          }
+                                          data-testid={`${colTestId}-delta-lifts`}
+                                        >
+                                          {fmtSigned(liftsDelta, 0)}
+                                        </span>
+                                      </span>
+                                      <span className="text-muted-foreground/70">
+                                        vs {baselineLabel}
+                                      </span>
+                                    </div>
+                                  ))}
+                              </div>
+                            );
+                          };
+
+                          // Choose the column-count for the responsive
+                          // grid based on how many columns are mounted.
+                          // 1 col when only Live, 2 col with one pin,
+                          // up to 3 col on md+ when 3+ snapshots are
+                          // mounted so the strips stay readable.
+                          const colCount = 1 + pinnedHybridSnapshots.length;
+                          const gridCols = !hasPins
+                            ? "grid-cols-1"
+                            : colCount === 2
+                              ? "grid-cols-1 md:grid-cols-2"
+                              : "grid-cols-1 sm:grid-cols-2 md:grid-cols-3";
                           return (
                             <div className="space-y-2">
-                              <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
                                 <Label className="text-xs">
-                                  {isPinned
-                                    ? "Compare mixes"
+                                  {hasPins
+                                    ? `Compare mixes (${pinnedHybridSnapshots.length} pinned)`
                                     : `Week ${liveWeekInBlock} preview`}
                                 </Label>
-                                {isPinned ? (
-                                  <div className="flex items-center gap-1">
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() =>
-                                        setPinnedHybridSnapshot(liveSpec)
-                                      }
-                                      disabled={sameAsLive}
-                                      className="h-6 px-2 text-[10px]"
-                                      data-testid="planner-hybrid-pin-replace"
-                                      title="Replace pinned snapshot with the current live preview"
-                                    >
-                                      <Pin className="h-3 w-3 mr-1" />
-                                      Replace pin
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() =>
-                                        setPinnedHybridSnapshot(null)
-                                      }
-                                      className="h-6 px-2 text-[10px]"
-                                      data-testid="planner-hybrid-unpin"
-                                    >
-                                      <PinOff className="h-3 w-3 mr-1" />
-                                      Unpin
-                                    </Button>
-                                  </div>
-                                ) : (
+                                <div className="flex items-center gap-1">
                                   <Button
                                     type="button"
                                     size="sm"
                                     variant="ghost"
                                     onClick={() =>
-                                      setPinnedHybridSnapshot(liveSpec)
+                                      setPinnedHybridSnapshots((prev) => [
+                                        ...prev,
+                                        { ...liveSpec, id: newPinId() },
+                                      ])
+                                    }
+                                    disabled={
+                                      liveAlreadyPinned || pinLimitReached
                                     }
                                     className="h-6 px-2 text-[10px]"
                                     data-testid="planner-hybrid-pin"
-                                    title="Snapshot this preview so you can compare it against another mix"
+                                    title={
+                                      pinLimitReached
+                                        ? `Pin limit (${HYBRID_PIN_LIMIT}) reached — clear one to add another`
+                                        : liveAlreadyPinned
+                                          ? "Current mix is already pinned"
+                                          : "Snapshot this preview so you can compare it against another mix"
+                                    }
                                   >
                                     <Pin className="h-3 w-3 mr-1" />
-                                    Pin to compare
+                                    {hasPins
+                                      ? "Pin current"
+                                      : "Pin to compare"}
                                   </Button>
+                                  {hasPins && (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => {
+                                        setPinnedHybridSnapshots([]);
+                                        setCompareBaselineId("live");
+                                      }}
+                                      className="h-6 px-2 text-[10px]"
+                                      data-testid="planner-hybrid-unpin-all"
+                                      title="Clear every pinned snapshot"
+                                    >
+                                      <PinOff className="h-3 w-3 mr-1" />
+                                      Clear all
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                              <div
+                                className={`grid gap-2 ${gridCols}`}
+                                data-testid="planner-hybrid-compare"
+                                data-pinned-count={
+                                  pinnedHybridSnapshots.length
+                                }
+                              >
+                                {renderColumn({
+                                  kind: "live",
+                                  spec: liveSpec,
+                                })}
+                                {pinnedHybridSnapshots.map((pin, index) =>
+                                  renderColumn({
+                                    kind: "pin",
+                                    spec: pin,
+                                    index,
+                                  }),
                                 )}
                               </div>
-                              {isPinned ? (
+                              {hasPins && (
                                 <div
-                                  className="grid grid-cols-1 md:grid-cols-2 gap-2"
-                                  data-testid="planner-hybrid-compare"
+                                  className="text-[10px] text-muted-foreground/70"
+                                  data-testid="planner-hybrid-compare-baseline-hint"
                                 >
-                                  <div
-                                    className="space-y-1.5"
-                                    data-testid="planner-hybrid-compare-pinned"
-                                  >
-                                    <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-muted-foreground">
-                                      <span className="inline-flex items-center gap-1">
-                                        <Pin className="h-3 w-3" /> Pinned
-                                        {" · w"}
-                                        {pinnedHybridSnapshot.weekInBlock}
-                                      </span>
-                                      <span data-testid="planner-hybrid-compare-pinned-spec">
-                                        {
-                                          HYBRID_POSITION_LABEL[
-                                            pinnedHybridSnapshot.position
-                                          ]
-                                        }
-                                        {" · "}
-                                        {pinnedHybridSnapshot.daysPerWeek}d
-                                        {" · "}
-                                        {pinnedHybridSnapshot.level}
-                                      </span>
-                                    </div>
-                                    <HybridWeekPreview
-                                      position={pinnedHybridSnapshot.position}
-                                      daysPerWeek={
-                                        pinnedHybridSnapshot.daysPerWeek
-                                      }
-                                      level={pinnedHybridSnapshot.level}
-                                      blockWeeks={
-                                        pinnedHybridSnapshot.blockWeeks
-                                      }
-                                      weekInBlock={
-                                        pinnedHybridSnapshot.weekInBlock
-                                      }
-                                    />
-                                    {pinnedHybridSnapshot.isRaceWeek && (
-                                      <HybridWeekPreview
-                                        position={
-                                          pinnedHybridSnapshot.position
-                                        }
-                                        daysPerWeek={
-                                          pinnedHybridSnapshot.daysPerWeek
-                                        }
-                                        level={pinnedHybridSnapshot.level}
-                                        blockWeeks={
-                                          pinnedHybridSnapshot.blockWeeks
-                                        }
-                                        isRaceWeek
-                                        raceKind={
-                                          pinnedHybridSnapshot.raceKind
-                                        }
-                                      />
-                                    )}
-                                  </div>
-                                  <div
-                                    className="space-y-1.5"
-                                    data-testid="planner-hybrid-compare-live"
-                                  >
-                                    <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-muted-foreground">
-                                      <span>
-                                        Live · w{liveSpec.weekInBlock}
-                                      </span>
-                                      <span data-testid="planner-hybrid-compare-live-spec">
-                                        {
-                                          HYBRID_POSITION_LABEL[
-                                            liveSpec.position
-                                          ]
-                                        }
-                                        {" · "}
-                                        {liveSpec.daysPerWeek}d
-                                        {" · "}
-                                        {liveSpec.level}
-                                      </span>
-                                    </div>
-                                    <HybridWeekPreview
-                                      position={liveSpec.position}
-                                      daysPerWeek={liveSpec.daysPerWeek}
-                                      level={liveSpec.level}
-                                      blockWeeks={liveSpec.blockWeeks}
-                                      weekInBlock={liveSpec.weekInBlock}
-                                    />
-                                    {liveSpec.isRaceWeek && (
-                                      <HybridWeekPreview
-                                        position={liveSpec.position}
-                                        daysPerWeek={liveSpec.daysPerWeek}
-                                        level={liveSpec.level}
-                                        blockWeeks={liveSpec.blockWeeks}
-                                        isRaceWeek
-                                        raceKind={liveSpec.raceKind}
-                                      />
-                                    )}
-                                  </div>
-                                </div>
-                              ) : (
-                                <>
-                                  <HybridWeekPreview
-                                    position={liveSpec.position}
-                                    daysPerWeek={liveSpec.daysPerWeek}
-                                    level={liveSpec.level}
-                                    blockWeeks={liveSpec.blockWeeks}
-                                    weekInBlock={liveSpec.weekInBlock}
-                                  />
-                                  {/*
-                                    Race-week preview (Task #203 / #207).
-                                    Mounted only when the hybrid plan
-                                    classifies as a race (entries
-                                    already classify as marathon / half
-                                    / 10K / 5K, OR the configured
-                                    hybrid block ends on the runner's
-                                    marathonDate). Reuses the same
-                                    component with `isRaceWeek` + the
-                                    matching `raceKind`, which asks
-                                    `previewHybridWeek` to swap the
-                                    trailing Sat → Race Prep and Sun →
-                                    RACE DAY at the matching distance
-                                    (26.2 / 13.1 / 6.2 / 3.1 mi) —
-                                    mirroring `buildHybridWeekDays`'s
-                                    race-week branch (Task #192) so the
-                                    planning surface shows exactly what
-                                    the runner will get for whatever
-                                    race their hybrid block ends on.
-                                  */}
-                                  {liveSpec.isRaceWeek && (
-                                    <HybridWeekPreview
-                                      position={liveSpec.position}
-                                      daysPerWeek={liveSpec.daysPerWeek}
-                                      level={liveSpec.level}
-                                      blockWeeks={liveSpec.blockWeeks}
-                                      isRaceWeek
-                                      raceKind={liveSpec.raceKind}
-                                    />
-                                  )}
-                                </>
-                              )}
-                              {isPinned && pinnedTotals && (
-                                <div
-                                  className="text-[10px] text-muted-foreground tabular-nums flex flex-wrap gap-x-3 gap-y-0.5"
-                                  data-testid="planner-hybrid-compare-delta"
-                                >
-                                  <span>
-                                    Δ miles{" "}
-                                    <span
-                                      className={
-                                        milesDelta > 0
-                                          ? "text-sky-600 dark:text-sky-400 font-semibold"
-                                          : milesDelta < 0
-                                            ? "text-amber-600 dark:text-amber-400 font-semibold"
-                                            : "text-muted-foreground"
-                                      }
-                                      data-testid="planner-hybrid-compare-delta-miles"
-                                    >
-                                      {fmtSigned(milesDelta, 1)}
-                                    </span>
-                                  </span>
-                                  <span>
-                                    Δ lifts{" "}
-                                    <span
-                                      className={
-                                        liftsDelta > 0
-                                          ? "text-amber-600 dark:text-amber-400 font-semibold"
-                                          : liftsDelta < 0
-                                            ? "text-sky-600 dark:text-sky-400 font-semibold"
-                                            : "text-muted-foreground"
-                                      }
-                                      data-testid="planner-hybrid-compare-delta-lifts"
-                                    >
-                                      {fmtSigned(liftsDelta, 0)}
-                                    </span>
-                                  </span>
-                                  <span className="text-muted-foreground/70">
-                                    (live − pinned)
-                                  </span>
+                                  Baseline: {baselineLabel}. Pin icon on a
+                                  column header anchors the Δ comparison
+                                  there; × clears that pin.
                                 </div>
                               )}
                             </div>
