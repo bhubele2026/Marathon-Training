@@ -33,6 +33,19 @@ vi.mock("@workspace/api-client-react", () => ({
   useResetPlanDay: () => ({ mutate: vi.fn(), isPending: false }),
   useResetPlanWeek: () => ({ mutate: vi.fn(), isPending: false }),
   useUndoPlanReset: () => ({ mutate: vi.fn(), isPending: false }),
+  // Task #308: week-detail uses the campaign-level overview as the
+  // authoritative hasPlan signal so a transient 5xx on /plan/week/:n
+  // can't be misread as "no plan exists". Default to hasPlan=true and
+  // a non-empty configs list so existing tests never trigger the
+  // first-run redirect to /planner.
+  useGetPlanOverview: () => ({
+    data: { hasPlan: true },
+    isError: false,
+  }),
+  useListPlannerConfigs: () => ({
+    data: { configs: [{ id: 1 }] },
+    isError: false,
+  }),
   // RunTargetLine pulls runTargetingMode + maxHr/restingHr off this hook
   // via use-run-targeting-mode. maxHr=200 keeps the Zone N · BPM range
   // string intact so swatch tests can also assert on the rendered text.

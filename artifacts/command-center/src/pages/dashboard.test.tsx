@@ -25,6 +25,13 @@ vi.mock("@workspace/api-client-react", () => ({
   useGetLongRunProgression: vi.fn(),
   useGetRecentActivity: vi.fn(),
   useGetTodayPlan: vi.fn(),
+  // Task #308: dashboard auto-redirects to /planner on first visit when
+  // hasPlan=false AND no saved drafts exist. Stub with a non-empty
+  // configs list so existing scenarios never trigger the redirect.
+  useListPlannerConfigs: () => ({
+    data: { configs: [{ id: 1 }] },
+    isError: false,
+  }),
   // RunTargetLine reads the active mode + HR settings off the user
   // preferences hook (Task #147 wires it into the Recent Logs widget).
   useGetUserPreferences: () => ({

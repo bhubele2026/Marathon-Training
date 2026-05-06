@@ -75,6 +75,11 @@ import {
 import { RunTargetLine } from "@/components/run-target-line";
 import { customizedFieldLabel, formatDiffValue } from "@/lib/customized-diff";
 import { EmptyPlanState } from "@/components/empty-plan-state";
+import { useFirstRunRedirect } from "@/hooks/use-first-run-redirect";
+import {
+  useGetPlanOverview,
+  useListPlannerConfigs,
+} from "@workspace/api-client-react";
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -175,6 +180,22 @@ export default function WeekDetail() {
       enabled: !!weekNum && !isNaN(weekNum),
       queryKey: getGetPlanWeekQueryKey(weekNum),
     }
+  });
+
+  // Task #308: use the campaign-level overview as the authoritative
+  // hasPlan signal so a transient 5xx on the per-week endpoint can't
+  // be mis-read as "no plan exists" and yank the runner away from a
+  // legitimately broken page.
+  const overviewQuery = useGetPlanOverview();
+  const plannerConfigsQuery = useListPlannerConfigs();
+  useFirstRunRedirect({
+    hasPlan: overviewQuery.data?.hasPlan ?? false,
+    hasDrafts: (plannerConfigsQuery.data?.configs?.length ?? 0) > 0,
+    ready:
+      overviewQuery.data !== undefined &&
+      !overviewQuery.isError &&
+      plannerConfigsQuery.data !== undefined &&
+      !plannerConfigsQuery.isError,
   });
 
   const workoutsParams = week ? { from: week.startDate, to: week.endDate } : {};

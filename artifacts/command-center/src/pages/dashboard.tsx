@@ -36,6 +36,8 @@ import { TimeOfDayBadge } from "@/components/time-of-day-badge";
 import { phaseColor } from "@/lib/phase-colors";
 import { programColor } from "@/lib/program-colors";
 import { EmptyPlanState } from "@/components/empty-plan-state";
+import { useFirstRunRedirect } from "@/hooks/use-first-run-redirect";
+import { useListPlannerConfigs } from "@workspace/api-client-react";
 
 type MileageTooltipRow = {
   phase?: string;
@@ -163,6 +165,21 @@ export default function Dashboard() {
     : null;
   const todaySessions = today?.loggedWorkouts ?? [];
   const hasTodaySessions = todaySessions.length > 0;
+
+  // Task #308: when no plan has ever been applied AND the runner has
+  // no saved planner drafts, jump them straight into the Phase Planner
+  // on first session load instead of dropping them on an empty
+  // dashboard. Both upstream queries must succeed before we redirect
+  // (an error here just leaves the runner on the dashboard).
+  const plannerConfigsQuery = useListPlannerConfigs();
+  useFirstRunRedirect({
+    hasPlan: summary?.hasPlan ?? false,
+    hasDrafts: (plannerConfigsQuery.data?.configs?.length ?? 0) > 0,
+    ready:
+      summary !== undefined &&
+      plannerConfigsQuery.data !== undefined &&
+      !plannerConfigsQuery.isError,
+  });
 
   if (loadingSummary) return <DashboardSkeleton />;
 

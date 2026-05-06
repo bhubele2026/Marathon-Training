@@ -44,6 +44,18 @@ vi.mock("@workspace/api-client-react", () => ({
   useResetPlanDay: () => ({ mutate: vi.fn(), isPending: false }),
   useResetPlanWeek: () => ({ mutate: resetPlanWeekMutate, isPending: false }),
   useUndoPlanReset: () => ({ mutate: undoPlanResetMutate, isPending: false }),
+  // Task #308: week-detail now reads useGetPlanOverview +
+  // useListPlannerConfigs to drive the first-run redirect. Default to
+  // hasPlan=true and a non-empty configs list so the redirect never
+  // fires from this test surface.
+  useGetPlanOverview: () => ({
+    data: { hasPlan: true },
+    isError: false,
+  }),
+  useListPlannerConfigs: () => ({
+    data: { configs: [{ id: 1 }] },
+    isError: false,
+  }),
   useGetUserPreferences: () => ({
     data: { runTargetingMode: "effort", maxHr: 200, restingHr: null },
   }),

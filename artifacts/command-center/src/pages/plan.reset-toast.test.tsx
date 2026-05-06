@@ -61,6 +61,13 @@ vi.mock("@workspace/api-client-react", () => ({
     ],
     isLoading: false,
   }),
+  // Task #308: plan page now reads useListPlannerConfigs for the
+  // first-run redirect gate. Stub a non-empty configs list so the
+  // redirect never fires from this test surface.
+  useListPlannerConfigs: () => ({
+    data: { configs: [{ id: 1 }] },
+    isError: false,
+  }),
   useResetPlan: () => ({ mutate: resetPlanMutate, isPending: false }),
   useUndoPlanReset: () => ({ mutate: undoPlanResetMutate, isPending: false }),
   useFullResetPlan: () => ({ mutate: vi.fn(), isPending: false }),

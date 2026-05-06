@@ -33,6 +33,13 @@ vi.mock("@workspace/api-client-react", () => ({
   // existing scenario continues to behave; the dedicated
   // empty-campaign tests override via mockedUseOverview below.
   useGetPlanOverview: vi.fn(),
+  // Task #308: today page auto-redirects to /planner on first visit
+  // when hasPlan=false AND no saved drafts exist. Stub with a
+  // non-empty configs list so existing scenarios never trigger.
+  useListPlannerConfigs: () => ({
+    data: { configs: [{ id: 1 }] },
+    isError: false,
+  }),
   useGetUserPreferences: () => ({
     data: {
       runTargetingMode: runTargetingModeRef.current,

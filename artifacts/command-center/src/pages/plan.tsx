@@ -29,6 +29,8 @@ import { useToast } from "@/hooks/use-toast";
 import { UndoCountdownAction } from "@/components/undo-countdown-action";
 import { FullResetDialog } from "@/components/full-reset-dialog";
 import { EmptyPlanState } from "@/components/empty-plan-state";
+import { useFirstRunRedirect } from "@/hooks/use-first-run-redirect";
+import { useListPlannerConfigs } from "@workspace/api-client-react";
 import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
 import { formatDistance, formatDate } from "@/lib/format";
 import { useLocation } from "wouter";
@@ -155,6 +157,20 @@ export default function Plan() {
   const [resetPlanOpen, setResetPlanOpen] = useState(false);
   const [resetPlanConfirmText, setResetPlanConfirmText] = useState("");
   const [fullResetOpen, setFullResetOpen] = useState(false);
+
+  // Task #308: bounce the runner straight into the Phase Planner on
+  // first visit when no plan has ever been applied AND no planner
+  // drafts exist. Also re-arms after a Full Reset (which flips
+  // overview.hasPlan back to false).
+  const plannerConfigsQuery = useListPlannerConfigs();
+  useFirstRunRedirect({
+    hasPlan: overview?.hasPlan ?? false,
+    hasDrafts: (plannerConfigsQuery.data?.configs?.length ?? 0) > 0,
+    ready:
+      overview !== undefined &&
+      plannerConfigsQuery.data !== undefined &&
+      !plannerConfigsQuery.isError,
+  });
 
   const closeResetPlanDialog = (open: boolean) => {
     if (resetPlan.isPending) return;

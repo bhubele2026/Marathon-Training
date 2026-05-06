@@ -30,6 +30,8 @@ import { RunTargetLine } from "@/components/run-target-line";
 import { raceDayLabel } from "@/lib/race-day-label";
 import { ChecklistNudge } from "@/components/race-week-banner";
 import { EmptyPlanState } from "@/components/empty-plan-state";
+import { useFirstRunRedirect } from "@/hooks/use-first-run-redirect";
+import { useListPlannerConfigs } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 
@@ -44,6 +46,21 @@ export default function Today() {
   const campaignHasPlan = overview ? overview.hasPlan : true;
   const { openLog, openEdit, requestDelete, requestSkip, crushIt, isDeleting, isCrushing, dialogs } =
     useMissionActions();
+
+  // Task #308: drop the runner straight into the Phase Planner on first
+  // session load when no plan has ever been applied AND no planner
+  // drafts exist. We gate on the campaign-level `overview.hasPlan`
+  // (not `today.hasPlan`, which is per-day and would mis-fire on rest
+  // days).
+  const plannerConfigsQuery = useListPlannerConfigs();
+  useFirstRunRedirect({
+    hasPlan: overview?.hasPlan ?? false,
+    hasDrafts: (plannerConfigsQuery.data?.configs?.length ?? 0) > 0,
+    ready:
+      overview !== undefined &&
+      plannerConfigsQuery.data !== undefined &&
+      !plannerConfigsQuery.isError,
+  });
 
   if (isLoading) {
     return <div className="space-y-6"><Skeleton className="h-64" /></div>;
