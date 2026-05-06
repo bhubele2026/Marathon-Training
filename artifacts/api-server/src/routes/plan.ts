@@ -715,6 +715,27 @@ async function fetchRecentWorkoutsByPair(
       notes: r.notes,
       timeOfDay: r.time_of_day,
       modality: r.modality,
+      // Task #270: the suggestions/plan-vs-actual sample doesn't need
+      // the workout's "Edited" snapshot, so we leave the seed_* mirrors
+      // null here. Filling them out would require selecting every
+      // mirror column and isn't useful — the consumers (suggestion
+      // generator, recent-row pool) only read the live values.
+      seedSessionType: null,
+      seedEquipment: null,
+      seedEquipmentList: null,
+      seedDurationMin: null,
+      seedStrengthMin: null,
+      seedCardioMin: null,
+      seedRunMin: null,
+      seedDistanceMi: null,
+      seedPace: null,
+      seedAvgHr: null,
+      seedRpe: null,
+      seedStrengthLoad: null,
+      seedTotalLoad: null,
+      seedNotes: null,
+      seedTimeOfDay: null,
+      seedModality: null,
       createdAt: r.created_at instanceof Date ? r.created_at : new Date(r.created_at),
     });
   }

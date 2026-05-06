@@ -10,8 +10,50 @@
 //     edits the same way it does for distance / load edits.
 
 import { describe, it, expect } from "vitest";
-import type { PlanDayRow } from "@workspace/db";
-import { computeTotalMin, toPlanDay } from "./transforms";
+import type { PlanDayRow, WorkoutRow } from "@workspace/db";
+import { computeTotalMin, toPlanDay, toWorkout } from "./transforms";
+
+function makeWorkoutRow(overrides: Partial<WorkoutRow> = {}): WorkoutRow {
+  return {
+    id: 1,
+    planDayId: null,
+    date: "2026-05-05",
+    equipment: "Outdoor",
+    equipmentList: ["Outdoor"],
+    sessionType: "Long Run",
+    durationMin: 60,
+    strengthMin: null,
+    cardioMin: null,
+    runMin: 60,
+    distanceMi: 6,
+    pace: "10:00",
+    avgHr: 145,
+    rpe: 6,
+    strengthLoad: null,
+    totalLoad: 60,
+    notes: null,
+    timeOfDay: null,
+    modality: "Cardio",
+    seedSessionType: null,
+    seedEquipment: null,
+    seedEquipmentList: null,
+    seedDurationMin: null,
+    seedStrengthMin: null,
+    seedCardioMin: null,
+    seedRunMin: null,
+    seedDistanceMi: null,
+    seedPace: null,
+    seedAvgHr: null,
+    seedRpe: null,
+    seedStrengthLoad: null,
+    seedTotalLoad: null,
+    seedNotes: null,
+    seedTimeOfDay: null,
+    seedModality: null,
+    createdAt: new Date("2026-05-05T12:00:00Z"),
+    ...overrides,
+  };
+}
 
 function makeRow(overrides: Partial<PlanDayRow> = {}): PlanDayRow {
   return {
@@ -248,5 +290,87 @@ describe("toPlanDay", () => {
     expect(liveListSeedNull.customizedFields).not.toContain("equipmentList");
     expect(bothNull.customizedFields).not.toContain("equipmentList");
     expect(bothEqual.customizedFields).not.toContain("equipmentList");
+  });
+});
+
+// Task #270: same diff treatment for logged workouts so the Training Log
+// can render an "Edited" badge when a runner adjusts a previously-logged
+// session.
+describe("toWorkout customized diff", () => {
+  it("returns isCustomized=false and empty diff arrays when the row has never been edited", () => {
+    const out = toWorkout(makeWorkoutRow({ seedSessionType: null }));
+    expect(out.isCustomized).toBe(false);
+    expect(out.customizedFields).toEqual([]);
+    expect(out.customizedDiff).toEqual([]);
+  });
+
+  it("flags every changed mutable field once the seed snapshot is populated", () => {
+    const out = toWorkout(
+      makeWorkoutRow({
+        sessionType: "Tempo",
+        equipment: "Peloton Tread",
+        equipmentList: ["Peloton Tread"],
+        durationMin: 50,
+        runMin: 50,
+        distanceMi: 5,
+        pace: "9:30",
+        avgHr: 162,
+        rpe: 8,
+        notes: "felt strong",
+        modality: "Cardio",
+        // Original snapshot from the first edit — values match the
+        // makeWorkoutRow defaults at the time of creation.
+        seedSessionType: "Long Run",
+        seedEquipment: "Outdoor",
+        seedEquipmentList: ["Outdoor"],
+        seedDurationMin: 60,
+        seedStrengthMin: null,
+        seedCardioMin: null,
+        seedRunMin: 60,
+        seedDistanceMi: 6,
+        seedPace: "10:00",
+        seedAvgHr: 145,
+        seedRpe: 6,
+        seedStrengthLoad: null,
+        seedTotalLoad: 60,
+        seedNotes: null,
+        seedTimeOfDay: null,
+        seedModality: "Cardio",
+      }),
+    );
+    expect(out.isCustomized).toBe(true);
+    // Modality didn't change; everything else listed should be flagged.
+    expect(out.customizedFields).toEqual(
+      expect.arrayContaining([
+        "sessionType",
+        "equipment",
+        "equipmentList",
+        "durationMin",
+        "runMin",
+        "distanceMi",
+        "pace",
+        "avgHr",
+        "rpe",
+        "notes",
+      ]),
+    );
+    expect(out.customizedFields).not.toContain("modality");
+    expect(out.customizedDiff.length).toBe(out.customizedFields.length);
+    const byField = new Map(out.customizedDiff.map((d) => [d.field, d]));
+    expect(byField.get("distanceMi")).toEqual({
+      field: "distanceMi",
+      before: "6",
+      after: "5",
+    });
+    expect(byField.get("pace")).toEqual({
+      field: "pace",
+      before: "10:00",
+      after: "9:30",
+    });
+    expect(byField.get("notes")).toEqual({
+      field: "notes",
+      before: null,
+      after: "felt strong",
+    });
   });
 });

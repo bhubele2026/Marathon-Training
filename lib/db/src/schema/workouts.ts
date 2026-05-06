@@ -42,6 +42,31 @@ export const workoutsTable = pgTable("workouts", {
   // "Mixed". Nullable so existing rows logged before this column existed
   // remain valid; the UI can fall back to inferring modality from equipment.
   modality: text("modality"),
+  // Task #270: snapshot of the originally-logged values, written lazily the
+  // first time a workout is edited via PATCH /api/workouts/:id. Mirrors the
+  // same `seed_*` mechanism `plan_days` uses for the "Edited" badge so the
+  // training log can show before/after diffs after a runner adjusts a
+  // previously-logged session (e.g. corrected distance, swapped equipment,
+  // updated RPE). All seed columns are nullable: NULL means the row has
+  // never been edited, so isCustomized=false and the diff is empty. Once
+  // populated, every mutable column has a snapshot so the diff is
+  // well-defined for every field.
+  seedSessionType: text("seed_session_type"),
+  seedEquipment: text("seed_equipment"),
+  seedEquipmentList: text("seed_equipment_list").array(),
+  seedDurationMin: doublePrecision("seed_duration_min"),
+  seedStrengthMin: doublePrecision("seed_strength_min"),
+  seedCardioMin: doublePrecision("seed_cardio_min"),
+  seedRunMin: doublePrecision("seed_run_min"),
+  seedDistanceMi: doublePrecision("seed_distance_mi"),
+  seedPace: text("seed_pace"),
+  seedAvgHr: integer("seed_avg_hr"),
+  seedRpe: integer("seed_rpe"),
+  seedStrengthLoad: doublePrecision("seed_strength_load"),
+  seedTotalLoad: doublePrecision("seed_total_load"),
+  seedNotes: text("seed_notes"),
+  seedTimeOfDay: text("seed_time_of_day"),
+  seedModality: text("seed_modality"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   dateIdx: index("workouts_date_idx").on(t.date),

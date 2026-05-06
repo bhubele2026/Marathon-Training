@@ -1705,7 +1705,7 @@ components:
 
     Workout:
       type: object
-      required: [id, date, equipment, sessionType, createdAt]
+      required: [id, date, equipment, sessionType, createdAt, isCustomized, customizedFields, customizedDiff]
       properties:
         id: { type: integer }
         planDayId: { type: integer, nullable: true }
@@ -1752,6 +1752,23 @@ components:
           enum: [Cardio, Strength, Mixed]
           nullable: true
           description: High-level modality of the session. Lets the user explicitly mark a workout as cardio, strength, or mixed independent of the more granular sessionType. Nullable for rows logged before this field existed.
+        isCustomized:
+          type: boolean
+          description: Task #270. True when this logged workout has been edited at least once after it was first created (i.e. the seed_* snapshot is populated and at least one mutable field diverges from it).
+        customizedFields:
+          type: array
+          items: { type: string }
+          description: Task #270. camelCase field names whose current value differs from the snapshot taken at the time of the first edit. Empty when isCustomized is false.
+        customizedDiff:
+          type: array
+          description: Task #270. Per-field before/after diff for the "Edited" badge popover on the Training Log. One entry per item in customizedFields (same order). Empty when isCustomized is false. Values are stringified — the UI applies field-specific formatting (e.g. distanceMi gets a "mi" suffix). null values mean the field had no original value or was cleared.
+          items:
+            type: object
+            required: [field, before, after]
+            properties:
+              field: { type: string }
+              before: { type: string, nullable: true }
+              after: { type: string, nullable: true }
         prescribedRunTarget:
           nullable: true
           description: |

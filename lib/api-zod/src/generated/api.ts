@@ -1756,6 +1756,17 @@ export const GetTodayPlanResponse = zod.object({
           .describe(
             "High-level modality of the session. Lets the user explicitly mark a workout as cardio, strength, or mixed independent of the more granular sessionType. Nullable for rows logged before this field existed.",
           ),
+        isCustomized: zod.boolean().describe("Task"),
+        customizedFields: zod.array(zod.string()).describe("Task"),
+        customizedDiff: zod
+          .array(
+            zod.object({
+              field: zod.string(),
+              before: zod.string().nullable(),
+              after: zod.string().nullable(),
+            }),
+          )
+          .describe("Task"),
         prescribedRunTarget: zod
           .object({
             sessionType: zod
@@ -2060,6 +2071,17 @@ export const ListWorkoutsResponseItem = zod.object({
     .describe(
       "High-level modality of the session. Lets the user explicitly mark a workout as cardio, strength, or mixed independent of the more granular sessionType. Nullable for rows logged before this field existed.",
     ),
+  isCustomized: zod.boolean().describe("Task"),
+  customizedFields: zod.array(zod.string()).describe("Task"),
+  customizedDiff: zod
+    .array(
+      zod.object({
+        field: zod.string(),
+        before: zod.string().nullable(),
+        after: zod.string().nullable(),
+      }),
+    )
+    .describe("Task"),
   prescribedRunTarget: zod
     .object({
       sessionType: zod
@@ -2207,6 +2229,17 @@ export const UpdateWorkoutResponse = zod.object({
     .describe(
       "High-level modality of the session. Lets the user explicitly mark a workout as cardio, strength, or mixed independent of the more granular sessionType. Nullable for rows logged before this field existed.",
     ),
+  isCustomized: zod.boolean().describe("Task"),
+  customizedFields: zod.array(zod.string()).describe("Task"),
+  customizedDiff: zod
+    .array(
+      zod.object({
+        field: zod.string(),
+        before: zod.string().nullable(),
+        after: zod.string().nullable(),
+      }),
+    )
+    .describe("Task"),
   prescribedRunTarget: zod
     .object({
       sessionType: zod
@@ -2604,6 +2637,17 @@ export const GetRecentActivityResponseItem = zod.object({
     .describe(
       "High-level modality of the session. Lets the user explicitly mark a workout as cardio, strength, or mixed independent of the more granular sessionType. Nullable for rows logged before this field existed.",
     ),
+  isCustomized: zod.boolean().describe("Task"),
+  customizedFields: zod.array(zod.string()).describe("Task"),
+  customizedDiff: zod
+    .array(
+      zod.object({
+        field: zod.string(),
+        before: zod.string().nullable(),
+        after: zod.string().nullable(),
+      }),
+    )
+    .describe("Task"),
   prescribedRunTarget: zod
     .object({
       sessionType: zod

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, planDaysTable, workoutsTable } from "@workspace/db";
+import { db, planDaysTable, workoutsTable, type WorkoutRow } from "@workspace/db";
 import { and, asc, desc, eq, gte, isNull, lte, sql } from "drizzle-orm";
 import { CreateWorkoutBody, UpdateWorkoutBody, ListWorkoutsQueryParams } from "@workspace/api-zod";
 import { LIFESTYLE_EQUIPMENT } from "@workspace/plan-generator";
@@ -192,6 +192,37 @@ router.post("/workouts", async (req, res): Promise<void> => {
   res.status(201).json(toWorkout(inserted[0]!, prescribed));
 });
 
+// Task #270: lazily mirror the originally-logged values into seed_* the
+// first time a workout is edited. The same idea (and contract) as
+// `ensureSeedSnapshot` for plan_days — once seedSessionType is set,
+// every mutable column has a snapshot, so the diff helpers in
+// transforms.ts can compute a well-defined before/after for every field.
+function buildWorkoutSeedSnapshot(row: WorkoutRow): Record<string, unknown> | null {
+  if (row.seedSessionType != null) return null;
+  return {
+    seedSessionType: row.sessionType,
+    seedEquipment: row.equipment,
+    // Normalize NULL chip rails to `[scalar]` so a later equipment-only
+    // edit + diff doesn't falsely flag the rail as customized just
+    // because legacy rows persisted NULL where current rows persist
+    // `[equipment]`. Mirrors the same fallback `toWorkout` exposes.
+    seedEquipmentList: row.equipmentList ?? [row.equipment],
+    seedDurationMin: row.durationMin,
+    seedStrengthMin: row.strengthMin,
+    seedCardioMin: row.cardioMin,
+    seedRunMin: row.runMin,
+    seedDistanceMi: row.distanceMi,
+    seedPace: row.pace,
+    seedAvgHr: row.avgHr,
+    seedRpe: row.rpe,
+    seedStrengthLoad: row.strengthLoad,
+    seedTotalLoad: row.totalLoad,
+    seedNotes: row.notes,
+    seedTimeOfDay: row.timeOfDay,
+    seedModality: row.modality,
+  };
+}
+
 router.patch("/workouts/:id", async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
@@ -223,13 +254,28 @@ router.patch("/workouts/:id", async (req, res): Promise<void> => {
     // multi-machine rail.
     delete patch.equipmentList;
   }
-  const updated = await db.update(workoutsTable).set(patch).where(eq(workoutsTable.id, id)).returning();
-  if (!updated[0]) {
+  const updated = await db.transaction(async (tx) => {
+    const existing = (
+      await tx.select().from(workoutsTable).where(eq(workoutsTable.id, id)).limit(1)
+    )[0];
+    if (!existing) return null;
+    // Snapshot the original values (lazy) so the "Edited" badge can
+    // surface a before/after diff after this PATCH lands.
+    const seedPatch = buildWorkoutSeedSnapshot(existing);
+    const finalPatch = seedPatch ? { ...patch, ...seedPatch } : patch;
+    const next = await tx
+      .update(workoutsTable)
+      .set(finalPatch)
+      .where(eq(workoutsTable.id, id))
+      .returning();
+    return next[0]!;
+  });
+  if (!updated) {
     res.status(404).json({ error: "not found" });
     return;
   }
-  const prescribed = await fetchPrescribedRunTarget(updated[0].planDayId);
-  res.json(toWorkout(updated[0], prescribed));
+  const prescribed = await fetchPrescribedRunTarget(updated.planDayId);
+  res.json(toWorkout(updated, prescribed));
 });
 
 router.delete("/workouts/:id", async (req, res): Promise<void> => {

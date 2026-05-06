@@ -292,10 +292,82 @@ export interface PrescribedRunTargetSource {
   pace: string | null;
 }
 
+// Compare each mutable workout column against its seed_* snapshot. Same
+// shape and contract as `planDayCustomizedFields` above: returns an empty
+// list when the row has never been edited (seed_session_type IS NULL),
+// otherwise returns the camelCase field names whose current value differs
+// from the snapshot. Stays in lock-step with `workoutCustomizedDiff` below.
+function workoutCustomizedFields(r: WorkoutRow): string[] {
+  if (r.seedSessionType == null) return [];
+  const fields: string[] = [];
+  if (r.sessionType !== r.seedSessionType) fields.push("sessionType");
+  if (r.equipment !== r.seedEquipment) fields.push("equipment");
+  const liveList = normalizeEquipmentList(r.equipmentList, r.equipment);
+  const seedList = normalizeEquipmentList(
+    r.seedEquipmentList,
+    r.seedEquipment ?? r.equipment,
+  );
+  if (JSON.stringify(liveList) !== JSON.stringify(seedList)) {
+    fields.push("equipmentList");
+  }
+  if (r.durationMin !== r.seedDurationMin) fields.push("durationMin");
+  if (r.strengthMin !== r.seedStrengthMin) fields.push("strengthMin");
+  if (r.cardioMin !== r.seedCardioMin) fields.push("cardioMin");
+  if (r.runMin !== r.seedRunMin) fields.push("runMin");
+  if (r.distanceMi !== r.seedDistanceMi) fields.push("distanceMi");
+  if (r.pace !== r.seedPace) fields.push("pace");
+  if (r.avgHr !== r.seedAvgHr) fields.push("avgHr");
+  if (r.rpe !== r.seedRpe) fields.push("rpe");
+  if (r.strengthLoad !== r.seedStrengthLoad) fields.push("strengthLoad");
+  if (r.totalLoad !== r.seedTotalLoad) fields.push("totalLoad");
+  if (r.notes !== r.seedNotes) fields.push("notes");
+  if (r.timeOfDay !== r.seedTimeOfDay) fields.push("timeOfDay");
+  if (r.modality !== r.seedModality) fields.push("modality");
+  return fields;
+}
+
+function workoutCustomizedDiff(r: WorkoutRow): PlanDayDiffEntry[] {
+  const fields = workoutCustomizedFields(r);
+  if (fields.length === 0) return [];
+  const liveList = normalizeEquipmentList(r.equipmentList, r.equipment);
+  const seedList = normalizeEquipmentList(
+    r.seedEquipmentList,
+    r.seedEquipment ?? r.equipment,
+  );
+  const lookup: Record<string, { before: unknown; after: unknown }> = {
+    sessionType: { before: r.seedSessionType, after: r.sessionType },
+    equipment: { before: r.seedEquipment, after: r.equipment },
+    equipmentList: { before: seedList, after: liveList },
+    durationMin: { before: r.seedDurationMin, after: r.durationMin },
+    strengthMin: { before: r.seedStrengthMin, after: r.strengthMin },
+    cardioMin: { before: r.seedCardioMin, after: r.cardioMin },
+    runMin: { before: r.seedRunMin, after: r.runMin },
+    distanceMi: { before: r.seedDistanceMi, after: r.distanceMi },
+    pace: { before: r.seedPace, after: r.pace },
+    avgHr: { before: r.seedAvgHr, after: r.avgHr },
+    rpe: { before: r.seedRpe, after: r.rpe },
+    strengthLoad: { before: r.seedStrengthLoad, after: r.strengthLoad },
+    totalLoad: { before: r.seedTotalLoad, after: r.totalLoad },
+    notes: { before: r.seedNotes, after: r.notes },
+    timeOfDay: { before: r.seedTimeOfDay, after: r.timeOfDay },
+    modality: { before: r.seedModality, after: r.modality },
+  };
+  return fields.map((field) => {
+    const pair = lookup[field];
+    return {
+      field,
+      before: stringifyDiffValue(pair?.before),
+      after: stringifyDiffValue(pair?.after),
+    };
+  });
+}
+
 export function toWorkout(
   r: WorkoutRow,
   prescribed?: PrescribedRunTargetSource | null,
 ) {
+  const customizedFields = workoutCustomizedFields(r);
+  const customizedDiff = workoutCustomizedDiff(r);
   return {
     id: r.id,
     planDayId: r.planDayId,
@@ -334,6 +406,17 @@ export function toWorkout(
     notes: r.notes,
     timeOfDay: r.timeOfDay,
     modality: r.modality,
+    // Task #270: "Edited" badge for logged workouts. Mirrors the
+    // identically-named fields on PlanDay so the same popover UI works
+    // for both plan prescriptions and logged sessions. `isCustomized`
+    // flips true the first time a workout is PATCHed (the route layer
+    // snapshots the original values into seed_* before applying the
+    // edit); `customizedFields` lists the camelCase columns that
+    // diverge from the snapshot, and `customizedDiff` carries the
+    // before/after pairs for the popover.
+    isCustomized: customizedFields.length > 0,
+    customizedFields,
+    customizedDiff,
     // Task #140: snapshot of the matched plan day's prescribed run
     // target so the /log table can render the user's chosen target line
     // (effort / intervals / HR zone / pace) next to the actual results.

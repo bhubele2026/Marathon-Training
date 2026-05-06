@@ -555,6 +555,12 @@ export const WorkoutModality = {
   Mixed: "Mixed",
 } as const;
 
+export type WorkoutCustomizedDiffItem = {
+  field: string;
+  before: string | null;
+  after: string | null;
+};
+
 /**
  * Snapshot of the matched plan day's prescribed run target, populated by joining `planDayId` against `plan_days`. Lets the Training Log table render the user's chosen run-target line (effort / intervals / HR zone / pace) next to the actual results without the client having to fetch each plan day separately. Null when the workout has no `planDayId` (quick-logged Lifestyle activity, off-plan run) or when the referenced plan day no longer exists.
 
@@ -598,6 +604,12 @@ export interface Workout {
   timeOfDay?: WorkoutTimeOfDay;
   /** High-level modality of the session. Lets the user explicitly mark a workout as cardio, strength, or mixed independent of the more granular sessionType. Nullable for rows logged before this field existed. */
   modality?: WorkoutModality;
+  /** Task */
+  isCustomized: boolean;
+  /** Task */
+  customizedFields: string[];
+  /** Task */
+  customizedDiff: WorkoutCustomizedDiffItem[];
   /** Snapshot of the matched plan day's prescribed run target, populated by joining `planDayId` against `plan_days`. Lets the Training Log table render the user's chosen run-target line (effort / intervals / HR zone / pace) next to the actual results without the client having to fetch each plan day separately. Null when the workout has no `planDayId` (quick-logged Lifestyle activity, off-plan run) or when the referenced plan day no longer exists.
    */
   prescribedRunTarget?: WorkoutPrescribedRunTarget;

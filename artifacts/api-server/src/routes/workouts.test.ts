@@ -499,6 +499,106 @@ describe("PATCH /api/workouts/:id", () => {
     expectMatchesSchema(ErrorResponse, res.body);
     expect(res.body).toEqual({ error: "not found" });
   });
+
+  // Task #270: the first edit snapshots the original values into seed_*
+  // so the API can flag the row as customized and emit a before/after
+  // diff for the Training Log "Edited" badge popover.
+  it("flags the workout as customized after the first edit and emits a before/after diff", async () => {
+    const { id } = await insertWorkout({
+      date: "2099-09-01",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      distanceMi: 4,
+      rpe: 5,
+      notes: "easy",
+    });
+
+    // Pre-edit: the row has never been touched so it must NOT be flagged.
+    const listBefore = await request(app)
+      .get("/api/workouts")
+      .query({ from: "2099-09-01", to: "2099-09-01" });
+    expect(listBefore.status).toBe(200);
+    expect((listBefore.body as Array<{ isCustomized: boolean }>)[0]).toEqual(
+      expect.objectContaining({
+        isCustomized: false,
+        customizedFields: [],
+        customizedDiff: [],
+      }),
+    );
+
+    const patch = await request(app)
+      .patch(`/api/workouts/${id}`)
+      .send({ distanceMi: 5.25, rpe: 7, notes: "felt strong" });
+    expect(patch.status).toBe(200);
+    expect(patch.body).toEqual(
+      expect.objectContaining({
+        isCustomized: true,
+        distanceMi: 5.25,
+        rpe: 7,
+        notes: "felt strong",
+      }),
+    );
+    const fields = patch.body.customizedFields as string[];
+    expect(fields).toEqual(
+      expect.arrayContaining(["distanceMi", "rpe", "notes"]),
+    );
+    expect(fields).not.toContain("equipment");
+
+    const diff = patch.body.customizedDiff as Array<{
+      field: string;
+      before: string | null;
+      after: string | null;
+    }>;
+    const byField = new Map(diff.map((d) => [d.field, d]));
+    expect(byField.get("distanceMi")).toEqual({
+      field: "distanceMi",
+      before: "4",
+      after: "5.25",
+    });
+    expect(byField.get("rpe")).toEqual({
+      field: "rpe",
+      before: "5",
+      after: "7",
+    });
+    expect(byField.get("notes")).toEqual({
+      field: "notes",
+      before: "easy",
+      after: "felt strong",
+    });
+  });
+
+  it("preserves the original snapshot across multiple edits so the diff always compares against the very first logged values", async () => {
+    const { id } = await insertWorkout({
+      date: "2099-09-02",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      distanceMi: 3,
+      rpe: 4,
+    });
+
+    const first = await request(app)
+      .patch(`/api/workouts/${id}`)
+      .send({ distanceMi: 4 });
+    expect(first.status).toBe(200);
+    const second = await request(app)
+      .patch(`/api/workouts/${id}`)
+      .send({ distanceMi: 5 });
+    expect(second.status).toBe(200);
+
+    const diff = second.body.customizedDiff as Array<{
+      field: string;
+      before: string | null;
+      after: string | null;
+    }>;
+    const distanceEntry = diff.find((d) => d.field === "distanceMi");
+    // The "before" value must still be the originally-logged 3, not the
+    // intermediate 4 that the first PATCH wrote.
+    expect(distanceEntry).toEqual({
+      field: "distanceMi",
+      before: "3",
+      after: "5",
+    });
+  });
 });
 
 describe("workouts equipmentList contract", () => {

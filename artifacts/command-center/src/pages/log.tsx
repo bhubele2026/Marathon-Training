@@ -12,7 +12,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistance, formatLoad, formatDate } from "@/lib/format";
-import { Edit, Trash2, Plus } from "lucide-react";
+import { Edit, Trash2, Plus, Sparkles } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { customizedFieldLabel, formatDiffValue } from "@/lib/customized-diff";
+import type { Workout } from "@workspace/api-client-react";
 import { WorkoutForm } from "@/components/workout-form";
 import { ActualBreakdown } from "@/components/actual-breakdown";
 import { RunTargetLine } from "@/components/run-target-line";
@@ -32,6 +35,72 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+
+// Task #270: "Edited" badge for logged workouts. Mirrors the same
+// CustomizedBadge pattern week-detail.tsx uses for plan_days so the
+// runner gets a consistent before/after diff popover whether they
+// edited a plan prescription or a logged session.
+function WorkoutEditedBadge({ workout }: { workout: Workout }) {
+  if (!workout.isCustomized) return null;
+  const diff = workout.customizedDiff ?? [];
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-2 py-1 rounded font-bold uppercase tracking-wider inline-flex items-center gap-1 cursor-pointer hover:bg-amber-500/25 transition-colors"
+          data-testid={`badge-customized-workout-${workout.id}`}
+          aria-label="Show what changed"
+        >
+          <Sparkles className="h-3 w-3" />
+          Edited
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-72 p-3"
+        data-testid={`popover-customized-workout-${workout.id}`}
+      >
+        <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
+          Edited from original log
+        </div>
+        {diff.length === 0 ? (
+          <div className="text-xs text-muted-foreground">
+            No field-level diff available.
+          </div>
+        ) : (
+          <ul className="space-y-1.5">
+            {diff.map((entry) => {
+              const label = customizedFieldLabel(entry.field);
+              return (
+                <li
+                  key={entry.field}
+                  className="text-xs flex flex-col gap-0.5"
+                  data-testid={`workout-diff-row-${workout.id}-${entry.field}`}
+                >
+                  <span className="font-semibold text-foreground">{label}</span>
+                  <span className="font-mono text-muted-foreground">
+                    <span
+                      data-testid={`workout-diff-before-${workout.id}-${entry.field}`}
+                    >
+                      {formatDiffValue(entry.field, entry.before)}
+                    </span>
+                    <span className="mx-1.5">→</span>
+                    <span
+                      className="text-amber-600 dark:text-amber-400"
+                      data-testid={`workout-diff-after-${workout.id}-${entry.field}`}
+                    >
+                      {formatDiffValue(entry.field, entry.after)}
+                    </span>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export default function Log() {
   const [equipment, setEquipment] = useState<string>("All");
@@ -185,7 +254,12 @@ export default function Log() {
                 visibleWorkouts?.flatMap((workout) => [
                   <TableRow key={workout.id} className="hover:bg-muted/30 border-b-0">
                     <TableCell className="font-medium whitespace-nowrap">{formatDate(workout.date)}</TableCell>
-                    <TableCell className="font-bold">{workout.sessionType}</TableCell>
+                    <TableCell className="font-bold">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span>{workout.sessionType}</span>
+                        <WorkoutEditedBadge workout={workout} />
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <div
                         className="flex flex-wrap gap-1"
