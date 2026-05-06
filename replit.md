@@ -28,6 +28,7 @@ Bike/row sessions are always 20–30 min max. Big run days (Fri quality, Sun lon
 - `artifacts/command-center` (`/`, web) — React + Vite frontend (wouter, shadcn/ui, recharts, react-hook-form + zod).
 - `artifacts/mockup-sandbox` (`/__mockup`) — design preview only.
 - `lib/visual-themes` — shared palette data (5 themes + token→CSS-var map + helpers). Imported by both the command center (`src/lib/visual-themes.ts`, which re-exports under `Theme*` aliases) and the sandbox (`src/components/mockups/_shared/palettes.ts`). Edit colors here only.
+- `tests/e2e` (`@workspace/e2e-tests`) — Playwright spec(s) that drive the live dev workflows via the shared proxy. Run with `pnpm --filter @workspace/e2e-tests run test:e2e`. NOT wired into root `pnpm run test` because Playwright needs a running api-server + web workflow + Chromium system libs (installed via Nix). The empty-plan UI spec (Task #309) truncates `planner_configs` directly via `DATABASE_URL`, drives the /plan Danger Zone Full Reset, asserts the EmptyPlanState CTA on `/`, `/today`, `/plan`, `/plan/:week`, then applies a fresh config via the API and re-verifies normal UI returns.
 
 ## Pages
 
