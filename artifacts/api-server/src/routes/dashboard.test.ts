@@ -596,6 +596,197 @@ describe("GET /api/dashboard/summary daysToRace anchored on applied Planner conf
   });
 });
 
+describe("GET /api/dashboard/summary prevFourWeekAvgLifestyleMinutes (task #34)", () => {
+  it("returns null when fewer than 4 prior plan_weeks exist", async () => {
+    // Active week is the very first plan_week — there are no plan_weeks at
+    // week-4..week-1, so the rolling baseline must stay null and the
+    // dashboard hides the trend indicator.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-08-04T12:00:00.000Z"));
+
+    const week = 8601;
+    const phase = "Lifestyle Baseline Phase";
+    await insertWeek(week, {
+      startDate: "2099-08-03",
+      endDate: "2099-08-09",
+      phase,
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-08-04",
+      day: "Tue",
+      sessionType: T_STRENGTH,
+      equipment: E_GYM,
+    });
+    // In-range Lifestyle minutes for the ACTIVE week show up under
+    // weeklyLifestyleMinutes but must NOT seed the prior-4 baseline.
+    await insertWorkout({
+      date: "2099-08-04",
+      sessionType: "Dog Walk",
+      equipment: "Lifestyle",
+      durationMin: 30,
+    });
+
+    const res = await request(app).get("/api/dashboard/summary");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetDashboardSummaryResponse, res.body);
+    expect(res.body.currentWeek).toBe(week);
+    expect(res.body.weeklyLifestyleMinutes).toBe(30);
+    expect(res.body.prevFourWeekAvgLifestyleMinutes).toBeNull();
+  });
+
+  it("returns null when only 3 prior plan_weeks exist", async () => {
+    // Boundary case: 3 prior plan_weeks is still under the threshold so the
+    // rolling baseline must stay null until a 4th prior week is in place.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-08-25T12:00:00.000Z"));
+
+    const phase = "Lifestyle Baseline Short Phase";
+    await insertWeek(8611, { startDate: "2099-08-03", endDate: "2099-08-09", phase });
+    await insertWeek(8612, { startDate: "2099-08-10", endDate: "2099-08-16", phase });
+    await insertWeek(8613, { startDate: "2099-08-17", endDate: "2099-08-23", phase });
+    await insertWeek(8614, { startDate: "2099-08-24", endDate: "2099-08-30", phase });
+    await insertWorkout({ date: "2099-08-05", sessionType: "Walk", equipment: "Lifestyle", durationMin: 40 });
+    await insertWorkout({ date: "2099-08-12", sessionType: "Walk", equipment: "Lifestyle", durationMin: 50 });
+    await insertWorkout({ date: "2099-08-19", sessionType: "Walk", equipment: "Lifestyle", durationMin: 60 });
+
+    const res = await request(app).get("/api/dashboard/summary");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetDashboardSummaryResponse, res.body);
+    expect(res.body.currentWeek).toBe(8614);
+    expect(res.body.prevFourWeekAvgLifestyleMinutes).toBeNull();
+  });
+
+  it("averages lifestyle minutes across the 4 immediately-preceding plan_weeks", async () => {
+    // Active week sits one step past four prior plan_weeks, each holding a
+    // mix of Lifestyle and non-Lifestyle workouts. Only the Lifestyle rows
+    // dated within each prior plan_week's date range contribute, and the
+    // returned baseline is the simple mean across all 4 weeks (including
+    // the zero-Lifestyle week).
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-09-02T12:00:00.000Z"));
+
+    const phase = "Lifestyle Baseline Avg Phase";
+    await insertWeek(8621, { startDate: "2099-08-03", endDate: "2099-08-09", phase });
+    await insertWeek(8622, { startDate: "2099-08-10", endDate: "2099-08-16", phase });
+    await insertWeek(8623, { startDate: "2099-08-17", endDate: "2099-08-23", phase });
+    await insertWeek(8624, { startDate: "2099-08-24", endDate: "2099-08-30", phase });
+    await insertWeek(8625, { startDate: "2099-08-31", endDate: "2099-09-06", phase });
+    await insertPlanDay(8625, phase, {
+      date: "2099-09-02",
+      day: "Wed",
+      sessionType: T_STRENGTH,
+      equipment: E_GYM,
+    });
+
+    // Prior week 8621: 30 + 60 = 90 lifestyle minutes.
+    await insertWorkout({ date: "2099-08-04", sessionType: "Dog Walk", equipment: "Lifestyle", durationMin: 30 });
+    await insertWorkout({ date: "2099-08-07", sessionType: "Yard Work", equipment: "Lifestyle", durationMin: 60 });
+    // Non-Lifestyle workouts in the same week — must NOT affect the baseline.
+    await insertWorkout({
+      date: "2099-08-05",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      distanceMi: 4,
+      durationMin: 45,
+    });
+
+    // Prior week 8622: zero lifestyle minutes; only a Strength workout.
+    await insertWorkout({
+      date: "2099-08-12",
+      sessionType: T_STRENGTH,
+      equipment: E_GYM,
+      durationMin: 30,
+      totalLoad: 200,
+    });
+
+    // Prior week 8623: 45 lifestyle minutes.
+    await insertWorkout({ date: "2099-08-19", sessionType: "Hike", equipment: "Lifestyle", durationMin: 45 });
+
+    // Prior week 8624: 20 lifestyle minutes.
+    await insertWorkout({ date: "2099-08-28", sessionType: "Walk", equipment: "Lifestyle", durationMin: 20 });
+
+    // Active-week Lifestyle row — bumps weeklyLifestyleMinutes but is
+    // excluded from the prior-4 baseline.
+    await insertWorkout({ date: "2099-09-02", sessionType: "Walk", equipment: "Lifestyle", durationMin: 15 });
+
+    const res = await request(app).get("/api/dashboard/summary");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetDashboardSummaryResponse, res.body);
+    expect(res.body.currentWeek).toBe(8625);
+    expect(res.body.weeklyLifestyleMinutes).toBe(15);
+    // (90 + 0 + 45 + 20) / 4 = 38.75
+    expect(res.body.prevFourWeekAvgLifestyleMinutes).toBeCloseTo(38.75, 5);
+  });
+
+  it("excludes out-of-range and non-Lifestyle workouts from the baseline", async () => {
+    // Only Lifestyle workouts dated inside one of the four prior plan_week
+    // ranges should contribute. Lifestyle workouts dated BEFORE the
+    // earliest prior week, AFTER the active week, or in the GAP between
+    // prior weeks where no plan_week covers the date are all excluded —
+    // as are non-Lifestyle workouts even when their dates land squarely
+    // inside a prior plan_week.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-10-07T12:00:00.000Z"));
+
+    const phase = "Lifestyle Baseline Exclusions Phase";
+    // Prior weeks intentionally NOT contiguous — there's a one-week gap
+    // (2099-09-21..2099-09-27) with no plan_week so any Lifestyle row
+    // there must fall through.
+    await insertWeek(8631, { startDate: "2099-09-07", endDate: "2099-09-13", phase });
+    await insertWeek(8632, { startDate: "2099-09-14", endDate: "2099-09-20", phase });
+    await insertWeek(8633, { startDate: "2099-09-28", endDate: "2099-10-04", phase });
+    await insertWeek(8634, { startDate: "2099-10-05", endDate: "2099-10-11", phase });
+    await insertWeek(8635, { startDate: "2099-10-12", endDate: "2099-10-18", phase });
+    await insertPlanDay(8635, phase, {
+      date: "2099-10-14",
+      day: "Wed",
+      sessionType: T_STRENGTH,
+      equipment: E_GYM,
+    });
+    // The route looks up the active week by date BETWEEN start AND end,
+    // and the LEFT JOIN walks pw.week BETWEEN active.week-4 AND
+    // active.week-1, so we need today inside week 8635.
+    vi.setSystemTime(new Date("2099-10-14T12:00:00.000Z"));
+
+    // Each prior week has exactly one in-range Lifestyle row.
+    await insertWorkout({ date: "2099-09-09", sessionType: "Walk", equipment: "Lifestyle", durationMin: 20 });
+    await insertWorkout({ date: "2099-09-15", sessionType: "Walk", equipment: "Lifestyle", durationMin: 40 });
+    await insertWorkout({ date: "2099-10-01", sessionType: "Walk", equipment: "Lifestyle", durationMin: 60 });
+    await insertWorkout({ date: "2099-10-07", sessionType: "Walk", equipment: "Lifestyle", durationMin: 80 });
+
+    // Lifestyle BEFORE the earliest prior week — must be excluded.
+    await insertWorkout({ date: "2099-08-15", sessionType: "Walk", equipment: "Lifestyle", durationMin: 999 });
+    // Lifestyle in the calendar GAP between prior weeks (no plan_week
+    // covers 2099-09-23) — must be excluded.
+    await insertWorkout({ date: "2099-09-23", sessionType: "Walk", equipment: "Lifestyle", durationMin: 999 });
+    // Lifestyle AFTER the active week — must be excluded.
+    await insertWorkout({ date: "2099-11-01", sessionType: "Walk", equipment: "Lifestyle", durationMin: 999 });
+    // Non-Lifestyle workouts in the prior weeks — must be excluded.
+    await insertWorkout({
+      date: "2099-09-10",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      distanceMi: 6,
+      durationMin: 60,
+    });
+    await insertWorkout({
+      date: "2099-10-02",
+      sessionType: T_STRENGTH,
+      equipment: E_GYM,
+      durationMin: 45,
+      totalLoad: 250,
+    });
+
+    const res = await request(app).get("/api/dashboard/summary");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetDashboardSummaryResponse, res.body);
+    expect(res.body.currentWeek).toBe(8635);
+    // (20 + 40 + 60 + 80) / 4 = 50; the 999s and the run/strength rows
+    // would all bump this if they leaked into the aggregation.
+    expect(res.body.prevFourWeekAvgLifestyleMinutes).toBeCloseTo(50, 5);
+  });
+});
+
 describe("GET /api/dashboard/weight-trend", () => {
   it("returns weight measurements in date ascending order", async () => {
     await insertMeasurement({ date: "2099-02-15", weight: 245 });
