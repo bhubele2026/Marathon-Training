@@ -13,6 +13,17 @@ const { runTargetingModeRef } = vi.hoisted(() => ({
   },
 }));
 
+// Task #306: today eyebrow reads /race-week to detect race-week / post-
+// race state. Tests can flip this ref to drive the eyebrow into each
+// branch (campaign / race week / post race).
+const { raceWeekRef } = vi.hoisted(() => ({
+  raceWeekRef: {
+    current: null as
+      | { inWindow: boolean; racePassed: boolean; daysAfterRace?: number | null }
+      | null,
+  },
+}));
+
 vi.mock("@workspace/api-client-react", () => ({
   useGetTodayPlan: vi.fn(),
   useGetUserPreferences: () => ({
@@ -25,6 +36,8 @@ vi.mock("@workspace/api-client-react", () => ({
       restingHr: null,
     },
   }),
+  useGetRaceWeek: () => ({ data: raceWeekRef.current, isLoading: false }),
+  getGetRaceWeekQueryKey: () => ["/race-week"],
 }));
 
 vi.mock("@/hooks/use-mission-actions", () => ({
@@ -1677,5 +1690,79 @@ describe("Today page — primary metric rendering on slim cards (task #139)", ()
     expect(
       screen.queryByTestId("session-today-888-primary-metric-planned"),
     ).toBeNull();
+  });
+});
+
+// Task #306: per-kind eyebrow above the "Today's Mission" header
+// mirrors the dashboard / plan / week-detail framing so a runner on
+// half / 10K / 5K plans doesn't bounce between consistent dashboard
+// / plan / week-detail framing and a generic Today page. Tonal-first
+// / non-race plans (raceKind null) render no eyebrow at all.
+describe("Today page — per-kind eyebrow (task #306)", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    raceWeekRef.current = null;
+  });
+
+  function basePayload(extras: Record<string, unknown>) {
+    return {
+      date: "2026-05-05",
+      hasPlan: true,
+      plan: firstSession,
+      loggedWorkouts: [],
+      suggestions: null,
+      daysUntilStart: null,
+      firstSession: null,
+      ...extras,
+    };
+  }
+
+  it("renders no eyebrow when raceKind is null (tonal-first plan)", () => {
+    raceWeekRef.current = null;
+    renderWithData(basePayload({ raceKind: null }));
+    expect(screen.queryByTestId("today-eyebrow")).toBeNull();
+  });
+
+  it.each([
+    { kind: "5k", label: "5K Campaign" },
+    { kind: "10k", label: "10K Campaign" },
+    { kind: "half", label: "Half Marathon Campaign" },
+    { kind: "marathon", label: "Race Campaign" },
+  ])("renders '$label' for raceKind=$kind outside race week", ({ kind, label }) => {
+    raceWeekRef.current = { inWindow: false, racePassed: false };
+    renderWithData(basePayload({ raceKind: kind }));
+    const eyebrow = screen.getByTestId("today-eyebrow");
+    expect(eyebrow.textContent).toBe(label);
+    expect(eyebrow.getAttribute("data-race-week")).toBeNull();
+    expect(eyebrow.getAttribute("data-post-race")).toBeNull();
+  });
+
+  it.each([
+    { kind: "5k", label: "5K · Race Week" },
+    { kind: "10k", label: "10K · Race Week" },
+    { kind: "half", label: "Half Marathon · Race Week" },
+    { kind: "marathon", label: "Race Week" },
+  ])("renders '$label' during race week for raceKind=$kind", ({ kind, label }) => {
+    raceWeekRef.current = { inWindow: true, racePassed: false };
+    renderWithData(basePayload({ raceKind: kind }));
+    const eyebrow = screen.getByTestId("today-eyebrow");
+    expect(eyebrow.textContent).toBe(label);
+    expect(eyebrow.getAttribute("data-race-week")).toBe("true");
+    expect(eyebrow.getAttribute("data-post-race")).toBeNull();
+  });
+
+  it.each([
+    { kind: "5k", label: "5K Complete" },
+    { kind: "10k", label: "10K Complete" },
+    { kind: "half", label: "Half Marathon Complete" },
+    { kind: "marathon", label: "Race Complete" },
+  ])("renders '$label' after the race for raceKind=$kind", ({ kind, label }) => {
+    raceWeekRef.current = { inWindow: true, racePassed: true, daysAfterRace: 2 };
+    renderWithData(basePayload({ raceKind: kind }));
+    const eyebrow = screen.getByTestId("today-eyebrow");
+    expect(eyebrow.textContent).toBe(label);
+    expect(eyebrow.getAttribute("data-race-week")).toBeNull();
+    expect(eyebrow.getAttribute("data-post-race")).toBe("true");
   });
 });

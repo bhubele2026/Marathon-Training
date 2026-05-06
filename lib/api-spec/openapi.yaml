@@ -1568,6 +1568,22 @@ components:
             - $ref: "#/components/schemas/PlanDay"
           nullable: true
           description: Preview of the first scheduled (non-rest) plan day. Populated alongside daysUntilStart only when today is before that session; null once the campaign has started.
+        raceKind:
+          type: string
+          enum: [marathon, half, "10k", "5k"]
+          nullable: true
+          description: |
+            Task #306. Kind of race the campaign is anchored on, mirrored
+            on /plan/today so the Today page eyebrow can switch to the
+            per-kind framing ("5K Campaign" / "10K Campaign" / "Half
+            Marathon Campaign" / "Race Campaign") without forcing the
+            page to also fetch /plan/overview. Same detection as
+            `PlanOverview.raceKind` (Task #204) and `PlanWeek.raceKind`
+            (Task #242) — derived from the trailing plan_day Sunday with
+            an explicit race signal. Null on tonal-first / non-race
+            plans (lift_primary blocks, ad-hoc Custom blocks) and on
+            freshly seeded campaigns with no plan_days yet so the Today
+            page renders no eyebrow in those cases.
 
     WorkoutSuggestions:
       type: object

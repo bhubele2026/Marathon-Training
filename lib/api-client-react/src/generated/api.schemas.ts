@@ -496,6 +496,31 @@ a calendar date and the missed row isn't the primary
 }
 
 /**
+ * Task #306. Kind of race the campaign is anchored on, mirrored
+on /plan/today so the Today page eyebrow can switch to the
+per-kind framing ("5K Campaign" / "10K Campaign" / "Half
+Marathon Campaign" / "Race Campaign") without forcing the
+page to also fetch /plan/overview. Same detection as
+`PlanOverview.raceKind` (Task #204) and `PlanWeek.raceKind`
+(Task #242) — derived from the trailing plan_day Sunday with
+an explicit race signal. Null on tonal-first / non-race
+plans (lift_primary blocks, ad-hoc Custom blocks) and on
+freshly seeded campaigns with no plan_days yet so the Today
+page renders no eyebrow in those cases.
+
+ */
+export type TodayPlanRaceKind =
+  | (typeof TodayPlanRaceKind)[keyof typeof TodayPlanRaceKind]
+  | null;
+
+export const TodayPlanRaceKind = {
+  marathon: "marathon",
+  half: "half",
+  "10k": "10k",
+  "5k": "5k",
+} as const;
+
+/**
  * Optional tag used to order and label same-day sessions. AM sorts before PM, PM before Other; rows with no tag fall back to createdAt order.
  */
 export type WorkoutTimeOfDay =
@@ -586,6 +611,19 @@ export interface TodayPlan {
   daysUntilStart?: number | null;
   /** Preview of the first scheduled (non-rest) plan day. Populated alongside daysUntilStart only when today is before that session; null once the campaign has started. */
   firstSession?: PlanDay | null;
+  /** Task #306. Kind of race the campaign is anchored on, mirrored
+on /plan/today so the Today page eyebrow can switch to the
+per-kind framing ("5K Campaign" / "10K Campaign" / "Half
+Marathon Campaign" / "Race Campaign") without forcing the
+page to also fetch /plan/overview. Same detection as
+`PlanOverview.raceKind` (Task #204) and `PlanWeek.raceKind`
+(Task #242) — derived from the trailing plan_day Sunday with
+an explicit race signal. Null on tonal-first / non-race
+plans (lift_primary blocks, ad-hoc Custom blocks) and on
+freshly seeded campaigns with no plan_days yet so the Today
+page renders no eyebrow in those cases.
+ */
+  raceKind?: TodayPlanRaceKind;
 }
 
 export type CreateWorkoutBodyTimeOfDay =

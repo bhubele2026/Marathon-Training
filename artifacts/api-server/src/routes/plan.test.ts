@@ -331,6 +331,84 @@ describe("GET /api/plan/weeks/:week — raceKind (task #242)", () => {
   });
 });
 
+// Task #306: /plan/today must echo the same campaign-level raceKind
+// that /plan/overview (Task #204) and /plan/weeks/:week (Task #242)
+// detect from the trailing plan_day Sunday so the Today page eyebrow
+// can switch to the per-kind framing without a second round-trip.
+describe("GET /api/plan/today — raceKind (task #306)", () => {
+  it.each([
+    { kind: "5k" as const },
+    { kind: "10k" as const },
+    { kind: "half" as const },
+    { kind: "marathon" as const },
+  ])(
+    "echoes raceKind=$kind detected from the trailing plan_day Sunday",
+    async ({ kind }) => {
+      const today = "2099-09-01";
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(`${today}T12:00:00.000Z`));
+      const week = 8306;
+      const phase = "Today RaceKind";
+      await insertWeek(week, {
+        startDate: today,
+        endDate: "2099-09-07",
+        phase,
+      });
+      // Today's plan_day (any non-race row).
+      await insertPlanDay(week, phase, {
+        date: today,
+        day: "Tue",
+        sessionType: T_RUN,
+        equipment: E_OUTDOOR,
+      });
+      // Trailing race-day Sun that drives raceKind detection.
+      await insertPlanDay(week, phase, {
+        date: "2099-09-07",
+        day: "Sun",
+        sessionType: "Race",
+        equipment: E_OUTDOOR,
+        distanceMi: RACE_DAY_SPECS[kind].distanceMi,
+        description: RACE_DAY_SPECS[kind].description,
+      });
+      const res = await request(app).get("/api/plan/today");
+      expect(res.status).toBe(200);
+      expectMatchesSchema(GetTodayPlanResponse, res.body);
+      expect(res.body.raceKind).toBe(kind);
+    },
+  );
+
+  it("returns raceKind=null when the trailing plan_day is not a recognised race row", async () => {
+    const today = "2099-09-08";
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(`${today}T12:00:00.000Z`));
+    const week = 8307;
+    const phase = "Today No Race";
+    await insertWeek(week, {
+      startDate: today,
+      endDate: "2099-09-14",
+      phase,
+    });
+    await insertPlanDay(week, phase, {
+      date: today,
+      day: "Tue",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-09-14",
+      day: "Sun",
+      sessionType: T_LONG_RUN,
+      equipment: E_OUTDOOR,
+      distanceMi: 13.1,
+      description: "Long run, easy effort.",
+    });
+    const res = await request(app).get("/api/plan/today");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetTodayPlanResponse, res.body);
+    expect(res.body.raceKind).toBeNull();
+  });
+});
+
 describe("GET /api/plan/today", () => {
   it("returns null suggestions on a rest day", async () => {
     const today = "2099-06-01";

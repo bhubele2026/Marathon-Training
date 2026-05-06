@@ -1978,6 +1978,12 @@ export const GetTodayPlanResponse = zod.object({
     .describe(
       "Preview of the first scheduled (non-rest) plan day. Populated alongside daysUntilStart only when today is before that session; null once the campaign has started.",
     ),
+  raceKind: zod
+    .enum(["marathon", "half", "10k", "5k"])
+    .nullish()
+    .describe(
+      'Task #306. Kind of race the campaign is anchored on, mirrored\non \/plan\/today so the Today page eyebrow can switch to the\nper-kind framing (\"5K Campaign\" \/ \"10K Campaign\" \/ \"Half\nMarathon Campaign\" \/ \"Race Campaign\") without forcing the\npage to also fetch \/plan\/overview. Same detection as\n`PlanOverview.raceKind` (Task #204) and `PlanWeek.raceKind`\n(Task #242) — derived from the trailing plan_day Sunday with\nan explicit race signal. Null on tonal-first \/ non-race\nplans (lift_primary blocks, ad-hoc Custom blocks) and on\nfreshly seeded campaigns with no plan_days yet so the Today\npage renders no eyebrow in those cases.\n',
+    ),
 });
 
 export const ListWorkoutsQueryParams = zod.object({

@@ -1,4 +1,9 @@
-import { useGetTodayPlan } from "@workspace/api-client-react";
+import {
+  useGetTodayPlan,
+  useGetRaceWeek,
+  getGetRaceWeekQueryKey,
+} from "@workspace/api-client-react";
+import type { RaceDayKind } from "@/lib/race-day-label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -52,6 +57,7 @@ export default function Today() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
+          <TodayEyebrow raceKind={(today.raceKind ?? null) as RaceDayKind | null} />
           <h2 className="text-3xl font-black uppercase tracking-tight text-primary">Today's Mission</h2>
           <p className="text-muted-foreground uppercase font-medium tracking-widest">{today.date}</p>
         </div>
@@ -982,5 +988,58 @@ export default function Today() {
 
       {dialogs}
     </div>
+  );
+}
+
+// Task #306: per-kind eyebrow above the "Today's Mission" header so the
+// Today page mirrors the dashboard / plan / week-detail framing
+// (Tasks #209, #204, #242). Tonal-first / non-race plans (raceKind null)
+// render no eyebrow at all so we don't presuppose a race day. Race-week
+// and post-race states are sourced from the same /race-week query the
+// ChecklistNudge / RaceWeekBanner already use, so a 5K runner in the
+// final week sees "5K · Race Week" and the recovery week reads "5K
+// Complete" — matching the per-kind copy on the other surfaces. Marathon
+// collapses to the existing flagship "Race Campaign" / "Race Week" /
+// "Race Complete" copy unchanged.
+const RACE_KIND_LABELS: Record<RaceDayKind, string> = {
+  marathon: "Marathon",
+  half: "Half Marathon",
+  "10k": "10K",
+  "5k": "5K",
+};
+
+function TodayEyebrow({ raceKind }: { raceKind: RaceDayKind | null }) {
+  // Reuses the same query key as RaceWeekBanner / ChecklistNudge so
+  // there's no extra round-trip — the cached payload already drives the
+  // race-week reminder in the header.
+  const { data: raceWeek } = useGetRaceWeek({
+    query: {
+      queryKey: getGetRaceWeekQueryKey(),
+      refetchOnWindowFocus: true,
+      refetchInterval: 60_000,
+    },
+  });
+  if (raceKind == null) return null;
+  const label = RACE_KIND_LABELS[raceKind];
+  const isRaceWeek = !!raceWeek?.inWindow && !raceWeek.racePassed;
+  const isPostRace = !!raceWeek?.racePassed;
+  let text: string;
+  if (isPostRace) {
+    text = raceKind === "marathon" ? "Race Complete" : `${label} Complete`;
+  } else if (isRaceWeek) {
+    text = raceKind === "marathon" ? "Race Week" : `${label} · Race Week`;
+  } else {
+    text = raceKind === "marathon" ? "Race Campaign" : `${label} Campaign`;
+  }
+  return (
+    <p
+      className="text-[10px] uppercase tracking-[0.2em] font-bold text-primary mb-1"
+      data-testid="today-eyebrow"
+      data-race-kind={raceKind}
+      data-race-week={isRaceWeek ? "true" : undefined}
+      data-post-race={isPostRace ? "true" : undefined}
+    >
+      {text}
+    </p>
   );
 }

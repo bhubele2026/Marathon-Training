@@ -959,6 +959,27 @@ async function fetchFirstSessionDay(): Promise<PlanDayRow | null> {
 
 router.get("/plan/today", async (_req, res) => {
   const today = todayISO();
+  // Task #306: campaign-level race kind detected from the trailing
+  // plan_day Sunday — same query / resolution as /plan/overview
+  // (Task #204) and /plan/weeks/:week (Task #242) so the Today page
+  // eyebrow can switch to the per-kind framing (5K / 10K / Half /
+  // Marathon) without forcing the page to also fetch /plan/overview.
+  // Null on tonal-first / non-race plans where the trailing Sun isn't
+  // a recognised race day.
+  const lastDayRows = await db.execute<{
+    distance_mi: number | null;
+    description: string | null;
+    session_type: string | null;
+  }>(
+    sql`SELECT distance_mi, description, session_type
+        FROM plan_days
+        ORDER BY date DESC, source_entry_index ASC
+        LIMIT 1`,
+  );
+  const lastDay = lastDayRows.rows[0];
+  const raceKind = lastDay
+    ? detectRaceKind(lastDay.distance_mi, lastDay.description, lastDay.session_type)
+    : null;
   // Task #135: load ALL plan_days for today (concurrent overlapping
   // programs each contribute one row keyed by sourceEntryIndex). The
   // legacy `plan` field returns the lowest-index row for back-compat;
@@ -1041,6 +1062,7 @@ router.get("/plan/today", async (_req, res) => {
     daysUntilStart,
     firstSession:
       firstSessionRow && showFirstSession ? todayPlanDay(firstSessionRow) : null,
+    raceKind,
   });
 });
 
