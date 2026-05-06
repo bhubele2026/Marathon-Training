@@ -352,7 +352,10 @@ export function toWorkout(
   };
 }
 
-export function toRaceResult(r: RaceResultRow) {
+export function toRaceResult(
+  r: RaceResultRow,
+  extras?: { raceKind?: "marathon" | "half" | "10k" | "5k" | null },
+) {
   return {
     raceDate: r.raceDate,
     finishTime: r.finishTime,
@@ -360,6 +363,11 @@ export function toRaceResult(r: RaceResultRow) {
     placementTotal: r.placementTotal,
     feltRating: r.feltRating,
     notes: r.notes,
+    // Task #266: best-effort kind derived from the matching plan_days row
+    // on the same date. Populated by /race-results (the history listing)
+    // so the UI can render a per-row badge; left null on the single-row
+    // endpoints that don't bother with the join.
+    raceKind: extras?.raceKind ?? null,
     recordedAt: r.recordedAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
   };

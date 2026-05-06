@@ -12,6 +12,7 @@ import Plan from "@/pages/plan";
 import WeekDetail from "@/pages/week-detail";
 import Log from "@/pages/log";
 import Measurements from "@/pages/measurements";
+import Races from "@/pages/races";
 import Equipment from "@/pages/equipment";
 import Planner from "@/pages/planner";
 import Settings from "@/pages/settings";
@@ -29,6 +30,7 @@ function Router() {
         <Route path="/plan/:week" component={WeekDetail} />
         <Route path="/log" component={Log} />
         <Route path="/measurements" component={Measurements} />
+        <Route path="/races" component={Races} />
         <Route path="/equipment" component={Equipment} />
         <Route path="/planner" component={Planner} />
         <Route path="/settings" component={Settings} />

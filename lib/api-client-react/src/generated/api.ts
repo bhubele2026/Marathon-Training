@@ -3395,6 +3395,257 @@ export const useCreateRaceWeekChecklistItem = <
 };
 
 /**
+ * Task #266. List every persisted race result, newest first. Powers the
+race history page so runners can revisit prior campaigns' finishes
+long after the post-race recovery banner has expired. Each row
+includes a best-effort `raceKind` derived from the matching
+`plan_days` row on the same date (NULL for orphaned results whose
+plan day no longer exists, e.g. after a Full Reset wiped the plan
+but the race_results row from a prior campaign was preserved by an
+out-of-band restore).
+
+ */
+export const getListRaceResultsUrl = () => {
+  return `/api/race-results`;
+};
+
+export const listRaceResults = async (
+  options?: RequestInit,
+): Promise<RaceResult[]> => {
+  return customFetch<RaceResult[]>(getListRaceResultsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListRaceResultsQueryKey = () => {
+  return [`/api/race-results`] as const;
+};
+
+export const getListRaceResultsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listRaceResults>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listRaceResults>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListRaceResultsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listRaceResults>>> = ({
+    signal,
+  }) => listRaceResults({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listRaceResults>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListRaceResultsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listRaceResults>>
+>;
+export type ListRaceResultsQueryError = ErrorType<unknown>;
+
+export function useListRaceResults<
+  TData = Awaited<ReturnType<typeof listRaceResults>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listRaceResults>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListRaceResultsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Task #266. Edit any persisted race result by its `race_date` primary
+key. Mirrors the body shape of `setRaceResult` so the same form can
+be reused for both the active campaign banner and the history page.
+
+ */
+export const getUpdateRaceResultUrl = (raceDate: string) => {
+  return `/api/race-results/${raceDate}`;
+};
+
+export const updateRaceResult = async (
+  raceDate: string,
+  setRaceResultBody: SetRaceResultBody,
+  options?: RequestInit,
+): Promise<RaceResult> => {
+  return customFetch<RaceResult>(getUpdateRaceResultUrl(raceDate), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(setRaceResultBody),
+  });
+};
+
+export const getUpdateRaceResultMutationOptions = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateRaceResult>>,
+    TError,
+    { raceDate: string; data: BodyType<SetRaceResultBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateRaceResult>>,
+  TError,
+  { raceDate: string; data: BodyType<SetRaceResultBody> },
+  TContext
+> => {
+  const mutationKey = ["updateRaceResult"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateRaceResult>>,
+    { raceDate: string; data: BodyType<SetRaceResultBody> }
+  > = (props) => {
+    const { raceDate, data } = props ?? {};
+
+    return updateRaceResult(raceDate, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateRaceResultMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateRaceResult>>
+>;
+export type UpdateRaceResultMutationBody = BodyType<SetRaceResultBody>;
+export type UpdateRaceResultMutationError = ErrorType<Error | ValidationError>;
+
+export const useUpdateRaceResult = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateRaceResult>>,
+    TError,
+    { raceDate: string; data: BodyType<SetRaceResultBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateRaceResult>>,
+  TError,
+  { raceDate: string; data: BodyType<SetRaceResultBody> },
+  TContext
+> => {
+  return useMutation(getUpdateRaceResultMutationOptions(options));
+};
+
+/**
+ * Task #266. Delete a persisted race result by its `race_date`
+primary key. Used by the race history page to clean up stale
+entries (e.g. a test row, or a campaign the runner never actually
+ran).
+
+ */
+export const getDeleteRaceResultUrl = (raceDate: string) => {
+  return `/api/race-results/${raceDate}`;
+};
+
+export const deleteRaceResult = async (
+  raceDate: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteRaceResultUrl(raceDate), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteRaceResultMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteRaceResult>>,
+    TError,
+    { raceDate: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteRaceResult>>,
+  TError,
+  { raceDate: string },
+  TContext
+> => {
+  const mutationKey = ["deleteRaceResult"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteRaceResult>>,
+    { raceDate: string }
+  > = (props) => {
+    const { raceDate } = props ?? {};
+
+    return deleteRaceResult(raceDate, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteRaceResultMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteRaceResult>>
+>;
+
+export type DeleteRaceResultMutationError = ErrorType<Error>;
+
+export const useDeleteRaceResult = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteRaceResult>>,
+    TError,
+    { raceDate: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteRaceResult>>,
+  TError,
+  { raceDate: string },
+  TContext
+> => {
+  return useMutation(getDeleteRaceResultMutationOptions(options));
+};
+
+/**
  * Upsert the runner's race-day result for the currently active race
 date. Used by the post-race recovery banner so the runner can capture
 their finish time, placement, perceived effort, and any free-form

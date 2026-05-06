@@ -880,6 +880,86 @@ paths:
                   - $ref: "#/components/schemas/Error"
                   - $ref: "#/components/schemas/ValidationError"
 
+  /race-results:
+    get:
+      operationId: listRaceResults
+      tags: [race-week]
+      description: |
+        Task #266. List every persisted race result, newest first. Powers the
+        race history page so runners can revisit prior campaigns' finishes
+        long after the post-race recovery banner has expired. Each row
+        includes a best-effort `raceKind` derived from the matching
+        `plan_days` row on the same date (NULL for orphaned results whose
+        plan day no longer exists, e.g. after a Full Reset wiped the plan
+        but the race_results row from a prior campaign was preserved by an
+        out-of-band restore).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/RaceResult" }
+
+  /race-results/{raceDate}:
+    patch:
+      operationId: updateRaceResult
+      tags: [race-week]
+      description: |
+        Task #266. Edit any persisted race result by its `race_date` primary
+        key. Mirrors the body shape of `setRaceResult` so the same form can
+        be reused for both the active campaign banner and the history page.
+      parameters:
+        - in: path
+          name: raceDate
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SetRaceResultBody" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RaceResult" }
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ValidationError"
+        "404":
+          description: Race result not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      operationId: deleteRaceResult
+      tags: [race-week]
+      description: |
+        Task #266. Delete a persisted race result by its `race_date`
+        primary key. Used by the race history page to clean up stale
+        entries (e.g. a test row, or a campaign the runner never actually
+        ran).
+      parameters:
+        - in: path
+          name: raceDate
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: No Content }
+        "400":
+          description: Invalid raceDate
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
   /race-week/result:
     put:
       operationId: setRaceResult
@@ -2284,6 +2364,18 @@ components:
         notes:
           type: string
           nullable: true
+        raceKind:
+          type: string
+          nullable: true
+          enum: [marathon, half, "10k", "5k", null]
+          description: |
+            Task #266. Best-effort race kind label, derived from the matching
+            `plan_days` row on the same date via `detectRaceKind` (the same
+            helper /plan/overview and /dashboard use). Populated by the
+            `listRaceResults` endpoint so the history page can render a
+            "Half Marathon" / "5K" badge per row; left null on the
+            single-row endpoints (`setRaceResult` / `updateRaceResult` /
+            `getRaceWeek`) and on rows whose plan_day no longer exists.
         recordedAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
 

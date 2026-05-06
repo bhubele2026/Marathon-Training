@@ -1010,6 +1010,27 @@ export interface RaceWeekRacePlan {
   description: string;
 }
 
+/**
+ * Task #266. Best-effort race kind label, derived from the matching
+`plan_days` row on the same date via `detectRaceKind` (the same
+helper /plan/overview and /dashboard use). Populated by the
+`listRaceResults` endpoint so the history page can render a
+"Half Marathon" / "5K" badge per row; left null on the
+single-row endpoints (`setRaceResult` / `updateRaceResult` /
+`getRaceWeek`) and on rows whose plan_day no longer exists.
+
+ */
+export type RaceResultRaceKind =
+  | (typeof RaceResultRaceKind)[keyof typeof RaceResultRaceKind]
+  | null;
+
+export const RaceResultRaceKind = {
+  marathon: "marathon",
+  half: "half",
+  "10k": "10k",
+  "5k": "5k",
+} as const;
+
 export interface RaceResult {
   raceDate: string;
   /** Free-form finish time string (e.g. "2:14:08"). */
@@ -1024,6 +1045,15 @@ export interface RaceResult {
    */
   feltRating?: number | null;
   notes?: string | null;
+  /** Task #266. Best-effort race kind label, derived from the matching
+`plan_days` row on the same date via `detectRaceKind` (the same
+helper /plan/overview and /dashboard use). Populated by the
+`listRaceResults` endpoint so the history page can render a
+"Half Marathon" / "5K" badge per row; left null on the
+single-row endpoints (`setRaceResult` / `updateRaceResult` /
+`getRaceWeek`) and on rows whose plan_day no longer exists.
+ */
+  raceKind?: RaceResultRaceKind;
   recordedAt: string;
   updatedAt: string;
 }

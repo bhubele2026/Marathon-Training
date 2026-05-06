@@ -7,7 +7,7 @@ import {
   CreateRaceWeekChecklistItemResponse,
   DeleteRaceWeekChecklistItemResponse,
 } from "@workspace/api-zod";
-import { db, planDaysTable, plannerConfigsTable } from "@workspace/db";
+import { db, planDaysTable, plannerConfigsTable, raceResultsTable } from "@workspace/db";
 import { RACE_DAY_SPECS } from "@workspace/plan-generator";
 import app from "../app";
 import { expectMatchesSchema } from "../test-helpers";
@@ -412,6 +412,149 @@ describe("PUT /api/race-week/result (Task #40)", () => {
     const res = await request(app)
       .put("/api/race-week/result")
       .send({ placementOverall: 0 });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("GET /api/race-results (Task #266)", () => {
+  beforeEach(async () => {
+    await db.execute(sql`DELETE FROM race_results`);
+  });
+  afterEach(async () => {
+    await db.execute(sql`DELETE FROM race_results`);
+  });
+
+  it("lists every stored race result newest first with raceKind from plan_days", async () => {
+    // Two prior campaigns + the active half-marathon (default RACE_DATE).
+    await db.execute(sql`DELETE FROM plan_days WHERE date = ${RACE_DATE}`);
+    const halfSpec = RACE_DAY_SPECS.half;
+    const fiveSpec = RACE_DAY_SPECS["5k"];
+    await db.insert(planDaysTable).values([
+      {
+        week: 52,
+        phase: "Taper & Race",
+        date: RACE_DATE,
+        day: "Sun",
+        strengthLoad: 0,
+        equipment: "Outdoor",
+        description: halfSpec.description,
+        cardioMin: 100,
+        distanceMi: halfSpec.distanceMi,
+        pace: "12:00",
+        sessionType: "Race",
+        isRest: false,
+        totalLoad: halfSpec.totalLoad,
+      },
+      {
+        week: 1,
+        phase: "Taper & Race",
+        date: "2025-06-15",
+        day: "Sun",
+        strengthLoad: 0,
+        equipment: "Outdoor",
+        description: fiveSpec.description,
+        cardioMin: 30,
+        distanceMi: fiveSpec.distanceMi,
+        pace: "9:00",
+        sessionType: "Race",
+        isRest: false,
+        totalLoad: fiveSpec.totalLoad,
+      },
+    ]);
+    await db.insert(raceResultsTable).values([
+      { raceDate: RACE_DATE, finishTime: "2:14:08", placementOverall: 312, placementTotal: 1804, feltRating: 4, notes: null },
+      { raceDate: "2025-06-15", finishTime: "27:43", feltRating: 5, notes: null },
+      // Orphan — no plan_day on this date.
+      { raceDate: "2024-04-01", finishTime: "55:12", feltRating: 3, notes: null },
+    ]);
+
+    const res = await request(app).get("/api/race-results");
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body).toHaveLength(3);
+    // Newest first.
+    expect(res.body[0].raceDate).toBe(RACE_DATE);
+    expect(res.body[1].raceDate).toBe("2025-06-15");
+    expect(res.body[2].raceDate).toBe("2024-04-01");
+    // raceKind derived from plan_days.
+    expect(res.body[0].raceKind).toBe("half");
+    expect(res.body[1].raceKind).toBe("5k");
+    expect(res.body[2].raceKind).toBeNull();
+
+    await db.execute(sql`DELETE FROM plan_days WHERE date IN (${RACE_DATE}, '2025-06-15')`);
+  });
+
+  it("returns an empty array when no results exist", async () => {
+    const res = await request(app).get("/api/race-results");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+});
+
+describe("PATCH /api/race-results/:raceDate (Task #266)", () => {
+  beforeEach(async () => {
+    await db.execute(sql`DELETE FROM race_results`);
+  });
+  afterEach(async () => {
+    await db.execute(sql`DELETE FROM race_results`);
+  });
+
+  it("updates a stored race result by date", async () => {
+    await db.insert(raceResultsTable).values({
+      raceDate: "2025-06-15",
+      finishTime: "27:43",
+      feltRating: 5,
+    });
+    const res = await request(app)
+      .patch("/api/race-results/2025-06-15")
+      .send({ finishTime: "27:30", feltRating: 4, notes: "Closed hard" });
+    expect(res.status).toBe(200);
+    expect(res.body.finishTime).toBe("27:30");
+    expect(res.body.feltRating).toBe(4);
+    expect(res.body.notes).toBe("Closed hard");
+  });
+
+  it("returns 404 for an unknown raceDate", async () => {
+    const res = await request(app)
+      .patch("/api/race-results/2099-01-01")
+      .send({ finishTime: "1:00:00" });
+    expect(res.status).toBe(404);
+  });
+
+  it("rejects an invalid raceDate format with 400", async () => {
+    const res = await request(app)
+      .patch("/api/race-results/not-a-date")
+      .send({ finishTime: "1:00:00" });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects an out-of-range feltRating with 400", async () => {
+    await db.insert(raceResultsTable).values({ raceDate: "2025-06-15" });
+    const res = await request(app)
+      .patch("/api/race-results/2025-06-15")
+      .send({ feltRating: 9 });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("DELETE /api/race-results/:raceDate (Task #266)", () => {
+  beforeEach(async () => {
+    await db.execute(sql`DELETE FROM race_results`);
+  });
+  afterEach(async () => {
+    await db.execute(sql`DELETE FROM race_results`);
+  });
+
+  it("deletes a stored race result", async () => {
+    await db.insert(raceResultsTable).values({ raceDate: "2025-06-15", finishTime: "27:43" });
+    const del = await request(app).delete("/api/race-results/2025-06-15");
+    expect(del.status).toBe(204);
+    const list = await request(app).get("/api/race-results");
+    expect(list.body).toEqual([]);
+  });
+
+  it("rejects an invalid raceDate format with 400", async () => {
+    const res = await request(app).delete("/api/race-results/garbage");
     expect(res.status).toBe(400);
   });
 });

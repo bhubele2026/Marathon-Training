@@ -5,7 +5,7 @@ import {
   raceWeekChecklistTable,
   raceResultsTable,
 } from "@workspace/db";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, desc, inArray } from "drizzle-orm";
 import {
   SetRaceWeekChecklistItemBody,
   CreateRaceWeekChecklistItemBody,
@@ -14,6 +14,9 @@ import {
 import { randomUUID } from "node:crypto";
 import { readActiveRaceDate } from "./planner";
 import { toRaceResult } from "../lib/transforms";
+import { detectRaceKind, type RaceDayKind } from "@workspace/plan-generator";
+
+const RACE_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const router: IRouter = Router();
 
@@ -176,6 +179,98 @@ router.post("/race-week/checklist", async (req, res): Promise<void> => {
     checkedAt: null,
     isCustom: true,
   });
+});
+
+// Task #266. List every persisted race result, newest first, with a
+// best-effort `raceKind` derived from the matching plan_days row on the
+// same date. Backs the dedicated /races history page so runners can
+// revisit prior campaigns long after the post-race banner has expired.
+router.get("/race-results", async (_req, res) => {
+  const rows = await db
+    .select()
+    .from(raceResultsTable)
+    .orderBy(desc(raceResultsTable.raceDate));
+  if (rows.length === 0) {
+    res.json([]);
+    return;
+  }
+  const dates = rows.map((r) => r.raceDate);
+  const planRows = await db
+    .select({
+      date: planDaysTable.date,
+      distanceMi: planDaysTable.distanceMi,
+      description: planDaysTable.description,
+      sessionType: planDaysTable.sessionType,
+    })
+    .from(planDaysTable)
+    .where(inArray(planDaysTable.date, dates));
+  const kindByDate = new Map<string, RaceDayKind | null>();
+  for (const p of planRows) {
+    kindByDate.set(
+      p.date,
+      detectRaceKind(p.distanceMi, p.description, p.sessionType),
+    );
+  }
+  res.json(
+    rows.map((r) => toRaceResult(r, { raceKind: kindByDate.get(r.raceDate) ?? null })),
+  );
+});
+
+// Task #266. Edit a stored race result by its primary key. Reuses
+// SetRaceResultBody so the same edit form drives both the post-race
+// banner and the history page.
+router.patch("/race-results/:raceDate", async (req, res): Promise<void> => {
+  const raceDate = req.params.raceDate;
+  if (!raceDate || !RACE_DATE_RE.test(raceDate)) {
+    res.status(400).json({ error: "invalid raceDate" });
+    return;
+  }
+  const parsed = SetRaceResultBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const isPositiveIntOrNullish = (v: number | null | undefined) =>
+    v == null || (Number.isInteger(v) && v >= 1);
+  if (
+    !isPositiveIntOrNullish(parsed.data.placementOverall) ||
+    !isPositiveIntOrNullish(parsed.data.placementTotal)
+  ) {
+    res.status(400).json({
+      error: "placementOverall and placementTotal must be positive integers",
+    });
+    return;
+  }
+  const now = new Date();
+  const updated = await db
+    .update(raceResultsTable)
+    .set({
+      finishTime: parsed.data.finishTime ?? null,
+      placementOverall: parsed.data.placementOverall ?? null,
+      placementTotal: parsed.data.placementTotal ?? null,
+      feltRating: parsed.data.feltRating ?? null,
+      notes: parsed.data.notes ?? null,
+      updatedAt: now,
+    })
+    .where(eq(raceResultsTable.raceDate, raceDate))
+    .returning();
+  if (!updated[0]) {
+    res.status(404).json({ error: "race result not found" });
+    return;
+  }
+  res.json(toRaceResult(updated[0]));
+});
+
+// Task #266. Delete a stored race result so runners can clean up
+// stale entries (test rows, campaigns they never actually ran).
+router.delete("/race-results/:raceDate", async (req, res): Promise<void> => {
+  const raceDate = req.params.raceDate;
+  if (!raceDate || !RACE_DATE_RE.test(raceDate)) {
+    res.status(400).json({ error: "invalid raceDate" });
+    return;
+  }
+  await db.delete(raceResultsTable).where(eq(raceResultsTable.raceDate, raceDate));
+  res.status(204).send();
 });
 
 router.put("/race-week/result", async (req, res): Promise<void> => {

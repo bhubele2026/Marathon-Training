@@ -3608,6 +3608,18 @@ export const GetRaceWeekResponse = zod.object({
           "1-5 self-rating of how the race felt (1 = brutal, 5 = nailed it).",
         ),
       notes: zod.string().nullish(),
+      raceKind: zod
+        .union([
+          zod.literal("marathon"),
+          zod.literal("half"),
+          zod.literal("10k"),
+          zod.literal("5k"),
+          zod.literal(null),
+        ])
+        .nullish()
+        .describe(
+          'Task #266. Best-effort race kind label, derived from the matching\n`plan_days` row on the same date via `detectRaceKind` (the same\nhelper \/plan\/overview and \/dashboard use). Populated by the\n`listRaceResults` endpoint so the history page can render a\n\"Half Marathon\" \/ \"5K\" badge per row; left null on the\nsingle-row endpoints (`setRaceResult` \/ `updateRaceResult` \/\n`getRaceWeek`) and on rows whose plan_day no longer exists.\n',
+        ),
       recordedAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
     })
@@ -3659,6 +3671,141 @@ export const CreateRaceWeekChecklistItemResponse = zod.object({
     .describe(
       "True for user-created items (which can be deleted). False for built-in default items.",
     ),
+});
+
+/**
+ * Task #266. List every persisted race result, newest first. Powers the
+race history page so runners can revisit prior campaigns' finishes
+long after the post-race recovery banner has expired. Each row
+includes a best-effort `raceKind` derived from the matching
+`plan_days` row on the same date (NULL for orphaned results whose
+plan day no longer exists, e.g. after a Full Reset wiped the plan
+but the race_results row from a prior campaign was preserved by an
+out-of-band restore).
+
+ */
+export const listRaceResultsResponseFeltRatingMax = 5;
+
+export const ListRaceResultsResponseItem = zod.object({
+  raceDate: zod.string(),
+  finishTime: zod
+    .string()
+    .nullish()
+    .describe('Free-form finish time string (e.g. \"2:14:08\").'),
+  placementOverall: zod.number().nullish(),
+  placementTotal: zod
+    .number()
+    .nullish()
+    .describe(
+      "Total field size, used together with placementOverall (e.g. 312 of 1804).",
+    ),
+  feltRating: zod
+    .number()
+    .min(1)
+    .max(listRaceResultsResponseFeltRatingMax)
+    .nullish()
+    .describe(
+      "1-5 self-rating of how the race felt (1 = brutal, 5 = nailed it).",
+    ),
+  notes: zod.string().nullish(),
+  raceKind: zod
+    .union([
+      zod.literal("marathon"),
+      zod.literal("half"),
+      zod.literal("10k"),
+      zod.literal("5k"),
+      zod.literal(null),
+    ])
+    .nullish()
+    .describe(
+      'Task #266. Best-effort race kind label, derived from the matching\n`plan_days` row on the same date via `detectRaceKind` (the same\nhelper \/plan\/overview and \/dashboard use). Populated by the\n`listRaceResults` endpoint so the history page can render a\n\"Half Marathon\" \/ \"5K\" badge per row; left null on the\nsingle-row endpoints (`setRaceResult` \/ `updateRaceResult` \/\n`getRaceWeek`) and on rows whose plan_day no longer exists.\n',
+    ),
+  recordedAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListRaceResultsResponse = zod.array(ListRaceResultsResponseItem);
+
+/**
+ * Task #266. Edit any persisted race result by its `race_date` primary
+key. Mirrors the body shape of `setRaceResult` so the same form can
+be reused for both the active campaign banner and the history page.
+
+ */
+export const UpdateRaceResultParams = zod.object({
+  raceDate: zod.coerce.string(),
+});
+
+export const updateRaceResultBodyFeltRatingMax = 5;
+
+export const UpdateRaceResultBody = zod.object({
+  finishTime: zod.string().nullish(),
+  placementOverall: zod
+    .number()
+    .min(1)
+    .nullish()
+    .describe("1-based finish position. Must be a positive integer."),
+  placementTotal: zod
+    .number()
+    .min(1)
+    .nullish()
+    .describe("Total field size. Must be a positive integer."),
+  feltRating: zod
+    .number()
+    .min(1)
+    .max(updateRaceResultBodyFeltRatingMax)
+    .nullish(),
+  notes: zod.string().nullish(),
+});
+
+export const updateRaceResultResponseFeltRatingMax = 5;
+
+export const UpdateRaceResultResponse = zod.object({
+  raceDate: zod.string(),
+  finishTime: zod
+    .string()
+    .nullish()
+    .describe('Free-form finish time string (e.g. \"2:14:08\").'),
+  placementOverall: zod.number().nullish(),
+  placementTotal: zod
+    .number()
+    .nullish()
+    .describe(
+      "Total field size, used together with placementOverall (e.g. 312 of 1804).",
+    ),
+  feltRating: zod
+    .number()
+    .min(1)
+    .max(updateRaceResultResponseFeltRatingMax)
+    .nullish()
+    .describe(
+      "1-5 self-rating of how the race felt (1 = brutal, 5 = nailed it).",
+    ),
+  notes: zod.string().nullish(),
+  raceKind: zod
+    .union([
+      zod.literal("marathon"),
+      zod.literal("half"),
+      zod.literal("10k"),
+      zod.literal("5k"),
+      zod.literal(null),
+    ])
+    .nullish()
+    .describe(
+      'Task #266. Best-effort race kind label, derived from the matching\n`plan_days` row on the same date via `detectRaceKind` (the same\nhelper \/plan\/overview and \/dashboard use). Populated by the\n`listRaceResults` endpoint so the history page can render a\n\"Half Marathon\" \/ \"5K\" badge per row; left null on the\nsingle-row endpoints (`setRaceResult` \/ `updateRaceResult` \/\n`getRaceWeek`) and on rows whose plan_day no longer exists.\n',
+    ),
+  recordedAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * Task #266. Delete a persisted race result by its `race_date`
+primary key. Used by the race history page to clean up stale
+entries (e.g. a test row, or a campaign the runner never actually
+ran).
+
+ */
+export const DeleteRaceResultParams = zod.object({
+  raceDate: zod.coerce.string(),
 });
 
 /**
@@ -3715,6 +3862,18 @@ export const SetRaceResultResponse = zod.object({
       "1-5 self-rating of how the race felt (1 = brutal, 5 = nailed it).",
     ),
   notes: zod.string().nullish(),
+  raceKind: zod
+    .union([
+      zod.literal("marathon"),
+      zod.literal("half"),
+      zod.literal("10k"),
+      zod.literal("5k"),
+      zod.literal(null),
+    ])
+    .nullish()
+    .describe(
+      'Task #266. Best-effort race kind label, derived from the matching\n`plan_days` row on the same date via `detectRaceKind` (the same\nhelper \/plan\/overview and \/dashboard use). Populated by the\n`listRaceResults` endpoint so the history page can render a\n\"Half Marathon\" \/ \"5K\" badge per row; left null on the\nsingle-row endpoints (`setRaceResult` \/ `updateRaceResult` \/\n`getRaceWeek`) and on rows whose plan_day no longer exists.\n',
+    ),
   recordedAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });

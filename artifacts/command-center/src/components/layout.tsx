@@ -10,6 +10,7 @@ import {
   Scale,
   Settings as SettingsIcon,
   SlidersHorizontal,
+  Trophy,
 } from "lucide-react";
 import { useGetPlanOverview } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
@@ -35,6 +36,7 @@ export function Layout({ children }: LayoutProps) {
     { href: "/plan", label: planLabel, icon: CalendarDays },
     { href: "/log", label: "Training Log", icon: ListOrdered },
     { href: "/measurements", label: "Body Metrics", icon: Scale },
+    { href: "/races", label: "Race History", icon: Trophy },
     { href: "/equipment", label: "Equipment", icon: Dumbbell },
     { href: "/planner", label: "Phase Planner", icon: SlidersHorizontal },
     { href: "/settings", label: "Settings", icon: SettingsIcon },
