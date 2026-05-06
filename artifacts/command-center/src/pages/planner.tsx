@@ -3676,19 +3676,66 @@ export default function Planner() {
                               <SelectItem value="auto">
                                 Auto (default)
                               </SelectItem>
-                              {HYBRID_TAPER_WEEK_OPTIONS.map((n) => (
-                                <SelectItem key={n} value={String(n)}>
-                                  {n === 0
+                              {HYBRID_TAPER_WEEK_OPTIONS.map((n) => {
+                                // Mirror the floor in expandCustomHybrid:
+                                // plans <12w skip phasing entirely (no
+                                // taper possible); 12w+ require a
+                                // 6-week base+build remainder.
+                                const phasedFloor = hybridBuilderWeeks >= 12;
+                                const fitsRemainder =
+                                  hybridBuilderWeeks - n >= 6;
+                                const disabled =
+                                  !phasedFloor || !fitsRemainder;
+                                const label =
+                                  n === 0
                                     ? "None — no taper"
                                     : n === 1
                                       ? "1 week — sharpening"
                                       : n === 2
                                         ? "2 weeks — standard"
-                                        : `${n} weeks — key event`}
-                                </SelectItem>
-                              ))}
+                                        : `${n} weeks — key event`;
+                                return (
+                                  <SelectItem
+                                    key={n}
+                                    value={String(n)}
+                                    disabled={disabled}
+                                    data-testid={`planner-hybrid-taper-option-${n}`}
+                                  >
+                                    {label}
+                                    {disabled
+                                      ? " — needs ≥ 6 base+build wks"
+                                      : ""}
+                                  </SelectItem>
+                                );
+                              })}
                             </SelectContent>
                           </Select>
+                          {(() => {
+                            // Surface the silent fallback in
+                            // expandCustomHybrid: a runner-picked taper
+                            // that won't fit (plan <12w, or remainder
+                            // <6w) gets dropped in favor of the
+                            // length-based default. Tell the runner
+                            // their pick is being ignored so the
+                            // generated /plan doesn't surprise them.
+                            if (hybridTaperWeeks === null) return null;
+                            const phasedFloor = hybridBuilderWeeks >= 12;
+                            const fitsRemainder =
+                              hybridBuilderWeeks - hybridTaperWeeks >= 6;
+                            if (phasedFloor && fitsRemainder) return null;
+                            const fallback =
+                              hybridBuilderWeeks >= 16 ? 2 : 0;
+                            return (
+                              <p
+                                className="text-[10px] text-amber-600 dark:text-amber-400"
+                                data-testid="planner-hybrid-taper-fallback"
+                              >
+                                {!phasedFloor
+                                  ? `Plans under 12 weeks stay a single block — your ${hybridTaperWeeks}-week taper pick will be ignored. Bump weeks to 12+ to keep it.`
+                                  : `Only ${hybridBuilderWeeks - hybridTaperWeeks} base+build weeks would remain (need ≥ 6) — your ${hybridTaperWeeks}-week taper will be dropped and the plan will fall back to ${fallback === 0 ? "no taper" : `${fallback} weeks`}. Add weeks or pick a shorter taper.`}
+                              </p>
+                            );
+                          })()}
                           <p className="text-[10px] text-muted-foreground">
                             Auto = 2 weeks on plans 16w+, none on shorter
                             plans. Phased plans only (12w+).
