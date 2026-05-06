@@ -1,5 +1,6 @@
 import {
   useGetTodayPlan,
+  useGetPlanOverview,
   useGetRaceWeek,
   getGetRaceWeekQueryKey,
 } from "@workspace/api-client-react";
@@ -28,11 +29,19 @@ import {
 import { RunTargetLine } from "@/components/run-target-line";
 import { raceDayLabel } from "@/lib/race-day-label";
 import { ChecklistNudge } from "@/components/race-week-banner";
+import { EmptyPlanState } from "@/components/empty-plan-state";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 
 export default function Today() {
   const { data: today, isLoading } = useGetTodayPlan();
+  // Task #307: TodayPlan.hasPlan is per-day (only checks today's plan
+  // rows). To distinguish "no campaign exists at all" (show the
+  // EmptyPlanState CTA) from "campaign exists but today is a rest day"
+  // (keep the original rest-day card), we additionally consult the
+  // campaign-level overview.hasPlan flag.
+  const { data: overview } = useGetPlanOverview();
+  const campaignHasPlan = overview ? overview.hasPlan : true;
   const { openLog, openEdit, requestDelete, requestSkip, crushIt, isDeleting, isCrushing, dialogs } =
     useMissionActions();
 
@@ -278,6 +287,11 @@ export default function Today() {
             </p>
           </CardContent>
         </Card>
+      ) : !campaignHasPlan ? (
+        <EmptyPlanState
+          description="Build your first training plan in the Phase Planner — pick programs, set the dates, and apply to schedule today's session."
+          testId="today-empty-plan"
+        />
       ) : !today.hasPlan ? (
         <Card className="border-dashed border-2 bg-muted/50">
           <CardContent className="p-12 text-center text-muted-foreground">

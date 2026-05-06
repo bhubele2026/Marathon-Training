@@ -1438,6 +1438,7 @@ components:
       type: object
       required:
         [
+          hasPlan,
           currentWeek,
           currentPhase,
           totalWeeks,
@@ -1450,6 +1451,16 @@ components:
           activeConfigName,
         ]
       properties:
+        hasPlan:
+          type: boolean
+          description: |
+            Task #307. False when no Phase Planner config has ever been
+            applied (fresh installs and after a Full Reset that was run
+            against an empty `planner_configs`). Drives the /plan page's
+            "Open Phase Planner" empty state. All other plan-driven
+            fields on this payload still carry sentinel values
+            (`currentWeek=0`, empty `currentPhase`, etc) when false so
+            the schema stays simple, but clients should NOT render them.
         currentWeek: { type: integer }
         currentPhase: { type: string }
         totalWeeks: { type: integer }
@@ -1779,6 +1790,7 @@ components:
       type: object
       required:
         [
+          hasPlan,
           currentWeek,
           currentPhase,
           weekProgressPct,
@@ -1803,6 +1815,14 @@ components:
           activeConfigName,
         ]
       properties:
+        hasPlan:
+          type: boolean
+          description: |
+            Task #307. False when no Phase Planner config has ever been
+            applied (fresh installs / after a Full Reset against an empty
+            `planner_configs`). Drives the dashboard's "Open Phase
+            Planner" empty state for plan-driven tiles. Body Mass /
+            Recent Logs / Equipment tiles remain visible even when false.
         currentWeek: { type: integer }
         currentPhase: { type: string }
         weekProgressPct: { type: number }

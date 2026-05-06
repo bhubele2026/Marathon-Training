@@ -35,6 +35,7 @@ vi.mock("@workspace/api-client-react", () => ({
       longRunTarget: 0,
       raceKind: null,
       activeConfigName: "Workout Plan",
+      hasPlan: true,
     },
     isLoading: false,
   }),

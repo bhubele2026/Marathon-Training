@@ -51,7 +51,9 @@ const OVERVIEW: {
   longRunTarget: number;
   raceKind: "marathon" | "half" | "10k" | "5k" | null;
   activeConfigName: string;
+  hasPlan: boolean;
 } = {
+  hasPlan: true,
   currentWeek: 1,
   currentPhase: "Bike Block",
   totalWeeks: 2,

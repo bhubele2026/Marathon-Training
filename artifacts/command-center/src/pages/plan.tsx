@@ -28,6 +28,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { UndoCountdownAction } from "@/components/undo-countdown-action";
 import { FullResetDialog } from "@/components/full-reset-dialog";
+import { EmptyPlanState } from "@/components/empty-plan-state";
 import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
 import { formatDistance, formatDate } from "@/lib/format";
 import { useLocation } from "wouter";
@@ -267,6 +268,74 @@ export default function Plan() {
   }
 
   if (!overview || !weeks) return <div>Failed to load plan</div>;
+
+  // Task #307: when no Phase Planner config has ever been applied the
+  // server reports `hasPlan: false` and `weeks` is empty. Replace the
+  // entire planner UI with the shared empty-state CTA, but keep the
+  // Danger Zone Full Reset visible at the bottom so the runner can
+  // still nuke residual state if needed. The Reset Entire Plan button
+  // is hidden because there's nothing to reset.
+  if (!overview.hasPlan || weeks.length === 0) {
+    return (
+      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto">
+        <div>
+          <h2
+            className="text-3xl font-black uppercase tracking-tight text-primary"
+            data-testid="plan-header-title"
+            data-race-kind=""
+          >
+            {overview.activeConfigName?.trim() || "Workout Plan"}
+          </h2>
+          <p
+            className="text-muted-foreground uppercase font-medium tracking-widest mt-1"
+            data-testid="plan-header-subtitle"
+          >
+            No plan applied yet
+          </p>
+        </div>
+        <EmptyPlanState testId="plan-empty-plan" />
+        <Card
+          className="border-2 border-destructive/40 bg-destructive/5"
+          data-testid="card-danger-zone"
+        >
+          <CardContent className="p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <Flame className="h-5 w-5 text-destructive" />
+              <h3 className="text-sm font-black uppercase tracking-widest text-destructive">
+                Danger Zone
+              </h3>
+            </div>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="space-y-1 max-w-2xl">
+                <p className="text-sm font-bold">Full reset — start over from day one</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Wipes every logged workout, every body measurement, the
+                  race-week checklist, and every plan customization. Plan
+                  tables stay empty until you apply a Planner config.
+                  This cannot be undone.
+                </p>
+              </div>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="text-xs uppercase font-bold tracking-wider self-start md:self-auto shrink-0"
+                onClick={() => setFullResetOpen(true)}
+                data-testid="button-full-reset"
+              >
+                <Flame className="h-3 w-3 mr-1.5" /> Full Reset to Day One
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+        <FullResetDialog
+          open={fullResetOpen}
+          onOpenChange={setFullResetOpen}
+          onConfirm={confirmFullReset}
+          isPending={fullResetPlan.isPending}
+        />
+      </div>
+    );
+  }
 
   const groupedWeeks = weeks.reduce((acc, week) => {
     if (!acc[week.phase]) acc[week.phase] = [];

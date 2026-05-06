@@ -74,6 +74,7 @@ import {
 } from "@/lib/primary-metric";
 import { RunTargetLine } from "@/components/run-target-line";
 import { customizedFieldLabel, formatDiffValue } from "@/lib/customized-diff";
+import { EmptyPlanState } from "@/components/empty-plan-state";
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -222,7 +223,20 @@ export default function WeekDetail() {
     return <div className="space-y-6 max-w-4xl mx-auto"><Skeleton className="h-32 w-full" /><Skeleton className="h-96 w-full" /></div>;
   }
 
-  if (!week) return <div>Week not found</div>;
+  // Task #307: when no plan has been applied the week endpoint 404s.
+  // Render the shared empty-state CTA so the runner gets a useful next
+  // step instead of a dead "Week not found" string.
+  if (!week) {
+    return (
+      <div className="space-y-6 max-w-4xl mx-auto">
+        <EmptyPlanState
+          title="Week not found"
+          description="This week is not part of any applied plan. Open the Phase Planner to build a plan and populate your weekly schedule."
+          testId="week-empty-plan"
+        />
+      </div>
+    );
+  }
 
   // Task #242: per-kind campaign framing for the week-detail eyebrow
   // mirrors the dashboard header (Task #209) and the /plan overview

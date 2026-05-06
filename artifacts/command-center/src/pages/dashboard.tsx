@@ -35,6 +35,7 @@ import { RaceWeekBanner, ChecklistNudge } from "@/components/race-week-banner";
 import { TimeOfDayBadge } from "@/components/time-of-day-badge";
 import { phaseColor } from "@/lib/phase-colors";
 import { programColor } from "@/lib/program-colors";
+import { EmptyPlanState } from "@/components/empty-plan-state";
 
 type MileageTooltipRow = {
   phase?: string;
@@ -183,6 +184,115 @@ export default function Dashboard() {
   // (lift_primary blocks, ad-hoc Custom blocks) don't presuppose a
   // race day.
   const headerTitle = summary.activeConfigName?.trim() || "Workout Plan";
+
+  // Task #307: when no Phase Planner config has ever been applied, hide
+  // every plan-driven tile (Mission Status, Days to Race, Total Volume,
+  // Today's Mission, Week Snapshot, Mileage chart, Long Run Build) and
+  // surface the shared "Open Phase Planner" CTA. Body Mass / Mass Trend
+  // / Recent Logs / Arsenal Usage stay visible because they remain
+  // useful even before a plan exists.
+  if (!summary.hasPlan) {
+    return (
+      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div data-testid="dashboard-header" className="flex flex-col gap-2">
+          <h2
+            className="text-3xl font-black uppercase tracking-tight text-primary"
+            data-testid="dashboard-header-title"
+            data-race-kind=""
+          >
+            {headerTitle}
+          </h2>
+          <p
+            className="text-muted-foreground uppercase font-medium tracking-widest text-sm"
+            data-testid="dashboard-header-subtitle"
+          >
+            No plan applied yet
+          </p>
+        </div>
+        <EmptyPlanState testId="dashboard-empty-plan" />
+        <div
+          className="grid grid-cols-1 md:grid-cols-2 gap-4"
+          data-testid="dashboard-empty-stats"
+        >
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between space-x-2">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                    Body Mass
+                  </p>
+                  <div className="text-3xl font-black mt-1">
+                    {formatWeight(summary.weightCurrent)}
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Goal: {summary.weightGoal} |{" "}
+                    <span className="text-primary font-semibold">
+                      -{summary.weightLost.toFixed(1)} lbs
+                    </span>
+                  </p>
+                </div>
+                <TrendingDown className="h-8 w-8 text-muted-foreground opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between space-x-2">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                    Total Volume
+                  </p>
+                  <div className="text-3xl font-black mt-1">
+                    {formatDistance(summary.totalMilesAllTime)}
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Logged across all sessions
+                  </p>
+                </div>
+                <Activity className="h-8 w-8 text-muted-foreground opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        <Card data-testid="dashboard-empty-recent-activity">
+          <CardHeader>
+            <CardTitle className="text-lg uppercase tracking-wider">Recent Logs</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingActivity ? (
+              <Skeleton className="h-64" />
+            ) : !activity || activity.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No workouts logged yet. Apply a plan to start tracking your sessions, or log
+                ad-hoc activities from the Workouts page.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {activity.slice(0, 5).map((act) => (
+                  <div key={act.id} className="flex gap-3">
+                    <div className="flex flex-col items-center">
+                      <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-bold shrink-0">
+                        {act.equipment.substring(0, 1)}
+                      </div>
+                      <div className="w-px h-full bg-border my-1"></div>
+                    </div>
+                    <div className="pb-4">
+                      <div className="text-xs text-muted-foreground">{formatDate(act.date)}</div>
+                      <div className="font-bold text-sm">{act.sessionType}</div>
+                      <div className="text-xs flex gap-2 mt-1">
+                        {act.distanceMi ? <span>{formatDistance(act.distanceMi)}</span> : null}
+                        {act.durationMin ? <span>{formatDuration(act.durationMin)}</span> : null}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">

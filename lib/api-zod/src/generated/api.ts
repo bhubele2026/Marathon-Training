@@ -12,6 +12,11 @@ export const HealthCheckResponse = zod.object({
 });
 
 export const GetPlanOverviewResponse = zod.object({
+  hasPlan: zod
+    .boolean()
+    .describe(
+      'Task #307. False when no Phase Planner config has ever been\napplied (fresh installs and after a Full Reset that was run\nagainst an empty `planner_configs`). Drives the \/plan page\'s\n\"Open Phase Planner\" empty state. All other plan-driven\nfields on this payload still carry sentinel values\n(`currentWeek=0`, empty `currentPhase`, etc) when false so\nthe schema stays simple, but clients should NOT render them.\n',
+    ),
   currentWeek: zod.number(),
   currentPhase: zod.string(),
   totalWeeks: zod.number(),
@@ -2279,6 +2284,11 @@ export const DeleteMeasurementParams = zod.object({
 });
 
 export const GetDashboardSummaryResponse = zod.object({
+  hasPlan: zod
+    .boolean()
+    .describe(
+      'Task #307. False when no Phase Planner config has ever been\napplied (fresh installs \/ after a Full Reset against an empty\n`planner_configs`). Drives the dashboard\'s \"Open Phase\nPlanner\" empty state for plan-driven tiles. Body Mass \/\nRecent Logs \/ Equipment tiles remain visible even when false.\n',
+    ),
   currentWeek: zod.number(),
   currentPhase: zod.string(),
   weekProgressPct: zod.number(),

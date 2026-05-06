@@ -430,6 +430,15 @@ export const PlanOverviewRaceKind = {
 } as const;
 
 export interface PlanOverview {
+  /** Task #307. False when no Phase Planner config has ever been
+applied (fresh installs and after a Full Reset that was run
+against an empty `planner_configs`). Drives the /plan page's
+"Open Phase Planner" empty state. All other plan-driven
+fields on this payload still carry sentinel values
+(`currentWeek=0`, empty `currentPhase`, etc) when false so
+the schema stays simple, but clients should NOT render them.
+ */
+  hasPlan: boolean;
   currentWeek: number;
   currentPhase: string;
   totalWeeks: number;
@@ -807,6 +816,13 @@ export interface DashboardSummaryProgram {
 }
 
 export interface DashboardSummary {
+  /** Task #307. False when no Phase Planner config has ever been
+applied (fresh installs / after a Full Reset against an empty
+`planner_configs`). Drives the dashboard's "Open Phase
+Planner" empty state for plan-driven tiles. Body Mass /
+Recent Logs / Equipment tiles remain visible even when false.
+ */
+  hasPlan: boolean;
   currentWeek: number;
   currentPhase: string;
   weekProgressPct: number;

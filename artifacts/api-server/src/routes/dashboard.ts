@@ -273,6 +273,7 @@ router.get("/dashboard/summary", async (_req, res) => {
     : null;
 
   res.json({
+    hasPlan: !!weekRow,
     currentWeek: weekRow?.week ?? 1,
     currentPhase: weekRow?.phase ?? "Foundation Build",
     weekProgressPct,

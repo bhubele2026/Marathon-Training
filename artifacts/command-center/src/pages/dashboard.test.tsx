@@ -125,7 +125,9 @@ const SUMMARY: {
   programs: Array<unknown>;
   raceKind: "marathon" | "half" | "10k" | "5k" | null;
   activeConfigName: string;
+  hasPlan: boolean;
 } = {
+  hasPlan: true,
   currentWeek: 34,
   currentPhase: "Marathon-Specific",
   totalWeeks: 52,
@@ -734,8 +736,11 @@ describe("Dashboard — prescribed run target on Recent Logs (task #147)", () =>
     };
   }
 
-  function setupActivity(rows: ReadonlyArray<ReturnType<typeof makeRecent>>) {
-    setupHooks([]);
+  function setupActivity(
+    rows: ReadonlyArray<ReturnType<typeof makeRecent>>,
+    summaryOverrides: Partial<typeof SUMMARY> = {},
+  ) {
+    setupHooks([], summaryOverrides);
     mockActivity.mockReturnValue({
       data: rows,
       isLoading: false,
@@ -760,6 +765,35 @@ describe("Dashboard — prescribed run target on Recent Logs (task #147)", () =>
     const target = screen.getByTestId("recent-activity-700-run-target");
     expect(target.getAttribute("data-run-targeting-mode")).toBe("effort");
     expect(target.textContent).toContain("Effort");
+  });
+
+  // Task #307: empty-plan dashboard mode must surface the "Open Phase
+  // Planner" CTA AND continue rendering Body Mass + Recent Logs so the
+  // runner can still see baseline data and quick-log activities even
+  // before applying a plan.
+  it("renders the empty-plan CTA and preserves Body Mass + Recent Logs when hasPlan is false", () => {
+    setupActivity([
+      makeRecent({
+        id: 901,
+        date: "2026-05-03",
+        sessionType: "Outdoor Walk",
+        equipment: "Outdoor",
+        equipmentList: ["Outdoor"],
+        runMin: 30,
+        distanceMi: 1.5,
+        pace: null,
+        prescribedRunTarget: null,
+      }),
+    ], { hasPlan: false });
+    render(<Dashboard />);
+
+    expect(screen.getByTestId("dashboard-empty-plan")).toBeTruthy();
+    expect(screen.getByTestId("dashboard-empty-plan-cta")).toBeTruthy();
+    expect(screen.getByTestId("dashboard-empty-stats")).toBeTruthy();
+    expect(screen.getByText("Body Mass")).toBeTruthy();
+    // Recent Logs preserved with the logged workout visible.
+    expect(screen.getByTestId("dashboard-empty-recent-activity")).toBeTruthy();
+    expect(screen.getByText("Outdoor Walk")).toBeTruthy();
   });
 
   it("does NOT render a RunTargetLine on a non-run row (rest / strength / cardio or off-plan with no snapshot)", () => {

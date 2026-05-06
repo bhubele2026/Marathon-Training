@@ -26,6 +26,13 @@ const { raceWeekRef } = vi.hoisted(() => ({
 
 vi.mock("@workspace/api-client-react", () => ({
   useGetTodayPlan: vi.fn(),
+  // Task #307: Today gates EmptyPlanState on the campaign-level
+  // overview.hasPlan flag (in addition to the per-day today.hasPlan)
+  // so a real rest day inside an applied plan still shows the rest
+  // card instead of the setup CTA. Default to hasPlan: true so every
+  // existing scenario continues to behave; the dedicated
+  // empty-campaign tests override via mockedUseOverview below.
+  useGetPlanOverview: vi.fn(),
   useGetUserPreferences: () => ({
     data: {
       runTargetingMode: runTargetingModeRef.current,
@@ -61,12 +68,22 @@ vi.mock("@/components/race-week-banner", () => ({
   ChecklistNudge: () => null,
 }));
 
-import { useGetTodayPlan } from "@workspace/api-client-react";
+import { useGetTodayPlan, useGetPlanOverview } from "@workspace/api-client-react";
 import { HR_ZONE_COLORS } from "@/lib/run-target";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Today from "./today";
 
 const mockedUseToday = vi.mocked(useGetTodayPlan);
+const mockedUseOverview = vi.mocked(useGetPlanOverview);
+
+// Default the overview mock to a campaign-with-plan response so existing
+// tests don't have to opt in. Empty-campaign tests override per-test.
+function defaultOverview(hasPlan: boolean) {
+  mockedUseOverview.mockReturnValue({
+    data: { hasPlan },
+    isLoading: false,
+  } as unknown as ReturnType<typeof useGetPlanOverview>);
+}
 
 const firstSession = {
   id: 1,
@@ -101,11 +118,15 @@ const restPlan = {
   totalLoad: 0,
 };
 
-function renderWithData(payload: Record<string, unknown>) {
+function renderWithData(
+  payload: Record<string, unknown>,
+  options: { campaignHasPlan?: boolean } = {},
+) {
   mockedUseToday.mockReturnValue({
     data: payload,
     isLoading: false,
   } as unknown as ReturnType<typeof useGetTodayPlan>);
+  defaultOverview(options.campaignHasPlan ?? true);
   // Wrap in TooltipProvider so the race-day personalized pace chip
   // (Task #235) can mount its Radix Tooltip without throwing
   // "Tooltip must be used within TooltipProvider". The real app
@@ -1764,5 +1785,51 @@ describe("Today page — per-kind eyebrow (task #306)", () => {
     expect(eyebrow.textContent).toBe(label);
     expect(eyebrow.getAttribute("data-race-week")).toBeNull();
     expect(eyebrow.getAttribute("data-post-race")).toBe("true");
+  });
+});
+
+// Task #307: campaign-level vs per-day plan presence on Today.
+describe("Today page — empty plan vs rest day (Task #307)", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("shows the EmptyPlanState CTA when no campaign exists at all", () => {
+    renderWithData(
+      {
+        date: "2026-05-04",
+        hasPlan: false,
+        plan: null,
+        loggedWorkouts: [],
+        suggestions: null,
+        daysUntilStart: null,
+        firstSession: null,
+      },
+      { campaignHasPlan: false },
+    );
+    expect(screen.getByTestId("today-empty-plan")).toBeTruthy();
+    expect(screen.getByTestId("today-empty-plan-cta")).toBeTruthy();
+    // The legacy "Rest Day" card must NOT also render.
+    expect(screen.queryByText("Rest Day")).toBeNull();
+  });
+
+  it("keeps the legacy rest-day card when an applied plan has no row today", () => {
+    // Campaign has a plan, but today's date returns hasPlan: false (rest
+    // day inside an applied plan, or a date outside the plan window).
+    renderWithData(
+      {
+        date: "2026-05-04",
+        hasPlan: false,
+        plan: null,
+        loggedWorkouts: [],
+        suggestions: null,
+        daysUntilStart: null,
+        firstSession: null,
+      },
+      { campaignHasPlan: true },
+    );
+    expect(screen.queryByTestId("today-empty-plan")).toBeNull();
+    expect(screen.getByText("Rest Day")).toBeTruthy();
   });
 });
