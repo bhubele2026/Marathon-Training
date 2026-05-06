@@ -59,6 +59,7 @@ import { adherenceStatus, adherenceTextClass } from "@/lib/adherence";
 import { raceDayLabel } from "@/lib/race-day-label";
 import type { RaceDayKind } from "@/lib/race-day-label";
 import { PlanDayForm } from "@/components/plan-day-form";
+import { EquipmentChipRail } from "@/components/equipment-chip-rail";
 import { MoveDayPicker } from "@/components/move-day-picker";
 import { sortWorkoutsByTimeOfDay } from "@/lib/time-of-day";
 import { TimeOfDayBadge } from "@/components/time-of-day-badge";
@@ -741,17 +742,12 @@ export default function WeekDetail() {
                     </div>
                   </div>
                   <SessionDetailDisclosure testId={`toggle-day-plan-detail-${chipTestIdSuffix}`}>
-                    <div className="flex flex-wrap gap-2">
-                      {(day.equipmentList ?? [day.equipment]).map((eq, idx) => (
-                        <span
-                          key={`${day.date}-eq-${idx}`}
-                          className="text-[10px] bg-secondary text-secondary-foreground px-2 py-1 rounded font-bold uppercase tracking-wider"
-                          data-testid={`chip-equipment-${chipTestIdSuffix}-${idx}`}
-                        >
-                          {eq}
-                        </span>
-                      ))}
-                    </div>
+                    <EquipmentChipRail
+                      equipmentList={day.equipmentList}
+                      equipment={day.equipment}
+                      chipTestIdPrefix={`chip-equipment-${chipTestIdSuffix}`}
+                      keyPrefix={`${day.date}-eq`}
+                    />
                   </SessionDetailDisclosure>
                   {sessions.length > 0 && (
                     <div className="space-y-2 pl-1">
@@ -1144,17 +1140,12 @@ export default function WeekDetail() {
                       />
                       <SessionDetailDisclosure testId={`toggle-day-plan-detail-${chipTestIdSuffix}`}>
                         <div className="space-y-3">
-                          <div className="flex flex-wrap gap-2">
-                            {(day.equipmentList ?? [day.equipment]).map((eq, idx) => (
-                              <span
-                                key={`${day.date}-eq-${idx}`}
-                                className="text-[10px] bg-secondary text-secondary-foreground px-2 py-1 rounded font-bold uppercase tracking-wider"
-                                data-testid={`chip-equipment-${chipTestIdSuffix}-${idx}`}
-                              >
-                                {eq}
-                              </span>
-                            ))}
-                          </div>
+                          <EquipmentChipRail
+                            equipmentList={day.equipmentList}
+                            equipment={day.equipment}
+                            chipTestIdPrefix={`chip-equipment-${chipTestIdSuffix}`}
+                            keyPrefix={`${day.date}-eq`}
+                          />
                           <div className="flex flex-wrap gap-4 text-sm">
                             {day.distanceMi != null && (
                               <div>

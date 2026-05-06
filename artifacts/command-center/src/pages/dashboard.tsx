@@ -18,6 +18,7 @@ import type { TooltipProps } from "recharts";
 import { formatDistance, formatLoad, formatWeight, formatDate, formatDuration } from "@/lib/format";
 import { PrimaryMetricDisplay } from "@/components/primary-metric-display";
 import { SessionDetailDisclosure } from "@/components/session-detail-disclosure";
+import { EquipmentChipRail } from "@/components/equipment-chip-rail";
 import { PlannedBreakdown } from "@/components/planned-breakdown";
 import { ActualBreakdown } from "@/components/actual-breakdown";
 import {
@@ -452,17 +453,12 @@ export default function Dashboard() {
                         <div className="mt-3">
                           <SessionDetailDisclosure testId="toggle-dashboard-today-plan-detail">
                             <div className="space-y-3">
-                              <div className="flex flex-wrap gap-2">
-                                {(today.plan.equipmentList ?? [today.plan.equipment]).map((eq, idx) => (
-                                  <span
-                                    key={`dash-eq-${idx}`}
-                                    className="px-2 py-0.5 bg-secondary text-secondary-foreground rounded text-xs uppercase font-bold tracking-wider"
-                                    data-testid={`chip-equipment-dashboard-${today.plan!.date}-${idx}`}
-                                  >
-                                    {eq}
-                                  </span>
-                                ))}
-                              </div>
+                              <EquipmentChipRail
+                                equipmentList={today.plan.equipmentList}
+                                equipment={today.plan.equipment}
+                                chipTestIdPrefix={`chip-equipment-dashboard-${today.plan.date}`}
+                                keyPrefix="dash-eq"
+                              />
                               <PlannedBreakdown
                                 totalMin={today.plan.totalMin}
                                 strengthMin={today.plan.strengthMin}
@@ -552,20 +548,13 @@ export default function Dashboard() {
                                   testId={`toggle-dashboard-session-detail-${session.id}`}
                                 >
                                   <div className="space-y-3">
-                                    <span
-                                      className="flex flex-wrap gap-1"
-                                      data-testid={`chip-rail-actual-dashboard-${session.id}`}
-                                    >
-                                      {(session.equipmentList ?? [session.equipment]).map((eq, idx) => (
-                                        <span
-                                          key={`dash-actual-eq-${session.id}-${idx}`}
-                                          className="text-[10px] bg-secondary text-secondary-foreground px-2 py-0.5 rounded font-bold uppercase tracking-wider"
-                                          data-testid={`chip-equipment-actual-dashboard-${session.id}-${idx}`}
-                                        >
-                                          {eq}
-                                        </span>
-                                      ))}
-                                    </span>
+                                    <EquipmentChipRail
+                                      equipmentList={session.equipmentList}
+                                      equipment={session.equipment}
+                                      chipTestIdPrefix={`chip-equipment-actual-dashboard-${session.id}`}
+                                      railTestId={`chip-rail-actual-dashboard-${session.id}`}
+                                      keyPrefix={`dash-actual-eq-${session.id}`}
+                                    />
                                     <ActualBreakdown
                                       totalMin={session.totalMin}
                                       strengthMin={session.strengthMin}

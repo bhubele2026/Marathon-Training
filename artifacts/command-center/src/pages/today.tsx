@@ -17,6 +17,7 @@ import { PlannedBreakdown } from "@/components/planned-breakdown";
 import { ActualBreakdown } from "@/components/actual-breakdown";
 import { PrimaryMetricDisplay } from "@/components/primary-metric-display";
 import { SessionDetailDisclosure } from "@/components/session-detail-disclosure";
+import { EquipmentChipRail } from "@/components/equipment-chip-rail";
 import {
   Tooltip,
   TooltipContent,
@@ -217,20 +218,12 @@ export default function Today() {
               <div className="mt-4">
                 <SessionDetailDisclosure testId="toggle-first-session-detail">
                   <div className="space-y-4">
-                    <div className="flex flex-wrap gap-2">
-                      {(today.firstSession.equipmentList ?? [today.firstSession.equipment]).map((eq, idx) => {
-                        const date = today.firstSession!.date;
-                        return (
-                          <span
-                            key={`first-eq-${idx}`}
-                            className="text-[10px] bg-secondary text-secondary-foreground px-2 py-1 rounded font-bold uppercase tracking-wider"
-                            data-testid={`chip-equipment-${date}-${idx}`}
-                          >
-                            {eq}
-                          </span>
-                        );
-                      })}
-                    </div>
+                    <EquipmentChipRail
+                      equipmentList={today.firstSession.equipmentList}
+                      equipment={today.firstSession.equipment}
+                      chipTestIdPrefix={`chip-equipment-${today.firstSession.date}`}
+                      keyPrefix="first-eq"
+                    />
                     <RunTargetLine
                       sessionType={today.firstSession.sessionType}
                       week={today.firstSession.week}
@@ -608,17 +601,12 @@ export default function Today() {
                         testId={`toggle-today-plan-detail-${plan.sourceEntryIndex}`}
                       >
                         <div className="space-y-4">
-                          <div className="flex flex-wrap gap-2">
-                            {(plan.equipmentList ?? [plan.equipment]).map((eq, idx) => (
-                              <span
-                                key={`today-eq-${plan.id}-${idx}`}
-                                className="px-3 py-1 bg-secondary text-secondary-foreground rounded text-sm uppercase font-bold tracking-wider"
-                                data-testid={`chip-equipment-${plan.date}-${idx}`}
-                              >
-                                {eq}
-                              </span>
-                            ))}
-                          </div>
+                          <EquipmentChipRail
+                            equipmentList={plan.equipmentList}
+                            equipment={plan.equipment}
+                            chipTestIdPrefix={`chip-equipment-${plan.date}`}
+                            keyPrefix={`today-eq-${plan.id}`}
+                          />
                           {/* Task #135 + RunTargetLine: per-plan run-pace
                               target line so each concurrent program's
                               run target stands on its own. testId is
@@ -902,20 +890,13 @@ export default function Today() {
                   testId={`toggle-today-session-detail-${session.id}`}
                 >
                   <div className="space-y-6">
-                    <span
-                      className="flex flex-wrap gap-1"
-                      data-testid={`chip-rail-actual-${session.id}`}
-                    >
-                      {(session.equipmentList ?? [session.equipment]).map((eq, idx) => (
-                        <span
-                          key={`actual-eq-${session.id}-${idx}`}
-                          className="text-[10px] bg-secondary text-secondary-foreground px-2 py-0.5 rounded font-bold uppercase tracking-wider"
-                          data-testid={`chip-equipment-actual-${session.id}-${idx}`}
-                        >
-                          {eq}
-                        </span>
-                      ))}
-                    </span>
+                    <EquipmentChipRail
+                      equipmentList={session.equipmentList}
+                      equipment={session.equipment}
+                      chipTestIdPrefix={`chip-equipment-actual-${session.id}`}
+                      railTestId={`chip-rail-actual-${session.id}`}
+                      keyPrefix={`actual-eq-${session.id}`}
+                    />
                     {/* Task #140: surface the prescribed run-target
                         line in the user's chosen mode (effort /
                         intervals / HR zone / pace) next to the actuals
