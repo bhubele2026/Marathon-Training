@@ -105,6 +105,43 @@ describe("RunTargetLine — race-week pace chip toned per race kind (Task #227)"
     expect(screen.getByTestId("race-target-primary").textContent).toContain("10:30/mi");
   });
 
+  it("renders a one-line zone-vocabulary caption decoding the tone (task #234)", () => {
+    // Each toned chip surfaces a short hint using the same Z3/Z4/Z5 +
+    // threshold/VO2 vocabulary used by the Settings preview so the
+    // colors stop looking decorative — runners learn red 5K means
+    // "hard / VO2 effort" while amber marathon means "settle in".
+    renderRaceChip({ distanceMi: 3.1, pace: "10:30", zoneBucket: 5 });
+    const hint5k = screen.getByTestId("race-target-zone-hint");
+    expect(hint5k.textContent).toContain("Z5");
+    expect(hint5k.textContent?.toLowerCase()).toContain("vo2");
+    cleanup();
+
+    renderRaceChip({ distanceMi: 6.2, pace: "11:00", zoneBucket: 4 });
+    const hint10k = screen.getByTestId("race-target-zone-hint");
+    expect(hint10k.textContent).toContain("Z4");
+    expect(hint10k.textContent?.toLowerCase()).toContain("threshold");
+    cleanup();
+
+    renderRaceChip({ distanceMi: 26.2, pace: "11:30", zoneBucket: 3 });
+    const hintMar = screen.getByTestId("race-target-zone-hint");
+    expect(hintMar.textContent).toContain("Z3");
+  });
+
+  it("does NOT render a zone-vocabulary caption on the untoned generic chip (task #234)", () => {
+    render(
+      <RunTargetLine
+        sessionType="Easy Run"
+        week={4}
+        runMin={30}
+        distanceMi={3}
+        pace="9:30"
+        variant="prominent"
+        testId="generic-target"
+      />,
+    );
+    expect(screen.queryByTestId("generic-target-zone-hint")).toBeNull();
+  });
+
   it("eyebrow label switches from text-primary to the toned label color", () => {
     renderRaceChip({ distanceMi: 3.1, pace: "10:30", zoneBucket: 5 });
     // The "Run Target · Pace" eyebrow lives inside the chip; locate it

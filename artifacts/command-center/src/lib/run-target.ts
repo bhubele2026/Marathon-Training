@@ -256,34 +256,53 @@ export const HR_ZONE_COLORS: Record<
 // re-toned variant doesn't suddenly read as a louder/different
 // element. The label tones use 700 in light / 300 in dark for AA
 // contrast against the 10% wash background in either theme.
+// Task #234: each tone also carries a one-line `description` decoding
+// the color into the zone vocabulary the rest of the app uses (Z3,
+// Z4, Z5 / steady / threshold / VO2). Race-week pace chips render
+// the description as a caption below the chip so a runner who's
+// new to zones learns that red 5K means "hard / VO2" while amber
+// marathon means "settle in". Centralized here so every surface that
+// dresses a chip in a zone tone (RunTargetLine prominent variant,
+// race-week banner Target Pace tile, future surfaces) can render the
+// same caption without re-stating the vocabulary.
 export const HR_ZONE_TONES: Record<
   1 | 2 | 3 | 4 | 5,
-  { borderClass: string; bgClass: string; labelClass: string }
+  {
+    borderClass: string;
+    bgClass: string;
+    labelClass: string;
+    description: string;
+  }
 > = {
   1: {
     borderClass: "border-slate-400/40",
     bgClass: "bg-slate-400/10",
     labelClass: "text-slate-700 dark:text-slate-300",
+    description: "Z1 · Recovery effort",
   },
   2: {
     borderClass: "border-emerald-500/40",
     bgClass: "bg-emerald-500/10",
     labelClass: "text-emerald-700 dark:text-emerald-300",
+    description: "Z2 · Easy aerobic",
   },
   3: {
     borderClass: "border-amber-500/40",
     bgClass: "bg-amber-500/10",
     labelClass: "text-amber-700 dark:text-amber-300",
+    description: "Z3 · Steady marathon-pace",
   },
   4: {
     borderClass: "border-orange-500/40",
     bgClass: "bg-orange-500/10",
     labelClass: "text-orange-700 dark:text-orange-300",
+    description: "Z4 · Threshold effort",
   },
   5: {
     borderClass: "border-red-500/40",
     bgClass: "bg-red-500/10",
     labelClass: "text-red-700 dark:text-red-300",
+    description: "Z5 · VO2 effort",
   },
 };
 

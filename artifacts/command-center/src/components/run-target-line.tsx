@@ -138,6 +138,22 @@ export function RunTargetLine({
         )}
         <span>{primary}</span>
       </p>
+      {/* Task #234: when the chip is dressed in a zone tone (race-week
+          pace chip on Today / week-detail), surface a one-line caption
+          decoding the color into the same Z3/Z4/Z5 + threshold/VO2
+          vocabulary used elsewhere in the app so the runner learns
+          what each tone means. */}
+      {tone ? (
+        <p
+          className={cn(
+            "mt-1 text-[10px] uppercase font-bold tracking-wider",
+            tone.labelClass,
+          )}
+          data-testid={testId ? `${testId}-zone-hint` : undefined}
+        >
+          {tone.description}
+        </p>
+      ) : null}
     </div>
   );
 }

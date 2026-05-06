@@ -121,6 +121,38 @@ describe("RaceWeekBanner — race-day Target Pace tile (Task #227)", () => {
     expect(chip.className).toContain("bg-amber-500/10");
   });
 
+  it("renders a one-line zone-vocabulary caption decoding the tone (task #234)", () => {
+    // The dashboard race-day Target Pace tile mirrors the toned chip on
+    // Today / week-detail and surfaces a Z3/Z4/Z5 + threshold/VO2
+    // caption so the colors stop looking decorative — runners learn
+    // red 5K means VO2 / orange 10K means threshold / amber marathon
+    // means settle in.
+    setupRaceDay({ distanceMi: 3.1, description: "RACE DAY — 5K.", targetPace: "10:30" });
+    render(<RaceWeekBanner />);
+    const hint = screen.getByTestId("race-day-target-pace-zone-hint");
+    expect(hint.textContent).toContain("Z5");
+    expect(hint.textContent?.toLowerCase()).toContain("vo2");
+    cleanup();
+
+    setupRaceDay({ distanceMi: 6.2, description: "RACE DAY — 10K.", targetPace: "11:00" });
+    render(<RaceWeekBanner />);
+    const hint10k = screen.getByTestId("race-day-target-pace-zone-hint");
+    expect(hint10k.textContent).toContain("Z4");
+    expect(hint10k.textContent?.toLowerCase()).toContain("threshold");
+    cleanup();
+
+    setupRaceDay({ distanceMi: 26.2, description: "RACE DAY — Marathon." });
+    render(<RaceWeekBanner />);
+    const hintMar = screen.getByTestId("race-day-target-pace-zone-hint");
+    expect(hintMar.textContent).toContain("Z3");
+  });
+
+  it("does NOT render a zone-vocabulary caption on the untoned fallback chip (task #234)", () => {
+    setupRaceDay({ distanceMi: 8, description: "RACE DAY — Custom." });
+    render(<RaceWeekBanner />);
+    expect(screen.queryByTestId("race-day-target-pace-zone-hint")).toBeNull();
+  });
+
   it("falls back to the generic muted tone when racePlan distance doesn't match a real race kind", () => {
     // Defensive fallback: if the API ever returns a non-canonical
     // distance (legacy / hand-edited row), the chip should still

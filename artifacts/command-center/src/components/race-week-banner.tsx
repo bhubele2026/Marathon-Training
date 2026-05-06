@@ -820,6 +820,22 @@ function PlanStat({
         {label}
       </p>
       <p className="mt-1 text-lg font-black">{value}</p>
+      {/* Task #234: decode the zone tone with a one-line caption using
+          the same Z3/Z4/Z5 + threshold/VO2 vocabulary used elsewhere
+          (Settings preview, RunTargetLine) so the dashboard runner
+          learns red 5K means VO2 / amber marathon means settle in,
+          rather than the colors looking purely decorative. */}
+      {tone ? (
+        <p
+          className={cn(
+            "mt-1 text-[10px] uppercase font-bold tracking-wider",
+            tone.labelClass,
+          )}
+          data-testid={testId ? `${testId}-zone-hint` : undefined}
+        >
+          {tone.description}
+        </p>
+      ) : null}
     </div>
   );
 }
