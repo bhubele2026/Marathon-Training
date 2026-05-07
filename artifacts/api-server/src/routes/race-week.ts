@@ -5,16 +5,17 @@ import {
   raceWeekChecklistTable,
   raceResultsTable,
 } from "@workspace/db";
-import { eq, asc, desc, inArray } from "drizzle-orm";
+import { eq, asc, desc, ne, and, inArray } from "drizzle-orm";
 import {
   SetRaceWeekChecklistItemBody,
   CreateRaceWeekChecklistItemBody,
   SetRaceResultBody,
 } from "@workspace/api-zod";
 import { randomUUID } from "node:crypto";
-import { readActiveRaceDate } from "./planner";
-import { toRaceResult } from "../lib/transforms";
 import { detectRaceKind, type RaceDayKind } from "@workspace/plan-generator";
+import { readActiveRaceDate } from "./planner";
+import { toRaceResult, type RaceResultExtras } from "../lib/transforms";
+import type { RaceResultRow } from "@workspace/db";
 
 const RACE_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -44,6 +45,106 @@ const CUSTOM_ITEM_PREFIX = "custom-";
 function todayUtcMidnight(): Date {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+// Task #265. Parse a free-form finish-time string ("H:MM:SS",
+// "MM:SS", or with optional fractional seconds) into total seconds.
+// Returns null when the string can't be confidently parsed so the PR
+// comparison silently falls back to "no comparison" rather than
+// surfacing a wildly wrong delta.
+export function parseFinishTimeToSeconds(value: string | null | undefined): number | null {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  // Accept H:MM:SS, MM:SS, or SS (with optional .frac on the seconds).
+  const parts = trimmed.split(":").map((p) => p.trim());
+  if (parts.length < 1 || parts.length > 3) return null;
+  const nums = parts.map((p) => Number(p));
+  if (nums.some((n) => !Number.isFinite(n) || n < 0)) return null;
+  let h = 0,
+    m = 0,
+    s = 0;
+  if (parts.length === 3) {
+    [h, m, s] = nums as [number, number, number];
+  } else if (parts.length === 2) {
+    [m, s] = nums as [number, number];
+  } else {
+    [s] = nums as [number];
+  }
+  if (m >= 60 || s >= 60) return null;
+  const total = h * 3600 + m * 60 + s;
+  if (total <= 0) return null;
+  return Math.round(total);
+}
+
+// Task #265. Format a signed second-delta back into a "−1:43" / "+0:08"
+// style string for the PR comparison line. Hours-level deltas wrap to
+// "H:MM:SS" so a marathon that beats the prior best by 11 minutes
+// still reads cleanly.
+export function formatSignedDelta(deltaSeconds: number): string {
+  const sign = deltaSeconds < 0 ? "−" : deltaSeconds > 0 ? "+" : "±";
+  const abs = Math.abs(deltaSeconds);
+  const h = Math.floor(abs / 3600);
+  const m = Math.floor((abs % 3600) / 60);
+  const s = abs % 60;
+  const mm = String(m).padStart(h > 0 ? 2 : 1, "0");
+  const ss = String(s).padStart(2, "0");
+  return h > 0 ? `${sign}${h}:${mm}:${ss}` : `${sign}${mm}:${ss}`;
+}
+
+// Task #265. Look up the active race-day plan_day at `raceDate` and
+// classify it via the shared `detectRaceKind` helper so the captured
+// race kind matches the rest of the app (dashboard banner, week
+// detail, etc). Falls back to null when the plan_day is missing or
+// the row isn't recognised as a real race day.
+async function detectRaceKindForDate(raceDate: string): Promise<RaceDayKind | null> {
+  const planRow = (
+    await db.select().from(planDaysTable).where(eq(planDaysTable.date, raceDate)).limit(1)
+  )[0];
+  if (!planRow) return null;
+  return detectRaceKind(planRow.distanceMi, planRow.description, planRow.sessionType);
+}
+
+// Task #265. Compute the previous-best comparison for `current`. We
+// scan every other `race_results` row sharing the same `raceKind`
+// (excluding `current.raceDate`), pick the one with the lowest
+// parseable finish time, and return both the absolute prior best and
+// the signed second-delta. Returns the empty result when no prior row
+// of the same kind exists, when the current row has no parseable
+// finish time, or when no prior row has a parseable finish time.
+async function computeRaceResultExtras(current: RaceResultRow): Promise<RaceResultExtras> {
+  const empty: RaceResultExtras = { previousBest: null, isPersonalRecord: false };
+  if (!current.raceKind) return empty;
+  const currentSeconds = parseFinishTimeToSeconds(current.finishTime);
+  if (currentSeconds == null) return empty;
+
+  const peers = await db
+    .select()
+    .from(raceResultsTable)
+    .where(
+      and(
+        eq(raceResultsTable.raceKind, current.raceKind),
+        ne(raceResultsTable.raceDate, current.raceDate),
+      ),
+    );
+
+  let best: { row: RaceResultRow; seconds: number } | null = null;
+  for (const peer of peers) {
+    const peerSeconds = parseFinishTimeToSeconds(peer.finishTime);
+    if (peerSeconds == null) continue;
+    if (best == null || peerSeconds < best.seconds) {
+      best = { row: peer, seconds: peerSeconds };
+    }
+  }
+  if (best == null) return empty;
+  return {
+    previousBest: {
+      raceDate: best.row.raceDate,
+      finishTime: best.row.finishTime ?? "",
+      deltaSeconds: currentSeconds - best.seconds,
+    },
+    isPersonalRecord: currentSeconds < best.seconds,
+  };
 }
 
 function extractFuelingNote(description: string | null | undefined): string | null {
@@ -103,7 +204,10 @@ router.get("/race-week", async (_req, res) => {
         .where(eq(raceResultsTable.raceDate, raceDate))
         .limit(1)
     )[0];
-    if (resultRow) raceResult = toRaceResult(resultRow);
+    if (resultRow) {
+      const extras = await computeRaceResultExtras(resultRow);
+      raceResult = toRaceResult(resultRow, extras);
+    }
   }
 
   // Order by `created_at` so custom items keep a stable display order
@@ -296,6 +400,12 @@ router.put("/race-week/result", async (req, res): Promise<void> => {
   }
   const raceDate = await readActiveRaceDate();
   const now = new Date();
+  // Task #265. Capture the race kind at write time from the active
+  // plan_day so PR comparisons across past campaigns survive Phase
+  // Planner re-applies (which wipe plan_days but leave race_results
+  // intact). Falls back to null when the plan_day is missing or
+  // unrecognised — the comparison silently skips those rows.
+  const detectedKind = await detectRaceKindForDate(raceDate);
   const values = {
     raceDate,
     finishTime: parsed.data.finishTime ?? null,
@@ -303,6 +413,7 @@ router.put("/race-week/result", async (req, res): Promise<void> => {
     placementTotal: parsed.data.placementTotal ?? null,
     feltRating: parsed.data.feltRating ?? null,
     notes: parsed.data.notes ?? null,
+    raceKind: detectedKind,
     updatedAt: now,
   };
   const upserted = await db
@@ -315,7 +426,9 @@ router.put("/race-week/result", async (req, res): Promise<void> => {
       set: values,
     })
     .returning();
-  res.json(toRaceResult(upserted[0]!));
+  const row = upserted[0]!;
+  const extras = await computeRaceResultExtras(row);
+  res.json(toRaceResult(row, extras));
 });
 
 router.put("/race-week/checklist/:itemId", async (req, res): Promise<void> => {

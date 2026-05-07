@@ -435,10 +435,35 @@ export function toWorkout(
   };
 }
 
-export function toRaceResult(
-  r: RaceResultRow,
-  extras?: { raceKind?: "marathon" | "half" | "10k" | "5k" | null },
-) {
+export type RaceResultRaceKind = "marathon" | "half" | "10k" | "5k";
+
+function toRaceKind(value: string | null | undefined): RaceResultRaceKind | null {
+  if (value === "marathon" || value === "half" || value === "10k" || value === "5k") {
+    return value;
+  }
+  return null;
+}
+
+// Task #265 + #266. Extras computed by the route layer:
+// - `previousBest` / `isPersonalRecord` (Task #265): PR comparison
+//   context computed by /api/race-week and /api/race-week/result
+//   across every other `race_results` row of the same `raceKind`.
+// - `raceKind` (Task #266): override derived from the matching
+//   `plan_days` row on the same date. Used by the /races history
+//   endpoint as a fallback for legacy rows where the persisted
+//   `race_kind` column is still null. When omitted, the persisted
+//   column on the row wins.
+export interface RaceResultExtras {
+  previousBest?: {
+    raceDate: string;
+    finishTime: string;
+    deltaSeconds: number;
+  } | null;
+  isPersonalRecord?: boolean;
+  raceKind?: RaceResultRaceKind | null;
+}
+
+export function toRaceResult(r: RaceResultRow, extras: RaceResultExtras = {}) {
   return {
     raceDate: r.raceDate,
     finishTime: r.finishTime,
@@ -446,11 +471,13 @@ export function toRaceResult(
     placementTotal: r.placementTotal,
     feltRating: r.feltRating,
     notes: r.notes,
-    // Task #266: best-effort kind derived from the matching plan_days row
-    // on the same date. Populated by /race-results (the history listing)
-    // so the UI can render a per-row badge; left null on the single-row
-    // endpoints that don't bother with the join.
-    raceKind: extras?.raceKind ?? null,
+    // Persisted `race_kind` from the row (Task #265, captured at write
+    // time) wins; the route-layer override (Task #266, derived from
+    // plan_days on the /races history endpoint) is a fallback for legacy
+    // rows where the column is still null.
+    raceKind: toRaceKind(r.raceKind) ?? extras.raceKind ?? null,
+    previousBest: extras.previousBest ?? null,
+    isPersonalRecord: extras.isPersonalRecord ?? false,
     recordedAt: r.recordedAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
   };

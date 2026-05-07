@@ -3653,16 +3653,30 @@ export const GetRaceWeekResponse = zod.object({
         ),
       notes: zod.string().nullish(),
       raceKind: zod
-        .union([
-          zod.literal("marathon"),
-          zod.literal("half"),
-          zod.literal("10k"),
-          zod.literal("5k"),
-          zod.literal(null),
-        ])
+        .enum(["marathon", "half", "10k", "5k"])
         .nullish()
         .describe(
-          'Task #266. Best-effort race kind label, derived from the matching\n`plan_days` row on the same date via `detectRaceKind` (the same\nhelper \/plan\/overview and \/dashboard use). Populated by the\n`listRaceResults` endpoint so the history page can render a\n\"Half Marathon\" \/ \"5K\" badge per row; left null on the\nsingle-row endpoints (`setRaceResult` \/ `updateRaceResult` \/\n`getRaceWeek`) and on rows whose plan_day no longer exists.\n',
+          "Task #265. Captured at write time from the active plan_day at the\nrace date so PR comparisons across past campaigns survive Phase\nPlanner re-applies. The \/races history endpoint (Task #266)\nfalls back to a `plan_days` lookup on the same date via\n`detectRaceKind` for legacy rows where the persisted column is\nstill null. Null for legacy rows whose plan_day is also gone or\nunrecognised.\n",
+        ),
+      previousBest: zod
+        .object({
+          raceDate: zod.string(),
+          finishTime: zod.string(),
+          deltaSeconds: zod
+            .number()
+            .describe(
+              "`currentSeconds - previousBestSeconds`. Negative when this\nfinish beats the prior best (a PR); positive when slower.\n",
+            ),
+        })
+        .nullish()
+        .describe(
+          "Task #265. The fastest prior `race_results` row sharing this\nrow's `raceKind` (excluding the current row), used by the\npost-race banner to render the PR badge + \"−1:43 vs prior best\n2:15:51\" comparison line. Null when there's no prior result of\nthis kind, when this row has no `raceKind`, or when this row's\n`finishTime` can't be parsed.\n",
+        ),
+      isPersonalRecord: zod
+        .boolean()
+        .optional()
+        .describe(
+          "Task #265. True when this finish time is strictly faster than\nevery prior `race_results` row of the same `raceKind`. False on\nfirst-of-kind rows (nothing to beat yet), on ties, and on rows\nwith an unparseable `finishTime` or null `raceKind`.\n",
         ),
       recordedAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
@@ -3753,16 +3767,30 @@ export const ListRaceResultsResponseItem = zod.object({
     ),
   notes: zod.string().nullish(),
   raceKind: zod
-    .union([
-      zod.literal("marathon"),
-      zod.literal("half"),
-      zod.literal("10k"),
-      zod.literal("5k"),
-      zod.literal(null),
-    ])
+    .enum(["marathon", "half", "10k", "5k"])
     .nullish()
     .describe(
-      'Task #266. Best-effort race kind label, derived from the matching\n`plan_days` row on the same date via `detectRaceKind` (the same\nhelper \/plan\/overview and \/dashboard use). Populated by the\n`listRaceResults` endpoint so the history page can render a\n\"Half Marathon\" \/ \"5K\" badge per row; left null on the\nsingle-row endpoints (`setRaceResult` \/ `updateRaceResult` \/\n`getRaceWeek`) and on rows whose plan_day no longer exists.\n',
+      "Task #265. Captured at write time from the active plan_day at the\nrace date so PR comparisons across past campaigns survive Phase\nPlanner re-applies. The \/races history endpoint (Task #266)\nfalls back to a `plan_days` lookup on the same date via\n`detectRaceKind` for legacy rows where the persisted column is\nstill null. Null for legacy rows whose plan_day is also gone or\nunrecognised.\n",
+    ),
+  previousBest: zod
+    .object({
+      raceDate: zod.string(),
+      finishTime: zod.string(),
+      deltaSeconds: zod
+        .number()
+        .describe(
+          "`currentSeconds - previousBestSeconds`. Negative when this\nfinish beats the prior best (a PR); positive when slower.\n",
+        ),
+    })
+    .nullish()
+    .describe(
+      "Task #265. The fastest prior `race_results` row sharing this\nrow's `raceKind` (excluding the current row), used by the\npost-race banner to render the PR badge + \"−1:43 vs prior best\n2:15:51\" comparison line. Null when there's no prior result of\nthis kind, when this row has no `raceKind`, or when this row's\n`finishTime` can't be parsed.\n",
+    ),
+  isPersonalRecord: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Task #265. True when this finish time is strictly faster than\nevery prior `race_results` row of the same `raceKind`. False on\nfirst-of-kind rows (nothing to beat yet), on ties, and on rows\nwith an unparseable `finishTime` or null `raceKind`.\n",
     ),
   recordedAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
@@ -3826,16 +3854,30 @@ export const UpdateRaceResultResponse = zod.object({
     ),
   notes: zod.string().nullish(),
   raceKind: zod
-    .union([
-      zod.literal("marathon"),
-      zod.literal("half"),
-      zod.literal("10k"),
-      zod.literal("5k"),
-      zod.literal(null),
-    ])
+    .enum(["marathon", "half", "10k", "5k"])
     .nullish()
     .describe(
-      'Task #266. Best-effort race kind label, derived from the matching\n`plan_days` row on the same date via `detectRaceKind` (the same\nhelper \/plan\/overview and \/dashboard use). Populated by the\n`listRaceResults` endpoint so the history page can render a\n\"Half Marathon\" \/ \"5K\" badge per row; left null on the\nsingle-row endpoints (`setRaceResult` \/ `updateRaceResult` \/\n`getRaceWeek`) and on rows whose plan_day no longer exists.\n',
+      "Task #265. Captured at write time from the active plan_day at the\nrace date so PR comparisons across past campaigns survive Phase\nPlanner re-applies. The \/races history endpoint (Task #266)\nfalls back to a `plan_days` lookup on the same date via\n`detectRaceKind` for legacy rows where the persisted column is\nstill null. Null for legacy rows whose plan_day is also gone or\nunrecognised.\n",
+    ),
+  previousBest: zod
+    .object({
+      raceDate: zod.string(),
+      finishTime: zod.string(),
+      deltaSeconds: zod
+        .number()
+        .describe(
+          "`currentSeconds - previousBestSeconds`. Negative when this\nfinish beats the prior best (a PR); positive when slower.\n",
+        ),
+    })
+    .nullish()
+    .describe(
+      "Task #265. The fastest prior `race_results` row sharing this\nrow's `raceKind` (excluding the current row), used by the\npost-race banner to render the PR badge + \"−1:43 vs prior best\n2:15:51\" comparison line. Null when there's no prior result of\nthis kind, when this row has no `raceKind`, or when this row's\n`finishTime` can't be parsed.\n",
+    ),
+  isPersonalRecord: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Task #265. True when this finish time is strictly faster than\nevery prior `race_results` row of the same `raceKind`. False on\nfirst-of-kind rows (nothing to beat yet), on ties, and on rows\nwith an unparseable `finishTime` or null `raceKind`.\n",
     ),
   recordedAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
@@ -3907,16 +3949,30 @@ export const SetRaceResultResponse = zod.object({
     ),
   notes: zod.string().nullish(),
   raceKind: zod
-    .union([
-      zod.literal("marathon"),
-      zod.literal("half"),
-      zod.literal("10k"),
-      zod.literal("5k"),
-      zod.literal(null),
-    ])
+    .enum(["marathon", "half", "10k", "5k"])
     .nullish()
     .describe(
-      'Task #266. Best-effort race kind label, derived from the matching\n`plan_days` row on the same date via `detectRaceKind` (the same\nhelper \/plan\/overview and \/dashboard use). Populated by the\n`listRaceResults` endpoint so the history page can render a\n\"Half Marathon\" \/ \"5K\" badge per row; left null on the\nsingle-row endpoints (`setRaceResult` \/ `updateRaceResult` \/\n`getRaceWeek`) and on rows whose plan_day no longer exists.\n',
+      "Task #265. Captured at write time from the active plan_day at the\nrace date so PR comparisons across past campaigns survive Phase\nPlanner re-applies. The \/races history endpoint (Task #266)\nfalls back to a `plan_days` lookup on the same date via\n`detectRaceKind` for legacy rows where the persisted column is\nstill null. Null for legacy rows whose plan_day is also gone or\nunrecognised.\n",
+    ),
+  previousBest: zod
+    .object({
+      raceDate: zod.string(),
+      finishTime: zod.string(),
+      deltaSeconds: zod
+        .number()
+        .describe(
+          "`currentSeconds - previousBestSeconds`. Negative when this\nfinish beats the prior best (a PR); positive when slower.\n",
+        ),
+    })
+    .nullish()
+    .describe(
+      "Task #265. The fastest prior `race_results` row sharing this\nrow's `raceKind` (excluding the current row), used by the\npost-race banner to render the PR badge + \"−1:43 vs prior best\n2:15:51\" comparison line. Null when there's no prior result of\nthis kind, when this row has no `raceKind`, or when this row's\n`finishTime` can't be parsed.\n",
+    ),
+  isPersonalRecord: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Task #265. True when this finish time is strictly faster than\nevery prior `race_results` row of the same `raceKind`. False on\nfirst-of-kind rows (nothing to beat yet), on ties, and on rows\nwith an unparseable `finishTime` or null `raceKind`.\n",
     ),
   recordedAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),

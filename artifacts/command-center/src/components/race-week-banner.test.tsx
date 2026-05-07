@@ -315,6 +315,81 @@ describe("RaceWeekBanner — post-race result form / summary (Task #40)", () => 
     ).toBe("2:14:08");
   });
 
+  it("renders the PR badge + signed delta when the saved result is flagged as a personal record (Task #265)", () => {
+    setupPostRace({
+      raceDate: "2027-05-02",
+      finishTime: "2:14:08",
+      placementOverall: 312,
+      placementTotal: 1804,
+      feltRating: 4,
+      notes: null,
+      raceKind: "half",
+      isPersonalRecord: true,
+      previousBest: {
+        raceDate: "2026-05-03",
+        finishTime: "2:15:51",
+        deltaSeconds: -103,
+      },
+      recordedAt: "2027-05-02T18:00:00.000Z",
+      updatedAt: "2027-05-02T18:00:00.000Z",
+    });
+    render(<RaceWeekBanner />);
+    const badge = screen.getByTestId("race-result-pr-badge");
+    expect(badge).toBeTruthy();
+    expect(badge.textContent).toContain("PR");
+    const cmp = screen.getByTestId("race-result-pr-comparison");
+    expect(cmp.getAttribute("data-delta-seconds")).toBe("-103");
+    // 103s = 1:43, sign -.
+    expect(cmp.textContent).toContain("−1:43");
+    expect(cmp.textContent).toContain("2:15:51");
+    const summary = screen.getByTestId("race-result-summary");
+    expect(summary.getAttribute("data-is-personal-record")).toBe("true");
+  });
+
+  it("renders the comparison line (no PR badge) when slower than the prior best (Task #265)", () => {
+    setupPostRace({
+      raceDate: "2027-05-02",
+      finishTime: "2:18:16",
+      placementOverall: null,
+      placementTotal: null,
+      feltRating: null,
+      notes: null,
+      raceKind: "half",
+      isPersonalRecord: false,
+      previousBest: {
+        raceDate: "2026-05-03",
+        finishTime: "2:15:51",
+        deltaSeconds: 145,
+      },
+      recordedAt: "2027-05-02T18:00:00.000Z",
+      updatedAt: "2027-05-02T18:00:00.000Z",
+    });
+    render(<RaceWeekBanner />);
+    expect(screen.queryByTestId("race-result-pr-badge")).toBeNull();
+    const cmp = screen.getByTestId("race-result-pr-comparison");
+    expect(cmp.textContent).toContain("+2:25");
+    expect(cmp.textContent).toContain("2:15:51");
+  });
+
+  it("hides the PR badge and comparison line when there is no previous best (Task #265)", () => {
+    setupPostRace({
+      raceDate: "2027-05-02",
+      finishTime: "2:14:08",
+      placementOverall: null,
+      placementTotal: null,
+      feltRating: null,
+      notes: null,
+      raceKind: "half",
+      isPersonalRecord: false,
+      previousBest: null,
+      recordedAt: "2027-05-02T18:00:00.000Z",
+      updatedAt: "2027-05-02T18:00:00.000Z",
+    });
+    render(<RaceWeekBanner />);
+    expect(screen.queryByTestId("race-result-pr-badge")).toBeNull();
+    expect(screen.queryByTestId("race-result-pr-comparison")).toBeNull();
+  });
+
   it("shows phased recovery guidance based on daysAfterRace", () => {
     setupPostRace(null, 2);
     const { rerender } = render(<RaceWeekBanner />);

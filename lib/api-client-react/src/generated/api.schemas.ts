@@ -1023,13 +1023,13 @@ export interface RaceWeekRacePlan {
 }
 
 /**
- * Task #266. Best-effort race kind label, derived from the matching
-`plan_days` row on the same date via `detectRaceKind` (the same
-helper /plan/overview and /dashboard use). Populated by the
-`listRaceResults` endpoint so the history page can render a
-"Half Marathon" / "5K" badge per row; left null on the
-single-row endpoints (`setRaceResult` / `updateRaceResult` /
-`getRaceWeek`) and on rows whose plan_day no longer exists.
+ * Task #265. Captured at write time from the active plan_day at the
+race date so PR comparisons across past campaigns survive Phase
+Planner re-applies. The /races history endpoint (Task #266)
+falls back to a `plan_days` lookup on the same date via
+`detectRaceKind` for legacy rows where the persisted column is
+still null. Null for legacy rows whose plan_day is also gone or
+unrecognised.
 
  */
 export type RaceResultRaceKind =
@@ -1042,6 +1042,15 @@ export const RaceResultRaceKind = {
   "10k": "10k",
   "5k": "5k",
 } as const;
+
+export interface RaceResultPreviousBest {
+  raceDate: string;
+  finishTime: string;
+  /** `currentSeconds - previousBestSeconds`. Negative when this
+finish beats the prior best (a PR); positive when slower.
+ */
+  deltaSeconds: number;
+}
 
 export interface RaceResult {
   raceDate: string;
@@ -1057,15 +1066,29 @@ export interface RaceResult {
    */
   feltRating?: number | null;
   notes?: string | null;
-  /** Task #266. Best-effort race kind label, derived from the matching
-`plan_days` row on the same date via `detectRaceKind` (the same
-helper /plan/overview and /dashboard use). Populated by the
-`listRaceResults` endpoint so the history page can render a
-"Half Marathon" / "5K" badge per row; left null on the
-single-row endpoints (`setRaceResult` / `updateRaceResult` /
-`getRaceWeek`) and on rows whose plan_day no longer exists.
+  /** Task #265. Captured at write time from the active plan_day at the
+race date so PR comparisons across past campaigns survive Phase
+Planner re-applies. The /races history endpoint (Task #266)
+falls back to a `plan_days` lookup on the same date via
+`detectRaceKind` for legacy rows where the persisted column is
+still null. Null for legacy rows whose plan_day is also gone or
+unrecognised.
  */
   raceKind?: RaceResultRaceKind;
+  /** Task #265. The fastest prior `race_results` row sharing this
+row's `raceKind` (excluding the current row), used by the
+post-race banner to render the PR badge + "−1:43 vs prior best
+2:15:51" comparison line. Null when there's no prior result of
+this kind, when this row has no `raceKind`, or when this row's
+`finishTime` can't be parsed.
+ */
+  previousBest?: RaceResultPreviousBest | null;
+  /** Task #265. True when this finish time is strictly faster than
+every prior `race_results` row of the same `raceKind`. False on
+first-of-kind rows (nothing to beat yet), on ties, and on rows
+with an unparseable `finishTime` or null `raceKind`.
+ */
+  isPersonalRecord?: boolean;
   recordedAt: string;
   updatedAt: string;
 }

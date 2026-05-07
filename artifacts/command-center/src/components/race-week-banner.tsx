@@ -21,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import {
   Trophy,
+  Award,
   Flag,
   ListChecks,
   Plus,
@@ -436,6 +437,21 @@ function RaceResultSection({ result }: { result: RaceResult | null }) {
   );
 }
 
+// Task #265. Format a signed second-delta back into a "−1:43" /
+// "+0:08" string for the PR comparison line. Mirrors the server-side
+// `formatSignedDelta` helper in race-week.ts so the post-race banner
+// can render the comparison without an extra round-trip.
+function formatSignedDelta(deltaSeconds: number): string {
+  const sign = deltaSeconds < 0 ? "−" : deltaSeconds > 0 ? "+" : "±";
+  const abs = Math.abs(deltaSeconds);
+  const h = Math.floor(abs / 3600);
+  const m = Math.floor((abs % 3600) / 60);
+  const s = abs % 60;
+  const mm = String(m).padStart(h > 0 ? 2 : 1, "0");
+  const ss = String(s).padStart(2, "0");
+  return h > 0 ? `${sign}${h}:${mm}:${ss}` : `${sign}${mm}:${ss}`;
+}
+
 function SavedRaceResult({
   result,
   onEdit,
@@ -449,15 +465,39 @@ function SavedRaceResult({
         ? `${result.placementOverall} / ${result.placementTotal}`
         : `${result.placementOverall}`
       : null;
+  // Task #265. Show the PR celebration badge whenever the server
+  // flagged this row as a new personal record for its race kind. The
+  // comparison line below ("−1:43 vs prior best 2:15:51") renders any
+  // time we have a previous best to compare against — so a slower
+  // finish still gets context, just without the badge.
+  const isPR = result.isPersonalRecord === true;
+  const previousBest = result.previousBest ?? null;
   return (
     <div
       className="rounded-md border border-emerald-500/30 bg-background/60 p-4 space-y-3"
       data-testid="race-result-summary"
+      data-is-personal-record={isPR ? "true" : "false"}
     >
-      <div className="flex items-center justify-between">
-        <p className="text-xs uppercase tracking-wider font-bold text-emerald-600 dark:text-emerald-400">
-          Race Result
-        </p>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-xs uppercase tracking-wider font-bold text-emerald-600 dark:text-emerald-400">
+            Race Result
+          </p>
+          {isPR ? (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-[0.2em] border border-amber-500/50 bg-amber-500/15 text-amber-700 dark:text-amber-400"
+              data-testid="race-result-pr-badge"
+              title={
+                previousBest
+                  ? `New personal record — beat your prior best of ${previousBest.finishTime}`
+                  : "New personal record"
+              }
+            >
+              <Award className="h-3 w-3" />
+              PR!
+            </span>
+          ) : null}
+        </div>
         <Button
           variant="ghost"
           size="sm"
@@ -478,6 +518,21 @@ function SavedRaceResult({
           testId="race-result-felt"
         />
       </div>
+      {previousBest ? (
+        <p
+          className={cn(
+            "text-xs uppercase tracking-wider font-bold",
+            isPR
+              ? "text-amber-700 dark:text-amber-400"
+              : "text-muted-foreground",
+          )}
+          data-testid="race-result-pr-comparison"
+          data-delta-seconds={previousBest.deltaSeconds}
+        >
+          {formatSignedDelta(previousBest.deltaSeconds)} vs prior best{" "}
+          {previousBest.finishTime}
+        </p>
+      ) : null}
       {result.notes ? (
         <p
           className="text-sm text-muted-foreground italic border-t border-emerald-500/20 pt-3 whitespace-pre-line"

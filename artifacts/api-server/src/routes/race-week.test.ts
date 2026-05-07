@@ -558,3 +558,179 @@ describe("DELETE /api/race-results/:raceDate (Task #266)", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("Race result PR badge / previous-best comparison (Task #265)", () => {
+  beforeEach(async () => {
+    await db.execute(sql`DELETE FROM race_results`);
+    await db.execute(sql`DELETE FROM plan_days WHERE date = ${RACE_DATE}`);
+  });
+  afterEach(async () => {
+    await db.execute(sql`DELETE FROM race_results`);
+    await db.execute(sql`DELETE FROM plan_days WHERE date = ${RACE_DATE}`);
+  });
+
+  // Seed an active race_day plan_day at the canonical RACE_DATE so the
+  // PUT handler's `detectRaceKindForDate` lookup classifies the row
+  // (otherwise raceKind would silently fall back to null, which would
+  // skip the PR comparison entirely).
+  async function seedHalfRaceDay() {
+    const halfSpec = RACE_DAY_SPECS.half;
+    await db.insert(planDaysTable).values({
+      week: 52,
+      phase: "Taper & Race",
+      date: RACE_DATE,
+      day: "Sun",
+      strengthLoad: 0,
+      equipment: "Outdoor",
+      description: halfSpec.description,
+      cardioMin: Math.round(halfSpec.distanceMi * halfSpec.runMinPerMi),
+      distanceMi: halfSpec.distanceMi,
+      pace: "12:00",
+      sessionType: "Race",
+      isRest: false,
+      totalLoad: halfSpec.totalLoad,
+    });
+  }
+
+  it("captures raceKind on PUT from the active plan_day", async () => {
+    await seedHalfRaceDay();
+    const put = await request(app)
+      .put("/api/race-week/result")
+      .send({ finishTime: "2:14:08" });
+    expect(put.status).toBe(200);
+    expect(put.body.raceKind).toBe("half");
+  });
+
+  it("flags isPersonalRecord=true when this finish beats every prior result of the same kind", async () => {
+    await seedHalfRaceDay();
+    // Prior half from a previous campaign — slower than the current one.
+    await db.insert(raceResultsTable).values({
+      raceDate: "2026-05-03",
+      finishTime: "2:15:51",
+      raceKind: "half",
+    });
+    // Prior 5K — different kind, must not influence the half PR check.
+    await db.insert(raceResultsTable).values({
+      raceDate: "2025-09-01",
+      finishTime: "0:22:30",
+      raceKind: "5k",
+    });
+
+    const put = await request(app)
+      .put("/api/race-week/result")
+      .send({ finishTime: "2:14:08" });
+    expect(put.status).toBe(200);
+    expect(put.body.isPersonalRecord).toBe(true);
+    expect(put.body.previousBest).toEqual({
+      raceDate: "2026-05-03",
+      finishTime: "2:15:51",
+      // 2:14:08 - 2:15:51 = -103 sec
+      deltaSeconds: -103,
+    });
+
+    // GET must surface the same comparison once the race has passed.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2027-05-05T12:00:00.000Z"));
+    const get = await request(app).get("/api/race-week");
+    expect(get.body.raceResult.isPersonalRecord).toBe(true);
+    expect(get.body.raceResult.previousBest.deltaSeconds).toBe(-103);
+    expect(get.body.raceResult.previousBest.finishTime).toBe("2:15:51");
+  });
+
+  it("returns isPersonalRecord=false but still surfaces previousBest when slower than prior best", async () => {
+    await seedHalfRaceDay();
+    await db.insert(raceResultsTable).values({
+      raceDate: "2026-05-03",
+      finishTime: "2:10:00",
+      raceKind: "half",
+    });
+    const put = await request(app)
+      .put("/api/race-week/result")
+      .send({ finishTime: "2:14:08" });
+    expect(put.body.isPersonalRecord).toBe(false);
+    expect(put.body.previousBest.deltaSeconds).toBe(248); // 8 min 8 sec slower
+    expect(put.body.previousBest.finishTime).toBe("2:10:00");
+  });
+
+  it("ties do not count as a PR (must be strictly faster)", async () => {
+    await seedHalfRaceDay();
+    await db.insert(raceResultsTable).values({
+      raceDate: "2026-05-03",
+      finishTime: "2:14:08",
+      raceKind: "half",
+    });
+    const put = await request(app)
+      .put("/api/race-week/result")
+      .send({ finishTime: "2:14:08" });
+    expect(put.body.isPersonalRecord).toBe(false);
+    expect(put.body.previousBest.deltaSeconds).toBe(0);
+  });
+
+  it("ignores prior results of a different raceKind when picking previous best", async () => {
+    await seedHalfRaceDay();
+    // A faster MARATHON has nothing to do with the half PR.
+    await db.insert(raceResultsTable).values({
+      raceDate: "2026-05-03",
+      finishTime: "1:50:00",
+      raceKind: "marathon",
+    });
+    const put = await request(app)
+      .put("/api/race-week/result")
+      .send({ finishTime: "2:14:08" });
+    expect(put.body.previousBest).toBeNull();
+    expect(put.body.isPersonalRecord).toBe(false);
+  });
+
+  it("first-of-kind result has no previousBest and is NOT flagged as PR", async () => {
+    await seedHalfRaceDay();
+    const put = await request(app)
+      .put("/api/race-week/result")
+      .send({ finishTime: "2:14:08" });
+    expect(put.body.previousBest).toBeNull();
+    expect(put.body.isPersonalRecord).toBe(false);
+  });
+
+  it("falls back gracefully when finishTime can't be parsed", async () => {
+    await seedHalfRaceDay();
+    await db.insert(raceResultsTable).values({
+      raceDate: "2026-05-03",
+      finishTime: "2:15:51",
+      raceKind: "half",
+    });
+    const put = await request(app)
+      .put("/api/race-week/result")
+      .send({ finishTime: "did not finish" });
+    expect(put.body.previousBest).toBeNull();
+    expect(put.body.isPersonalRecord).toBe(false);
+  });
+
+  it("skips the comparison when the active plan_day can't be classified (raceKind=null)", async () => {
+    // No plan_day at RACE_DATE → detectRaceKindForDate returns null.
+    await db.insert(raceResultsTable).values({
+      raceDate: "2026-05-03",
+      finishTime: "2:15:51",
+      raceKind: "half",
+    });
+    const put = await request(app)
+      .put("/api/race-week/result")
+      .send({ finishTime: "2:14:08" });
+    expect(put.body.raceKind).toBeNull();
+    expect(put.body.previousBest).toBeNull();
+    expect(put.body.isPersonalRecord).toBe(false);
+  });
+
+  it("picks the fastest of multiple priors as the previous best", async () => {
+    await seedHalfRaceDay();
+    await db.insert(raceResultsTable).values([
+      { raceDate: "2024-05-05", finishTime: "2:30:00", raceKind: "half" },
+      { raceDate: "2025-05-04", finishTime: "2:15:51", raceKind: "half" },
+      { raceDate: "2026-05-03", finishTime: "2:20:00", raceKind: "half" },
+    ]);
+    const put = await request(app)
+      .put("/api/race-week/result")
+      .send({ finishTime: "2:14:08" });
+    expect(put.body.previousBest.raceDate).toBe("2025-05-04");
+    expect(put.body.previousBest.finishTime).toBe("2:15:51");
+    expect(put.body.isPersonalRecord).toBe(true);
+  });
+});
