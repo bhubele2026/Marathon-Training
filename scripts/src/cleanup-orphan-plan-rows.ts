@@ -32,11 +32,54 @@ export interface CleanupOrphanPlanRowsResult {
 }
 
 export async function cleanupOrphanPlanRows(): Promise<CleanupOrphanPlanRowsResult> {
+  // Cheap pre-check WITHOUT exclusive locks: the common steady-state case
+  // is "applied config exists" or "already empty" — both no-ops. Acquiring
+  // ACCESS EXCLUSIVE locks unconditionally deadlocks against the api-server
+  // when it restarts during post-merge (it holds RowExclusiveLock on these
+  // tables for normal reads/writes). Short-circuit first so we only need
+  // the heavy lock when we actually have orphan rows to wipe.
+  const preCheck = await db.execute<{
+    applied_config_count: number;
+    weeks_count: number;
+    days_count: number;
+  }>(
+    sql`SELECT
+          (SELECT COUNT(*)::int FROM planner_configs WHERE last_applied_at IS NOT NULL) AS applied_config_count,
+          (SELECT COUNT(*)::int FROM plan_weeks) AS weeks_count,
+          (SELECT COUNT(*)::int FROM plan_days) AS days_count`,
+  );
+  const pre = preCheck.rows[0] ?? {
+    applied_config_count: 0,
+    weeks_count: 0,
+    days_count: 0,
+  };
+  if (pre.applied_config_count > 0) {
+    return {
+      appliedConfigCount: pre.applied_config_count,
+      weeksWiped: 0,
+      daysWiped: 0,
+      workoutsDetached: 0,
+    };
+  }
+  if (pre.weeks_count === 0 && pre.days_count === 0) {
+    return {
+      appliedConfigCount: 0,
+      weeksWiped: 0,
+      daysWiped: 0,
+      workoutsDetached: 0,
+    };
+  }
+
   return await db.transaction(async (tx) => {
+    // Bound the wait so we fail fast (and the post-merge can retry) instead
+    // of deadlocking against the api-server's table reads.
+    await tx.execute(sql`SET LOCAL lock_timeout = '10s'`);
     await tx.execute(
       sql`LOCK TABLE planner_configs, plan_days, plan_weeks, workouts IN ACCESS EXCLUSIVE MODE`,
     );
 
+    // Re-verify under the lock — another process may have applied a config
+    // between the pre-check and acquiring the lock.
     const [{ count: appliedConfigCount } = { count: 0 }] = (
       await tx.execute<{ count: number }>(
         sql`SELECT COUNT(*)::int AS count FROM planner_configs WHERE last_applied_at IS NOT NULL`,

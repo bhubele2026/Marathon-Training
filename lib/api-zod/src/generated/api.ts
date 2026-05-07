@@ -33,19 +33,9 @@ export const GetPlanOverviewResponse = zod.object({
     .describe(
       "Task #329. ISO yyyy-mm-dd of the campaign's first day,\nsourced from the most-recently-applied planner config's\n`appliedStartDate`. Falls back to the leading\n`plan_weeks.startDate` when the applied snapshot is missing,\nand to null on fresh installs \/ post Full Reset.\n",
     ),
-  startWeight: zod
-    .number()
-    .nullable()
-    .describe(
-      "Task #330. Body-mass start target (lbs). Sourced from the\nmost-recently-applied planner config's `appliedStartWeight`,\nfalling back to the runner's earliest measurement weight.\nNULL on fresh installs with no measurements and no applied\nconfig — the dashboard \/ plan header omits the goal-line\ntext in that case.\n",
-    ),
+  startWeight: zod.number(),
   currentWeight: zod.number().nullable(),
-  goalWeight: zod
-    .number()
-    .nullable()
-    .describe(
-      "Task #330. Body-mass goal target (lbs). Sourced from the\nmost-recently-applied planner config's `appliedGoalWeight`.\nNULL when the runner hasn't set a goal on their applied\nconfig — the dashboard \/ plan header renders an em-dash\nsentinel in that case rather than the legacy hardcoded 210.\n",
-    ),
+  goalWeight: zod.number(),
   weeklyMilesTarget: zod.number().optional(),
   longRunTarget: zod.number().optional(),
   activeConfigName: zod
@@ -2372,29 +2362,11 @@ export const GetDashboardSummaryResponse = zod.object({
     ),
   totalMilesAllTime: zod.number(),
   longestRunMi: zod.number(),
-  weightStart: zod
-    .number()
-    .nullable()
-    .describe(
-      "Task #330. Body-mass start target (lbs). Mirrors\n`PlanOverview.startWeight` — sourced from the\nmost-recently-applied planner config's `appliedStartWeight`,\nfalling back to the runner's earliest measurement weight,\nthen to null. The Body Mass tile renders an em-dash when\nboth this and `weightCurrent` are null.\n",
-    ),
+  weightStart: zod.number(),
   weightCurrent: zod.number().nullable(),
-  weightGoal: zod
-    .number()
-    .nullable()
-    .describe(
-      "Task #330. Body-mass goal target (lbs). Mirrors\n`PlanOverview.goalWeight` — sourced from the\nmost-recently-applied planner config's `appliedGoalWeight`.\nNULL when the runner hasn't set a goal; the Body Mass\ntile renders an em-dash sentinel in that case.\n",
-    ),
-  weightLost: zod
-    .number()
-    .describe(
-      "(weightStart - weightCurrent), clamped to >= 0. Zero when\neither side is null.\n",
-    ),
-  weightToGoal: zod
-    .number()
-    .describe(
-      "(weightCurrent - weightGoal), clamped to >= 0. Zero when\neither side is null.\n",
-    ),
+  weightGoal: zod.number(),
+  weightLost: zod.number(),
+  weightToGoal: zod.number(),
   adherencePct: zod.number(),
   daysToRace: zod.number(),
   activeConfigName: zod
@@ -2911,8 +2883,6 @@ export const CreatePlannerConfigBody = zod.object({
       "Optional. When non-null, switches the config into entries-mode. The server projects entries → blocks and stores both. Sum of entry weeks must equal the totalWeeks span between startDate and marathonDate.",
     ),
   notes: zod.string().nullish(),
-  startWeight: zod.number().nullish().describe("Task"),
-  goalWeight: zod.number().nullish().describe("Task"),
   setActive: zod
     .boolean()
     .nullish()
@@ -3023,18 +2993,6 @@ export const GetPlannerConfigResponse = zod.object({
       "Ordered list of TemplateEntry objects. When non-null, entries are the source of truth for the editor; the server projects entries → blocks on every write. Sum of entry weeks must equal totalWeeks (no auto-pinned tail). NULL for legacy blocks-only configs.",
     ),
   notes: zod.string().nullish(),
-  startWeight: zod
-    .number()
-    .nullable()
-    .describe(
-      "Task #330. Optional body-mass start target (lbs). NULL when\nthe runner doesn't want to track a start weight on this\nconfig. When non-null, surfaces on the dashboard's Body\nMass tile and the \/plan header instead of the legacy\nhardcoded 281.6 constant.\n",
-    ),
-  goalWeight: zod
-    .number()
-    .nullable()
-    .describe(
-      "Task #330. Optional body-mass goal target (lbs). NULL when\nthe runner doesn't want to track a goal weight on this\nconfig. When non-null, surfaces on the dashboard's Body\nMass tile and the \/plan header instead of the legacy\nhardcoded 210 constant.\n",
-    ),
   updatedAt: zod.coerce
     .date()
     .optional()
@@ -3138,8 +3096,6 @@ export const UpdatePlannerConfigBody = zod.object({
       "Optional. When non-null, switches the config into entries-mode. The server projects entries → blocks and stores both. Sum of entry weeks must equal the totalWeeks span between startDate and marathonDate.",
     ),
   notes: zod.string().nullish(),
-  startWeight: zod.number().nullish().describe("Task"),
-  goalWeight: zod.number().nullish().describe("Task"),
 });
 
 export const UpdatePlannerConfigResponse = zod.object({
@@ -3240,18 +3196,6 @@ export const UpdatePlannerConfigResponse = zod.object({
       "Ordered list of TemplateEntry objects. When non-null, entries are the source of truth for the editor; the server projects entries → blocks on every write. Sum of entry weeks must equal totalWeeks (no auto-pinned tail). NULL for legacy blocks-only configs.",
     ),
   notes: zod.string().nullish(),
-  startWeight: zod
-    .number()
-    .nullable()
-    .describe(
-      "Task #330. Optional body-mass start target (lbs). NULL when\nthe runner doesn't want to track a start weight on this\nconfig. When non-null, surfaces on the dashboard's Body\nMass tile and the \/plan header instead of the legacy\nhardcoded 281.6 constant.\n",
-    ),
-  goalWeight: zod
-    .number()
-    .nullable()
-    .describe(
-      "Task #330. Optional body-mass goal target (lbs). NULL when\nthe runner doesn't want to track a goal weight on this\nconfig. When non-null, surfaces on the dashboard's Body\nMass tile and the \/plan header instead of the legacy\nhardcoded 210 constant.\n",
-    ),
   updatedAt: zod.coerce
     .date()
     .optional()
@@ -3416,18 +3360,6 @@ export const ActivatePlannerConfigResponse = zod.object({
       "Ordered list of TemplateEntry objects. When non-null, entries are the source of truth for the editor; the server projects entries → blocks on every write. Sum of entry weeks must equal totalWeeks (no auto-pinned tail). NULL for legacy blocks-only configs.",
     ),
   notes: zod.string().nullish(),
-  startWeight: zod
-    .number()
-    .nullable()
-    .describe(
-      "Task #330. Optional body-mass start target (lbs). NULL when\nthe runner doesn't want to track a start weight on this\nconfig. When non-null, surfaces on the dashboard's Body\nMass tile and the \/plan header instead of the legacy\nhardcoded 281.6 constant.\n",
-    ),
-  goalWeight: zod
-    .number()
-    .nullable()
-    .describe(
-      "Task #330. Optional body-mass goal target (lbs). NULL when\nthe runner doesn't want to track a goal weight on this\nconfig. When non-null, surfaces on the dashboard's Body\nMass tile and the \/plan header instead of the legacy\nhardcoded 210 constant.\n",
-    ),
   updatedAt: zod.coerce
     .date()
     .optional()
