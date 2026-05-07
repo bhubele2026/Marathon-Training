@@ -1,4 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
+import { Client } from "pg";
 
 // Task #309: end-to-end coverage of the empty-plan UI introduced by
 // Task #307. Wipes the plan via Full Reset, asserts the EmptyPlanState
@@ -27,6 +28,67 @@ const EMPTY_STATE = {
 test.describe.configure({ mode: "serial" });
 
 test.describe("Empty plan UI (Task #309)", () => {
+  // Task #327: fresh-install regression — simulates a database that
+  // has NEVER had POST /api/planner/apply called against it (no
+  // last_applied_at anywhere) WITHOUT going through Full Reset. The
+  // pre-Task-#307 auto-seed bug silently populated plan_weeks/plan_days
+  // on a database where no runner had ever applied a config; Full Reset
+  // is the wrong tool to reproduce that condition because it triggers
+  // its own scorched-earth code path. We TRUNCATE the relevant tables
+  // directly via the same DATABASE_URL the api-server uses, then assert
+  // the EmptyPlanState CTA is rendered on every plan-driven page. Apply
+  // a fresh config at the end and put the DB back to a usable shape
+  // for any subsequent runs.
+  test("fresh-install (no apply ever called, no Full Reset) → empty state on every page", async ({
+    page,
+    request,
+  }) => {
+    const databaseUrl = process.env.DATABASE_URL;
+    test.skip(
+      !databaseUrl,
+      "DATABASE_URL not set; cannot exercise the fresh-install path",
+    );
+
+    const client = new Client({ connectionString: databaseUrl });
+    await client.connect();
+    try {
+      // Detach FKs first, then TRUNCATE every table that an applied
+      // config or its downstream workouts/measurements/checklist could
+      // have populated. This mirrors the never-installed state without
+      // touching the Full Reset endpoint.
+      await client.query(
+        `UPDATE workouts SET plan_day_id = NULL WHERE plan_day_id IS NOT NULL`,
+      );
+      await client.query(
+        `TRUNCATE plan_days, plan_weeks, planner_configs, workouts, body_measurements, race_week_checklist, race_results, reset_undo_snapshots RESTART IDENTITY CASCADE`,
+      );
+    } finally {
+      await client.end();
+    }
+
+    await page.goto("/plan");
+    await expect(page.getByTestId(EMPTY_STATE.plan)).toBeVisible();
+    await expect(page.getByTestId("plan-header-subtitle")).toContainText(
+      "No plan applied yet",
+    );
+
+    await page.goto("/");
+    await expect(page.getByTestId(EMPTY_STATE.dashboard)).toBeVisible();
+
+    await page.goto("/today");
+    await expect(page.getByTestId(EMPTY_STATE.today)).toBeVisible();
+
+    await page.goto("/plan/1");
+    await expect(page.getByTestId(EMPTY_STATE.week)).toBeVisible();
+    await expect(page.getByTestId(EMPTY_STATE.week)).toContainText(
+      "Week not found",
+    );
+
+    // Restore a usable state for downstream e2e runs in this same DB.
+    await applyFreshConfig(request);
+  });
+
+
   test("Full Reset → empty state on every page → apply config → normal UI returns", async ({
     page,
     request,

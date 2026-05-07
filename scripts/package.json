@@ -13,6 +13,7 @@
     "backfill-workout-plan-day": "tsx ./src/backfill-workout-plan-day.ts",
     "backfill-race-result-kind": "tsx ./src/backfill-race-result-kind.ts",
     "check-workout-orphans": "tsx ./src/check-workout-orphans.ts",
+    "cleanup-orphan-plan-rows": "tsx ./src/cleanup-orphan-plan-rows.ts",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

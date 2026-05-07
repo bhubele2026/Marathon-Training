@@ -32,3 +32,11 @@ pnpm --filter @workspace/scripts run check-workout-orphans
 # once a runner accumulates more than one result of the same kind.
 # Idempotent — safe to re-run.
 pnpm --filter @workspace/scripts run backfill-race-result-kind
+# Task #327: enforce the "plan tables stay EMPTY until a Phase Planner
+# config has been applied" invariant. Pre-Task #307 databases still
+# carry the auto-generated 52-week canonical plan even though
+# planner_configs has no last_applied_at row. Wipe those orphan plan
+# rows so the /plan UI falls back to the EmptyPlanState CTA on fresh
+# installs, exactly like Task #326's Full Reset path. Idempotent —
+# leaves applied campaigns untouched.
+pnpm --filter @workspace/scripts run cleanup-orphan-plan-rows

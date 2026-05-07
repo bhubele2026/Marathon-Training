@@ -6,6 +6,14 @@ import {
 } from "@workspace/api-zod";
 import { RACE_DAY_SPECS } from "@workspace/plan-generator";
 import app from "../app";
+import { sql } from "drizzle-orm";
+import { db, plannerConfigsTable, planDaysTable, planWeeksTable } from "@workspace/db";
+import {
+  MARATHON_TAIL_WEEKS,
+  PLAN_START_ISO,
+  RACE_DATE_ISO,
+  TOTAL_WEEKS,
+} from "@workspace/plan-generator";
 import {
   cleanTestData,
   expectMatchesSchema,
@@ -730,5 +738,114 @@ describe("GET /api/plan/weeks", () => {
     expect(ours!.actualMiles).toBe(0);
     expect(ours!.completedSessions).toBe(0);
     expect(ours!.totalSessions).toBe(0);
+  });
+});
+
+// Task #327. Fresh-install regression: when no planner_configs row has
+// last_applied_at IS NOT NULL (the only path that ever populates the
+// plan tables is POST /api/planner/apply), every plan-driven endpoint
+// must return hasPlan:false / empty arrays — even when a draft config
+// is sitting in planner_configs awaiting activation. Guards against the
+// pre-Task-#307 auto-seed regression resurfacing.
+describe("plan-driven endpoints on a fresh install (Task #327)", () => {
+  beforeEach(async () => {
+    // Wipe every mutable plan table AND every planner_configs row so
+    // we're starting from the bare fresh-install state.
+    await db.execute(
+      sql`TRUNCATE TABLE workouts, plan_days, plan_weeks, planner_configs RESTART IDENTITY CASCADE`,
+    );
+  });
+
+  afterEach(async () => {
+    // The "POST /planner/apply flips hasPlan:true" test populates the
+    // canonical 52-week plan at 2026-05-04+, which lives OUTSIDE the
+    // TEST_YEAR_START..TEST_YEAR_END window the file-level cleanTestData
+    // scopes to. Without this scoped wipe, the leftover plan_days at
+    // 2026 dates contaminate downstream test files (preferences,
+    // measurements, reset-undo, etc.) that insert workouts at "recent"
+    // (= 2026-current) dates and expect a clean plan-table baseline.
+    await db.execute(
+      sql`TRUNCATE TABLE workouts, plan_days, plan_weeks, planner_configs RESTART IDENTITY CASCADE`,
+    );
+  });
+
+  it("returns hasPlan:false on /api/plan/overview with zero planner_configs rows", async () => {
+    const res = await request(app).get("/api/plan/overview");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetPlanOverviewResponse, res.body);
+    expect(res.body.hasPlan).toBe(false);
+    expect(res.body.activeConfigName).toBe("Workout Plan");
+  });
+
+  it("returns an empty list on /api/plan/weeks with zero planner_configs rows", async () => {
+    const res = await request(app).get("/api/plan/weeks");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(ListPlanWeeksResponse, res.body);
+    expect(res.body).toEqual([]);
+  });
+
+  it("returns hasPlan:false on /api/plan/today with zero planner_configs rows", async () => {
+    const res = await request(app).get("/api/plan/today");
+    expect(res.status).toBe(200);
+    expect(res.body.hasPlan).toBe(false);
+    expect(res.body.plans).toEqual([]);
+  });
+
+  it("POST /api/planner/configs alone never populates plan tables — only POST /api/planner/apply does", async () => {
+    // Drive the full public API surface: hit POST /planner/configs to
+    // create the runner's first saved config (the only documented way
+    // a fresh-install user reaches a non-empty planner_configs table)
+    // and assert the plan tables are still empty / hasPlan:false.
+    // Then POST /planner/apply and verify the same endpoints flip to
+    // populated. This locks the contract that the only write path
+    // into plan_weeks/plan_days is the explicit Apply call.
+    const userWeeks = TOTAL_WEEKS - MARATHON_TAIL_WEEKS;
+    const create = await request(app)
+      .post("/api/planner/configs")
+      .send({
+        name: "Fresh Install",
+        startDate: PLAN_START_ISO,
+        marathonDate: RACE_DATE_ISO,
+        blocks: [
+          { focusType: "Base", weeks: Math.floor(userWeeks / 2) },
+          {
+            focusType: "Time on Feet",
+            weeks: userWeeks - Math.floor(userWeeks / 2),
+          },
+        ],
+      });
+    expect(create.status, JSON.stringify(create.body)).toBe(201);
+
+    // The saved config exists but carries no applied lineage.
+    const cfgs = await db.select().from(plannerConfigsTable);
+    expect(cfgs).toHaveLength(1);
+    expect(cfgs[0]!.lastAppliedAt).toBeNull();
+    expect(cfgs[0]!.appliedStartDate).toBeNull();
+    expect(cfgs[0]!.appliedBlocks).toBeNull();
+
+    // Plan tables still empty.
+    const weeksAtRest = await db.select().from(planWeeksTable);
+    const daysAtRest = await db.select().from(planDaysTable);
+    expect(weeksAtRest).toHaveLength(0);
+    expect(daysAtRest).toHaveLength(0);
+
+    // Endpoints honor the empty-plan contract.
+    const ov = await request(app).get("/api/plan/overview");
+    expect(ov.status).toBe(200);
+    expectMatchesSchema(GetPlanOverviewResponse, ov.body);
+    expect(ov.body.hasPlan).toBe(false);
+    const weeks = await request(app).get("/api/plan/weeks");
+    expect(weeks.status).toBe(200);
+    expect(weeks.body).toEqual([]);
+
+    // Now apply — plan tables populate and hasPlan flips true.
+    const apply = await request(app).post("/api/planner/apply").send({});
+    expect(apply.status, JSON.stringify(apply.body)).toBe(200);
+
+    const ov2 = await request(app).get("/api/plan/overview");
+    expect(ov2.status).toBe(200);
+    expect(ov2.body.hasPlan).toBe(true);
+    const weeks2 = await db.select().from(planWeeksTable);
+    expect(weeks2.length).toBeGreaterThan(0);
   });
 });
