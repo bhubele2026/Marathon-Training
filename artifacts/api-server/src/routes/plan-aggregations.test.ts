@@ -76,8 +76,12 @@ describe("GET /api/plan/overview", () => {
         // block below; this assertion just locks the fallback shape.
         startDate: "2099-08-03",
         raceDate: "2099-08-09",
-        startWeight: 281.6,
-        goalWeight: 210,
+        // Task #330: startWeight is no longer the legacy hardcoded
+        // 281.6 — with no applied planner config it falls back to the
+        // runner's earliest measurement weight (232.5 here). goalWeight
+        // is null when no applied config carries a snapshotted target.
+        startWeight: 232.5,
+        goalWeight: null,
         currentWeight: 232.5,
         weeklyMilesTarget: 24,
         longRunTarget: 12,

@@ -40,6 +40,8 @@ type ApiPlannerConfig = {
   blocks: PhaseBlock[];
   entries: TemplateEntry[] | null;
   notes: string | null;
+  startWeight: number | null;
+  goalWeight: number | null;
   updatedAt: string;
   lastAppliedAt: string | null;
 };
@@ -54,6 +56,8 @@ function toPlannerConfig(row: PlannerConfigRow): ApiPlannerConfig {
     blocks: row.blocks as PhaseBlock[],
     entries: (row.entries as TemplateEntry[] | null) ?? null,
     notes: row.notes,
+    startWeight: row.startWeight ?? null,
+    goalWeight: row.goalWeight ?? null,
     updatedAt: row.updatedAt.toISOString(),
     lastAppliedAt: row.lastAppliedAt ? row.lastAppliedAt.toISOString() : null,
   };
@@ -125,6 +129,31 @@ export async function readLastAppliedPlannerConfig(): Promise<PlannerConfig | nu
     // Without this an applied entries-mode plan would be re-validated as
     // legacy (auto-pinned 16w tail expected) and immediately fail.
     entries: (row.appliedEntries as TemplateEntry[] | null) ?? null,
+  };
+}
+
+// Task #330. Body-mass targets snapshotted on the most-recently-applied
+// planner config. Returns nulls when no config has ever been applied OR
+// when the applied config didn't carry weight targets — callers fall
+// back to derived signals (earliest measurement) or null sentinels so
+// the UI doesn't render stale hardcoded constants.
+export async function readActiveBodyTargets(): Promise<{
+  startWeight: number | null;
+  goalWeight: number | null;
+}> {
+  const rows = await db
+    .select({
+      startWeight: plannerConfigsTable.appliedStartWeight,
+      goalWeight: plannerConfigsTable.appliedGoalWeight,
+    })
+    .from(plannerConfigsTable)
+    .where(sql`${plannerConfigsTable.lastAppliedAt} IS NOT NULL`)
+    .orderBy(desc(plannerConfigsTable.lastAppliedAt))
+    .limit(1);
+  const row = rows[0];
+  return {
+    startWeight: row?.startWeight ?? null,
+    goalWeight: row?.goalWeight ?? null,
   };
 }
 
@@ -336,6 +365,8 @@ router.post("/planner/configs", async (req, res): Promise<void> => {
       blocks: validated.blocks,
       entries: validated.entries,
       notes: parsed.data.notes ?? null,
+      startWeight: parsed.data.startWeight ?? null,
+      goalWeight: parsed.data.goalWeight ?? null,
       createdAt: now,
       updatedAt: now,
     });
@@ -406,6 +437,8 @@ router.put("/planner/configs/:id", async (req, res): Promise<void> => {
       blocks: validated.blocks,
       entries: validated.entries,
       notes: parsed.data.notes ?? null,
+      startWeight: parsed.data.startWeight ?? null,
+      goalWeight: parsed.data.goalWeight ?? null,
       updatedAt: new Date(),
     })
     .where(eq(plannerConfigsTable.id, id));
@@ -512,6 +545,8 @@ router.post("/planner/configs/:id/duplicate", async (req, res): Promise<void> =>
       blocks: src.blocks,
       entries: src.entries,
       notes: src.notes,
+      startWeight: src.startWeight,
+      goalWeight: src.goalWeight,
       createdAt: now,
       updatedAt: now,
       // Apply lineage is intentionally NOT copied — applied_* and
@@ -734,6 +769,12 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
         // /plan/full-reset re-runs the generator in the SAME mode the
         // runner originally applied, not silently downgraded to legacy.
         appliedEntries: config.entries ?? null,
+        // Task #330. Body-mass targets snapshot — frozen at apply
+        // time so toggling a different config active later doesn't
+        // silently re-anchor the dashboard / plan header until that
+        // OTHER config is itself applied.
+        appliedStartWeight: row.startWeight ?? null,
+        appliedGoalWeight: row.goalWeight ?? null,
       })
       .where(eq(plannerConfigsTable.id, row.id));
 

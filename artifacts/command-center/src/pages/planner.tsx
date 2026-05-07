@@ -433,6 +433,22 @@ export default function Planner() {
   const [name, setName] = useState<string>("");
   const [startDate, setStartDate] = useState<string>("");
   const [marathonDate, setMarathonDate] = useState<string>("");
+  // Task #330. Optional body-mass targets stored alongside the config
+  // (and snapshotted into applied_* on Apply). Empty string ⇒ NULL on
+  // save, so a runner who doesn't want to track weight gets no
+  // anchored targets and the dashboard / plan header falls back to
+  // earliest measurement (start) and an em-dash sentinel (goal).
+  const [startWeight, setStartWeight] = useState<string>("");
+  const [goalWeight, setGoalWeight] = useState<string>("");
+  // Empty / non-numeric input → null (no anchored target). Used by the
+  // Save / Apply mutations so blank inputs round-trip a NULL on the
+  // applied_* snapshot rather than a zero.
+  function parseOptionalWeight(input: string): number | null {
+    const trimmed = input.trim();
+    if (trimmed === "") return null;
+    const n = Number(trimmed);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
   const [draft, setDraft] = useState<DraftBlock[]>([]);
   const [confirmApplyOpen, setConfirmApplyOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -1050,6 +1066,19 @@ export default function Planner() {
     setName(cfg.name);
     setStartDate(cfg.startDate);
     setMarathonDate(cfg.marathonDate);
+    // Task #330. Hydrate optional body-mass targets. Empty string in
+    // the form when the saved config carries null (no anchored target)
+    // so the resulting save round-trips a null instead of a zero.
+    setStartWeight(
+      typeof (cfg as { startWeight?: number | null }).startWeight === "number"
+        ? String((cfg as { startWeight: number }).startWeight)
+        : "",
+    );
+    setGoalWeight(
+      typeof (cfg as { goalWeight?: number | null }).goalWeight === "number"
+        ? String((cfg as { goalWeight: number }).goalWeight)
+        : "",
+    );
     setDraft(blocksToDraft(cfg.blocks as PhaseBlock[]));
     // Hydrate entries-mode if the saved config has entries; otherwise
     // null = legacy blocks-mode (auto-pinned 16-week tail).
@@ -1794,6 +1823,8 @@ export default function Planner() {
           marathonDate,
           blocks: draftToBlocks(draft),
           entries: isEntriesMode ? entries! : null,
+          startWeight: parseOptionalWeight(startWeight),
+          goalWeight: parseOptionalWeight(goalWeight),
         },
       },
       {
@@ -1838,6 +1869,8 @@ export default function Planner() {
           marathonDate,
           blocks: draftToBlocks(draft),
           entries: isEntriesMode ? entries! : null,
+          startWeight: parseOptionalWeight(startWeight),
+          goalWeight: parseOptionalWeight(goalWeight),
         },
       },
       {
@@ -2462,6 +2495,47 @@ export default function Planner() {
                 {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][raceDow ?? 0]}.
               </p>
             )}
+          </div>
+          {/* Task #330. Optional body-mass targets (lbs). Blank ⇒ NULL,
+              so the dashboard / plan header falls back to earliest
+              measurement (start) and an em-dash sentinel (goal). */}
+          <div className="space-y-2">
+            <Label htmlFor="planner-start-weight">
+              Start weight (lbs, optional)
+            </Label>
+            <Input
+              id="planner-start-weight"
+              data-testid="planner-start-weight"
+              type="number"
+              step="0.1"
+              min="0"
+              value={startWeight}
+              onChange={(e) => setStartWeight(e.target.value)}
+              placeholder="e.g. 281.6"
+            />
+            <p className="text-[11px] text-muted-foreground leading-snug">
+              Anchors the Body Mass tile. Leave blank to fall back to your
+              earliest logged measurement.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="planner-goal-weight">
+              Goal weight (lbs, optional)
+            </Label>
+            <Input
+              id="planner-goal-weight"
+              data-testid="planner-goal-weight"
+              type="number"
+              step="0.1"
+              min="0"
+              value={goalWeight}
+              onChange={(e) => setGoalWeight(e.target.value)}
+              placeholder="e.g. 210"
+            />
+            <p className="text-[11px] text-muted-foreground leading-snug">
+              Drives the &quot;to goal&quot; readout. Leave blank to omit a
+              goal target.
+            </p>
           </div>
           {!isEntriesMode && (
             <div className="md:col-span-3 flex items-center gap-2 pt-2 border-t">

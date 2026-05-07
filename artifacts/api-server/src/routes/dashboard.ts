@@ -3,11 +3,20 @@ import { db, planWeeksTable, planDaysTable, workoutsTable, measurementsTable } f
 import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { LIFESTYLE_EQUIPMENT, detectRaceKind } from "@workspace/plan-generator";
 import { toWorkout } from "../lib/transforms";
-import { readActiveConfigName, readActiveRaceDate } from "./planner";
+import { readActiveBodyTargets, readActiveConfigName, readActiveRaceDate } from "./planner";
 
 const router: IRouter = Router();
-const START_WEIGHT = 281.6;
-const GOAL_WEIGHT = 210;
+
+// Task #330. Earliest non-null measurement weight, used as the
+// `weightStart` fallback when no applied planner config carries a
+// snapshotted target. Mirrors the helper in plan.ts so the dashboard
+// Body Mass tile and /plan header agree on the resolved start weight.
+async function readEarliestMeasurementWeight(): Promise<number | null> {
+  const rows = await db.execute<{ weight: number }>(
+    sql`SELECT weight FROM measurements WHERE weight IS NOT NULL ORDER BY date ASC LIMIT 1`,
+  );
+  return rows.rows[0]?.weight ?? null;
+}
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -173,6 +182,15 @@ router.get("/dashboard/summary", async (_req, res) => {
   );
   const currentWeight = lastMeas.rows[0]?.weight ?? null;
 
+  // Task #330. Body-mass targets — applied snapshot wins, then
+  // earliest measurement (start only), then null sentinels. The
+  // dashboard Body Mass tile and the /plan header read from the same
+  // helpers so they can never disagree on the resolved values.
+  const bodyTargets = await readActiveBodyTargets();
+  const weightStart =
+    bodyTargets.startWeight ?? (await readEarliestMeasurementWeight());
+  const weightGoal = bodyTargets.goalWeight;
+
   // Adherence: per plan_day completion / total planned non-rest plan_days
   // up to today (Task #143). Each concurrent overlapping program (Task
   // #135) contributes its own plan_day to the denominator and is credited
@@ -282,11 +300,20 @@ router.get("/dashboard/summary", async (_req, res) => {
     prevFourWeekAvgLifestyleMinutes,
     totalMilesAllTime: allTime.rows[0]?.total_miles ?? 0,
     longestRunMi: longestRunActual.rows[0]?.longest ?? 0,
-    weightStart: START_WEIGHT,
+    weightStart,
     weightCurrent: currentWeight,
-    weightGoal: GOAL_WEIGHT,
-    weightLost: currentWeight !== null ? Math.max(0, START_WEIGHT - currentWeight) : 0,
-    weightToGoal: currentWeight !== null ? Math.max(0, currentWeight - GOAL_WEIGHT) : START_WEIGHT - GOAL_WEIGHT,
+    weightGoal,
+    // Task #330: nulls collapse to 0 (rather than the old hardcoded
+    // 281.6/210 fallback) so a fresh install with no measurements and
+    // no applied config renders an "—" tile cleanly.
+    weightLost:
+      weightStart !== null && currentWeight !== null
+        ? Math.max(0, weightStart - currentWeight)
+        : 0,
+    weightToGoal:
+      weightGoal !== null && currentWeight !== null
+        ? Math.max(0, currentWeight - weightGoal)
+        : 0,
     adherencePct,
     daysToRace,
     programs: programsWithAdherence,

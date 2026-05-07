@@ -18,7 +18,11 @@ import {
   type PlannerConfig,
   type TemplateEntry,
 } from "@workspace/plan-generator";
-import { readActiveConfigName, readLastAppliedPlannerConfig } from "./planner";
+import {
+  readActiveBodyTargets,
+  readActiveConfigName,
+  readLastAppliedPlannerConfig,
+} from "./planner";
 import {
   toPlanDay,
   toPlanWeek,
@@ -54,8 +58,17 @@ const router: IRouter = Router();
 // to call a single-program campaign's lone "program".
 const FALLBACK_PROGRAM_LABEL = "Marathon Plan";
 
-const START_WEIGHT = 281.6;
-const GOAL_WEIGHT = 210;
+// Task #330. Earliest non-null measurement weight, used as the
+// `startWeight` fallback when no applied planner config carries a
+// snapshotted target. Returns null when no measurements exist (fresh
+// install) so the dashboard / plan header can render an em-dash
+// sentinel instead of the legacy hardcoded 281.6 constant.
+async function readEarliestMeasurementWeight(): Promise<number | null> {
+  const rows = await db.execute<{ weight: number }>(
+    sql`SELECT weight FROM measurements WHERE weight IS NOT NULL ORDER BY date ASC LIMIT 1`,
+  );
+  return rows.rows[0]?.weight ?? null;
+}
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -196,6 +209,13 @@ router.get("/plan/overview", async (_req, res) => {
     raceDate = allWeeks[allWeeks.length - 1]!.endDate;
   }
 
+  // Task #330. Body-mass targets — applied snapshot wins, then
+  // earliest measurement (start only), then null sentinels.
+  const bodyTargets = await readActiveBodyTargets();
+  const startWeight =
+    bodyTargets.startWeight ?? (await readEarliestMeasurementWeight());
+  const goalWeight = bodyTargets.goalWeight;
+
   res.json({
     hasPlan: allWeeks.length > 0,
     currentWeek: week,
@@ -204,9 +224,9 @@ router.get("/plan/overview", async (_req, res) => {
     weeksRemaining: Math.max(0, totalWeeks - week),
     raceDate,
     startDate,
-    startWeight: START_WEIGHT,
+    startWeight,
     currentWeight,
-    goalWeight: GOAL_WEIGHT,
+    goalWeight,
     weeklyMilesTarget: weekRow?.plannedMiles ?? 0,
     longRunTarget: weekRow?.longRunMi ?? 0,
     programs,
@@ -1608,7 +1628,7 @@ router.post("/plan/full-reset", async (req, res): Promise<void> => {
     // already in draft state (lastAppliedAt = null, applied_* = null)
     // are unaffected by the writes.
     await tx.execute(
-      sql`UPDATE planner_configs SET last_applied_at = NULL, applied_start_date = NULL, applied_marathon_date = NULL, applied_blocks = NULL, applied_entries = NULL`,
+      sql`UPDATE planner_configs SET last_applied_at = NULL, applied_start_date = NULL, applied_marathon_date = NULL, applied_blocks = NULL, applied_entries = NULL, applied_start_weight = NULL, applied_goal_weight = NULL`,
     );
 
     // Plan tables stay EMPTY. The UI surfaces an "Open Phase Planner"

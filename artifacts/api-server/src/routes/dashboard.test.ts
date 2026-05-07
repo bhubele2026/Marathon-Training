@@ -104,11 +104,16 @@ describe("GET /api/dashboard/summary", () => {
         weeklySessionsCompleted: 2, // 2 in-range training workouts; 2 Lifestyle excluded
         weeklySessionsPlanned: 2, // 2 non-rest plan days
         weeklyLifestyleMinutes: 70, // 25 + 45; out-of-range 90 excluded
-        weightStart: 281.6,
-        weightGoal: 210,
+        // Task #330: weightStart now sources from the earliest
+        // measurement (no applied planner config in this test), so it
+        // matches weightCurrent (232.5 is the only measurement).
+        // weightGoal is null with no applied config snapshot; that
+        // also collapses weightLost / weightToGoal to 0.
+        weightStart: 232.5,
+        weightGoal: null,
         weightCurrent: 232.5,
-        weightLost: expect.closeTo(281.6 - 232.5, 5),
-        weightToGoal: expect.closeTo(232.5 - 210, 5),
+        weightLost: 0,
+        weightToGoal: 0,
         // Race date (2027-05-02) is well in the past relative to today (2099),
         // so the countdown clamps to zero.
         daysToRace: 0,

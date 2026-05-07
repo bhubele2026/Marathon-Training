@@ -6,6 +6,7 @@ import {
   jsonb,
   timestamp,
   boolean,
+  doublePrecision,
 } from "drizzle-orm/pg-core";
 
 // Saved Planner configurations (Task #82). Originally a single-row table
@@ -78,6 +79,14 @@ export const plannerConfigsTable = pgTable("planner_configs", {
   // Optional notes the runner wants to attach to this whole config
   // (e.g. "First marathon — be conservative").
   notes: text("notes"),
+  // Task #330. Optional body-mass targets the runner wants tracked
+  // alongside this campaign. NULL on legacy configs (and on configs
+  // where the runner doesn't want to track weight). When NULL, the
+  // /plan and dashboard "Body Mass" tile fall back to the runner's
+  // earliest measurement (start) and a null sentinel (goal) instead of
+  // the legacy hardcoded 281.6 / 210 constants.
+  startWeight: doublePrecision("start_weight"),
+  goalWeight: doublePrecision("goal_weight"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   // Set by POST /api/planner/apply when the runner regenerates plan_weeks /
@@ -113,6 +122,12 @@ export const plannerConfigsTable = pgTable("planner_configs", {
       startDate?: string | null;
     }> | null
   >(),
+  // Task #330. Immutable snapshots of the body-mass targets that were
+  // active at apply time. Mirrors the rest of the applied_* convention
+  // so a saved-but-not-yet-applied draft cannot silently re-anchor the
+  // /plan header / dashboard Body Mass tile.
+  appliedStartWeight: doublePrecision("applied_start_weight"),
+  appliedGoalWeight: doublePrecision("applied_goal_weight"),
 });
 
 export type PlannerConfigRow = typeof plannerConfigsTable.$inferSelect;

@@ -243,7 +243,7 @@ export default function Dashboard() {
                     {formatWeight(summary.weightCurrent)}
                   </div>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Goal: {summary.weightGoal} |{" "}
+                    Goal: {summary.weightGoal ?? "—"} |{" "}
                     <span className="text-primary font-semibold">
                       -{summary.weightLost.toFixed(1)} lbs
                     </span>
@@ -390,7 +390,7 @@ export default function Dashboard() {
                 <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Body Mass</p>
                 <div className="text-3xl font-black mt-1">{formatWeight(summary.weightCurrent)}</div>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Goal: {summary.weightGoal} | <span className="text-primary font-semibold">-{summary.weightLost.toFixed(1)} lbs</span>
+                  Goal: {summary.weightGoal ?? "—"} | <span className="text-primary font-semibold">-{summary.weightLost.toFixed(1)} lbs</span>
                 </p>
               </div>
               <TrendingDown className="h-8 w-8 text-muted-foreground opacity-50" />
