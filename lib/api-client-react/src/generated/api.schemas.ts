@@ -458,9 +458,22 @@ sourced from the most-recently-applied planner config's
 and to null on fresh installs / post Full Reset.
  */
   startDate: string | null;
-  startWeight: number;
+  /** Task #330. Body-mass start target (lbs). Sourced from the
+most-recently-applied planner config's `appliedStartWeight`,
+falling back to the runner's earliest measurement weight.
+NULL on fresh installs with no measurements and no applied
+config — the dashboard / plan header omits the goal-line
+text in that case.
+ */
+  startWeight: number | null;
   currentWeight: number | null;
-  goalWeight: number;
+  /** Task #330. Body-mass goal target (lbs). Sourced from the
+most-recently-applied planner config's `appliedGoalWeight`.
+NULL when the runner hasn't set a goal on their applied
+config — the dashboard / plan header renders an em-dash
+sentinel in that case rather than the legacy hardcoded 210.
+ */
+  goalWeight: number | null;
   weeklyMilesTarget?: number;
   longRunTarget?: number;
   /** Task #244. Display name of the currently-active planner
@@ -868,10 +881,29 @@ Recent Logs / Equipment tiles remain visible even when false.
   prevFourWeekAvgLifestyleMinutes: number | null;
   totalMilesAllTime: number;
   longestRunMi: number;
-  weightStart: number;
+  /** Task #330. Body-mass start target (lbs). Mirrors
+`PlanOverview.startWeight` — sourced from the
+most-recently-applied planner config's `appliedStartWeight`,
+falling back to the runner's earliest measurement weight,
+then to null. The Body Mass tile renders an em-dash when
+both this and `weightCurrent` are null.
+ */
+  weightStart: number | null;
   weightCurrent: number | null;
-  weightGoal: number;
+  /** Task #330. Body-mass goal target (lbs). Mirrors
+`PlanOverview.goalWeight` — sourced from the
+most-recently-applied planner config's `appliedGoalWeight`.
+NULL when the runner hasn't set a goal; the Body Mass
+tile renders an em-dash sentinel in that case.
+ */
+  weightGoal: number | null;
+  /** (weightStart - weightCurrent), clamped to >= 0. Zero when
+either side is null.
+ */
   weightLost: number;
+  /** (weightCurrent - weightGoal), clamped to >= 0. Zero when
+either side is null.
+ */
   weightToGoal: number;
   adherencePct: number;
   daysToRace: number;
@@ -1239,6 +1271,20 @@ export interface PlannerConfig {
   /** Ordered list of TemplateEntry objects. When non-null, entries are the source of truth for the editor; the server projects entries → blocks on every write. Sum of entry weeks must equal totalWeeks (no auto-pinned tail). NULL for legacy blocks-only configs. */
   entries?: TemplateEntry[] | null;
   notes?: string | null;
+  /** Task #330. Optional body-mass start target (lbs). NULL when
+the runner doesn't want to track a start weight on this
+config. When non-null, surfaces on the dashboard's Body
+Mass tile and the /plan header instead of the legacy
+hardcoded 281.6 constant.
+ */
+  startWeight: number | null;
+  /** Task #330. Optional body-mass goal target (lbs). NULL when
+the runner doesn't want to track a goal weight on this
+config. When non-null, surfaces on the dashboard's Body
+Mass tile and the /plan header instead of the legacy
+hardcoded 210 constant.
+ */
+  goalWeight: number | null;
   /** Server-set timestamp for the most recent write. Read-only — ignored on writes. */
   updatedAt?: string;
   /** Timestamp of the most recent /planner/apply that pivoted on this config. NULL if it has never been applied. */
@@ -1349,6 +1395,10 @@ export interface CreatePlannerConfigBody {
   /** Optional. When non-null, switches the config into entries-mode. The server projects entries → blocks and stores both. Sum of entry weeks must equal the totalWeeks span between startDate and marathonDate. */
   entries?: TemplateEntry[] | null;
   notes?: string | null;
+  /** Task */
+  startWeight?: number | null;
+  /** Task */
+  goalWeight?: number | null;
   /** When true, mark the new config active immediately. Defaults to true if no configs exist yet, false otherwise. */
   setActive?: boolean | null;
 }
@@ -1362,6 +1412,10 @@ export interface UpdatePlannerConfigBody {
   /** Optional. When non-null, switches the config into entries-mode. The server projects entries → blocks and stores both. Sum of entry weeks must equal the totalWeeks span between startDate and marathonDate. */
   entries?: TemplateEntry[] | null;
   notes?: string | null;
+  /** Task */
+  startWeight?: number | null;
+  /** Task */
+  goalWeight?: number | null;
 }
 
 export interface DuplicatePlannerConfigBody {
