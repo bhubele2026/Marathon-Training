@@ -715,12 +715,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 25.3.5
-      '@types/pg':
-        specifier: ^8.11.10
-        version: 8.18.0
-      pg:
-        specifier: ^8.20.0
-        version: 8.20.0
       typescript:
         specifier: ~5.9.2
         version: 5.9.3

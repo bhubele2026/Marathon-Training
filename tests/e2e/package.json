@@ -10,8 +10,6 @@
   "devDependencies": {
     "@playwright/test": "^1.59.1",
     "@types/node": "catalog:",
-    "@types/pg": "^8.11.10",
-    "pg": "^8.20.0",
     "typescript": "~5.9.2"
   }
 }

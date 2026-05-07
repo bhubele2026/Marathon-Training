@@ -28,12 +28,12 @@ import { expectMatchesSchema } from "../test-helpers";
 // against the seeded production-shaped tables and asserts that after the
 // call we end up in a known clean state.
 
-// Task #307: /plan/full-reset leaves plan_weeks/plan_days EMPTY when no
-// applied planner config exists. The canonical 52-week assertions in
-// this suite depend on PLAN_START_ISO / 281.6 lb baseline / 52 weeks of
-// phase ladders, so each test installs + applies a canonical 52-week
-// planner config in beforeEach. The empty-fallback path is covered by a
-// dedicated test below.
+// Task #326: /plan/full-reset is now scorched-earth: it always wipes
+// every mutable table AND demotes any applied planner config back to
+// draft (clears applied_* + last_applied_at) so plan_weeks/plan_days
+// stay EMPTY until the runner re-applies a config from /planner. That
+// means every test in this file should land in the empty-plan state,
+// regardless of whether an applied config existed beforehand.
 function canonicalBlocks() {
   const userWeeks = TOTAL_WEEKS - MARATHON_TAIL_WEEKS;
   return [
@@ -59,18 +59,16 @@ async function installAppliedCanonicalConfig() {
 }
 
 beforeEach(async () => {
-  // Start every test from a freshly-seeded database so cross-test ordering
-  // can't make assertions flaky. Hitting /plan/full-reset is the cheapest
-  // way to do that and it also exercises the codepath under test as part
-  // of the setup, which is the exact behavior we want to verify.
+  // Start every test from a clean wiped database. Apply a canonical
+  // config first so we can assert that Full Reset wipes its plan rows
+  // AND demotes the config back to draft, then call Full Reset.
   await installAppliedCanonicalConfig();
   await request(app).post("/api/plan/full-reset");
 });
 
 afterEach(async () => {
-  // Restore the seeded baseline so the rest of the test suite (which
-  // expects a fully-seeded plan) keeps passing regardless of what this
-  // file did to the database.
+  // Re-apply the canonical config and immediately Full Reset so the
+  // database is left in a known empty state for downstream suites.
   await installAppliedCanonicalConfig();
   await request(app).post("/api/plan/full-reset");
 });
@@ -83,19 +81,21 @@ async function tableCount(table: string): Promise<number> {
 }
 
 describe("POST /api/plan/full-reset", () => {
-  it("returns the canonical seeded counts on a clean database and matches the OpenAPI schema", async () => {
+  it("returns zero seeded counts and matches the OpenAPI schema (Task #326)", async () => {
     const res = await request(app).post("/api/plan/full-reset");
     expect(res.status).toBe(200);
     expectMatchesSchema(FullResetPlanResponse, res.body);
 
-    expect(res.body.weeksSeeded).toBe(TOTAL_WEEKS);
-    expect(res.body.daysSeeded).toBe(TOTAL_WEEKS * 7);
-    expect(res.body.measurementsSeeded).toBe(1);
+    // Task #326: Full Reset never reseeds. The runner has to re-apply
+    // a config from /planner before plan rows come back.
+    expect(res.body.weeksSeeded).toBe(0);
+    expect(res.body.daysSeeded).toBe(0);
+    expect(res.body.measurementsSeeded).toBe(0);
 
-    // The beforeEach seed already populated these tables, so calling reset
-    // again should report what *was* there before this second wipe.
+    // The beforeEach already wiped the database, so this second reset
+    // sees nothing to wipe and reports zero counts.
     expect(res.body.workoutsWiped).toBe(0);
-    expect(res.body.measurementsWiped).toBe(1);
+    expect(res.body.measurementsWiped).toBe(0);
     expect(res.body.checklistItemsWiped).toBe(0);
     expect(res.body.undoSnapshotsWiped).toBe(0);
   });
@@ -142,7 +142,7 @@ describe("POST /api/plan/full-reset", () => {
       snapshots: await tableCount("reset_undo_snapshots"),
     };
     expect(before.workouts).toBeGreaterThanOrEqual(2);
-    expect(before.measurements).toBeGreaterThanOrEqual(2);
+    expect(before.measurements).toBeGreaterThanOrEqual(1);
     expect(before.checklist).toBeGreaterThanOrEqual(1);
     expect(before.snapshots).toBeGreaterThanOrEqual(1);
 
@@ -154,59 +154,70 @@ describe("POST /api/plan/full-reset", () => {
     expect(res.body.checklistItemsWiped).toBe(before.checklist);
     expect(res.body.undoSnapshotsWiped).toBe(before.snapshots);
 
-    // After the reset, the user-mutable tables are clean except for the
-    // single seeded baseline measurement that the route reinserts.
+    // Task #326: every user-mutable table is empty after the reset.
+    // No baseline measurement is reinserted — the runner has to apply
+    // a planner config to repopulate the campaign.
     expect(await tableCount("workouts")).toBe(0);
-    expect(await tableCount("measurements")).toBe(1);
+    expect(await tableCount("measurements")).toBe(0);
     expect(await tableCount("race_week_checklist")).toBe(0);
     expect(await tableCount("reset_undo_snapshots")).toBe(0);
   });
 
-  it("reseeds 52 weeks / 364 days with seed_* mirror columns populated and the baseline measurement on PLAN_START_ISO", async () => {
-    // Mutate a plan day so we can prove reset wipes the customization.
-    const firstDay = (
-      await db.select().from(planDaysTable).limit(1)
-    )[0]!;
-    await db
-      .update(planDaysTable)
-      .set({
-        sessionType: "CUSTOMIZED",
-        description: "user edit that should be wiped",
-        seedSessionType: firstDay.sessionType,
-        seedDescription: firstDay.description,
-      })
-      .where(sql`${planDaysTable.id} = ${firstDay.id}`);
+  // Task #326: Full Reset wipes plan_weeks/plan_days even when an
+  // applied planner config exists, AND demotes that config back to
+  // draft state so subsequent reads see "no applied config".
+  it("wipes plan_weeks/plan_days and demotes the applied planner config back to draft", async () => {
+    // Re-install + apply the canonical config so this test starts from
+    // a populated plan that Full Reset must wipe.
+    await installAppliedCanonicalConfig();
+
+    // Sanity: plan_days is populated and the applied config has its
+    // applied_* snapshot + last_applied_at set.
+    expect(await tableCount("plan_weeks")).toBe(TOTAL_WEEKS);
+    expect(await tableCount("plan_days")).toBe(TOTAL_WEEKS * 7);
+    const beforeCfgs = await db.select().from(plannerConfigsTable);
+    expect(beforeCfgs).toHaveLength(1);
+    expect(beforeCfgs[0]!.lastAppliedAt).not.toBeNull();
+    expect(beforeCfgs[0]!.appliedStartDate).not.toBeNull();
+    expect(beforeCfgs[0]!.appliedBlocks).not.toBeNull();
 
     const res = await request(app).post("/api/plan/full-reset");
     expect(res.status).toBe(200);
+    expect(res.body.weeksSeeded).toBe(0);
+    expect(res.body.daysSeeded).toBe(0);
+    expect(res.body.measurementsSeeded).toBe(0);
 
-    const weeks = await db.select().from(planWeeksTable);
-    const days = await db.select().from(planDaysTable);
-    expect(weeks).toHaveLength(TOTAL_WEEKS);
-    expect(days).toHaveLength(TOTAL_WEEKS * 7);
+    // Plan tables empty.
+    expect(await tableCount("plan_weeks")).toBe(0);
+    expect(await tableCount("plan_days")).toBe(0);
 
-    // No row should retain the customized session type after the reset.
-    expect(days.find((d) => d.sessionType === "CUSTOMIZED")).toBeUndefined();
+    // Config row preserved (name + blocks intact) but demoted to draft.
+    const afterCfgs = await db.select().from(plannerConfigsTable);
+    expect(afterCfgs).toHaveLength(1);
+    const demoted = afterCfgs[0]!;
+    expect(demoted.name).toBe("Canonical 52w");
+    expect(demoted.blocks).not.toBeNull();
+    expect(demoted.lastAppliedAt).toBeNull();
+    expect(demoted.appliedStartDate).toBeNull();
+    expect(demoted.appliedMarathonDate).toBeNull();
+    expect(demoted.appliedBlocks).toBeNull();
+    expect(demoted.appliedEntries).toBeNull();
 
-    // Every reseeded day should have its seed_* mirror columns populated
-    // so a per-day reset has a clean snapshot to restore from.
-    for (const d of days) {
-      expect(d.seedSessionType).toBe(d.sessionType);
-      expect(d.seedEquipment).toBe(d.equipment);
-      expect(d.seedDescription).toBe(d.description);
-      expect(d.seedTotalLoad).toBe(d.totalLoad);
-      expect(d.seedIsRest).toBe(d.isRest);
-    }
+    // /plan/overview reflects the empty + generic-fallback state.
+    const overview = await request(app).get("/api/plan/overview");
+    expect(overview.status).toBe(200);
+    expect(overview.body.hasPlan).toBe(false);
+    expect(overview.body.activeConfigName).toBe("Workout Plan");
 
-    const measurements = await db.select().from(measurementsTable);
-    expect(measurements).toHaveLength(1);
-    expect(measurements[0]!.date).toBe(PLAN_START_ISO);
-    expect(measurements[0]!.weight).toBe(281.6);
+    // Re-applying the (still-active) demoted config repopulates the
+    // plan rows, proving Full Reset doesn't lose the saved config.
+    const apply = await request(app).post("/api/planner/apply");
+    expect(apply.status).toBe(200);
+    expect(await tableCount("plan_weeks")).toBe(TOTAL_WEEKS);
+    expect(await tableCount("plan_days")).toBe(TOTAL_WEEKS * 7);
   });
 
-  it("restarts plan_days serial ids back to 1 so the freshly-seeded campaign starts from id 1", async () => {
-    // Insert + delete a workout to bump its id sequence; the reset should
-    // restart that sequence too via TRUNCATE ... RESTART IDENTITY.
+  it("restarts the workouts serial id back to 1 via TRUNCATE ... RESTART IDENTITY", async () => {
     await db.insert(workoutsTable).values({
       date: PLAN_START_ISO,
       equipment: "Outdoor",
@@ -216,15 +227,8 @@ describe("POST /api/plan/full-reset", () => {
     const res = await request(app).post("/api/plan/full-reset");
     expect(res.status).toBe(200);
 
-    const minPlanDayId = (
-      await db.execute<{ min: number | null }>(
-        sql`SELECT MIN(id)::int AS min FROM plan_days`,
-      )
-    ).rows[0]!.min;
-    expect(minPlanDayId).toBe(1);
-
-    // Re-insert one workout post-reset; its id should also start back at 1
-    // since the workouts sequence was just restarted by the TRUNCATE.
+    // Re-insert one workout post-reset; its id should start back at 1
+    // since the workouts sequence was restarted by the TRUNCATE.
     const inserted = await db
       .insert(workoutsTable)
       .values({
@@ -236,13 +240,9 @@ describe("POST /api/plan/full-reset", () => {
     expect(inserted[0]!.id).toBe(1);
   });
 
-  // Task #307. Empty-fallback path: when no planner_configs row carries
-  // a last_applied_at, /plan/full-reset wipes everything and leaves
-  // plan_weeks/plan_days EMPTY (no synthetic default-config insert).
-  // The UI surfaces an "Open Phase Planner" empty state in that mode.
   it("leaves plan tables empty when no planner config has been applied", async () => {
-    // Drop the canonical applied config installed by the suite's
-    // beforeEach so this test exercises the empty-fallback path.
+    // Drop every planner_configs row so this test exercises the
+    // "no applied config existed in the first place" path.
     await db.delete(plannerConfigsTable);
 
     const res = await request(app).post("/api/plan/full-reset");
@@ -272,15 +272,12 @@ describe("POST /api/plan/full-reset", () => {
     expect(summary.body.hasPlan).toBe(false);
   });
 
-  // Task #307 follow-up: the empty-fallback path must be NON-DESTRUCTIVE
-  // toward saved planner drafts (rows with no last_applied_at). The wipe
-  // must leave them untouched so the runner can still apply them.
-  it("preserves saved planner drafts when the empty-fallback runs", async () => {
-    // Wipe any applied configs so the empty-fallback path runs on full-reset.
+  // Saved drafts (no last_applied_at, applied_* already null) must be
+  // left untouched in shape so the runner can still apply them.
+  it("preserves saved planner drafts across Full Reset", async () => {
+    // Wipe any applied configs so only the draft remains.
     await db.delete(plannerConfigsTable);
 
-    // Seed a saved DRAFT — no lastAppliedAt — that the fallback path
-    // must leave untouched.
     const draftCreatedAt = new Date("2099-01-15T00:00:00.000Z");
     await db.insert(plannerConfigsTable).values({
       id: 42,

@@ -23,10 +23,6 @@ E2E_BASE_URL=https://<your-deployment-domain> \
   (serves `/api`).
 - The `artifacts/command-center: web` workflow must be running
   (serves `/`).
-- `DATABASE_URL` must be set in the shell that runs the spec — the
-  empty-plan spec connects directly to the dev DB to truncate
-  `planner_configs` (the only way to put the system into the
-  "fresh install" state Task #307 requires).
 - Chromium needs the system libraries Playwright depends on. They are
   installed via Nix in this workspace (glib, nss, nspr, atk, cups,
   libdrm, dbus, libxkbcommon, at-spi2-*, alsa-lib, mesa, libgbm,
@@ -43,7 +39,8 @@ E2E_BASE_URL=https://<your-deployment-domain> \
 
 ## Notes
 
-- The empty-plan spec is destructive against the dev DB: it TRUNCATEs
-  `planner_configs`, drives Full Reset (workouts/measurements/checklist
-  wiped), and applies a new config. Don't point this at any environment
-  whose data you want to keep.
+- The empty-plan spec is destructive against the dev DB: Full Reset
+  wipes workouts/measurements/checklist and demotes every applied
+  planner config back to draft (Task #326), then the spec applies a
+  new config. Don't point this at any environment whose data you want
+  to keep.

@@ -338,14 +338,12 @@ describe("POST /api/planner/apply", () => {
     expect(rw.body.raceDate).toBe(RACE_DATE_ISO);
   });
 
-  it("entries-mode apply round-trips through /plan/full-reset without re-validating as legacy", async () => {
+  it("entries-mode apply snapshots appliedEntries so the config can be re-applied after Full Reset (Task #326)", async () => {
     // 16-week Mon→Sun span; pick entries whose summed weeks equal that span.
     // Verifies: (a) entries-mode config saves with customName preserved,
     // (b) Apply snapshots appliedEntries (not just appliedBlocks) so the
-    // subsequent Full Reset re-runs generatePlanFromConfig in entries-mode
-    // — without the snapshot, the row's appliedBlocks would sum to the
-    // FULL span and the legacy validator would reject it (expected
-    // sum = totalWeeks - MARATHON_TAIL_WEEKS).
+    // config row keeps its entries shape after Full Reset clears the
+    // applied_* columns and the runner re-applies it from /planner.
     const startDate = "2026-05-11"; // Monday
     const marathonDate = "2026-08-30"; // Sunday, exactly 16 weeks out
     const create = await request(app)
@@ -377,14 +375,32 @@ describe("POST /api/planner/apply", () => {
       { templateId: "half_marathon", weeks: 12, customName: "HM build", customNotes: null, startDate: null },
     ]);
 
-    // Full reset must re-pivot off the entries-mode snapshot. If the
-    // snapshot were legacy-only, the generator would reject this 16-week
-    // span as "must be at least 16 weeks of user blocks PLUS the auto
-    // 16-week tail" and the route would 500.
+    // Task #326: Full Reset wipes plan_weeks/plan_days and demotes the
+    // config back to draft (clears applied_* columns). The non-applied
+    // top-level entries shape stays intact so the runner can re-apply
+    // it from /planner without rebuilding the config.
     const reset = await request(app).post("/api/plan/full-reset");
     expect(reset.status).toBe(200);
-    expect(reset.body.weeksSeeded).toBe(16);
-    expect(reset.body.daysSeeded).toBe(16 * 7);
+    expect(reset.body.weeksSeeded).toBe(0);
+    expect(reset.body.daysSeeded).toBe(0);
+
+    const after = await db.select().from(plannerConfigsTable);
+    expect(after).toHaveLength(1);
+    expect(after[0]!.lastAppliedAt).toBeNull();
+    expect(after[0]!.appliedEntries).toBeNull();
+    expect(after[0]!.entries).toEqual([
+      { templateId: "aerobic_base", weeks: 4, customName: "Spring base", customNotes: null, startDate: null },
+      { templateId: "half_marathon", weeks: 12, customName: "HM build", customNotes: null, startDate: null },
+    ]);
+
+    // Re-applying the still-active entries-mode config repopulates the
+    // 16-week plan rows — so Full Reset is fully recoverable from the
+    // saved entries shape, no manual rebuild required.
+    const reapply = await request(app).post("/api/planner/apply");
+    expect(reapply.status).toBe(200);
+    expect(reapply.body.totalWeeks).toBe(16);
+    expect(reapply.body.weeksSeeded).toBe(16);
+    expect(reapply.body.daysSeeded).toBe(16 * 7);
   });
 
   it("rejects an empty entries array (mode is determined by presence, not length)", async () => {

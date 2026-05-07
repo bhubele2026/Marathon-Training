@@ -1,11 +1,15 @@
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
-import { Client } from "pg";
 
 // Task #309: end-to-end coverage of the empty-plan UI introduced by
 // Task #307. Wipes the plan via Full Reset, asserts the EmptyPlanState
 // CTA appears on each of the four plan-driven pages and successfully
 // navigates to /planner, then applies a fresh PlannerConfig via the
 // API and confirms normal plan UI returns on every page.
+//
+// Task #326: Full Reset is now scorched-earth on its own — it demotes
+// every applied planner config back to draft state, so this spec no
+// longer needs to TRUNCATE planner_configs ahead of time. Driving the
+// Full Reset UI is enough to land in the empty-plan state.
 //
 // Run against the locally-running workflows:
 //   pnpm --filter @workspace/e2e-tests run test:e2e
@@ -27,15 +31,8 @@ test.describe("Empty plan UI (Task #309)", () => {
     page,
     request,
   }) => {
-    // ---- 0. Truncate planner_configs directly so /plan/full-reset hits its
-    // Task #307 codepath (no last-applied config → empty plan tables).
-    // The HTTP API can't help here: DELETE /api/planner/configs/:id refuses
-    // to remove the only remaining row. Hitting the dev DB directly is the
-    // simplest way to put the system into the "fresh install" state this
-    // test needs to exercise.
-    await truncatePlannerConfigs();
-
     // ---- 1. Wipe the plan via the /plan Danger Zone Full Reset UI -------
+    // Task #326: Full Reset alone is enough — no direct DB truncate.
     await page.goto("/plan");
     await page
       .getByTestId("button-full-reset")
@@ -166,18 +163,3 @@ function isoPlusDays(iso: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-async function truncatePlannerConfigs(): Promise<void> {
-  const url = process.env.DATABASE_URL;
-  if (!url) {
-    throw new Error(
-      "DATABASE_URL must be set so the e2e test can put the planner_configs table into the fresh-install state required by Task #307.",
-    );
-  }
-  const client = new Client({ connectionString: url });
-  await client.connect();
-  try {
-    await client.query("TRUNCATE TABLE planner_configs RESTART IDENTITY CASCADE");
-  } finally {
-    await client.end();
-  }
-}

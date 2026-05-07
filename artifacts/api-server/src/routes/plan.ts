@@ -4,7 +4,6 @@ import {
   planDaysTable,
   planWeeksTable,
   workoutsTable,
-  measurementsTable,
   type PlanDayRow,
   type WorkoutRow,
 } from "@workspace/db";
@@ -15,13 +14,11 @@ import {
   UndoPlanResetBody,
 } from "@workspace/api-zod";
 import {
-  generatePlanFromConfig,
-  expandConfigToPlanRows,
   detectRaceKind,
   type PlannerConfig,
   type TemplateEntry,
 } from "@workspace/plan-generator";
-import { readActiveConfigName, readLastAppliedPlannerConfig } from "./planner";
+import { readActiveConfigName } from "./planner";
 import {
   toPlanDay,
   toPlanWeek,
@@ -1530,18 +1527,17 @@ router.post("/plan/reset", async (req, res): Promise<void> => {
 // destructive bulk delete invites footguns (a 30-second TTL undo for
 // hundreds of rows would surprise rather than help).
 router.post("/plan/full-reset", async (req, res): Promise<void> => {
-  // Generate plan rows OUTSIDE the transaction so a generator bug can't
-  // leave us with truncated tables. Pivot off the most recently APPLIED
-  // Planner config so a saved-but-never-applied draft does not silently
-  // change what Full Reset reseeds. Task #307: when nothing has ever
-  // been applied, leave plan_weeks/plan_days EMPTY (the UI surfaces an
-  // "Open Phase Planner" empty state in that mode) instead of injecting
-  // any synthetic default. Full Reset still wipes every other mutable
-  // table so "start over" remains scorched-earth.
-  const appliedConfig = await readLastAppliedPlannerConfig();
-  const plan = appliedConfig ? generatePlanFromConfig(appliedConfig) : null;
-  const seedRows = appliedConfig ? expandConfigToPlanRows(appliedConfig) : null;
-
+  // Task #326: Full Reset is now truly scorched-earth. Even when a
+  // planner config has been applied previously, we no longer reseed
+  // plan_weeks / plan_days from it — the runner has to re-apply a
+  // config from /planner before any plan rows come back. We achieve
+  // this by clearing the applied_* state (lastAppliedAt + applied
+  // snapshot columns) on every planner_configs row inside the same
+  // transaction, which demotes them to drafts. Saved drafts (already
+  // had lastAppliedAt = null) stay untouched in shape; their name,
+  // blocks, and entries remain so the runner can apply them. The
+  // existing Task #307 empty-fallback branch then takes over and the
+  // route returns weeksSeeded: 0.
   const result = await db.transaction(async (tx) => {
     // Take ACCESS EXCLUSIVE locks on every table we're about to wipe BEFORE
     // counting, so a concurrent insert cannot commit between our COUNT(*)
@@ -1586,131 +1582,27 @@ router.post("/plan/full-reset", async (req, res): Promise<void> => {
       sql`TRUNCATE TABLE workouts, plan_days, plan_weeks, measurements, race_week_checklist, race_results, reset_undo_snapshots RESTART IDENTITY CASCADE`,
     );
 
-    // Task #307: with no applied planner config, leave plan_weeks /
-    // plan_days / measurements EMPTY. The wipe above is enough; the UI
-    // surfaces an "Open Phase Planner" empty state in that mode.
-    if (!seedRows || !plan) {
-      return {
-        weeksSeeded: 0,
-        daysSeeded: 0,
-        workoutsWiped: workoutsBefore,
-        measurementsWiped: measurementsBefore,
-        measurementsSeeded: 0,
-        checklistItemsWiped: checklistBefore,
-        undoSnapshotsWiped: snapshotsBefore,
-      };
-    }
-
-    // Reseed plan_weeks first so the plan_days FK targets exist. Use
-    // the per-entry-aware seedRows so concurrent overlapping programs
-    // get aggregated weekly totals (sum loads/miles, max long_run) just
-    // like /planner/apply produces them.
-    await tx.insert(planWeeksTable).values(
-      seedRows.weekly.map((w) => ({
-        week: w.week,
-        phase: w.phase,
-        startDate: w.start,
-        endDate: w.end,
-        plannedStrength: w.planned_strength,
-        plannedCardio: w.planned_cardio,
-        plannedTotalLoad: w.planned_total_load,
-        plannedMiles: w.planned_miles,
-        longRunMi: w.long_run_mi,
-      })),
+    // Task #326: demote every planner_configs row to draft state by
+    // clearing the applied_* snapshot and lastAppliedAt timestamp. This
+    // makes readLastAppliedPlannerConfig() return null going forward
+    // (so seed scripts and any other consumers also see "no applied
+    // config") while preserving the row, name, blocks, and entries so
+    // the runner can still apply them from /planner. Drafts that were
+    // already in draft state (lastAppliedAt = null, applied_* = null)
+    // are unaffected by the writes.
+    await tx.execute(
+      sql`UPDATE planner_configs SET last_applied_at = NULL, applied_start_date = NULL, applied_marathon_date = NULL, applied_blocks = NULL, applied_entries = NULL`,
     );
 
-    // Chunk plan_days inserts to keep parameter counts well under the
-    // postgres bind-parameter limit; mirrors the chunk size used by the
-    // CLI seeder so the two reseed paths stay aligned. Each row is
-    // tagged with its source TemplateEntry (sourceEntryIndex 0 + null
-    // label for legacy single-program campaigns and synthetic Recovery
-    // gap-fill rows).
-    const chunk = 100;
-    for (let i = 0; i < seedRows.taggedDaily.length; i += chunk) {
-      const slice = seedRows.taggedDaily.slice(i, i + chunk);
-      await tx.insert(planDaysTable).values(
-        slice.map(({ row: d, sourceEntryIndex, sourceEntryLabel }) => {
-          const equipment = d.equipment ?? "Rest";
-          const equipmentList = d.equipment_list ?? [equipment];
-          const description = d.description ?? "";
-          const sessionType = d.session_type ?? "Rest";
-          const isRest = !!d.is_rest;
-          const totalLoad = d.total_load ?? 0;
-          return {
-            week: d.week,
-            phase: d.phase,
-            date: d.date,
-            day: d.day,
-            sourceEntryIndex,
-            sourceEntryLabel,
-            strengthLoad: d.strength_load,
-            equipment,
-            equipmentList,
-            description,
-            strengthMin: d.strength_min,
-            cardioMin: d.cardio_min,
-            runMin: d.run_min,
-            distanceMi: d.distance_mi,
-            pace: d.pace,
-            sessionType,
-            isRest,
-            totalLoad,
-            // Mirror the prescribed values into the seed_* columns so a
-            // subsequent /plan/days/:id/reset has a clean snapshot to
-            // restore from after the runner edits this freshly-seeded row.
-            seedSessionType: sessionType,
-            seedEquipment: equipment,
-            seedEquipmentList: equipmentList,
-            seedDescription: description,
-            seedDistanceMi: d.distance_mi,
-            seedStrengthMin: d.strength_min,
-            seedCardioMin: d.cardio_min,
-            seedRunMin: d.run_min,
-            seedPace: d.pace,
-            seedStrengthLoad: d.strength_load,
-            seedTotalLoad: totalLoad,
-            seedIsRest: isRest,
-          };
-        }),
-      );
-    }
-
-    // Reinsert only the seeded baseline measurement (week 1) so the
-    // dashboard "starting weight" card has data to show on a fresh
-    // campaign. Empty placeholder rows for weeks 2..52 are intentionally
-    // skipped — the runner enters real measurements as they go.
-    let measurementsSeeded = 0;
-    const baseline = plan.body.find(
-      (b) =>
-        b.weight != null ||
-        b.l_arm != null ||
-        b.r_arm != null ||
-        b.l_leg != null ||
-        b.r_leg != null ||
-        b.belly != null ||
-        b.chest != null,
-    );
-    if (baseline) {
-      await tx.insert(measurementsTable).values({
-        date: baseline.date,
-        weight: baseline.weight,
-        lArm: baseline.l_arm,
-        rArm: baseline.r_arm,
-        lLeg: baseline.l_leg,
-        rLeg: baseline.r_leg,
-        belly: baseline.belly,
-        chest: baseline.chest,
-        notes: baseline.notes,
-      });
-      measurementsSeeded = 1;
-    }
-
+    // Plan tables stay EMPTY. The UI surfaces an "Open Phase Planner"
+    // empty state in that mode (Task #307); re-applying a config from
+    // /planner repopulates plan_weeks / plan_days as usual.
     return {
-      weeksSeeded: seedRows.weekly.length,
-      daysSeeded: seedRows.taggedDaily.length,
+      weeksSeeded: 0,
+      daysSeeded: 0,
       workoutsWiped: workoutsBefore,
       measurementsWiped: measurementsBefore,
-      measurementsSeeded,
+      measurementsSeeded: 0,
       checklistItemsWiped: checklistBefore,
       undoSnapshotsWiped: snapshotsBefore,
     };
@@ -1729,7 +1621,7 @@ router.post("/plan/full-reset", async (req, res): Promise<void> => {
       checklistItemsWiped: result.checklistItemsWiped,
       undoSnapshotsWiped: result.undoSnapshotsWiped,
     },
-    "full plan reset (no undo) — campaign reseeded from day one",
+    "full plan reset (no undo) — plan tables wiped, applied planner config demoted to draft",
   );
   res.json(result);
 });
