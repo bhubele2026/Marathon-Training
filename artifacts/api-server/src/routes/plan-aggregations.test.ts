@@ -67,8 +67,15 @@ describe("GET /api/plan/overview", () => {
       expect.objectContaining({
         currentWeek: week,
         currentPhase: phase,
-        raceDate: "2027-05-02",
-        startDate: "2026-05-04",
+        // Task #329: startDate / raceDate are now derived from the
+        // applied planner config (or fall back to the first/last
+        // plan_weeks row). With no applied config and a single
+        // synthetic test week, the fallback resolves to that week's
+        // own bounds. Per-config-pinned coverage lives in the
+        // dedicated "startDate / raceDate (Task #329)" describe
+        // block below; this assertion just locks the fallback shape.
+        startDate: "2099-08-03",
+        raceDate: "2099-08-09",
         startWeight: 281.6,
         goalWeight: 210,
         currentWeight: 232.5,
@@ -206,6 +213,116 @@ describe("GET /api/plan/overview", () => {
     expect(res.status).toBe(200);
     expectMatchesSchema(GetPlanOverviewResponse, res.body);
     expect(res.body.raceKind).toBe("5k");
+  });
+
+  // Task #329: the /plan header (and the move-day-picker race-week
+  // guard) read overview.startDate / overview.raceDate to render the
+  // plan-window line + countdown subtitle. Before this task the route
+  // returned hardcoded constants ("2026-05-04" / "2027-05-02") which
+  // meant a runner who applied a Phase Planner config with different
+  // dates still saw the legacy half-marathon defaults. The cases
+  // below pin (a) the applied-config happy path, (b) the empty-state
+  // fallback to null, (c) the "no applied config but plan_weeks
+  // exists" fallback to first/last week dates, and (d) the legacy
+  // campaign whose applied snapshot is the original default.
+  describe("startDate / raceDate (Task #329)", () => {
+    afterEach(async () => {
+      await db.execute(sql`DELETE FROM planner_configs`);
+    });
+
+    it("returns the applied planner config's dates when a config is applied with non-default dates", async () => {
+      await db.execute(sql`DELETE FROM planner_configs`);
+      const startDate = "2099-06-01"; // Mon
+      const marathonDate = "2099-09-06"; // Sun, ~14 weeks later
+      await db.insert(plannerConfigsTable).values({
+        id: 8329,
+        name: "Custom Window",
+        isActive: true,
+        startDate,
+        marathonDate,
+        blocks: [{ focusType: "Base", weeks: 14 }] as never,
+        entries: null,
+        lastAppliedAt: new Date(),
+        appliedStartDate: startDate,
+        appliedMarathonDate: marathonDate,
+        appliedBlocks: [{ focusType: "Base", weeks: 14 }] as never,
+        appliedEntries: null,
+      });
+
+      const res = await request(app).get("/api/plan/overview");
+      expect(res.status).toBe(200);
+      expectMatchesSchema(GetPlanOverviewResponse, res.body);
+      expect(res.body.startDate).toBe(startDate);
+      expect(res.body.raceDate).toBe(marathonDate);
+    });
+
+    it("returns null dates on a fresh install with no applied config and no plan_weeks", async () => {
+      // Wipe planner_configs AND any pre-seeded plan_weeks so the
+      // route exercises the fresh-install branch — null dates +
+      // hasPlan:false drive the EmptyPlanState CTA on /plan.
+      await db.execute(
+        sql`TRUNCATE TABLE workouts, plan_days, plan_weeks, planner_configs RESTART IDENTITY CASCADE`,
+      );
+      const res = await request(app).get("/api/plan/overview");
+      expect(res.status).toBe(200);
+      expectMatchesSchema(GetPlanOverviewResponse, res.body);
+      expect(res.body.hasPlan).toBe(false);
+      expect(res.body.startDate).toBeNull();
+      expect(res.body.raceDate).toBeNull();
+    });
+
+    it("falls back to first/last plan_weeks dates when plan_weeks exist but no config has been applied", async () => {
+      // Legacy install path: plan_weeks were seeded out of band but
+      // no planner_configs row carries an applied snapshot. The
+      // route should still produce sensible dates so the /plan
+      // header renders, instead of regressing to the legacy
+      // hardcoded defaults.
+      await db.execute(sql`DELETE FROM planner_configs`);
+      await insertWeek(8520, {
+        startDate: "2099-07-06",
+        endDate: "2099-07-12",
+        phase: "Legacy",
+      });
+      await insertWeek(8521, {
+        startDate: "2099-07-13",
+        endDate: "2099-07-19",
+        phase: "Legacy",
+      });
+
+      const res = await request(app).get("/api/plan/overview");
+      expect(res.status).toBe(200);
+      expectMatchesSchema(GetPlanOverviewResponse, res.body);
+      expect(res.body.hasPlan).toBe(true);
+      expect(res.body.startDate).toBe("2099-07-06");
+      expect(res.body.raceDate).toBe("2099-07-19");
+    });
+
+    it("preserves the legacy half-marathon defaults for campaigns whose applied snapshot still records them", async () => {
+      // A pre-Task-#329 campaign that applied the original defaults
+      // must continue to display the same dates today. We model
+      // that by inserting a planner_configs row whose applied_*
+      // columns are the legacy 2026-05-04 / 2027-05-02 pair.
+      await db.execute(sql`DELETE FROM planner_configs`);
+      await db.insert(plannerConfigsTable).values({
+        id: 8330,
+        name: "Legacy Half-Marathon",
+        isActive: true,
+        startDate: PLAN_START_ISO,
+        marathonDate: RACE_DATE_ISO,
+        blocks: [{ focusType: "Base", weeks: TOTAL_WEEKS }] as never,
+        entries: null,
+        lastAppliedAt: new Date(),
+        appliedStartDate: PLAN_START_ISO,
+        appliedMarathonDate: RACE_DATE_ISO,
+        appliedBlocks: [{ focusType: "Base", weeks: TOTAL_WEEKS }] as never,
+        appliedEntries: null,
+      });
+      const res = await request(app).get("/api/plan/overview");
+      expect(res.status).toBe(200);
+      expectMatchesSchema(GetPlanOverviewResponse, res.body);
+      expect(res.body.startDate).toBe(PLAN_START_ISO);
+      expect(res.body.raceDate).toBe(RACE_DATE_ISO);
+    });
   });
 });
 

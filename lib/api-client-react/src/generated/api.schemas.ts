@@ -443,8 +443,21 @@ the schema stays simple, but clients should NOT render them.
   currentPhase: string;
   totalWeeks: number;
   weeksRemaining: number;
-  raceDate: string;
-  startDate: string;
+  /** Task #329. ISO yyyy-mm-dd of the campaign's race / final day,
+sourced from the most-recently-applied planner config's
+`appliedMarathonDate`. Falls back to the trailing
+`plan_weeks.endDate` when the applied snapshot is missing,
+and to null on fresh installs / post Full Reset (where
+`hasPlan === false` and the EmptyPlanState CTA renders).
+ */
+  raceDate: string | null;
+  /** Task #329. ISO yyyy-mm-dd of the campaign's first day,
+sourced from the most-recently-applied planner config's
+`appliedStartDate`. Falls back to the leading
+`plan_weeks.startDate` when the applied snapshot is missing,
+and to null on fresh installs / post Full Reset.
+ */
+  startDate: string | null;
   startWeight: number;
   currentWeight: number | null;
   goalWeight: number;

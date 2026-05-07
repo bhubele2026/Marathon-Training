@@ -21,8 +21,18 @@ export const GetPlanOverviewResponse = zod.object({
   currentPhase: zod.string(),
   totalWeeks: zod.number(),
   weeksRemaining: zod.number(),
-  raceDate: zod.string(),
-  startDate: zod.string(),
+  raceDate: zod
+    .string()
+    .nullable()
+    .describe(
+      "Task #329. ISO yyyy-mm-dd of the campaign's race \/ final day,\nsourced from the most-recently-applied planner config's\n`appliedMarathonDate`. Falls back to the trailing\n`plan_weeks.endDate` when the applied snapshot is missing,\nand to null on fresh installs \/ post Full Reset (where\n`hasPlan === false` and the EmptyPlanState CTA renders).\n",
+    ),
+  startDate: zod
+    .string()
+    .nullable()
+    .describe(
+      "Task #329. ISO yyyy-mm-dd of the campaign's first day,\nsourced from the most-recently-applied planner config's\n`appliedStartDate`. Falls back to the leading\n`plan_weeks.startDate` when the applied snapshot is missing,\nand to null on fresh installs \/ post Full Reset.\n",
+    ),
   startWeight: zod.number(),
   currentWeight: zod.number().nullable(),
   goalWeight: zod.number(),

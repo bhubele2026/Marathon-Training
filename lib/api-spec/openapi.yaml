@@ -1558,8 +1558,25 @@ components:
         currentPhase: { type: string }
         totalWeeks: { type: integer }
         weeksRemaining: { type: integer }
-        raceDate: { type: string }
-        startDate: { type: string }
+        raceDate:
+          type: string
+          nullable: true
+          description: |
+            Task #329. ISO yyyy-mm-dd of the campaign's race / final day,
+            sourced from the most-recently-applied planner config's
+            `appliedMarathonDate`. Falls back to the trailing
+            `plan_weeks.endDate` when the applied snapshot is missing,
+            and to null on fresh installs / post Full Reset (where
+            `hasPlan === false` and the EmptyPlanState CTA renders).
+        startDate:
+          type: string
+          nullable: true
+          description: |
+            Task #329. ISO yyyy-mm-dd of the campaign's first day,
+            sourced from the most-recently-applied planner config's
+            `appliedStartDate`. Falls back to the leading
+            `plan_weeks.startDate` when the applied snapshot is missing,
+            and to null on fresh installs / post Full Reset.
         startWeight: { type: number }
         currentWeight: { type: number, nullable: true }
         goalWeight: { type: number }

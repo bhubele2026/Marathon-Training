@@ -18,7 +18,7 @@ import {
   type PlannerConfig,
   type TemplateEntry,
 } from "@workspace/plan-generator";
-import { readActiveConfigName } from "./planner";
+import { readActiveConfigName, readLastAppliedPlannerConfig } from "./planner";
 import {
   toPlanDay,
   toPlanWeek,
@@ -54,8 +54,6 @@ const router: IRouter = Router();
 // to call a single-program campaign's lone "program".
 const FALLBACK_PROGRAM_LABEL = "Marathon Plan";
 
-const RACE_DATE = "2027-05-02";
-const START_DATE = "2026-05-04";
 const START_WEIGHT = 281.6;
 const GOAL_WEIGHT = 210;
 
@@ -179,14 +177,33 @@ router.get("/plan/overview", async (_req, res) => {
 
   const activeConfigName = await readActiveConfigName();
 
+  // Task #329: derive plan-window dates from the most-recently-applied
+  // planner config so the /plan header reflects whatever the runner
+  // configured, instead of the legacy half-marathon defaults. Fall
+  // back to the first/last plan_weeks row when the config snapshot is
+  // unavailable (e.g. legacy installs that lost the applied_* columns
+  // before Task #244 landed), and to null only when plan_weeks itself
+  // is empty (fresh install / Full Reset, where the EmptyPlanState CTA
+  // is what renders).
+  const appliedConfig = await readLastAppliedPlannerConfig();
+  let startDate: string | null = null;
+  let raceDate: string | null = null;
+  if (appliedConfig) {
+    startDate = appliedConfig.startDate;
+    raceDate = appliedConfig.marathonDate;
+  } else if (allWeeks.length > 0) {
+    startDate = allWeeks[0]!.startDate;
+    raceDate = allWeeks[allWeeks.length - 1]!.endDate;
+  }
+
   res.json({
     hasPlan: allWeeks.length > 0,
     currentWeek: week,
     currentPhase: phase,
     totalWeeks,
     weeksRemaining: Math.max(0, totalWeeks - week),
-    raceDate: RACE_DATE,
-    startDate: START_DATE,
+    raceDate,
+    startDate,
     startWeight: START_WEIGHT,
     currentWeight,
     goalWeight: GOAL_WEIGHT,
