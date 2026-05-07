@@ -26,3 +26,9 @@ pnpm --filter @workspace/scripts run backfill-workout-plan-day
 # matching, so any orphan would silently undercount the runner's
 # completion. Fail the merge if one shows up. Read-only, idempotent.
 pnpm --filter @workspace/scripts run check-workout-orphans
+# Backfill race_results.race_kind on legacy rows logged before task #265
+# captured the kind at write time. Looks up the plan_day at race_date and
+# runs the shared detectRaceKind helper so PR badges light up retroactively
+# once a runner accumulates more than one result of the same kind.
+# Idempotent — safe to re-run.
+pnpm --filter @workspace/scripts run backfill-race-result-kind
