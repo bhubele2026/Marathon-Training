@@ -40,3 +40,10 @@ pnpm --filter @workspace/scripts run backfill-race-result-kind
 # installs, exactly like Task #326's Full Reset path. Idempotent —
 # leaves applied campaigns untouched.
 pnpm --filter @workspace/scripts run cleanup-orphan-plan-rows
+# Task #328 guard: after the cleanup, fail loudly if plan_weeks /
+# plan_days still carry rows while no planner_configs row has
+# last_applied_at IS NOT NULL. Cross-table CHECK constraints aren't
+# supported in Postgres without triggers, so this CI-style check ties
+# the schema-level shape back to the Task #307 invariant. Read-only,
+# idempotent.
+pnpm --filter @workspace/scripts run check-orphan-plan-rows
