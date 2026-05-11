@@ -2675,8 +2675,9 @@ export const useUpdatePlannerConfig = <
 /**
  * Delete a saved Planner config. If the deleted config was active,
 the next-most-recently-updated remaining config (if any) is
-promoted to active. Refuses (400) when called on the only
-remaining config.
+promoted to active. Deleting the only remaining config is
+allowed — the planner falls back to its empty "create your
+first config" state and `newActiveId` is null.
 
 Note: deleting a config also drops its applied_* snapshot.
 If the deleted config was the most recently applied one, the

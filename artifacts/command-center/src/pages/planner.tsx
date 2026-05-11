@@ -2426,7 +2426,7 @@ export default function Planner() {
               size="sm"
               variant="outline"
               onClick={() => setConfirmDeleteOpen(true)}
-              disabled={configs.length <= 1 || deleteMutation.isPending}
+              disabled={deleteMutation.isPending}
               data-testid="planner-delete"
             >
               <Trash2 className="h-4 w-4 mr-1" /> Delete

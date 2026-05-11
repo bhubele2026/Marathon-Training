@@ -468,15 +468,13 @@ router.delete("/planner/configs/:id", async (req, res): Promise<void> => {
         .limit(1)
     )[0];
     if (!target) return { kind: "not_found" as const };
-    const totalRows = await tx
-      .select({ id: plannerConfigsTable.id })
-      .from(plannerConfigsTable);
-    if (totalRows.length <= 1) {
-      return { kind: "only_remaining" as const };
-    }
     await tx
       .delete(plannerConfigsTable)
       .where(eq(plannerConfigsTable.id, id));
+    // If the deleted config was active, promote the most-recently
+    // updated remaining config to active. If no rows remain, the
+    // planner falls back to its empty "create your first config"
+    // state and newActiveId stays null.
     let newActiveId: number | null = null;
     if (target.isActive) {
       const promote = await tx
@@ -496,10 +494,6 @@ router.delete("/planner/configs/:id", async (req, res): Promise<void> => {
   });
   if (result.kind === "not_found") {
     res.status(404).json({ error: "Config not found" });
-    return;
-  }
-  if (result.kind === "only_remaining") {
-    res.status(400).json({ error: "Cannot delete the only remaining config" });
     return;
   }
   req.log.info(

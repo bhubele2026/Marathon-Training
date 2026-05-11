@@ -209,10 +209,15 @@ describe("POST /api/planner/configs/:id/activate", () => {
 });
 
 describe("DELETE /api/planner/configs/:id", () => {
-  it("refuses to delete the only remaining config", async () => {
+  it("allows deleting the only remaining config (planner falls back to empty state)", async () => {
     const a = await createCanonicalConfig("Solo");
     const res = await request(app).delete(`/api/planner/configs/${a.id}`);
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
+    expect(res.body.deletedId).toBe(a.id);
+    expect(res.body.newActiveId).toBeNull();
+    const list = await request(app).get("/api/planner/configs");
+    expect(list.body.configs).toHaveLength(0);
+    expect(list.body.activeId).toBeNull();
   });
 
   it("deletes a non-active config without promoting anyone", async () => {
