@@ -1262,6 +1262,11 @@ components:
       properties:
         sessionType: { type: string }
         equipment: { type: string }
+        equipmentList:
+          type: array
+          nullable: true
+          items: { type: string }
+          description: Optional ordered chip rail of every machine the runner will use that day. When provided, the server stores it verbatim and (when `equipment` is also patched) validates `equipmentList[0] === equipment`. When omitted but `equipment` changes, the server collapses the rail to `[equipment]`.
         description: { type: string }
         distanceMi: { type: number, nullable: true }
         strengthMin: { type: number, nullable: true }

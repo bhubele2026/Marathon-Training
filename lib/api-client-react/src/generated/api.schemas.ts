@@ -174,6 +174,8 @@ export interface PlanDay {
 export interface UpdatePlanDayBody {
   sessionType?: string;
   equipment?: string;
+  /** Optional ordered chip rail of every machine the runner will use that day. When provided, the server stores it verbatim and (when `equipment` is also patched) validates `equipmentList[0] === equipment`. When omitted but `equipment` changes, the server collapses the rail to `[equipment]`. */
+  equipmentList?: string[] | null;
   description?: string;
   distanceMi?: number | null;
   strengthMin?: number | null;

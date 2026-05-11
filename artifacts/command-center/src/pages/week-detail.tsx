@@ -741,14 +741,12 @@ export default function WeekDetail() {
                       </Button>
                     </div>
                   </div>
-                  <SessionDetailDisclosure testId={`toggle-day-plan-detail-${chipTestIdSuffix}`}>
-                    <EquipmentChipRail
-                      equipmentList={day.equipmentList}
-                      equipment={day.equipment}
-                      chipTestIdPrefix={`chip-equipment-${chipTestIdSuffix}`}
-                      keyPrefix={`${day.date}-eq`}
-                    />
-                  </SessionDetailDisclosure>
+                  <EquipmentChipRail
+                    equipmentList={day.equipmentList}
+                    equipment={day.equipment}
+                    chipTestIdPrefix={`chip-equipment-${chipTestIdSuffix}`}
+                    keyPrefix={`${day.date}-eq`}
+                  />
                   {sessions.length > 0 && (
                     <div className="space-y-2 pl-1">
                       {sessions.map((session) => (
@@ -1138,14 +1136,14 @@ export default function WeekDetail() {
                         variant="compact"
                         testIdPrefix={`day-${day.date}`}
                       />
+                      <EquipmentChipRail
+                        equipmentList={day.equipmentList}
+                        equipment={day.equipment}
+                        chipTestIdPrefix={`chip-equipment-${chipTestIdSuffix}`}
+                        keyPrefix={`${day.date}-eq`}
+                      />
                       <SessionDetailDisclosure testId={`toggle-day-plan-detail-${chipTestIdSuffix}`}>
                         <div className="space-y-3">
-                          <EquipmentChipRail
-                            equipmentList={day.equipmentList}
-                            equipment={day.equipment}
-                            chipTestIdPrefix={`chip-equipment-${chipTestIdSuffix}`}
-                            keyPrefix={`${day.date}-eq`}
-                          />
                           <div className="flex flex-wrap gap-4 text-sm">
                             {day.distanceMi != null && (
                               <div>

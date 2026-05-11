@@ -39,6 +39,7 @@ import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-querie
 const formSchema = z.object({
   sessionType: z.string().min(1, "Session type is required"),
   equipment: z.string().min(1, "Equipment is required"),
+  otherEquipment: z.string(),
   description: z.string(),
   distanceMi: z.coerce.number().optional().nullable(),
   strengthMin: z.coerce.number().optional().nullable(),
@@ -66,6 +67,10 @@ export function PlanDayForm({ open, onOpenChange, planDay }: PlanDayFormProps) {
   const buildDefaults = (): FormValues => ({
     sessionType: planDay.sessionType,
     equipment: planDay.equipment,
+    otherEquipment: (planDay.equipmentList ?? [])
+      .slice(1)
+      .filter((m) => m && m.trim().length > 0)
+      .join(", "),
     description: planDay.description ?? "",
     distanceMi: planDay.distanceMi ?? null,
     strengthMin: planDay.strengthMin ?? null,
@@ -88,12 +93,18 @@ export function PlanDayForm({ open, onOpenChange, planDay }: PlanDayFormProps) {
   }, [open, planDay.id]);
 
   const onSubmit = (data: FormValues) => {
+    const others = data.otherEquipment
+      .split(",")
+      .map((m) => m.trim())
+      .filter((m) => m.length > 0);
+    const equipmentList = [data.equipment, ...others];
     updatePlanDay.mutate(
       {
         id: planDay.id,
         data: {
           sessionType: data.sessionType,
           equipment: data.equipment,
+          equipmentList,
           description: data.description,
           distanceMi: data.distanceMi ?? null,
           strengthMin: data.strengthMin ?? null,
@@ -208,6 +219,26 @@ export function PlanDayForm({ open, onOpenChange, planDay }: PlanDayFormProps) {
                         <SelectItem value="None">None / Rest</SelectItem>
                       </SelectContent>
                     </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="otherEquipment"
+                render={({ field }) => (
+                  <FormItem className="col-span-2">
+                    <FormLabel>Other machines (optional)</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Peloton Bike, Peloton Row"
+                        {...field}
+                        data-testid="input-plan-other-equipment"
+                      />
+                    </FormControl>
+                    <p className="text-[11px] text-muted-foreground">
+                      Comma-separated. The primary above is shown first; these chip on after it.
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}
