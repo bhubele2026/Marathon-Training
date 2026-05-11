@@ -1251,36 +1251,44 @@ export const ResetPlanWeekResponse = zod.object({
 });
 
 /**
- * Restore every plan day in the entire 52-week plan back to its seeded prescription. Days that have never been edited are left alone. Logged workouts are not touched.
+ * Wipe plan_weeks and plan_days back to empty and demote every applied
+planner_configs row to draft state (clears last_applied_at and the
+applied_* snapshot columns) so the dashboard, /today, and /plan
+surfaces fall back to the EmptyPlanState CTA until the runner
+re-applies a config from /planner. Logged workouts have their
+plan_day_id detached but are otherwise preserved; body measurements,
+race results, and the race-week checklist are left untouched (use
+/plan/full-reset for the scorched-earth path that wipes those too).
+There is no undo for this operation — undoToken and
+undoExpiresInSeconds are always null in the response.
+
  */
 export const ResetPlanResponse = zod.object({
   weeksReset: zod
     .number()
     .describe(
-      "Number of weeks that contained at least one previously-edited plan day.",
+      "Number of plan_weeks rows wiped by the reset. Zero when the plan tables were already empty.",
     ),
   daysReset: zod
     .number()
     .describe(
-      "Number of plan days that actually had a seed snapshot to restore from. Untouched days are not counted.",
+      "Number of plan_days rows wiped by the reset. Zero when the plan tables were already empty.",
     ),
   daysTotal: zod
     .number()
     .describe(
-      "Total number of plan days across the entire plan (including untouched ones).",
+      "Equal to daysReset (the total number of plan days that existed before the wipe). Kept in the response for OpenAPI back-compat with the prior customization-rollback contract.",
     ),
   undoToken: zod
     .string()
     .nullish()
     .describe(
-      "Short-lived token that can be passed to POST \/plan\/reset\/undo to restore the just-wiped customizations. Null when nothing was reset (i.e. daysReset is 0). Expires after roughly 30 seconds.",
+      "Always null. Reset Entire Plan no longer supports undo — re-apply a config from \/planner to rebuild the plan.",
     ),
   undoExpiresInSeconds: zod
     .number()
     .nullish()
-    .describe(
-      "Approximate number of seconds the undoToken will remain valid for. Null when undoToken is null.",
-    ),
+    .describe("Always null. See undoToken."),
 });
 
 /**

@@ -216,15 +216,15 @@ export interface ResetPlanWeekResponse {
 }
 
 export interface ResetPlanResponse {
-  /** Number of weeks that contained at least one previously-edited plan day. */
+  /** Number of plan_weeks rows wiped by the reset. Zero when the plan tables were already empty. */
   weeksReset: number;
-  /** Number of plan days that actually had a seed snapshot to restore from. Untouched days are not counted. */
+  /** Number of plan_days rows wiped by the reset. Zero when the plan tables were already empty. */
   daysReset: number;
-  /** Total number of plan days across the entire plan (including untouched ones). */
+  /** Equal to daysReset (the total number of plan days that existed before the wipe). Kept in the response for OpenAPI back-compat with the prior customization-rollback contract. */
   daysTotal: number;
-  /** Short-lived token that can be passed to POST /plan/reset/undo to restore the just-wiped customizations. Null when nothing was reset (i.e. daysReset is 0). Expires after roughly 30 seconds. */
+  /** Always null. Reset Entire Plan no longer supports undo — re-apply a config from /planner to rebuild the plan. */
   undoToken?: string | null;
-  /** Approximate number of seconds the undoToken will remain valid for. Null when undoToken is null. */
+  /** Always null. See undoToken. */
   undoExpiresInSeconds?: number | null;
 }
 

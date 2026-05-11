@@ -2099,75 +2099,68 @@ describe("POST /api/plan/weeks/:week/reset", () => {
 });
 
 describe("POST /api/plan/reset", () => {
-  // POST /plan/reset operates on every plan_day in the database, including
-  // any real seeded plan rows that may already have seed_* set from prior
-  // user edits. So these tests measure deltas relative to a baseline rather
-  // than asserting absolute counts.
-  it("does not count brand-new untouched test days as reset", async () => {
-    const baseline = (
-      await request(app).post(`/api/plan/reset`).send({})
-    ).body as { weeksReset: number; daysReset: number; daysTotal: number };
-
-    const week = 8500;
-    const phase = "Plan Reset Untouched";
-    await insertWeek(week, { startDate: "2099-10-01", endDate: "2099-10-07", phase });
-    await insertPlanDay(week, phase, {
-      date: "2099-10-01", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 4, totalLoad: 40,
-    });
+  // Reset Entire Plan now wipes plan_weeks / plan_days back to empty and
+  // demotes every applied planner_configs row to draft state, instead of
+  // restoring edited days from their seed snapshots. Logged workouts /
+  // measurements / race results are intentionally untouched. There is no
+  // undo (matches /plan/full-reset's reasoning).
+  it("returns zeros and leaves the response shape stable when plan tables are already empty", async () => {
+    // Drain any prior plan rows so the test starts from the empty state
+    // the new contract guarantees post-reset.
+    await request(app).post(`/api/plan/reset`).send({});
 
     const res = await request(app).post(`/api/plan/reset`).send({});
     expect(res.status).toBe(200);
-    // The fresh test day was never edited, so it must not bump the counts.
     expect(res.body.weeksReset).toBe(0);
     expect(res.body.daysReset).toBe(0);
-    // Total days went up by exactly the one we inserted.
-    expect(res.body.daysTotal).toBe(baseline.daysTotal + 1);
+    expect(res.body.daysTotal).toBe(0);
+    expect(res.body.undoToken).toBeNull();
+    expect(res.body.undoExpiresInSeconds).toBeNull();
   });
 
-  it("restores every edited day across multiple weeks and recomputes their aggregates", async () => {
-    // Drain any prior edits so the delta we measure is solely from this test.
-    await request(app).post(`/api/plan/reset`).send({});
-
-    const phase = "Plan Reset Across Weeks";
+  it("wipes plan_weeks / plan_days to empty and detaches workouts so they survive", async () => {
+    const phase = "Plan Reset Wipe";
     await insertWeek(8501, { startDate: "2099-10-08", endDate: "2099-10-14", phase });
     await insertWeek(8502, { startDate: "2099-10-15", endDate: "2099-10-21", phase });
     const a = await insertPlanDay(8501, phase, {
-      date: "2099-10-08", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, description: "seed-a", distanceMi: 5, cardioMin: 50, totalLoad: 50,
+      date: "2099-10-08", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, distanceMi: 5, totalLoad: 50,
     });
-    const b = await insertPlanDay(8502, phase, {
-      date: "2099-10-15", day: "Mon", sessionType: T_BIKE, equipment: E_SPIN, description: "seed-b", distanceMi: 0, cardioMin: 60, totalLoad: 60,
+    await insertPlanDay(8502, phase, {
+      date: "2099-10-15", day: "Mon", sessionType: T_BIKE, equipment: E_SPIN, cardioMin: 60, totalLoad: 60,
     });
 
-    await request(app).patch(`/api/plan/days/${a.id}`).send({
-      sessionType: T_STRENGTH, equipment: E_GYM, description: "edited-a",
-      distanceMi: null, cardioMin: null, strengthLoad: 200, totalLoad: 200, isRest: false,
+    // Log a workout linked to plan_day `a` so we can verify it survives
+    // the reset (with plan_day_id detached, not cascaded away).
+    const logged = await request(app).post(`/api/workouts`).send({
+      date: "2099-10-08", sessionType: T_RUN, equipment: E_OUTDOOR,
+      distanceMi: 5, durationMin: 50, planDayId: a.id,
     });
-    await request(app).patch(`/api/plan/days/${b.id}`).send({
-      sessionType: T_REST, equipment: E_NONE, description: "edited-b",
-      distanceMi: null, cardioMin: null, strengthLoad: null, totalLoad: 0, isRest: true,
-    });
+    expect(logged.status).toBe(201);
+    const workoutId = logged.body.id as number;
 
     const res = await request(app).post(`/api/plan/reset`).send({});
     expect(res.status).toBe(200);
-    expect(res.body.weeksReset).toBe(2);
-    expect(res.body.daysReset).toBe(2);
+    expect(res.body.weeksReset).toBeGreaterThanOrEqual(2);
+    expect(res.body.daysReset).toBeGreaterThanOrEqual(2);
+    expect(res.body.daysTotal).toBe(res.body.daysReset);
+    expect(res.body.undoToken).toBeNull();
+    expect(res.body.undoExpiresInSeconds).toBeNull();
 
+    // Plan tables are empty.
     const after1 = await request(app).get(`/api/plan/weeks/8501`);
-    const after2 = await request(app).get(`/api/plan/weeks/8502`);
-    const aAfter = (after1.body.days as Array<{ date: string; sessionType: string; description: string; distanceMi: number | null }>).find((d) => d.date === "2099-10-08")!;
-    const bAfter = (after2.body.days as Array<{ date: string; sessionType: string; description: string; isRest: boolean }>).find((d) => d.date === "2099-10-15")!;
-    expect(aAfter.sessionType).toBe(T_RUN);
-    expect(aAfter.description).toBe("seed-a");
-    expect(aAfter.distanceMi).toBe(5);
-    expect(bAfter.sessionType).toBe(T_BIKE);
-    expect(bAfter.isRest).toBe(false);
-    expect(bAfter.description).toBe("seed-b");
+    expect(after1.status).toBe(404);
+    const overview = await request(app).get(`/api/plan/overview`);
+    expect(overview.status).toBe(200);
+    expect(overview.body.hasPlan).toBe(false);
 
-    expect(after1.body.plannedMiles).toBe(5);
-    expect(after1.body.plannedTotalLoad).toBe(50);
-    expect(after1.body.longRunMi).toBe(5);
-    expect(after2.body.plannedTotalLoad).toBe(60);
-    expect(after2.body.plannedCardio).toBe(60);
+    // The workout survived (FK detached, not cascaded).
+    const list = await request(app).get(`/api/workouts`);
+    expect(list.status).toBe(200);
+    const stillThere = (list.body as Array<{ id: number; planDayId: number | null }>).find(
+      (w) => w.id === workoutId,
+    );
+    expect(stillThere).toBeDefined();
+    expect(stillThere!.planDayId).toBeNull();
   });
 });
 
@@ -2247,48 +2240,6 @@ describe("POST /api/plan/reset/undo", () => {
     // Token is single-use: a second undo for the same token returns 404.
     const second = await request(app).post(`/api/plan/reset/undo`).send({ undoToken });
     expect(second.status).toBe(404);
-  });
-
-  it("restores customizations wiped by a plan-wide reset across multiple weeks", async () => {
-    const phase = "Undo Plan Reset";
-    await insertWeek(8610, { startDate: "2099-11-08", endDate: "2099-11-14", phase });
-    await insertWeek(8611, { startDate: "2099-11-15", endDate: "2099-11-21", phase });
-    const a = await insertPlanDay(8610, phase, {
-      date: "2099-11-08", day: "Mon", sessionType: T_RUN, equipment: E_OUTDOOR, description: "seed-a", distanceMi: 5, cardioMin: 50, totalLoad: 50,
-    });
-    const b = await insertPlanDay(8611, phase, {
-      date: "2099-11-15", day: "Mon", sessionType: T_BIKE, equipment: E_SPIN, description: "seed-b", distanceMi: 0, cardioMin: 60, totalLoad: 60,
-    });
-
-    await request(app).patch(`/api/plan/days/${a.id}`).send({
-      sessionType: T_STRENGTH, equipment: E_GYM, description: "edited-a",
-      distanceMi: null, cardioMin: null, strengthLoad: 200, totalLoad: 200, isRest: false,
-    });
-    await request(app).patch(`/api/plan/days/${b.id}`).send({
-      sessionType: T_REST, equipment: E_NONE, description: "edited-b",
-      distanceMi: null, cardioMin: null, strengthLoad: null, totalLoad: 0, isRest: true,
-    });
-
-    const reset = await request(app).post(`/api/plan/reset`).send({});
-    expect(reset.status).toBe(200);
-    const undoToken = reset.body.undoToken as string;
-    expect(typeof undoToken).toBe("string");
-    expect(reset.body.daysReset).toBeGreaterThanOrEqual(2);
-
-    const undo = await request(app).post(`/api/plan/reset/undo`).send({ undoToken });
-    expect(undo.status).toBe(200);
-    expect(undo.body.daysRestored).toBeGreaterThanOrEqual(2);
-    expect(undo.body.weeksAffected).toEqual(expect.arrayContaining([8610, 8611]));
-
-    const after1 = await request(app).get(`/api/plan/weeks/8610`);
-    const after2 = await request(app).get(`/api/plan/weeks/8611`);
-    const aBack = (after1.body.days as Array<{ date: string; sessionType: string; description: string }>).find((d) => d.date === "2099-11-08")!;
-    const bBack = (after2.body.days as Array<{ date: string; sessionType: string; description: string; isRest: boolean }>).find((d) => d.date === "2099-11-15")!;
-    expect(aBack.sessionType).toBe(T_STRENGTH);
-    expect(aBack.description).toBe("edited-a");
-    expect(bBack.sessionType).toBe(T_REST);
-    expect(bBack.isRest).toBe(true);
-    expect(bBack.description).toBe("edited-b");
   });
 
   it("does not return an undo token when nothing was reset", async () => {

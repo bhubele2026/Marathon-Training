@@ -683,7 +683,17 @@ export const useResetPlanWeek = <
 };
 
 /**
- * Restore every plan day in the entire 52-week plan back to its seeded prescription. Days that have never been edited are left alone. Logged workouts are not touched.
+ * Wipe plan_weeks and plan_days back to empty and demote every applied
+planner_configs row to draft state (clears last_applied_at and the
+applied_* snapshot columns) so the dashboard, /today, and /plan
+surfaces fall back to the EmptyPlanState CTA until the runner
+re-applies a config from /planner. Logged workouts have their
+plan_day_id detached but are otherwise preserved; body measurements,
+race results, and the race-week checklist are left untouched (use
+/plan/full-reset for the scorched-earth path that wipes those too).
+There is no undo for this operation — undoToken and
+undoExpiresInSeconds are always null in the response.
+
  */
 export const getResetPlanUrl = () => {
   return `/api/plan/reset`;

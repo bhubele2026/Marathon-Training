@@ -7,9 +7,6 @@ import {
   act,
 } from "@testing-library/react";
 
-// Capture mutate calls so the test can drive the reset → toast → undo flow
-// end-to-end. The hoisted refs let the vi.mock factory close over the same
-// vi.fn() instances the test asserts against.
 const { resetPlanMutate, undoPlanResetMutate } = vi.hoisted(() => ({
   resetPlanMutate: vi.fn(),
   undoPlanResetMutate: vi.fn(),
@@ -61,9 +58,6 @@ vi.mock("@workspace/api-client-react", () => ({
     ],
     isLoading: false,
   }),
-  // Task #308: plan page now reads useListPlannerConfigs for the
-  // first-run redirect gate. Stub a non-empty configs list so the
-  // redirect never fires from this test surface.
   useListPlannerConfigs: () => ({
     data: { configs: [{ id: 1 }] },
     isError: false,
@@ -75,8 +69,9 @@ vi.mock("@workspace/api-client-react", () => ({
   getGetPlanWeekQueryKey: (week: number) => ["plan-week", week],
 }));
 
+const invalidateQueriesSpy = vi.fn();
 vi.mock("@tanstack/react-query", () => ({
-  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+  useQueryClient: () => ({ invalidateQueries: invalidateQueriesSpy }),
 }));
 
 vi.mock("@/lib/invalidate-mission-queries", () => ({
@@ -95,24 +90,19 @@ function renderPlan() {
   );
 }
 
-describe("Plan page — reset → toast → undo end-to-end (task #69)", () => {
+describe("Plan page — Reset Entire Plan now wipes to empty (no undo)", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
   });
 
-  it("opens the toast with an Undo button after a successful plan reset, and clicking Undo posts the captured token", () => {
+  it("opens a 'Plan cleared' toast WITHOUT an Undo button after a successful reset, and invalidates queries so EmptyPlanState surfaces", () => {
     renderPlan();
 
-    // 1. Open the confirmation dialog.
     fireEvent.click(screen.getByTestId("button-reset-plan"));
-
-    // 2. Type the confirm phrase to enable the action button.
     const confirmInput = screen.getByTestId("input-confirm-reset-plan");
     fireEvent.change(confirmInput, { target: { value: "RESET PLAN" } });
 
-    // 3. Confirm the reset and capture the mutate options so we can simulate
-    //    the API response.
     fireEvent.click(screen.getByTestId("button-confirm-reset-plan"));
     expect(resetPlanMutate).toHaveBeenCalledTimes(1);
     const [, options] = resetPlanMutate.mock.calls[0] as [
@@ -121,31 +111,54 @@ describe("Plan page — reset → toast → undo end-to-end (task #69)", () => {
     ];
     expect(options.onSuccess).toBeTypeOf("function");
 
-    // 4. Drive the success callback as the API would, then assert the toast
-    //    surfaces with both the descriptive copy and the live Undo button.
+    // Server now always returns null undoToken / undoExpiresInSeconds.
     act(() => {
       options.onSuccess!({
         daysReset: 5,
         weeksReset: 2,
-        undoToken: "tok-abc-123",
-        undoExpiresInSeconds: 30,
+        daysTotal: 5,
+        undoToken: null,
+        undoExpiresInSeconds: null,
       });
     });
 
-    expect(screen.getByText("Plan reset")).toBeTruthy();
+    expect(screen.getByText("Plan cleared")).toBeTruthy();
     expect(
-      screen.getByText(/5 days across 2 weeks restored/i),
+      screen.getByText(/5 days across 2 weeks cleared/i),
     ).toBeTruthy();
-    const undoButton = screen.getByTestId("button-undo-reset-plan");
-    expect(undoButton.textContent).toMatch(/Undo \(\d+s\)/);
+    // No Undo button anymore — Reset Entire Plan is destructive without undo.
+    expect(screen.queryByTestId("button-undo-reset-plan")).toBeNull();
+    // The undo mutation hook is never invoked from the Reset Entire Plan path.
+    expect(undoPlanResetMutate).not.toHaveBeenCalled();
+    // The success path invalidates queries so hasPlan flips and the
+    // EmptyPlanState CTA surfaces across /, /today, /plan.
+    expect(invalidateQueriesSpy).toHaveBeenCalled();
+  });
 
-    // 5. Click Undo and verify it dispatches the captured token to the
-    //    /api/plan/reset/undo endpoint via useUndoPlanReset.
-    fireEvent.click(undoButton);
-    expect(undoPlanResetMutate).toHaveBeenCalledTimes(1);
-    const [body] = undoPlanResetMutate.mock.calls[0] as [
-      { data: { undoToken: string } },
+  it("shows a 'Nothing to reset' toast when the plan tables were already empty", () => {
+    renderPlan();
+
+    fireEvent.click(screen.getByTestId("button-reset-plan"));
+    fireEvent.change(screen.getByTestId("input-confirm-reset-plan"), {
+      target: { value: "RESET PLAN" },
+    });
+    fireEvent.click(screen.getByTestId("button-confirm-reset-plan"));
+
+    const [, options] = resetPlanMutate.mock.calls[0] as [
+      unknown,
+      { onSuccess?: (data: unknown) => void },
     ];
-    expect(body).toEqual({ data: { undoToken: "tok-abc-123" } });
+    act(() => {
+      options.onSuccess!({
+        daysReset: 0,
+        weeksReset: 0,
+        daysTotal: 0,
+        undoToken: null,
+        undoExpiresInSeconds: null,
+      });
+    });
+
+    expect(screen.getByText("Nothing to reset")).toBeTruthy();
+    expect(screen.queryByTestId("button-undo-reset-plan")).toBeNull();
   });
 });

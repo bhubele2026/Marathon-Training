@@ -6,7 +6,6 @@ import {
   useGetPlanWeek,
   useListPlanWeeks,
   useResetPlan,
-  useUndoPlanReset,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,12 +25,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { UndoCountdownAction } from "@/components/undo-countdown-action";
 import { FullResetDialog } from "@/components/full-reset-dialog";
 import { EmptyPlanState } from "@/components/empty-plan-state";
 import { useFirstRunRedirect } from "@/hooks/use-first-run-redirect";
 import { useListPlannerConfigs } from "@workspace/api-client-react";
-import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
 import { formatDistance, formatDate } from "@/lib/format";
 import { useLocation } from "wouter";
 import {
@@ -152,7 +149,6 @@ export default function Plan() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const resetPlan = useResetPlan();
-  const undoPlanReset = useUndoPlanReset();
   const fullResetPlan = useFullResetPlan();
   const [resetPlanOpen, setResetPlanOpen] = useState(false);
   const [resetPlanConfirmText, setResetPlanConfirmText] = useState("");
@@ -178,54 +174,24 @@ export default function Plan() {
     if (!open) setResetPlanConfirmText("");
   };
 
-  const handleUndoReset = (undoToken: string) => {
-    undoPlanReset.mutate(
-      { data: { undoToken } },
-      {
-        onSuccess: (data) => {
-          toast({
-            title: "Reset undone",
-            description: `${data.daysRestored} day${data.daysRestored === 1 ? "" : "s"} of customizations restored.`,
-          });
-          invalidateMissionRelatedQueries(queryClient);
-        },
-        onError: () => {
-          toast({
-            title: "Couldn't undo",
-            description: "The undo window has expired.",
-            variant: "destructive",
-          });
-        },
-      },
-    );
-  };
-
   const confirmResetPlan = () => {
     resetPlan.mutate(undefined, {
       onSuccess: (data) => {
         if (data.daysReset === 0) {
           toast({
             title: "Nothing to reset",
-            description: "The plan hasn't been customized yet.",
+            description: "The plan is already empty.",
           });
         } else {
-          const undoToken = data.undoToken;
-          const undoSeconds = data.undoExpiresInSeconds ?? 30;
           toast({
-            title: "Plan reset",
-            description: `${data.daysReset} day${data.daysReset === 1 ? "" : "s"} across ${data.weeksReset} week${data.weeksReset === 1 ? "" : "s"} restored to the original campaign. Undo available for ${undoSeconds}s.`,
-            duration: undoToken ? undoSeconds * 1000 : undefined,
-            action: undoToken ? (
-              <UndoCountdownAction
-                altText="Undo plan reset"
-                expiresInSeconds={undoSeconds}
-                onUndo={() => handleUndoReset(undoToken)}
-                testId="button-undo-reset-plan"
-              />
-            ) : undefined,
+            title: "Plan cleared",
+            description: `${data.daysReset} day${data.daysReset === 1 ? "" : "s"} across ${data.weeksReset} week${data.weeksReset === 1 ? "" : "s"} cleared. Apply a Phase Planner config to build a new plan.`,
           });
         }
-        invalidateMissionRelatedQueries(queryClient);
+        // Invalidate everything: hasPlan flips, every plan-driven view
+        // (/, /today, /plan, /plan/:n, /equipment) needs to re-fetch
+        // and surface the EmptyPlanState CTA.
+        queryClient.invalidateQueries();
         setResetPlanOpen(false);
         setResetPlanConfirmText("");
       },
@@ -858,10 +824,10 @@ export default function Plan() {
           <AlertDialogHeader>
             <AlertDialogTitle>Reset the entire plan?</AlertDialogTitle>
             <AlertDialogDescription>
-              This wipes every edit and swap you've ever made across all weeks
-              and restores the original campaign prescription. Logged workouts
-              are not affected, but any customized session, distance, or
-              equipment choice will be lost. To confirm, type{" "}
+              This clears every plan week and day back to empty. The plan
+              stays empty until you apply a config from the Phase Planner.
+              Your logged workouts, body measurements, and race results
+              are not touched. This cannot be undone. To confirm, type{" "}
               <span className="font-mono font-bold">{RESET_PLAN_CONFIRM_PHRASE}</span> below.
             </AlertDialogDescription>
           </AlertDialogHeader>

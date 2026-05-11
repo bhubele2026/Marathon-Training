@@ -1504,54 +1504,85 @@ router.post("/plan/weeks/:week/reset", async (req, res): Promise<void> => {
   });
 });
 
+// "Reset Entire Plan" — wipes plan_weeks / plan_days back to empty and
+// demotes every applied planner_configs row to draft state, so the /plan,
+// /today, and dashboard surfaces fall back to the EmptyPlanState CTA
+// (Task #307) until the runner re-applies a config from /planner. Logged
+// workouts, body measurements, race results, and the race-week checklist
+// are intentionally NOT touched — that scorched-earth path is /plan/full-reset.
+//
+// There is no undo for this operation: the destructive bulk delete model
+// matches /plan/full-reset's reasoning (a 30s TTL undo for hundreds of rows
+// invites footguns and the gated confirm-text dialog already protects
+// against accidents). The response keeps undoToken / undoExpiresInSeconds
+// so the OpenAPI shape stays compatible — both fields are always null.
 router.post("/plan/reset", async (req, res): Promise<void> => {
   const result = await db.transaction(async (tx) => {
-    const days = await tx.select().from(planDaysTable);
-    const editedDays = days.filter((d) => d.seedSessionType != null);
-    const snapshots: PlanDaySnapshot[] = editedDays.map(snapshotPlanDay);
-    const weeksTouched = new Set<number>();
-    for (const d of editedDays) {
-      await tx
-        .update(planDaysTable)
-        .set({ ...resetRow(d), ...CLEAR_SEED_FIELDS })
-        .where(eq(planDaysTable.id, d.id));
-      weeksTouched.add(d.week);
-    }
-    for (const w of weeksTouched) {
-      await recomputeWeekTotals(tx, w);
-    }
-    return {
-      weeksReset: weeksTouched.size,
-      daysReset: editedDays.length,
-      daysTotal: days.length,
-      snapshots,
-      weeksAffected: Array.from(weeksTouched).sort((a, b) => a - b),
-    };
-  });
-  let undoToken: string | null = null;
-  let undoExpiresInSeconds: number | null = null;
-  if (result.snapshots.length > 0) {
-    const stored = await storeResetSnapshot(
-      result.snapshots,
-      result.weeksAffected,
+    // Lock every table we'll mutate (plan_*, planner_configs) plus
+    // workouts (whose plan_day_id FKs we have to detach before TRUNCATE
+    // CASCADEs into them). Matches the lock TRUNCATE itself takes.
+    await tx.execute(
+      sql`LOCK TABLE planner_configs, plan_days, plan_weeks, workouts IN ACCESS EXCLUSIVE MODE`,
     );
-    undoToken = stored.token;
-    undoExpiresInSeconds = stored.expiresInSeconds;
-  }
-  req.log.info(
+
+    const [{ count: weeksReset } = { count: 0 }] = (
+      await tx.execute<{ count: number }>(
+        sql`SELECT COUNT(*)::int AS count FROM plan_weeks`,
+      )
+    ).rows;
+    const [{ count: daysReset } = { count: 0 }] = (
+      await tx.execute<{ count: number }>(
+        sql`SELECT COUNT(*)::int AS count FROM plan_days`,
+      )
+    ).rows;
+
+    if (weeksReset === 0 && daysReset === 0) {
+      // Already empty — still demote any applied config rows so a
+      // partial / interrupted prior reset can't leave applied state
+      // pointing at plan tables that no longer exist.
+      await tx.execute(
+        sql`UPDATE planner_configs SET last_applied_at = NULL, applied_start_date = NULL, applied_marathon_date = NULL, applied_blocks = NULL, applied_entries = NULL, applied_start_weight = NULL, applied_goal_weight = NULL WHERE last_applied_at IS NOT NULL`,
+      );
+      return { weeksReset: 0, daysReset: 0, daysTotal: 0 };
+    }
+
+    // Detach workout FKs first so the plan_days TRUNCATE doesn't
+    // cascade-delete the runner's logged history. Workouts on dates
+    // covered by a future re-applied plan get re-bound to the new
+    // plan_days by the post-merge backfill-workout-plan-day script.
+    await tx.execute(
+      sql`UPDATE workouts SET plan_day_id = NULL WHERE plan_day_id IS NOT NULL`,
+    );
+
+    await tx.execute(
+      sql`TRUNCATE TABLE plan_days, plan_weeks RESTART IDENTITY CASCADE`,
+    );
+
+    // Demote every applied planner_configs row back to draft (clears
+    // last_applied_at + applied_* snapshot columns). Saved rows
+    // themselves — name, blocks, entries, isActive — are preserved
+    // so re-applying from /planner is a one-click trip.
+    await tx.execute(
+      sql`UPDATE planner_configs SET last_applied_at = NULL, applied_start_date = NULL, applied_marathon_date = NULL, applied_blocks = NULL, applied_entries = NULL, applied_start_weight = NULL, applied_goal_weight = NULL`,
+    );
+
+    return { weeksReset, daysReset, daysTotal: daysReset };
+  });
+
+  req.log.warn(
     {
       weeksReset: result.weeksReset,
       daysReset: result.daysReset,
       daysTotal: result.daysTotal,
     },
-    "entire plan reset",
+    "entire plan reset (no undo) — plan tables wiped to empty, applied planner config demoted to draft",
   );
   res.json({
     weeksReset: result.weeksReset,
     daysReset: result.daysReset,
     daysTotal: result.daysTotal,
-    undoToken,
-    undoExpiresInSeconds,
+    undoToken: null,
+    undoExpiresInSeconds: null,
   });
 });
 
