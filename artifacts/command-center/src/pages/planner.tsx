@@ -2992,7 +2992,7 @@ export default function Planner() {
                   </button>
                   <div
                     hidden={isCollapsed}
-                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 p-3 pt-0"
+                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 p-3 pt-0 items-start"
                   >
               {list.map((tpl) => {
                 const weeks = tplWeeks[tpl.id] ?? tpl.defaultWeeks;
@@ -3003,7 +3003,7 @@ export default function Planner() {
                 return (
                   <div
                     key={tpl.id}
-                    className={`relative border rounded-md p-3 pl-4 flex flex-col gap-2.5 scroll-mt-4 bg-card ${isLastApplied ? "border-primary ring-1 ring-primary/20" : ""}`}
+                    className={`relative border rounded-md p-2.5 pl-3.5 flex flex-col gap-1.5 scroll-mt-4 bg-card ${isLastApplied ? "border-primary ring-1 ring-primary/20" : ""}`}
                     style={{
                       // Accent strip on the card's left edge mirrors the
                       // section header so a single glance tells the
@@ -3037,7 +3037,7 @@ export default function Planner() {
                         )}
                       </div>
                     </div>
-                    <div className="text-xs text-muted-foreground leading-relaxed flex-1">
+                    <div className="text-xs text-muted-foreground leading-snug line-clamp-2">
                       {tpl.shortDescription}
                     </div>
                     {tpl.tags.length > 0 && (
