@@ -4,6 +4,7 @@ import {
   db,
   resetUndoSnapshotsTable,
   type PlanDayRow,
+  type PlanWeekRow,
 } from "@workspace/db";
 
 // Short window the runner has to hit "Undo" on a reset success toast before
@@ -50,6 +51,104 @@ export interface ResetSnapshot {
   weeksAffected: number[];
   expiresAt: number;
 }
+
+// Snapshot taken before the "Reset Entire Plan" empty-wipe so the action
+// stays undoable for the same ~30s window as week- and day-level resets.
+// Captures every plan_weeks row, every plan_days row (verbatim, including
+// id and seed_* columns), every applied planner_configs row's
+// applied_*/last_applied_at columns, and the (workoutId → planDayId)
+// pairs that the wipe detached so the FK linkage can be restored on undo.
+export interface PlanWeekSnapshot {
+  week: number;
+  phase: string;
+  startDate: string;
+  endDate: string;
+  plannedStrength: number | null;
+  plannedCardio: number | null;
+  plannedTotalLoad: number;
+  plannedMiles: number;
+  longRunMi: number;
+}
+
+export interface PlanDayFullSnapshot {
+  id: number;
+  week: number;
+  phase: string;
+  date: string;
+  day: string;
+  sourceEntryIndex: number;
+  sourceEntryLabel: string | null;
+  strengthLoad: number | null;
+  equipment: string;
+  equipmentList: string[] | null;
+  description: string;
+  strengthMin: number | null;
+  cardioMin: number | null;
+  runMin: number | null;
+  distanceMi: number | null;
+  pace: string | null;
+  sessionType: string;
+  isRest: boolean;
+  totalLoad: number;
+  seedSessionType: string | null;
+  seedEquipment: string | null;
+  seedEquipmentList: string[] | null;
+  seedDescription: string | null;
+  seedDistanceMi: number | null;
+  seedStrengthMin: number | null;
+  seedCardioMin: number | null;
+  seedRunMin: number | null;
+  seedPace: string | null;
+  seedStrengthLoad: number | null;
+  seedTotalLoad: number | null;
+  seedIsRest: boolean | null;
+}
+
+export interface AppliedPlannerConfigSnapshot {
+  id: number;
+  // ISO string for JSON portability; restored via NOW()-style cast on undo.
+  lastAppliedAt: string;
+  appliedStartDate: string | null;
+  appliedMarathonDate: string | null;
+  // Drizzle stores these as jsonb, opaque to the snapshot layer.
+  appliedBlocks: unknown;
+  appliedEntries: unknown;
+  appliedStartWeight: number | null;
+  appliedGoalWeight: number | null;
+}
+
+export interface DetachedWorkoutSnapshot {
+  workoutId: number;
+  planDayId: number;
+}
+
+export interface EntirePlanWipeSnapshotPayload {
+  planWeeks: PlanWeekSnapshot[];
+  planDays: PlanDayFullSnapshot[];
+  appliedConfigs: AppliedPlannerConfigSnapshot[];
+  detachedWorkouts: DetachedWorkoutSnapshot[];
+}
+
+// Discriminated envelope persisted in `reset_undo_snapshots.snapshot` for
+// entire-plan wipes. Week- and day-level resets keep their legacy raw
+// `PlanDaySnapshot[]` shape (no envelope) for back-compat with snapshots
+// that may already be in the DB at deploy time. `consumeResetSnapshot`
+// dispatches by `Array.isArray(...)`.
+interface EntirePlanWipeEnvelope {
+  kind: "entire-plan-wipe";
+  payload: EntirePlanWipeSnapshotPayload;
+}
+
+export interface EntirePlanWipeResetSnapshot {
+  kind: "entire-plan-wipe";
+  payload: EntirePlanWipeSnapshotPayload;
+  weeksAffected: number[];
+  expiresAt: number;
+}
+
+export type AnyResetSnapshot =
+  | ({ kind: "days" } & ResetSnapshot)
+  | EntirePlanWipeResetSnapshot;
 
 export function snapshotPlanDay(row: PlanDayRow): PlanDaySnapshot {
   return {
@@ -141,6 +240,122 @@ export async function storeResetSnapshot(
   return { token, expiresInSeconds: ttlSeconds };
 }
 
+// Snapshot an entire-plan wipe under the same TTL as week/day resets.
+// Stored as a discriminated envelope under the same `snapshot` JSONB
+// column so /plan/reset/undo can fan out by shape.
+export async function storeEntirePlanWipeSnapshot(
+  payload: EntirePlanWipeSnapshotPayload,
+  ttlMs: number = RESET_UNDO_TTL_MS,
+): Promise<{ token: string; expiresInSeconds: number }> {
+  await purgeExpired();
+  const token = randomBytes(18).toString("base64url");
+  const ttlSeconds = Math.round(ttlMs / 1000);
+  const envelope: EntirePlanWipeEnvelope = {
+    kind: "entire-plan-wipe",
+    payload,
+  };
+  // weeksAffected mirrors the week numbers we just wiped so the response
+  // and any operator audit query can see the breadth without parsing
+  // the full envelope.
+  const weeksAffected = payload.planWeeks
+    .map((w) => w.week)
+    .sort((a, b) => a - b);
+  await db.insert(resetUndoSnapshotsTable).values({
+    token,
+    snapshot: envelope,
+    weeksAffected,
+    expiresAt: sql`NOW() + (${ttlSeconds} || ' seconds')::interval`,
+  });
+  return { token, expiresInSeconds: ttlSeconds };
+}
+
+// Same as `storeEntirePlanWipeSnapshot` but inserts via the supplied
+// transaction so the snapshot row is committed atomically with the
+// destructive plan_weeks/plan_days/planner_configs/workouts mutations
+// in `/plan/reset`. Callers that wrap the wipe in a transaction MUST
+// use this variant — calling the post-commit `db`-bound helper would
+// open a window where the tables are wiped but the undo snapshot
+// failed to persist (DB hiccup, serialization error, replica
+// disconnect), silently revoking the runner's promised undo.
+export async function storeEntirePlanWipeSnapshotInTx(
+  tx: Pick<typeof db, "insert">,
+  payload: EntirePlanWipeSnapshotPayload,
+  ttlMs: number = RESET_UNDO_TTL_MS,
+): Promise<{ token: string; expiresInSeconds: number }> {
+  const token = randomBytes(18).toString("base64url");
+  const ttlSeconds = Math.round(ttlMs / 1000);
+  const envelope: EntirePlanWipeEnvelope = {
+    kind: "entire-plan-wipe",
+    payload,
+  };
+  const weeksAffected = payload.planWeeks
+    .map((w) => w.week)
+    .sort((a, b) => a - b);
+  await tx.insert(resetUndoSnapshotsTable).values({
+    token,
+    snapshot: envelope,
+    weeksAffected,
+    expiresAt: sql`NOW() + (${ttlSeconds} || ' seconds')::interval`,
+  });
+  return { token, expiresInSeconds: ttlSeconds };
+}
+
+// Build a PlanWeekSnapshot from a PlanWeekRow.
+export function snapshotPlanWeek(row: PlanWeekRow): PlanWeekSnapshot {
+  return {
+    week: row.week,
+    phase: row.phase,
+    startDate: row.startDate,
+    endDate: row.endDate,
+    plannedStrength: row.plannedStrength,
+    plannedCardio: row.plannedCardio,
+    plannedTotalLoad: row.plannedTotalLoad,
+    plannedMiles: row.plannedMiles,
+    longRunMi: row.longRunMi,
+  };
+}
+
+// Verbatim snapshot of every column on a plan_days row, including its
+// integer id (so undo can re-insert it back at the same id and any
+// detached workout FK can re-link). Distinct from `snapshotPlanDay`,
+// which targets the per-day-edit rollback flow and only stores the
+// fields that flow controls.
+export function snapshotPlanDayFull(row: PlanDayRow): PlanDayFullSnapshot {
+  return {
+    id: row.id,
+    week: row.week,
+    phase: row.phase,
+    date: row.date,
+    day: row.day,
+    sourceEntryIndex: row.sourceEntryIndex,
+    sourceEntryLabel: row.sourceEntryLabel,
+    strengthLoad: row.strengthLoad,
+    equipment: row.equipment,
+    equipmentList: row.equipmentList,
+    description: row.description,
+    strengthMin: row.strengthMin,
+    cardioMin: row.cardioMin,
+    runMin: row.runMin,
+    distanceMi: row.distanceMi,
+    pace: row.pace,
+    sessionType: row.sessionType,
+    isRest: row.isRest,
+    totalLoad: row.totalLoad,
+    seedSessionType: row.seedSessionType,
+    seedEquipment: row.seedEquipment,
+    seedEquipmentList: row.seedEquipmentList,
+    seedDescription: row.seedDescription,
+    seedDistanceMi: row.seedDistanceMi,
+    seedStrengthMin: row.seedStrengthMin,
+    seedCardioMin: row.seedCardioMin,
+    seedRunMin: row.seedRunMin,
+    seedPace: row.seedPace,
+    seedStrengthLoad: row.seedStrengthLoad,
+    seedTotalLoad: row.seedTotalLoad,
+    seedIsRest: row.seedIsRest,
+  };
+}
+
 // Atomically reserve the snapshot for a single in-flight undo via a
 // `DELETE ... WHERE expires_at > now() RETURNING ...`. Postgres guarantees
 // only one concurrent caller (across all replicas) wins the row; everyone
@@ -150,7 +365,7 @@ export async function storeResetSnapshot(
 // remaining TTL.
 export async function consumeResetSnapshot(
   token: string,
-): Promise<ResetSnapshot | null> {
+): Promise<AnyResetSnapshot | null> {
   const deleted = await db
     .delete(resetUndoSnapshotsTable)
     .where(
@@ -162,8 +377,23 @@ export async function consumeResetSnapshot(
     .returning();
   const row = deleted[0];
   if (!row) return null;
+  // Discriminate by JSONB shape:
+  //   - legacy week/day reset snapshots stored the bare PlanDaySnapshot[]
+  //   - entire-plan wipe snapshots store an envelope { kind, payload }
+  // Array.isArray() distinguishes them without needing a schema migration.
+  const snap = row.snapshot;
+  if (Array.isArray(snap)) {
+    return {
+      kind: "days",
+      days: snap as PlanDaySnapshot[],
+      weeksAffected: row.weeksAffected as number[],
+      expiresAt: row.expiresAt.getTime(),
+    };
+  }
+  const env = snap as EntirePlanWipeEnvelope;
   return {
-    days: row.snapshot as PlanDaySnapshot[],
+    kind: "entire-plan-wipe",
+    payload: env.payload,
     weeksAffected: row.weeksAffected as number[],
     expiresAt: row.expiresAt.getTime(),
   };
@@ -176,7 +406,7 @@ export async function consumeResetSnapshot(
 // crash the request.
 export async function releaseResetSnapshot(
   token: string,
-  snap: ResetSnapshot,
+  snap: AnyResetSnapshot,
 ): Promise<void> {
   // Gate the re-insert on the database's clock rather than the local
   // process clock so a replica with a skewed wall clock can neither
@@ -184,12 +414,21 @@ export async function releaseResetSnapshot(
   // The original `expires_at` (set with NOW() + interval at store time)
   // remains the canonical deadline.
   const expiresAt = new Date(snap.expiresAt);
+  // Re-marshal the snapshot back into the same on-disk JSONB shape
+  // we read it from so a subsequent consume sees the original variant.
+  const snapshotJson =
+    snap.kind === "days"
+      ? JSON.stringify(snap.days)
+      : JSON.stringify({
+          kind: "entire-plan-wipe",
+          payload: snap.payload,
+        } satisfies EntirePlanWipeEnvelope);
   await db.execute(sql`
     INSERT INTO ${resetUndoSnapshotsTable}
       (token, snapshot, weeks_affected, expires_at)
     SELECT
       ${token},
-      ${JSON.stringify(snap.days)}::jsonb,
+      ${snapshotJson}::jsonb,
       ${JSON.stringify(snap.weeksAffected)}::jsonb,
       ${expiresAt}
     WHERE ${expiresAt} > NOW()

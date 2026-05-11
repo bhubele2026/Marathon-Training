@@ -62,6 +62,8 @@ describe("reset-undo persistence", () => {
     expect(expiresInSeconds).toBe(30);
     const got = await consumeResetSnapshot(token);
     expect(got).not.toBeNull();
+    expect(got!.kind).toBe("days");
+    if (got!.kind !== "days") throw new Error("expected days variant");
     expect(got!.days).toEqual([sampleDay]);
     expect(got!.weeksAffected).toEqual([sampleDay.week]);
 
@@ -98,6 +100,8 @@ describe("reset-undo persistence", () => {
     expect(persisted).toHaveLength(1);
     const got = await consumeResetSnapshot(token);
     expect(got).not.toBeNull();
+    expect(got!.kind).toBe("days");
+    if (got!.kind !== "days") throw new Error("expected days variant");
     expect(got!.days).toEqual([sampleDay]);
     expect(got!.weeksAffected).toEqual([sampleDay.week]);
   });

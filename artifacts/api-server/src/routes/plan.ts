@@ -3,6 +3,7 @@ import {
   db,
   planDaysTable,
   planWeeksTable,
+  plannerConfigsTable,
   workoutsTable,
   type PlanDayRow,
   type WorkoutRow,
@@ -33,8 +34,14 @@ import {
   consumeResetSnapshot,
   releaseResetSnapshot,
   snapshotPlanDay,
+  snapshotPlanDayFull,
+  snapshotPlanWeek,
+  storeEntirePlanWipeSnapshotInTx,
   storeResetSnapshot,
   RESET_UNDO_TTL_MS,
+  type AppliedPlannerConfigSnapshot,
+  type DetachedWorkoutSnapshot,
+  type EntirePlanWipeSnapshotPayload,
   type PlanDaySnapshot,
 } from "../lib/reset-undo";
 import {
@@ -1511,13 +1518,15 @@ router.post("/plan/weeks/:week/reset", async (req, res): Promise<void> => {
 // workouts, body measurements, race results, and the race-week checklist
 // are intentionally NOT touched — that scorched-earth path is /plan/full-reset.
 //
-// There is no undo for this operation: the destructive bulk delete model
-// matches /plan/full-reset's reasoning (a 30s TTL undo for hundreds of rows
-// invites footguns and the gated confirm-text dialog already protects
-// against accidents). The response keeps undoToken / undoExpiresInSeconds
-// so the OpenAPI shape stays compatible — both fields are always null.
+// Stays undoable for the same RESET_UNDO_TTL_MS window as week- and
+// day-level resets: every plan_weeks row, every plan_days row (verbatim,
+// including id and seed_* columns), every applied planner_configs row's
+// applied_*/last_applied_at columns, and every workout (id, plan_day_id)
+// pair we detached are captured in a single snapshot envelope keyed by
+// the returned undoToken. /plan/reset/undo restores all four classes
+// inside one transaction so the runner can recover from a misclick.
 router.post("/plan/reset", async (req, res): Promise<void> => {
-  const result = await db.transaction(async (tx) => {
+  const snapshotResult = await db.transaction(async (tx) => {
     // Lock every table we'll mutate (plan_*, planner_configs) plus
     // workouts (whose plan_day_id FKs we have to detach before TRUNCATE
     // CASCADEs into them). Matches the lock TRUNCATE itself takes.
@@ -1525,31 +1534,53 @@ router.post("/plan/reset", async (req, res): Promise<void> => {
       sql`LOCK TABLE planner_configs, plan_days, plan_weeks, workouts IN ACCESS EXCLUSIVE MODE`,
     );
 
-    const [{ count: weeksReset } = { count: 0 }] = (
-      await tx.execute<{ count: number }>(
-        sql`SELECT COUNT(*)::int AS count FROM plan_weeks`,
-      )
-    ).rows;
-    const [{ count: daysReset } = { count: 0 }] = (
-      await tx.execute<{ count: number }>(
-        sql`SELECT COUNT(*)::int AS count FROM plan_days`,
-      )
-    ).rows;
+    // Snapshot first — we need every plan_weeks row, every plan_days
+    // row (verbatim, including id and seed_* columns), every applied
+    // planner_configs row's applied_*/last_applied_at columns, and
+    // every workout (id, plan_day_id) pair we are about to detach so
+    // /plan/reset/undo can restore all four classes inside one tx.
+    const planWeekRows = await tx
+      .select()
+      .from(planWeeksTable)
+      .orderBy(asc(planWeeksTable.week));
+    const planDayRows = await tx
+      .select()
+      .from(planDaysTable)
+      .orderBy(asc(planDaysTable.id));
+    const appliedConfigRows = await tx
+      .select()
+      .from(plannerConfigsTable)
+      .where(sql`${plannerConfigsTable.lastAppliedAt} IS NOT NULL`);
+    const detachedWorkoutRows = await tx
+      .select({ id: workoutsTable.id, planDayId: workoutsTable.planDayId })
+      .from(workoutsTable)
+      .where(sql`${workoutsTable.planDayId} IS NOT NULL`);
+
+    const weeksReset = planWeekRows.length;
+    const daysReset = planDayRows.length;
 
     if (weeksReset === 0 && daysReset === 0) {
       // Already empty — still demote any applied config rows so a
       // partial / interrupted prior reset can't leave applied state
-      // pointing at plan tables that no longer exist.
+      // pointing at plan tables that no longer exist. No snapshot
+      // needed (and no undo offered) since there's nothing to put back.
       await tx.execute(
         sql`UPDATE planner_configs SET last_applied_at = NULL, applied_start_date = NULL, applied_marathon_date = NULL, applied_blocks = NULL, applied_entries = NULL, applied_start_weight = NULL, applied_goal_weight = NULL WHERE last_applied_at IS NOT NULL`,
       );
-      return { weeksReset: 0, daysReset: 0, daysTotal: 0 };
+      return {
+        weeksReset: 0,
+        daysReset: 0,
+        daysTotal: 0,
+        undoToken: null as string | null,
+        undoExpiresInSeconds: null as number | null,
+      };
     }
 
-    // Detach workout FKs first so the plan_days TRUNCATE doesn't
-    // cascade-delete the runner's logged history. Workouts on dates
-    // covered by a future re-applied plan get re-bound to the new
-    // plan_days by the post-merge backfill-workout-plan-day script.
+    // Detach workout FKs first so callers can't observe a window where
+    // a workout's plan_day_id points at a row that has just been
+    // deleted by the TRUNCATE below. Workouts on dates covered by a
+    // future re-applied plan get re-bound to the new plan_days by the
+    // post-merge backfill-workout-plan-day script.
     await tx.execute(
       sql`UPDATE workouts SET plan_day_id = NULL WHERE plan_day_id IS NOT NULL`,
     );
@@ -1566,23 +1597,67 @@ router.post("/plan/reset", async (req, res): Promise<void> => {
       sql`UPDATE planner_configs SET last_applied_at = NULL, applied_start_date = NULL, applied_marathon_date = NULL, applied_blocks = NULL, applied_entries = NULL, applied_start_weight = NULL, applied_goal_weight = NULL`,
     );
 
-    return { weeksReset, daysReset, daysTotal: daysReset };
+    const appliedConfigs: AppliedPlannerConfigSnapshot[] = appliedConfigRows
+      .filter((row) => row.lastAppliedAt != null)
+      .map((row) => ({
+        id: row.id,
+        // Drizzle returns Date for timestamp columns; serialize to ISO so
+        // the JSONB envelope round-trips through Postgres without losing
+        // sub-second precision.
+        lastAppliedAt: (row.lastAppliedAt as Date).toISOString(),
+        appliedStartDate: row.appliedStartDate,
+        appliedMarathonDate: row.appliedMarathonDate,
+        appliedBlocks: row.appliedBlocks,
+        appliedEntries: row.appliedEntries,
+        appliedStartWeight: row.appliedStartWeight,
+        appliedGoalWeight: row.appliedGoalWeight,
+      }));
+    const detachedWorkouts: DetachedWorkoutSnapshot[] = detachedWorkoutRows
+      .filter((row): row is { id: number; planDayId: number } => row.planDayId != null)
+      .map((row) => ({ workoutId: row.id, planDayId: row.planDayId }));
+
+    const snapshotPayload: EntirePlanWipeSnapshotPayload = {
+      planWeeks: planWeekRows.map(snapshotPlanWeek),
+      planDays: planDayRows.map(snapshotPlanDayFull),
+      appliedConfigs,
+      detachedWorkouts,
+    };
+
+    // Persist the undo snapshot row INSIDE this same transaction so the
+    // wipe + the snapshot commit (or roll back) atomically. Stashing it
+    // post-commit would open a window where the runner believed they had
+    // ~30 seconds to undo but a transient DB hiccup on the snapshot
+    // INSERT had silently revoked it.
+    const stored = await storeEntirePlanWipeSnapshotInTx(tx, snapshotPayload);
+
+    return {
+      weeksReset,
+      daysReset,
+      daysTotal: daysReset,
+      undoToken: stored.token,
+      undoExpiresInSeconds: stored.expiresInSeconds,
+    };
   });
+
+  const undoToken: string | null = snapshotResult.undoToken ?? null;
+  const undoExpiresInSeconds: number | null =
+    snapshotResult.undoExpiresInSeconds ?? null;
 
   req.log.warn(
     {
-      weeksReset: result.weeksReset,
-      daysReset: result.daysReset,
-      daysTotal: result.daysTotal,
+      weeksReset: snapshotResult.weeksReset,
+      daysReset: snapshotResult.daysReset,
+      daysTotal: snapshotResult.daysTotal,
+      undoToken,
     },
-    "entire plan reset (no undo) — plan tables wiped to empty, applied planner config demoted to draft",
+    "entire plan reset — plan tables wiped to empty, applied planner config demoted to draft",
   );
   res.json({
-    weeksReset: result.weeksReset,
-    daysReset: result.daysReset,
-    daysTotal: result.daysTotal,
-    undoToken: null,
-    undoExpiresInSeconds: null,
+    weeksReset: snapshotResult.weeksReset,
+    daysReset: snapshotResult.daysReset,
+    daysTotal: snapshotResult.daysTotal,
+    undoToken,
+    undoExpiresInSeconds,
   });
 });
 
@@ -1714,6 +1789,126 @@ router.post("/plan/reset/undo", async (req, res): Promise<void> => {
   }
   let result: { daysRestored: number; weeksAffected: number[] };
   try {
+    if (snapshot.kind === "entire-plan-wipe") {
+      result = await db.transaction(async (tx) => {
+        // Lock everything we're about to overwrite so a concurrent
+        // /plan/full-reset, /planner/apply, or another /plan/reset
+        // can't slip in between our wipe and our re-insert. Same locks
+        // we took on the original /plan/reset call.
+        await tx.execute(
+          sql`LOCK TABLE planner_configs, plan_days, plan_weeks, workouts IN ACCESS EXCLUSIVE MODE`,
+        );
+        // Wipe whatever's currently in plan_weeks/plan_days so a re-applied
+        // config in the undo window can't collide on (week) or (id) primary
+        // keys when we re-insert the snapshot rows. Detach workouts first
+        // for the same reason as the original reset.
+        await tx.execute(
+          sql`UPDATE workouts SET plan_day_id = NULL WHERE plan_day_id IS NOT NULL`,
+        );
+        await tx.execute(
+          sql`TRUNCATE TABLE plan_days, plan_weeks RESTART IDENTITY CASCADE`,
+        );
+
+        // Re-insert plan_weeks first (plan_days.week references it
+        // logically even without a FK constraint).
+        for (const w of snapshot.payload.planWeeks) {
+          await tx.insert(planWeeksTable).values({
+            week: w.week,
+            phase: w.phase,
+            startDate: w.startDate,
+            endDate: w.endDate,
+            plannedStrength: w.plannedStrength,
+            plannedCardio: w.plannedCardio,
+            plannedTotalLoad: w.plannedTotalLoad,
+            plannedMiles: w.plannedMiles,
+            longRunMi: w.longRunMi,
+          });
+        }
+
+        // Re-insert plan_days with their original integer ids so any
+        // workout snapshot pair can re-link verbatim.
+        for (const d of snapshot.payload.planDays) {
+          await tx.insert(planDaysTable).values({
+            id: d.id,
+            week: d.week,
+            phase: d.phase,
+            date: d.date,
+            day: d.day,
+            sourceEntryIndex: d.sourceEntryIndex,
+            sourceEntryLabel: d.sourceEntryLabel,
+            strengthLoad: d.strengthLoad,
+            equipment: d.equipment,
+            equipmentList: d.equipmentList,
+            description: d.description,
+            strengthMin: d.strengthMin,
+            cardioMin: d.cardioMin,
+            runMin: d.runMin,
+            distanceMi: d.distanceMi,
+            pace: d.pace,
+            sessionType: d.sessionType,
+            isRest: d.isRest,
+            totalLoad: d.totalLoad,
+            seedSessionType: d.seedSessionType,
+            seedEquipment: d.seedEquipment,
+            seedEquipmentList: d.seedEquipmentList,
+            seedDescription: d.seedDescription,
+            seedDistanceMi: d.seedDistanceMi,
+            seedStrengthMin: d.seedStrengthMin,
+            seedCardioMin: d.seedCardioMin,
+            seedRunMin: d.seedRunMin,
+            seedPace: d.seedPace,
+            seedStrengthLoad: d.seedStrengthLoad,
+            seedTotalLoad: d.seedTotalLoad,
+            seedIsRest: d.seedIsRest,
+          });
+        }
+
+        // We just re-inserted rows with explicit ids past the sequence's
+        // RESTART IDENTITY value (which dropped to 1 on the TRUNCATE
+        // above). Bump the sequence to MAX(id) so the next natural
+        // INSERT doesn't collide with a restored id.
+        if (snapshot.payload.planDays.length > 0) {
+          await tx.execute(
+            sql`SELECT setval(pg_get_serial_sequence('plan_days', 'id'), GREATEST((SELECT MAX(id) FROM plan_days), 1))`,
+          );
+        }
+
+        // Restore applied_*/last_applied_at on every previously-applied
+        // planner_configs row. Drafts that were never applied stay as-is.
+        for (const c of snapshot.payload.appliedConfigs) {
+          await tx
+            .update(plannerConfigsTable)
+            .set({
+              lastAppliedAt: new Date(c.lastAppliedAt),
+              appliedStartDate: c.appliedStartDate,
+              appliedMarathonDate: c.appliedMarathonDate,
+              appliedBlocks: c.appliedBlocks as never,
+              appliedEntries: c.appliedEntries as never,
+              appliedStartWeight: c.appliedStartWeight,
+              appliedGoalWeight: c.appliedGoalWeight,
+            })
+            .where(eq(plannerConfigsTable.id, c.id));
+        }
+
+        // Re-link the workouts whose plan_day_id we detached. Skip rows
+        // whose target plan_day no longer exists (workout deleted in the
+        // window) or whose workout was deleted in the window — both safe
+        // best-effort cases since the snapshot is single-use anyway.
+        for (const w of snapshot.payload.detachedWorkouts) {
+          await tx
+            .update(workoutsTable)
+            .set({ planDayId: w.planDayId })
+            .where(eq(workoutsTable.id, w.workoutId));
+        }
+
+        return {
+          daysRestored: snapshot.payload.planDays.length,
+          weeksAffected: snapshot.payload.planWeeks
+            .map((w) => w.week)
+            .sort((a, b) => a - b),
+        };
+      });
+    } else {
     result = await db.transaction(async (tx) => {
       const touched = new Set<number>();
       let restored = 0;
@@ -1777,6 +1972,7 @@ router.post("/plan/reset/undo", async (req, res): Promise<void> => {
         weeksAffected: Array.from(touched).sort((a, b) => a - b),
       };
     });
+    }
   } catch (err) {
     // Restore failed; release the reservation so the runner can retry within
     // the remaining TTL instead of being told the undo window has expired.

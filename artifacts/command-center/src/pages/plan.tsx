@@ -6,8 +6,10 @@ import {
   useGetPlanWeek,
   useListPlanWeeks,
   useResetPlan,
+  useUndoPlanReset,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { UndoCountdownAction } from "@/components/undo-countdown-action";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -149,6 +151,7 @@ export default function Plan() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const resetPlan = useResetPlan();
+  const undoPlanReset = useUndoPlanReset();
   const fullResetPlan = useFullResetPlan();
   const [resetPlanOpen, setResetPlanOpen] = useState(false);
   const [resetPlanConfirmText, setResetPlanConfirmText] = useState("");
@@ -174,6 +177,31 @@ export default function Plan() {
     if (!open) setResetPlanConfirmText("");
   };
 
+  const handleUndoReset = (undoToken: string) => {
+    undoPlanReset.mutate(
+      { data: { undoToken } },
+      {
+        onSuccess: (data) => {
+          toast({
+            title: "Reset undone",
+            description: `${data.daysRestored} day${data.daysRestored === 1 ? "" : "s"} across ${data.weeksAffected.length} week${data.weeksAffected.length === 1 ? "" : "s"} restored. Your plan and applied config are back.`,
+          });
+          // The undo restored every plan_weeks/plan_days row plus the
+          // applied planner_configs snapshot, so hasPlan flips back to
+          // true and every plan-driven view needs a fresh read.
+          queryClient.invalidateQueries();
+        },
+        onError: () => {
+          toast({
+            title: "Couldn't undo",
+            description: "The undo window has expired.",
+            variant: "destructive",
+          });
+        },
+      },
+    );
+  };
+
   const confirmResetPlan = () => {
     resetPlan.mutate(undefined, {
       onSuccess: (data) => {
@@ -183,9 +211,20 @@ export default function Plan() {
             description: "The plan is already empty.",
           });
         } else {
+          const undoToken = data.undoToken;
+          const undoSeconds = data.undoExpiresInSeconds ?? 30;
           toast({
             title: "Plan cleared",
-            description: `${data.daysReset} day${data.daysReset === 1 ? "" : "s"} across ${data.weeksReset} week${data.weeksReset === 1 ? "" : "s"} cleared. Apply a Phase Planner config to build a new plan.`,
+            description: `${data.daysReset} day${data.daysReset === 1 ? "" : "s"} across ${data.weeksReset} week${data.weeksReset === 1 ? "" : "s"} cleared. Apply a Phase Planner config to build a new plan.${undoToken ? ` Undo available for ${undoSeconds}s.` : ""}`,
+            duration: undoToken ? undoSeconds * 1000 : undefined,
+            action: undoToken ? (
+              <UndoCountdownAction
+                altText="Undo plan reset"
+                expiresInSeconds={undoSeconds}
+                onUndo={() => handleUndoReset(undoToken)}
+                testId="button-undo-reset-plan"
+              />
+            ) : undefined,
           });
         }
         // Invalidate everything: hasPlan flips, every plan-driven view
@@ -209,7 +248,7 @@ export default function Plan() {
         // counts if they thought there was data here).
         toast({
           title: "Campaign reset to day one",
-          description: `${data.workoutsWiped} workout${data.workoutsWiped === 1 ? "" : "s"} and ${data.measurementsWiped} measurement${data.measurementsWiped === 1 ? "" : "s"} wiped. Reseeded ${data.weeksSeeded} weeks / ${data.daysSeeded} days from scratch.`,
+          description: `${data.workoutsWiped} workout${data.workoutsWiped === 1 ? "" : "s"} and ${data.measurementsWiped} measurement${data.measurementsWiped === 1 ? "" : "s"} wiped. Plan tables are empty and every applied Phase Planner config has been demoted to draft — re-apply one from /planner to rebuild the plan.`,
         });
         // A full reset touches EVERY mutable table, so invalidate the
         // entire react-query cache instead of the curated mission-only
@@ -292,9 +331,10 @@ export default function Plan() {
                 <p className="text-sm font-bold">Full reset — start over from day one</p>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   Wipes every logged workout, every body measurement, the
-                  race-week checklist, and every plan customization. Plan
-                  tables stay empty until you apply a Planner config.
-                  This cannot be undone.
+                  race-week checklist, every plan customization, and demotes
+                  every applied Phase Planner config back to draft. The plan
+                  stays empty until you re-apply a config from the Phase
+                  Planner. This cannot be undone.
                 </p>
               </div>
               <Button
@@ -801,9 +841,10 @@ export default function Plan() {
               <p className="text-sm font-bold">Full reset — start over from day one</p>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Wipes every logged workout, every body measurement, the
-                race-week checklist, every plan customization, then reseeds
-                the canonical plan and the seeded baseline weight from
-                scratch. This cannot be undone.
+                race-week checklist, every plan customization, and demotes
+                every applied Phase Planner config back to draft. The plan
+                stays empty until you re-apply a config from the Phase
+                Planner. This cannot be undone.
               </p>
             </div>
             <Button
@@ -824,10 +865,12 @@ export default function Plan() {
           <AlertDialogHeader>
             <AlertDialogTitle>Reset the entire plan?</AlertDialogTitle>
             <AlertDialogDescription>
-              This clears every plan week and day back to empty. The plan
+              This clears every plan week and day back to empty and demotes
+              every applied Phase Planner config back to draft. The plan
               stays empty until you apply a config from the Phase Planner.
               Your logged workouts, body measurements, and race results
-              are not touched. This cannot be undone. To confirm, type{" "}
+              are not touched. You can undo this for ~30 seconds from the
+              success toast. To confirm, type{" "}
               <span className="font-mono font-bold">{RESET_PLAN_CONFIRM_PHRASE}</span> below.
             </AlertDialogDescription>
           </AlertDialogHeader>

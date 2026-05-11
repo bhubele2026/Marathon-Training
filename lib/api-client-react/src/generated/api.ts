@@ -691,8 +691,12 @@ re-applies a config from /planner. Logged workouts have their
 plan_day_id detached but are otherwise preserved; body measurements,
 race results, and the race-week checklist are left untouched (use
 /plan/full-reset for the scorched-earth path that wipes those too).
-There is no undo for this operation — undoToken and
-undoExpiresInSeconds are always null in the response.
+Returns a short-lived undoToken (~30 seconds) that POST
+/plan/reset/undo will use to restore every plan_weeks row, every
+plan_days row, every previously-applied planner_configs row's
+applied_*\/last_applied_at columns, and the workouts.plan_day_id
+FKs that the wipe detached. Token is null when the plan tables
+were already empty.
 
  */
 export const getResetPlanUrl = () => {

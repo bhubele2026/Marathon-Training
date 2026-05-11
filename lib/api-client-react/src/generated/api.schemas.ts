@@ -222,9 +222,9 @@ export interface ResetPlanResponse {
   daysReset: number;
   /** Equal to daysReset (the total number of plan days that existed before the wipe). Kept in the response for OpenAPI back-compat with the prior customization-rollback contract. */
   daysTotal: number;
-  /** Always null. Reset Entire Plan no longer supports undo — re-apply a config from /planner to rebuild the plan. */
+  /** Short-lived token that can be passed to POST /plan/reset/undo to restore every plan_weeks row, every plan_days row, every previously-applied planner_configs row's applied_*\/last_applied_at columns, and the workouts.plan_day_id FKs that the wipe detached. Null when the plan tables were already empty (i.e. weeksReset and daysReset are both 0). Expires after roughly 30 seconds. */
   undoToken?: string | null;
-  /** Always null. See undoToken. */
+  /** Approximate number of seconds the undoToken will remain valid for. Null when undoToken is null. */
   undoExpiresInSeconds?: number | null;
 }
 

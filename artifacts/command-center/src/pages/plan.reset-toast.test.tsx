@@ -90,18 +90,19 @@ function renderPlan() {
   );
 }
 
-describe("Plan page — Reset Entire Plan now wipes to empty (no undo)", () => {
+describe("Plan page — Reset Entire Plan wipes plan with ~30s undo", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
   });
 
-  it("opens a 'Plan cleared' toast WITHOUT an Undo button after a successful reset, and invalidates queries so EmptyPlanState surfaces", () => {
+  it("opens a 'Plan cleared' toast WITH an Undo button after a successful reset, and dispatches the token when clicked", () => {
     renderPlan();
 
     fireEvent.click(screen.getByTestId("button-reset-plan"));
-    const confirmInput = screen.getByTestId("input-confirm-reset-plan");
-    fireEvent.change(confirmInput, { target: { value: "RESET PLAN" } });
+    fireEvent.change(screen.getByTestId("input-confirm-reset-plan"), {
+      target: { value: "RESET PLAN" },
+    });
 
     fireEvent.click(screen.getByTestId("button-confirm-reset-plan"));
     expect(resetPlanMutate).toHaveBeenCalledTimes(1);
@@ -111,14 +112,13 @@ describe("Plan page — Reset Entire Plan now wipes to empty (no undo)", () => {
     ];
     expect(options.onSuccess).toBeTypeOf("function");
 
-    // Server now always returns null undoToken / undoExpiresInSeconds.
     act(() => {
       options.onSuccess!({
         daysReset: 5,
         weeksReset: 2,
         daysTotal: 5,
-        undoToken: null,
-        undoExpiresInSeconds: null,
+        undoToken: "tok-abc",
+        undoExpiresInSeconds: 30,
       });
     });
 
@@ -126,16 +126,22 @@ describe("Plan page — Reset Entire Plan now wipes to empty (no undo)", () => {
     expect(
       screen.getByText(/5 days across 2 weeks cleared/i),
     ).toBeTruthy();
-    // No Undo button anymore — Reset Entire Plan is destructive without undo.
-    expect(screen.queryByTestId("button-undo-reset-plan")).toBeNull();
-    // The undo mutation hook is never invoked from the Reset Entire Plan path.
-    expect(undoPlanResetMutate).not.toHaveBeenCalled();
-    // The success path invalidates queries so hasPlan flips and the
+    // Success path invalidates queries so hasPlan flips and the
     // EmptyPlanState CTA surfaces across /, /today, /plan.
     expect(invalidateQueriesSpy).toHaveBeenCalled();
+
+    // Undo button is present and dispatches the token to the undo mutation.
+    const undoBtn = screen.getByTestId("button-undo-reset-plan");
+    fireEvent.click(undoBtn);
+    expect(undoPlanResetMutate).toHaveBeenCalledTimes(1);
+    const [undoArgs] = undoPlanResetMutate.mock.calls[0] as [
+      { data: { undoToken: string } },
+      unknown,
+    ];
+    expect(undoArgs.data.undoToken).toBe("tok-abc");
   });
 
-  it("shows a 'Nothing to reset' toast when the plan tables were already empty", () => {
+  it("shows a 'Nothing to reset' toast and no Undo button when the plan tables were already empty", () => {
     renderPlan();
 
     fireEvent.click(screen.getByTestId("button-reset-plan"));
