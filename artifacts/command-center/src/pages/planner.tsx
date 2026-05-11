@@ -1224,6 +1224,45 @@ export default function Planner() {
   const startDow = dayOfWeekUTC(startDate);
   const raceDow = dayOfWeekUTC(marathonDate);
 
+  // Auto-derive program end date (marathonDate) from the stacked
+  // template/block weeks so the runner never has to reconcile a
+  // separate "Program end date" input against their composition. In
+  // entries-mode `reprojectEntries` already does this; this effect
+  // covers blocks-mode (where draft length × weeks + optional 16-week
+  // marathon tail drives the span) and re-runs whenever the runner
+  // toggles "Training for a marathon?" so the tail is added/removed
+  // automatically. No-ops when there's nothing to derive from
+  // (empty draft + empty entries) so the form's initial empty state
+  // is preserved.
+  useEffect(() => {
+    if (!startDate || dayOfWeekUTC(startDate) !== 1) return;
+    if (selectedId !== null && hydratedForId !== selectedId) return;
+    let span = 0;
+    if (isEntriesMode && entries) {
+      if (entries.length === 0) return;
+      span = entriesWeeksSum + entriesGapWeeksSum;
+    } else {
+      if (draft.length === 0) return;
+      span =
+        draft.reduce((s, b) => s + (b.weeks || 0), 0) +
+        (isMarathonMode ? MARATHON_TAIL_WEEKS : 0);
+    }
+    if (span <= 0) return;
+    const target = computeRaceDateForTotalWeeks(startDate, span);
+    if (target !== marathonDate) setMarathonDate(target);
+  }, [
+    startDate,
+    draft,
+    entries,
+    isEntriesMode,
+    isMarathonMode,
+    entriesWeeksSum,
+    entriesGapWeeksSum,
+    marathonDate,
+    selectedId,
+    hydratedForId,
+  ]);
+
   const issues: string[] = [];
   if (!name.trim()) issues.push("Pick a name for this config.");
   if (!startDate) issues.push("Pick a training start date.");
@@ -2456,21 +2495,29 @@ export default function Planner() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="planner-marathon-date">
-              Program end date (must be a Sunday)
+              Program end date (auto)
             </Label>
             <Input
               id="planner-marathon-date"
               data-testid="planner-marathon-date"
               type="date"
               value={marathonDate}
-              onChange={(e) => setMarathonDate(e.target.value)}
+              readOnly
+              tabIndex={-1}
+              className="bg-muted/40 cursor-not-allowed"
+              aria-readonly="true"
+              aria-describedby="planner-marathon-date-helper"
             />
-            {marathonDate && raceDow !== 0 && (
-              <p className="text-xs text-destructive">
-                Must be a Sunday — currently a{" "}
-                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][raceDow ?? 0]}.
-              </p>
-            )}
+            <p
+              className="text-[11px] text-muted-foreground leading-snug"
+              data-testid="planner-marathon-date-helper"
+            >
+              Auto-derived from your stacked templates
+              {!isEntriesMode && isMarathonMode
+                ? " + the 16-week marathon tail"
+                : ""}
+              . Add or resize templates below to change it.
+            </p>
           </div>
           {/* Task #330. Optional body-mass targets (lbs). Blank ⇒ NULL,
               so the dashboard / plan header falls back to earliest
@@ -3012,46 +3059,32 @@ export default function Planner() {
                         ))}
                       </div>
                     )}
-                    <dl className="grid grid-cols-2 gap-2 rounded-md bg-muted/40 p-2 text-[11px]">
-                      <div className="flex flex-col">
-                        <dt className="text-[9px] uppercase tracking-wider text-muted-foreground">
-                          Peak LR
-                        </dt>
-                        <dd
-                          className="font-semibold tabular-nums text-foreground"
-                          data-testid={`planner-template-${tpl.id}-peak-lr`}
-                        >
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 rounded-md bg-muted/40 px-2 py-1.5 text-[11px] tabular-nums">
+                      <span data-testid={`planner-template-${tpl.id}-peak-lr`}>
+                        <span className="text-muted-foreground">LR </span>
+                        <span className="font-semibold text-foreground">
                           {tpl.metadata.peakLongRun}
-                        </dd>
-                      </div>
-                      <div className="flex flex-col">
-                        <dt className="text-[9px] uppercase tracking-wider text-muted-foreground">
-                          Peak vol
-                        </dt>
-                        <dd
-                          className="font-semibold tabular-nums text-foreground"
-                          data-testid={`planner-template-${tpl.id}-peak-vol`}
-                        >
+                        </span>
+                      </span>
+                      <span data-testid={`planner-template-${tpl.id}-peak-vol`}>
+                        <span className="text-muted-foreground">Vol </span>
+                        <span className="font-semibold text-foreground">
                           {tpl.metadata.peakWeeklyVolume}
-                        </dd>
-                      </div>
-                      <div className="flex flex-col">
-                        <dt className="text-[9px] uppercase tracking-wider text-muted-foreground">
-                          Taper
-                        </dt>
-                        <dd className="font-semibold tabular-nums text-foreground">
+                        </span>
+                      </span>
+                      <span>
+                        <span className="text-muted-foreground">Taper </span>
+                        <span className="font-semibold text-foreground">
                           {tpl.metadata.taperLength}
-                        </dd>
-                      </div>
-                      <div className="flex flex-col">
-                        <dt className="text-[9px] uppercase tracking-wider text-muted-foreground">
-                          Range
-                        </dt>
-                        <dd className="font-semibold tabular-nums text-foreground">
-                          {tpl.minWeeks}–{tpl.maxWeeks}w · {tpl.defaultWeeks}
-                        </dd>
-                      </div>
-                    </dl>
+                        </span>
+                      </span>
+                      <span>
+                        <span className="text-muted-foreground">Range </span>
+                        <span className="font-semibold text-foreground">
+                          {tpl.minWeeks}–{tpl.maxWeeks}w
+                        </span>
+                      </span>
+                    </div>
                     <Button
                       size="sm"
                       variant="ghost"
