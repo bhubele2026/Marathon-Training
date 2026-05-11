@@ -2399,43 +2399,7 @@ describe("Planner new-config dialog — Tonal starter dropdown", () => {
     vi.clearAllMocks();
   });
 
-  it("renders the empty-state Tonal starter selector with all four options", () => {
-    mockListPlannerConfigs.mockReturnValue({
-      data: { configs: [], activeId: null },
-      isLoading: false,
-    });
-    mockGetPlannerConfig.mockReturnValue({ data: undefined, isLoading: false });
-    mockCreate.mockReturnValue({ mutate: vi.fn(), isPending: false });
-    mockUpdate.mockReturnValue({ mutate: vi.fn(), isPending: false });
-    mockDelete.mockReturnValue({ mutate: vi.fn(), isPending: false });
-    mockDuplicate.mockReturnValue({ mutate: vi.fn(), isPending: false });
-    mockActivate.mockReturnValue({ mutate: vi.fn(), isPending: false });
-    mockApply.mockReturnValue({ mutate: vi.fn(), isPending: false });
-
-    const qc = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    render(
-      <QueryClientProvider client={qc}>
-        <Planner />
-      </QueryClientProvider>,
-    );
-
-    const starter = screen.getByTestId("planner-empty-starter");
-    expect(starter).toBeTruthy();
-    // Radix Select trigger renders the current value text inline; the
-    // <option>-equivalent items only mount once the trigger opens. Open
-    // it and assert every Tonal option is reachable.
-    fireEvent.click(starter);
-    expect(screen.getByTestId("planner-empty-starter-upper")).toBeTruthy();
-    expect(screen.getByTestId("planner-empty-starter-lower")).toBeTruthy();
-    expect(screen.getByTestId("planner-empty-starter-ppl")).toBeTruthy();
-    expect(
-      screen.getByTestId("planner-empty-starter-conditioning"),
-    ).toBeTruthy();
-  });
-
-  it("passes the selected starter through to the create mutation", () => {
+  it("creates a config from the default Tonal Upper starter (no dropdown)", () => {
     mockListPlannerConfigs.mockReturnValue({
       data: { configs: [], activeId: null },
       isLoading: false,
@@ -2458,14 +2422,13 @@ describe("Planner new-config dialog — Tonal starter dropdown", () => {
       </QueryClientProvider>,
     );
 
-    fireEvent.click(screen.getByTestId("planner-empty-starter"));
-    fireEvent.click(screen.getByTestId("planner-empty-starter-lower"));
-    fireEvent.click(screen.getByTestId("planner-empty-create"));
+    expect(screen.queryByTestId("planner-empty-starter")).toBeNull();
 
+    fireEvent.click(screen.getByTestId("planner-empty-create"));
     expect(createMutate).toHaveBeenCalledTimes(1);
     const payload = createMutate.mock.calls[0]?.[0]?.data;
-    expect(payload?.blocks?.[0]?.customNotes).toBe("[lift-primary:lower]");
-    expect(payload?.blocks?.[0]?.customName).toBe("Tonal Strength — Lower");
+    expect(payload?.blocks?.[0]?.customNotes).toBe("[lift-primary:upper]");
+    expect(payload?.blocks?.[0]?.customName).toBe("Tonal Strength — Upper");
   });
 });
 

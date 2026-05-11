@@ -2303,30 +2303,6 @@ export default function Planner() {
               data-testid="planner-empty-name"
               className="max-w-sm"
             />
-            <Select
-              value={createStarter}
-              onValueChange={(v) =>
-                setCreateStarter(v as LiftPrimaryStarterKind)
-              }
-            >
-              <SelectTrigger
-                className="max-w-sm"
-                data-testid="planner-empty-starter"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {LIFT_PRIMARY_STARTERS.map((s) => (
-                  <SelectItem
-                    key={s.kind}
-                    value={s.kind}
-                    data-testid={`planner-empty-starter-${s.kind}`}
-                  >
-                    {s.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
             <Button
               onClick={handleCreateConfig}
               data-testid="planner-empty-create"
@@ -5281,35 +5257,6 @@ export default function Planner() {
                 onChange={(e) => setCreateName(e.target.value)}
                 data-testid="planner-new-config-name"
               />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="planner-new-config-starter">
-                Starting template
-              </Label>
-              <Select
-                value={createStarter}
-                onValueChange={(v) =>
-                  setCreateStarter(v as LiftPrimaryStarterKind)
-                }
-              >
-                <SelectTrigger
-                  id="planner-new-config-starter"
-                  data-testid="planner-new-config-starter"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {LIFT_PRIMARY_STARTERS.map((s) => (
-                    <SelectItem
-                      key={s.kind}
-                      value={s.kind}
-                      data-testid={`planner-new-config-starter-${s.kind}`}
-                    >
-                      {s.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
           </div>
           <AlertDialogFooter>
