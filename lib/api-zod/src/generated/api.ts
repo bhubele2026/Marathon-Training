@@ -1298,12 +1298,16 @@ export const ResetPlanResponse = zod.object({
 });
 
 /**
- * Nuclear reset. TRUNCATEs and reseeds plan_weeks and plan_days from the
-canonical generator (clearing every customization), and wipes every
-logged workout, every body measurement (re-inserting only the seeded
-baseline row), the race-week checklist, and any pending reset-undo
-snapshots. There is no undo for this operation. Use only when the user
-wants to start the campaign over from day one.
+ * Nuclear reset. TRUNCATEs every workout, every body measurement, the
+race-week checklist, every plan_weeks / plan_days row, and any pending
+reset-undo snapshots, then demotes every applied planner_configs row
+back to draft (clears last_applied_at + applied_* snapshot columns).
+Plan tables stay EMPTY — no reseed, no baseline measurement re-insert.
+The dashboard, /today, and /plan surfaces fall back to the
+EmptyPlanState CTA until the runner re-applies a config from /planner.
+Saved planner_configs rows themselves (name, blocks, entries, isActive)
+are preserved so re-applying is a one-click trip. There is no undo for
+this operation.
 
  */
 export const FullResetPlanResponse = zod.object({
