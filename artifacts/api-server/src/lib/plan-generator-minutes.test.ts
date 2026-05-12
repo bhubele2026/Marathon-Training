@@ -92,23 +92,27 @@ describe("generator: per-day minute breakdown", () => {
     }
   });
 
-  it("FRI in the foundation phase keeps lift accessory minutes; FRI from week 7 onward drops lift and is run-only", () => {
+  it("FRI carries the strength floor (≥ 30 min Tonal accessory) every week + the quality run minutes", () => {
+    // Foundation Fri (W1-6) already paired the run with a Tonal
+    // accessory; the post-2026-05-12 strength floor only changes the
+    // Build/Threshold/Race Fri rows (W7+) — they used to be run-only
+    // and now carry an enforcer-padded 30-min Tonal block.
     const friFoundation = dayOf(3, "Fri");
     expect(friFoundation.session_type).toMatch(/Aerobic Base \+ Accessory/);
-    expect(friFoundation.strength_min).toBeGreaterThan(0);
+    expect(friFoundation.strength_min).toBeGreaterThanOrEqual(30);
     expect(friFoundation.cardio_min).toBe(0);
     expect(friFoundation.run_min).toBeGreaterThan(0);
 
     const friBuild = dayOf(12, "Fri");
-    expect(friBuild.strength_min).toBe(0);
+    expect(friBuild.strength_min).toBeGreaterThanOrEqual(30);
     expect(friBuild.cardio_min).toBe(0);
     expect(friBuild.run_min).toBeGreaterThan(0);
   });
 
-  it("SUN long-run weeks zero lift and cardio; run minutes derive from distance × pace", () => {
+  it("SUN long-run weeks pad strength to the 30-min floor; cardio is zero; run minutes derive from distance × pace", () => {
     const sun = dayOf(2, "Sun");
     expect(sun.session_type).toBe("Long Run");
-    expect(sun.strength_min).toBe(0);
+    expect(sun.strength_min).toBeGreaterThanOrEqual(30);
     expect(sun.cardio_min).toBe(0);
     expect(sun.run_min).toBeGreaterThan(0);
     expect(sun.distance_mi).toBeGreaterThan(0);
@@ -176,16 +180,19 @@ describe("generator: per-day minute breakdown", () => {
     // Foundation Fri (W1-6) pairs Tonal accessory with the Tread run.
     expect(dayOf(3, "Fri").equipment_list).toEqual(["Tonal", "Peloton Tread"]);
 
-    // Build-phase Fri (W7+) drops the Tonal accessory.
-    expect(dayOf(12, "Fri").equipment_list).toEqual(["Peloton Tread"]);
+    // Build-phase Fri (W7+): the headline is the quality run, so
+    // Peloton Tread keeps index 0; the strength-floor enforcer
+    // appends "Tonal" for the 30-min accessory block.
+    expect(dayOf(12, "Fri").equipment_list).toEqual(["Peloton Tread", "Tonal"]);
 
     // Sat alternates Bike (odd) / Row (even) as the cardio chip after Tonal.
     expect(dayOf(1, "Sat").equipment_list).toEqual(["Tonal", "Peloton Bike"]);
     expect(dayOf(2, "Sat").equipment_list).toEqual(["Tonal", "Peloton Row"]);
 
-    // Sun long-run weeks emit the single long-run equipment chip.
-    expect(dayOf(2, "Sun").equipment_list).toEqual(["Outdoor"]);
-    expect(dayOf(3, "Sun").equipment_list).toEqual(["Peloton Tread"]);
+    // Sun long-run weeks: long-run machine leads, "Tonal" appended by
+    // the strength-floor enforcer (30-min accessory block).
+    expect(dayOf(2, "Sun").equipment_list).toEqual(["Outdoor", "Tonal"]);
+    expect(dayOf(3, "Sun").equipment_list).toEqual(["Peloton Tread", "Tonal"]);
 
     // Race week Sunday is Outdoor only.
     expect(dayOf(52, "Sun").equipment_list).toEqual(["Outdoor"]);

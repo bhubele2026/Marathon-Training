@@ -1,23 +1,23 @@
 // Renders a thin horizontal bar that visualizes the daily time-budget
-// contract added by Task #336 (Mon = 0 / hard rest, Tue–Fri ∈ [45, 60]
-// minutes inclusive, Sat/Sun ≥ 60 minutes / open-ended). The plan
-// generator already enforces the contract — this component just makes
-// it legible to the runner so they can see at a glance whether a day is
-// at the cap, has headroom, or has been pushed over budget by a longer
-// logged actual.
+// contract (Task #336, expanded 2026-05-12: Mon = 0 / hard rest,
+// Tue-Sat ∈ [45, 75] minutes inclusive, Sun ≥ 60 minutes / open-ended
+// for the long run). The plan generator already enforces the contract
+// — this component just makes it legible to the runner so they can see
+// at a glance whether a day is at the cap, has headroom, or has been
+// pushed over budget by a longer logged actual.
 //
-// Behavior (Task #337):
+// Behavior:
 //   * Mon (dayOfWeek === 1) — bar is hidden entirely. The PlannedBreakdown
 //     parent already returns null on Mon since totalMin = 0 there, so this
 //     is mostly a belt-and-suspenders guard.
-//   * Tue–Fri (dayOfWeek 2..5) — capped at 60 min. Bar shows planned fill
-//     against a 60-min track; the cap label reads "/ 60 MIN BUDGET". A
-//     logged actual is overlaid as a thinner inner bar; if actual > 60
+//   * Tue-Sat (dayOfWeek 2..6) — capped at 75 min. Bar shows planned fill
+//     against a 75-min track; the cap label reads "/ 75 MIN BUDGET". A
+//     logged actual is overlaid as a thinner inner bar; if actual > 75
 //     the overflow segment renders past the cap in the destructive tone
 //     and the label flips to "OVER BUDGET".
-//   * Sat/Sun (dayOfWeek 6 or 0) — open-ended. No cap warning, label
-//     reads "/ 60+ MIN" so the runner still sees the floor. Actual
-//     overlay still renders but never colors as "over budget".
+//   * Sun (dayOfWeek 0) — long-run day, open-ended. No cap warning,
+//     label reads "/ 60+ MIN" so the runner still sees the floor.
+//     Actual overlay still renders but never colors as "over budget".
 //
 // Day-of-week is derived from the YYYY-MM-DD date string in local time
 // (mirrors how the rest of the UI parses plan_day.date) so a 2026-05-04
@@ -33,7 +33,7 @@ export interface TimeBudgetBarProps {
   testIdPrefix?: string;
 }
 
-const WEEKDAY_CAP_MIN = 60;
+const WEEKDAY_CAP_MIN = 75;
 const WEEKEND_FLOOR_MIN = 60;
 
 function dayOfWeekFromDate(date: string): number {
@@ -63,7 +63,8 @@ export function TimeBudgetBar({
   if (!Number.isFinite(dow) || dow === 1) return null;
   if (plannedMin <= 0 && (actualMin ?? 0) <= 0) return null;
 
-  const isWeekend = dow === 6 || dow === 0;
+  // Sun (long-run day) is open-ended; Tue-Sat are all capped at 75.
+  const isWeekend = dow === 0;
   const actual = actualMin ?? 0;
 
   // Track width: weekday is anchored to the 60-min cap (with overflow

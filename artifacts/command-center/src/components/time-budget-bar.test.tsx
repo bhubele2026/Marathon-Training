@@ -1,7 +1,6 @@
-// Tests for TimeBudgetBar — locks in the Task #336 daily time-budget
-// contract visualization (Mon hidden, Tue–Fri capped at 60, Sat/Sun
-// open-ended ≥ 60), the over-budget destructive-tone overlay, and the
-// at-cap primary tone.
+// Tests for TimeBudgetBar — locks in the daily time-budget contract
+// visualization (Mon hidden, Tue-Sat capped at 75, Sun open-ended ≥ 60),
+// the over-budget destructive-tone overlay, and the at-cap primary tone.
 
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
@@ -20,45 +19,55 @@ describe("TimeBudgetBar", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("renders a 60-min cap label on a Tue–Fri weekday", () => {
+  it("renders a 75-min cap label on a Tue-Sat weekday", () => {
     // 2026-05-05 is a Tuesday.
     render(
       <TimeBudgetBar date="2026-05-05" plannedMin={55} testIdPrefix="t" />,
     );
     expect(screen.getByTestId("t-time-budget")).not.toBeNull();
     expect(screen.getByTestId("t-time-budget-label").textContent).toBe(
-      "55 / 60 min budget",
+      "55 / 75 min budget",
     );
   });
 
-  it("flips the label to OVER BUDGET when the actual exceeds 60 on a weekday", () => {
+  it("treats Saturday as a capped weekday (75 min cap, not open-ended)", () => {
+    // 2026-05-09 is a Saturday.
+    render(
+      <TimeBudgetBar date="2026-05-09" plannedMin={70} testIdPrefix="t" />,
+    );
+    expect(screen.getByTestId("t-time-budget-label").textContent).toBe(
+      "70 / 75 min budget",
+    );
+  });
+
+  it("flips the label to OVER BUDGET when the actual exceeds 75 on a weekday", () => {
     // 2026-05-08 is a Friday.
     render(
       <TimeBudgetBar
         date="2026-05-08"
-        plannedMin={58}
-        actualMin={72}
+        plannedMin={70}
+        actualMin={88}
         testIdPrefix="t"
       />,
     );
     expect(screen.getByTestId("t-time-budget-label").textContent).toBe(
-      "72 / 60 min · over budget",
+      "88 / 75 min · over budget",
     );
     expect(screen.getByTestId("t-time-budget-overflow")).not.toBeNull();
   });
 
-  it("renders the 60+ open-ended label on Sat/Sun and never marks over-budget", () => {
+  it("renders the 60+ open-ended label on Sun and never marks over-budget", () => {
     // 2026-05-10 is a Sunday.
     render(
       <TimeBudgetBar
         date="2026-05-10"
-        plannedMin={90}
-        actualMin={110}
+        plannedMin={120}
+        actualMin={135}
         testIdPrefix="t"
       />,
     );
     expect(screen.getByTestId("t-time-budget-label").textContent).toBe(
-      "90 / 60+ min",
+      "120 / 60+ min",
     );
     expect(screen.queryByTestId("t-time-budget-overflow")).toBeNull();
   });

@@ -1,25 +1,26 @@
 // Generator-level enforcement of the daily time budget contract
-// (Task #336). Locks in three invariants across every generator path
-// — legacy `generatePlan`, recipe-driven `buildWeekDays`, hybrid
-// `buildHybridWeekDays`, and lift-primary `buildLiftPrimaryWeekDays`:
+// (Task #336, expanded 2026-05-12). Locks in five invariants across
+// every generator path — legacy `generatePlan`, recipe-driven
+// `buildWeekDays`, hybrid `buildHybridWeekDays`, and lift-primary
+// `buildLiftPrimaryWeekDays`:
 //
 //   1. Mon is always a hard rest day (strength_min + cardio_min +
 //      run_min === 0). No template can slot a session there.
-//   2. Tue-Fri non-rest days have totalMin ∈ [45, 60] inclusive. No
-//      day blows past 60 (unsustainable on a workday for the runner)
-//      or under-delivers below 45 (not worth the warmup).
-//   3. Sat/Sun non-rest days have totalMin ≥ 60 — except the shared
-//      race-eve Sat helper (`buildRaceEveSatRow`, 30 min) and the
-//      race-day Sun helper (`buildRaceDaySunRow`, marathon = 288 min)
-//      which are intentionally light/heavy outside the contract.
-//   4. Long runs (`session_type === "Long Run"`) are only ever
+//   2. Tue-Sat non-rest days have totalMin ∈ [45, 75] inclusive. No
+//      day blows past 75 (unsustainable on a workday) or under-delivers
+//      below 45 (not worth the warmup).
+//   3. Sun (long-run day) non-rest has totalMin ≥ 60, no upper cap.
+//   4. Strength floor: every Tue-Sun non-rest day has strength_min
+//      ≥ 30 minutes — six lifting sessions per week.
+//   5. Long runs (`session_type === "Long Run"`) are only ever
 //      emitted on Sat or Sun — Fri never holds the long run.
 //
-// Coverage walks every generator path so a regression in any single
-// builder is caught here before it ships into a runner's plan.
+// Race-week rows + race-eve Sat / race-day Sun helpers stay exempt
+// (intentionally light/heavy for race-day freshness).
 
 import { describe, expect, it } from "vitest";
 import {
+  DAILY_STRENGTH_FLOOR_MIN,
   WEEKDAY_MAX_TOTAL_MIN,
   WEEKDAY_MIN_TOTAL_MIN,
   WEEKEND_MIN_TOTAL_MIN,
@@ -77,13 +78,13 @@ function assertBudgetContract(
     if (row.is_rest) continue;
 
     const min = totalMin(row);
-    if (row.day === "Sat" || row.day === "Sun") {
-      // (3) Weekend floor.
-      expect(min, `${ctx} weekend floor (${WEEKEND_MIN_TOTAL_MIN})`).toBeGreaterThanOrEqual(
+    if (row.day === "Sun") {
+      // (3) Sun long-run floor (no upper cap).
+      expect(min, `${ctx} Sun floor (${WEEKEND_MIN_TOTAL_MIN})`).toBeGreaterThanOrEqual(
         WEEKEND_MIN_TOTAL_MIN,
       );
     } else {
-      // (2) Weekday window.
+      // (2) Tue-Sat capped weekday window.
       expect(min, `${ctx} weekday floor (${WEEKDAY_MIN_TOTAL_MIN})`).toBeGreaterThanOrEqual(
         WEEKDAY_MIN_TOTAL_MIN,
       );
@@ -91,6 +92,12 @@ function assertBudgetContract(
         WEEKDAY_MAX_TOTAL_MIN,
       );
     }
+
+    // (4) Strength floor: every non-rest Tue-Sun day has ≥ 30 min lift.
+    expect(
+      row.strength_min ?? 0,
+      `${ctx} strength floor (${DAILY_STRENGTH_FLOOR_MIN})`,
+    ).toBeGreaterThanOrEqual(DAILY_STRENGTH_FLOOR_MIN);
   }
 }
 

@@ -66,17 +66,25 @@ export type DailyRow = {
 };
 
 // ---------------------------------------------------------------------------
-// DAILY TIME BUDGET CONTRACT (Task #336).
+// DAILY TIME BUDGET CONTRACT (Task #336, expanded by user request 2026-05-12).
 // ---------------------------------------------------------------------------
-// Every weekday emitted by every generator path (legacy `generatePlan`,
+// Every day emitted by every generator path (legacy `generatePlan`,
 // recipe-driven `buildWeekDays`, hybrid `buildHybridWeekDays`,
 // lift-primary `buildLiftPrimaryWeekDays`) must obey the same daily
 // time-budget contract:
 //
 //   - Mon: full rest day, all three minute buckets at 0.
-//   - Tue-Fri (non-rest): totalMin ∈ [WEEKDAY_MIN_TOTAL_MIN,
-//     WEEKDAY_MAX_TOTAL_MIN] = [45, 60] inclusive.
-//   - Sat/Sun (non-rest): totalMin ≥ WEEKEND_MIN_TOTAL_MIN = 60.
+//   - Tue-Sat (non-rest): totalMin ∈ [WEEKDAY_MIN_TOTAL_MIN,
+//     WEEKDAY_MAX_TOTAL_MIN] = [45, 75] inclusive.
+//   - Sun (non-rest): totalMin ≥ WEEKEND_MIN_TOTAL_MIN = 60. No upper
+//     cap — Sun is the long-run day and may carry 90-150+ minutes.
+//   - Strength floor: Tue-Sun non-rest days carry at least
+//     DAILY_STRENGTH_FLOOR_MIN = 30 minutes of Tonal lifting, so the
+//     runner gets six lifting sessions a week. When a generator emits
+//     less, the enforcer pads strength up to 30 (stealing from cardio
+//     first, then run; if neither has room, total just grows by the
+//     deficit) AND inserts "Tonal" into equipment_list when missing
+//     so the chip rail / per-chip minute split agree with the bump.
 //   - Long-run sessions are only emitted on Sat/Sun (the schedules
 //     themselves enforce this; the helper only clamps minute counts).
 //
@@ -87,16 +95,16 @@ export type DailyRow = {
 // on race day. The `isRaceWeek` opt flag bypasses all non-rest checks
 // for the campaign-final week.
 //
-// When a row is over the cap we trim cardio first, then strength, then
-// run (run is the headline session intent for run-led days). When a row
-// is under the floor we pad whichever bucket is already non-zero
-// (preferring cardio if the day has any cardio, else strength, else
-// run). `total_load` is adjusted by the same delta so weekly load
-// summaries stay coherent.
+// When a row is over the cap we trim cardio first, then run (we never
+// trim strength below the 30 floor). When a row is under the floor we
+// pad whichever bucket is already non-zero (preferring cardio if the
+// day has any cardio, else strength, else run). `total_load` is
+// adjusted by the same delta so weekly load summaries stay coherent.
 export const REST_MIN_TOTAL_MIN = 0;
 export const WEEKDAY_MIN_TOTAL_MIN = 45;
-export const WEEKDAY_MAX_TOTAL_MIN = 60;
+export const WEEKDAY_MAX_TOTAL_MIN = 75;
 export const WEEKEND_MIN_TOTAL_MIN = 60;
+export const DAILY_STRENGTH_FLOOR_MIN = 30;
 
 const BUDGET_EXEMPT_SESSION_TYPES = new Set<string>([
   "Race Prep",
@@ -141,36 +149,45 @@ function clampDayBudget(row: DailyRow, opts: { isRaceWeek: boolean }): DailyRow 
   if (opts.isRaceWeek) return row;
   if (isBudgetExempt(row)) return row;
 
-  const isWeekend = row.day === "Sat" || row.day === "Sun";
-  const minTotal = isWeekend ? WEEKEND_MIN_TOTAL_MIN : WEEKDAY_MIN_TOTAL_MIN;
-  const maxTotal = isWeekend ? Number.POSITIVE_INFINITY : WEEKDAY_MAX_TOTAL_MIN;
+  // Sun is the long-run day — has a floor but no upper cap. Sat is now
+  // a normal weekday for budget purposes (≤ 75 min) since long runs
+  // stay on Sun.
+  const isLongRunDay = row.day === "Sun";
+  const minTotal = isLongRunDay ? WEEKEND_MIN_TOTAL_MIN : WEEKDAY_MIN_TOTAL_MIN;
+  const maxTotal = isLongRunDay ? Number.POSITIVE_INFINITY : WEEKDAY_MAX_TOTAL_MIN;
 
   let strength = row.strength_min ?? 0;
   let cardio = row.cardio_min ?? 0;
   let run = row.run_min ?? 0;
   const before = strength + cardio + run;
 
-  // Cap (weekdays only). Trim cardio → strength → run.
-  if (before > maxTotal) {
-    let excess = before - maxTotal;
+  // Strength floor (Tue-Sun): bump strength up to 30 without
+  // proactively stealing from cardio/run — the cap step below will
+  // trim cardio/run if the resulting total exceeds the weekday cap.
+  // For Sun (no upper cap) the long run keeps its full duration and
+  // the day's total simply grows by the deficit.
+  if (strength < DAILY_STRENGTH_FLOOR_MIN) {
+    strength = DAILY_STRENGTH_FLOOR_MIN;
+  }
+
+  // Cap (weekday: 75 inclusive; Sun: open-ended). Trim cardio → run.
+  // Strength stays at the 30-min floor — never trimmed below.
+  let total = strength + cardio + run;
+  if (total > maxTotal) {
+    let excess = total - maxTotal;
     const trimCardio = Math.min(cardio, excess);
     cardio -= trimCardio;
     excess -= trimCardio;
     if (excess > 0) {
-      const trimStrength = Math.min(strength, excess);
-      strength -= trimStrength;
-      excess -= trimStrength;
-    }
-    if (excess > 0) {
       run = Math.max(0, run - excess);
     }
+    total = strength + cardio + run;
   }
 
   // Floor. Pad whichever bucket is already non-zero (cardio first if
   // present, else strength, else run). For run-only rows under the
-  // weekend floor (e.g. early-foundation Sun long runs), the run
-  // bucket grows so the runner is on their feet for ≥60 minutes.
-  let total = strength + cardio + run;
+  // Sun floor (e.g. early-foundation Sun long runs), the run bucket
+  // grows so the runner is on their feet for ≥60 minutes.
   if (total < minTotal) {
     const deficit = minTotal - total;
     if (cardio > 0) cardio += deficit;
@@ -179,7 +196,28 @@ function clampDayBudget(row: DailyRow, opts: { isRaceWeek: boolean }): DailyRow 
     total = strength + cardio + run;
   }
 
-  if (strength === (row.strength_min ?? 0) && cardio === (row.cardio_min ?? 0) && run === (row.run_min ?? 0)) {
+  // Equipment-list sync: when we just bumped strength above 0 from a
+  // generator row that didn't carry "Tonal" in its equipment_list, push
+  // it on so the chip rail / per-chip minute split (UI) agree with the
+  // strength bucket. We append (not prepend) so the headline machine
+  // — Peloton Tread on a Sun long-run day, Peloton Tread on a Fri
+  // quality run — keeps its index-0 spot per the equipment-list scalar
+  // contract (equipment === equipment_list[0]).
+  let equipmentList = row.equipment_list;
+  if (
+    strength > 0 &&
+    (row.strength_min ?? 0) === 0 &&
+    !equipmentList.includes("Tonal")
+  ) {
+    equipmentList = [...equipmentList, "Tonal"];
+  }
+
+  if (
+    strength === (row.strength_min ?? 0) &&
+    cardio === (row.cardio_min ?? 0) &&
+    run === (row.run_min ?? 0) &&
+    equipmentList === row.equipment_list
+  ) {
     return row;
   }
   const delta = total - before;
@@ -188,6 +226,7 @@ function clampDayBudget(row: DailyRow, opts: { isRaceWeek: boolean }): DailyRow 
     strength_min: strength,
     cardio_min: cardio,
     run_min: run,
+    equipment_list: equipmentList,
     total_load: Math.max(0, (row.total_load ?? 0) + delta),
   };
 }
