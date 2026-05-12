@@ -2567,6 +2567,7 @@ components:
             - Marathon-Specific
             - Taper
             - Recovery
+            - C25K
             - Custom
         weeks:
           type: integer

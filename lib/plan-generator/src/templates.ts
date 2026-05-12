@@ -294,11 +294,7 @@ export const PLAN_TEMPLATES: PlanTemplate[] = [
       equipmentMixHint: "Run-only; optional walking on rest days",
     },
     tags: ["5k", "beginner", "first-timer", "run-walk", "low-mileage"],
-    expand: (n) =>
-      distribute(n, [
-        { focus: "Recovery", weight: 1, min: 1 },
-        { focus: "Base", weight: 4, min: 5 },
-      ]),
+    expand: (n) => [makeBlock("C25K", n)],
   },
   {
     id: "higdon_5k_novice",

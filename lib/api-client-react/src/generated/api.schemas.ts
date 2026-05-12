@@ -1218,6 +1218,7 @@ export const PhaseBlockFocusType = {
   "Marathon-Specific": "Marathon-Specific",
   Taper: "Taper",
   Recovery: "Recovery",
+  C25K: "C25K",
   Custom: "Custom",
 } as const;
 

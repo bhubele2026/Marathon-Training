@@ -801,6 +801,7 @@ export const FOCUS_TYPES = [
   "Marathon-Specific",
   "Taper",
   "Recovery",
+  "C25K",
   "Custom",
 ] as const;
 
@@ -1457,6 +1458,43 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
     longRunVerb: "Easy recovery long run",
     isRecovery: true,
   },
+  // Couch to 5K (NHS) — interval-based on-ramp for a runner who isn't yet
+  // jogging continuously. Distances are deliberately tiny (1.0 → 3.0 mi
+  // long; 1.0 → 2.0 mi easy/quality) so the daily emit stays under
+  // ~25 min per session, matching the published NHS C25K progression
+  // (60s jog / 90s walk in week 1, 30 min continuous by week 9). The
+  // existing `walkRunDescription()` paste-in (gated by the runner's
+  // entry-start effective easy pace > 14:00/mi) auto-substitutes the
+  // walk-run interval text on the first WALK_RUN_MAX_ENTRY_LOCAL_WEEK
+  // weeks, which is exactly what a true C25K beginner needs.
+  C25K: {
+    phaseLabel: () => "C25K",
+    longRunMi: (w, bw, _isCutback) => {
+      const t = bw > 1 ? (w - 1) / (bw - 1) : 0;
+      return r1(1.0 + t * 2.0); // 1.0 → 3.0
+    },
+    easyRunMi: (w, bw, _isCutback) => {
+      const t = bw > 1 ? (w - 1) / (bw - 1) : 0;
+      return r1(1.0 + t * 1.0); // 1.0 → 2.0
+    },
+    qualityRunMi: (w, bw, _isCutback) => {
+      const t = bw > 1 ? (w - 1) / (bw - 1) : 0;
+      return r1(1.0 + t * 1.0); // 1.0 → 2.0
+    },
+    easyPace: "15:00",
+    longPace: "15:00",
+    tempoPace: "14:00",
+    easyRunMinPerMi: 16,
+    qualityRunMinPerMi: 15,
+    longRunMinPerMi: 16,
+    heavyStrengthLoad: 30,
+    heavyTonalMin: 25,
+    shortCardioMin: 20,
+    accessoryTonalMin: 20,
+    fridayKind: "AerobicBase",
+    useCutbacks: false,
+    longRunVerb: "Walk-run long session",
+  },
   Custom: {
     phaseLabel: (b) => {
       // Task #163: when the block carries a `[hybrid-phase:...]` sentinel
@@ -1961,6 +1999,42 @@ function levelScalar(level: HybridFitnessLevel): number {
   return 1.0;
 }
 
+// Race-distance ceilings for run mileage. The shared `RECIPES` table
+// and the `hybridMileage` slider table were both originally tuned for
+// marathon training (peak long ~20 mi, weekly mileage 30-40 mpw), so
+// without a clamp a 5K plan could prescribe a 4 mi long run in week 1
+// and an 8 mi long run by mid-block — well over the 3.1 mi race
+// distance. Per-race-kind peaks below match the published Higdon /
+// Pfitz / Daniels plans we cite in `templates.ts`:
+//   * 5K  — long peak ≈ 3 mi (Higdon Novice 5K), easy/quality ≈ 2.5 mi
+//   * 10K — long peak ≈ 8 mi (Higdon Intermediate 10K), q ≈ 5, e ≈ 4
+//   * half — long peak ≈ 13 mi (Pfitz HM, Higdon HM), q ≈ 7, e ≈ 5
+//   * marathon / none — no clamp (marathon is what the recipes were
+//     tuned for; "none" is lift-only and never surfaces run mileage)
+//
+// The clamp is one-sided: we cap from above but never raise. Recipe
+// progressions, hybrid-mix slider, cutback factor, level scalar and
+// phase ramps all still drive shape — the clamp just refuses to let
+// any of them exceed sane race-distance peaks.
+type RunIntensityKind = "easy" | "quality" | "long";
+type RunMileageCeiling = Record<RunIntensityKind, number>;
+const RACE_KIND_RUN_CEILING: Partial<Record<PlanRaceKind, RunMileageCeiling>> = {
+  "5k": { easy: 2.5, quality: 2.5, long: 3.0 },
+  "10k": { easy: 4.0, quality: 5.0, long: 8.0 },
+  half: { easy: 5.0, quality: 7.0, long: 13.0 },
+};
+
+export function clampRunMi(
+  rawMi: number,
+  raceKind: PlanRaceKind,
+  intensity: RunIntensityKind,
+): number {
+  const ceiling = RACE_KIND_RUN_CEILING[raceKind];
+  if (!ceiling) return rawMi;
+  const cap = ceiling[intensity];
+  return rawMi > cap ? r1(cap) : rawMi;
+}
+
 interface HybridMileage {
   easy: number;
   quality: number;
@@ -1978,6 +2052,7 @@ function hybridMileage(
   blockWeeks: number,
   isCutback: boolean,
   phase: HybridPhase | null = null,
+  raceKind: PlanRaceKind = "marathon",
 ): HybridMileage {
   const t = blockWeeks > 1 ? (weekInBlock - 1) / (blockWeeks - 1) : 0;
   const cutFactor = isCutback ? 0.7 : 1.0;
@@ -2041,9 +2116,9 @@ function hybridMileage(
   };
 
   return {
-    easy: ramp(1.5, peakEasy[position]),
-    quality: ramp(1.5, peakQuality[position]),
-    long: ramp(3.0, peakLong[position]),
+    easy: clampRunMi(ramp(1.5, peakEasy[position]), raceKind, "easy"),
+    quality: clampRunMi(ramp(1.5, peakQuality[position]), raceKind, "quality"),
+    long: clampRunMi(ramp(3.0, peakLong[position]), raceKind, "long"),
   };
 }
 
@@ -2181,6 +2256,7 @@ export function previewHybridWeek(
     blockWeeks,
     isCutback,
     opts?.phase ?? null,
+    raceKind,
   );
   let lifts = 0;
   let runs = 0;
@@ -2352,6 +2428,7 @@ function buildHybridWeekDays(opts: {
     blockWeeks,
     isCutback,
     hPhase,
+    raceKind,
   );
   const easyPace = opts.paceOverride?.easyPace ?? "13:00";
   const qualityPace = opts.paceOverride?.tempoPace ?? "11:30";
@@ -2937,7 +3014,11 @@ function buildWeekDays(opts: {
   // a Z3 quality stimulus there would compromise race readiness. The
   // Tonal accessory block is unchanged so weekly load math is
   // unaffected (Task #172).
-  const wedDist = recipe.easyRunMi(weekInBlock, blockWeeks, isCutback);
+  const wedDist = clampRunMi(
+    recipe.easyRunMi(weekInBlock, blockWeeks, isCutback),
+    raceKind,
+    "easy",
+  );
   const wedRunMin = Math.max(20, Math.round(wedDist * recipe.easyRunMinPerMi));
   const wedAccessoryLoad = isCutback ? 20 : 25;
   const wedSteady = recipe.wedKind === "Steady" && !isCutback && !isRaceWeek;
@@ -2996,7 +3077,11 @@ function buildWeekDays(opts: {
   };
 
   // ---------- FRI: QUALITY RUN ----------
-  const friDist = recipe.qualityRunMi(weekInBlock, blockWeeks, isCutback);
+  const friDist = clampRunMi(
+    recipe.qualityRunMi(weekInBlock, blockWeeks, isCutback),
+    raceKind,
+    "quality",
+  );
   const friRunMin = Math.max(20, Math.round(friDist * recipe.qualityRunMinPerMi));
   const fri = fridayContent(
     recipe,
@@ -3122,7 +3207,11 @@ function buildWeekDays(opts: {
       raceKind,
     });
   } else {
-    const longRun = recipe.longRunMi(weekInBlock, blockWeeks, isCutback, isTrailingBlock);
+    const longRun = clampRunMi(
+      recipe.longRunMi(weekInBlock, blockWeeks, isCutback, isTrailingBlock),
+      raceKind,
+      "long",
+    );
     const sunWalkRun = paceOverride?.walkRun ?? false;
     const longEquipment = sunWalkRun
       ? "Peloton Tread"
@@ -3213,7 +3302,11 @@ function buildWeekDays(opts: {
 
     // Sun: long run → long bike/row endurance session. Match the long
     // run's planned minutes so weekly cardio volume tracks the recipe.
-    const longRunMi = recipe.longRunMi(weekInBlock, blockWeeks, isCutback, isTrailingBlock);
+    const longRunMi = clampRunMi(
+      recipe.longRunMi(weekInBlock, blockWeeks, isCutback, isTrailingBlock),
+      raceKind,
+      "long",
+    );
     const longMin = Math.max(20, Math.round(longRunMi * recipe.longRunMinPerMi));
     resolvedSunDay = {
       ...sunDay,
@@ -3467,6 +3560,7 @@ export function previewWeeklyMileage(
           w,
           isCutback,
           hybridPhaseForPreview,
+          resolvedEntriesRaceKind,
         );
         if (isRaceWeek) {
           // Race-week override (Task #192 / #198 / #200). The hybrid
@@ -3519,7 +3613,13 @@ export function previewWeeklyMileage(
           longMi = mi.long * hybridScheduleCounts.long;
         }
       } else {
-        easyMi = zeroRuns ? 0 : recipe.easyRunMi(weekInBlock, w, isCutback);
+        easyMi = zeroRuns
+          ? 0
+          : clampRunMi(
+              recipe.easyRunMi(weekInBlock, w, isCutback),
+              resolvedEntriesRaceKind,
+              "easy",
+            );
         // Recovery blocks turn Friday into a rest day in `buildWeekDays`, so
         // the actual generated weekly mileage is easy + long only. Mirror
         // that here so the preview matches `planned_miles` exactly.
@@ -3527,18 +3627,26 @@ export function previewWeeklyMileage(
           ? 0
           : recipe.isRecovery
             ? 0
-            : recipe.qualityRunMi(weekInBlock, w, isCutback);
+            : clampRunMi(
+                recipe.qualityRunMi(weekInBlock, w, isCutback),
+                resolvedEntriesRaceKind,
+                "quality",
+              );
         longMi = zeroRuns
           ? 0
           : isRaceWeek
             ? entriesRaceActive
               ? entriesRaceDistanceMi
               : MARATHON_DISTANCE_MI
-            : recipe.longRunMi(
-                weekInBlock,
-                w,
-                isCutback,
-                blockIndex === blocks.length - 1,
+            : clampRunMi(
+                recipe.longRunMi(
+                  weekInBlock,
+                  w,
+                  isCutback,
+                  blockIndex === blocks.length - 1,
+                ),
+                resolvedEntriesRaceKind,
+                "long",
               );
       }
       const totalMi = r1(easyMi + qualityMi + longMi);
