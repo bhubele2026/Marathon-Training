@@ -83,7 +83,11 @@ function hybridDaysOnly(blockWeeks: number, daily: DailyRow[]): DailyRow[] {
 // Categorize a day inside a hybrid block based on the canonical
 // session_type values `buildHybridWeekDays` emits.
 function classify(d: DailyRow): "rest" | "lift" | "run" {
+  // Active Recovery (short walk + mobility on what used to be a rest
+  // day; user contract 2026-05-12) counts as a non-working day for
+  // schedule-shape assertions — same bucket as full rest.
   if (d.is_rest || d.session_type === "Rest") return "rest";
+  if (d.session_type === "Active Recovery") return "rest";
   if (
     d.session_type === "Strength" ||
     d.session_type === "Strength (Accessory)"
@@ -255,7 +259,11 @@ describe("pickHybridSchedule — days/week trim preserves the long run on run-le
         });
         const { daily } = generatePlanFromConfig(cfg);
         const weekOne = hybridDaysOnly(8, daily).filter((d) => d.week === 1);
-        const sessionCount = weekOne.filter((d) => !d.is_rest).length;
+        // Use classify (which folds Active Recovery into "rest") so
+        // the count reflects working sessions only — the user
+        // contract 2026-05-12 turned non-Mon rest slots into short
+        // active-recovery walks that don't count toward days/week.
+        const sessionCount = weekOne.filter((d) => classify(d) !== "rest").length;
         expect(sessionCount, `${position} @ ${days} days/week sessions`).toBe(
           days,
         );
@@ -306,8 +314,12 @@ describe("pickHybridSchedule — days/week trim preserves the long run on run-le
     const rests = weekOne.filter((d) => d.is_rest);
     expect(rests, "exactly one rest day after padding").toHaveLength(1);
     expect(rests[0]!.day, "the surviving rest day must be Mon").toBe("Mon");
-    // Sessions match the requested days/week.
-    expect(weekOne.filter((d) => !d.is_rest)).toHaveLength(6);
+    // Sessions match the requested days/week (Active Recovery is folded
+    // into "rest" for schedule-shape counting per the 2026-05-12 user
+    // contract).
+    expect(
+      weekOne.filter((d) => classify(d) !== "rest"),
+    ).toHaveLength(6);
   });
 });
 

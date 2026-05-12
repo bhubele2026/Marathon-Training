@@ -144,6 +144,11 @@ const BUDGET_EXEMPT_SESSION_TYPES = new Set<string>([
   "Race Prep",
   "Race",
   "Race Shakeout",
+  // "Active Recovery" days (lift-primary Thu/Sun, recovery-block Fri,
+  // hybrid non-Mon rest slots) are intentionally short walks under the
+  // weekday floor and carry no strength stimulus — exempt them so the
+  // strength-floor enforcer doesn't pad them up to 30 min Tonal.
+  "Active Recovery",
 ]);
 
 function isBudgetExempt(row: DailyRow): boolean {
@@ -1720,6 +1725,31 @@ function buildLiftPrimaryWeekDays(opts: {
       total_load: 0,
     };
   }
+  // Active Recovery: short take-it-easy walk + mobility for days that
+  // used to be rest. Mon is the only true rest day (user contract,
+  // 2026-05-12); every other day carries something, even if it's just
+  // a 25-min walk. Exempt from the strength floor and weekday budget
+  // (see BUDGET_EXEMPT_SESSION_TYPES).
+  function activeRecovery(dayOffset: number, day: string, copy: string): DailyRow {
+    return {
+      week: weekNumber,
+      phase,
+      date: fmt(addDays(wkStart, dayOffset)),
+      day,
+      strength_load: 0,
+      equipment: "Lifestyle",
+      equipment_list: ["Lifestyle"],
+      description: copy + customSuffix,
+      strength_min: 0,
+      cardio_min: 25,
+      run_min: 0,
+      distance_mi: null,
+      pace: null,
+      session_type: "Active Recovery",
+      is_rest: false,
+      total_load: 25,
+    };
+  }
   function lift(
     dayOffset: number,
     day: string,
@@ -1756,18 +1786,19 @@ function buildLiftPrimaryWeekDays(opts: {
   // Light cutback wave on every 4th week-in-block: trims the Saturday
   // accessory session so the runner gets a true deload day after three
   // full lift weeks.
-  // Mon is a hard rest day across every template (Task #336 budget
-  // contract). The four lift days slot in Tue / Wed / Fri / Sat with
-  // Thu / Sun as recovery.
+  // Mon is the only true rest day (user contract 2026-05-12). The four
+  // lift days slot in Tue / Wed / Fri / Sat; Thu / Sun are short
+  // active-recovery walks instead of full rest so the runner is
+  // moving every day except Mon.
   return enforceDailyTimeBudget(
     [
       rest(0, "Mon", `Rest day. Mobility, foam roll, hydrate. Lift block week ${weekInBlock}.`),
       lift(1, "Tue", labels[0], false),
       lift(2, "Wed", labels[1], false),
-      rest(3, "Thu", `Rest day. Optional 20-30 min easy walk, mobility, hydrate.`),
+      activeRecovery(3, "Thu", `Active recovery — 20-30 min easy walk + mobility flow between lift days. Take it easy.`),
       lift(4, "Fri", labels[2], false),
       lift(5, "Sat", labels[3], true),
-      rest(6, "Sun", `Rest day. Full recovery — sleep, hydrate, gentle mobility flow.`),
+      activeRecovery(6, "Sun", `Active recovery — easy walk (25-30 min), gentle mobility, hydrate. Set up next week.`),
     ],
     { isRaceWeek: false, dailyBudget },
   );
@@ -2541,25 +2572,51 @@ function buildHybridWeekDays(opts: {
     }
 
     if (slot.kind === "rest") {
+      // Mon is the only true rest day (user contract 2026-05-12).
+      // Hybrid rest slots that land on any other day become a short
+      // active-recovery walk instead — the runner is moving every
+      // day except Mon, even if it's just a 25-min walk.
+      if (day === "Mon") {
+        return {
+          week: weekNumber,
+          phase,
+          date,
+          day,
+          strength_load: 0,
+          equipment: "Off / Rest",
+          equipment_list: ["Off / Rest"],
+          description:
+            `Rest day. Mobility, hydration, and easy walking. Hybrid block week ${weekInBlock}.` +
+            customSuffix,
+          strength_min: 0,
+          cardio_min: 0,
+          run_min: 0,
+          distance_mi: null,
+          pace: null,
+          session_type: "Rest",
+          is_rest: true,
+          total_load: 0,
+        };
+      }
       return {
         week: weekNumber,
         phase,
         date,
         day,
         strength_load: 0,
-        equipment: "Off / Rest",
-        equipment_list: ["Off / Rest"],
+        equipment: "Lifestyle",
+        equipment_list: ["Lifestyle"],
         description:
-          `Rest day. Mobility, hydration, and easy walking. Hybrid block week ${weekInBlock}.` +
+          `Active recovery — 20-30 min easy walk + mobility. Hybrid block week ${weekInBlock}, take it easy today.` +
           customSuffix,
         strength_min: 0,
-        cardio_min: 0,
+        cardio_min: 25,
         run_min: 0,
         distance_mi: null,
         pace: null,
-        session_type: "Rest",
-        is_rest: true,
-        total_load: 0,
+        session_type: "Active Recovery",
+        is_rest: false,
+        total_load: 25,
       };
     }
 
@@ -3172,8 +3229,10 @@ function buildWeekDays(opts: {
     };
   }
 
-  // Recovery focus drops the Friday quality (replace with rest) so the runner
-  // gets two rest days during the recovery block.
+  // Recovery focus replaces the Friday quality run with a short
+  // active-recovery walk (Mon is the only true rest day per the
+  // 2026-05-12 user contract). The other six days still carry their
+  // recipe-driven sessions.
   if (recipe.isRecovery) {
     return enforceDailyTimeBudget(
       [
@@ -3184,18 +3243,18 @@ function buildWeekDays(opts: {
         {
           ...resolvedFriDay,
           strength_load: 0,
-          equipment: "Off / Rest",
-          equipment_list: ["Off / Rest"],
+          equipment: "Lifestyle",
+          equipment_list: ["Lifestyle"],
           description:
-            "Rest day. Walk, mobility, foam roll. Recovery block — no quality work this week." + customSuffix,
+            "Active recovery — easy walk (25-30 min), mobility, foam roll. Recovery block: no quality work today." + customSuffix,
           strength_min: 0,
-          cardio_min: 0,
+          cardio_min: 25,
           run_min: 0,
           distance_mi: null,
           pace: null,
-          session_type: "Rest",
-          is_rest: true,
-          total_load: 0,
+          session_type: "Active Recovery",
+          is_rest: false,
+          total_load: 25,
         },
         satDay,
         resolvedSunDay,

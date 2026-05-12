@@ -76,6 +76,10 @@ function assertBudgetContract(
     if (RACE_EXEMPT_SESSION_TYPES.has(row.session_type)) continue;
     if (row.description.startsWith("RACE DAY")) continue;
     if (row.is_rest) continue;
+    // Active Recovery (short walk on what used to be a non-Mon rest
+    // day; user contract 2026-05-12) is intentionally below the
+    // weekday floor and exempt from the strength floor — skip it.
+    if (row.session_type === "Active Recovery") continue;
 
     const min = totalMin(row);
     if (row.day === "Sun") {
@@ -199,10 +203,15 @@ describe("daily time budget contract — lift-primary (every kind)", () => {
         raceWeek: null,
         label: `lift-primary:${kind}`,
       });
-      // Sanity: Mon / Thu / Sun are rest days in this template.
+      // Sanity: Mon is the only true rest day in this template (user
+      // contract 2026-05-12). Thu / Sun are short Active Recovery walks.
       const week1 = blockRows.filter((d) => d.week === 1);
       const restDays = week1.filter((d) => d.is_rest).map((d) => d.day);
-      expect(restDays.sort()).toEqual(["Mon", "Sun", "Thu"]);
+      expect(restDays).toEqual(["Mon"]);
+      const activeRecoveryDays = week1
+        .filter((d) => d.session_type === "Active Recovery")
+        .map((d) => d.day);
+      expect(activeRecoveryDays.sort()).toEqual(["Sun", "Thu"]);
     });
   }
 });
@@ -231,6 +240,7 @@ describe("daily time budget contract — per-runner dailyBudget override propaga
     for (const row of blockRows) {
       if (row.day === "Mon") continue;
       if (row.is_rest) continue;
+      if (row.session_type === "Active Recovery") continue;
       if (RACE_EXEMPT_SESSION_TYPES.has(row.session_type)) continue;
       const min = totalMin(row);
       // Sun is the long-run day (floor only). Sat counts as a weekday
@@ -251,10 +261,18 @@ describe("daily time budget contract — per-runner dailyBudget override propaga
       dailyBudget: override,
     };
     const def = generatePlanFromConfig(cfgDefault).daily.filter(
-      (d) => d.week >= 1 && d.week <= 8 && !d.is_rest,
+      (d) =>
+        d.week >= 1 &&
+        d.week <= 8 &&
+        !d.is_rest &&
+        d.session_type !== "Active Recovery",
     );
     const ovr = generatePlanFromConfig(cfgOverride).daily.filter(
-      (d) => d.week >= 1 && d.week <= 8 && !d.is_rest,
+      (d) =>
+        d.week >= 1 &&
+        d.week <= 8 &&
+        !d.is_rest &&
+        d.session_type !== "Active Recovery",
     );
     // (1) Under the override, every non-rest weekday sits within the
     // override window; Sun (long-run day) clears the override floor.

@@ -668,28 +668,44 @@ describe("lift-primary (Tonal-only) routing in generatePlanFromConfig (Task #95)
       expect(liftDaily).toHaveLength(28);
 
       for (const d of liftDaily) {
-        // No runs and no cardio sessions in any lift-primary day.
+        // No running mileage in any lift-primary day. (Cardio
+        // minutes are checked per-bucket below: Mon = full rest 0,
+        // Thu/Sun = ~25 min Active Recovery walk per the 2026-05-12
+        // user contract, lift days = 0.)
         expect(d.run_min, `${d.day} w${d.week} run_min`).toBe(0);
-        expect(d.cardio_min, `${d.day} w${d.week} cardio_min`).toBe(0);
         expect(d.distance_mi, `${d.day} w${d.week} distance_mi`).toBeNull();
         expect(d.pace, `${d.day} w${d.week} pace`).toBeNull();
 
-        if (d.day === "Mon" || d.day === "Thu" || d.day === "Sun") {
-          // Rest days: full rest, "Off / Rest" chip, no load.
+        if (d.day === "Mon") {
+          // Mon is the only true rest day: full rest, "Off / Rest"
+          // chip, no load.
           expect(d.is_rest, `${d.day} w${d.week} is_rest`).toBe(true);
           expect(d.session_type).toBe("Rest");
           expect(d.equipment).toBe("Off / Rest");
           expect(d.equipment_list).toEqual(["Off / Rest"]);
           expect(d.strength_load).toBe(0);
           expect(d.strength_min).toBe(0);
+          expect(d.cardio_min, `${d.day} w${d.week} cardio_min`).toBe(0);
           expect(d.total_load).toBe(0);
+        } else if (d.day === "Thu" || d.day === "Sun") {
+          // Thu / Sun: short Active Recovery walk between lift days.
+          // ~25 min cardio, no strength stimulus, "Lifestyle" chip.
+          expect(d.is_rest, `${d.day} w${d.week} is_rest`).toBe(false);
+          expect(d.session_type).toBe("Active Recovery");
+          expect(d.equipment).toBe("Lifestyle");
+          expect(d.equipment_list).toEqual(["Lifestyle"]);
+          expect(d.strength_load).toBe(0);
+          expect(d.strength_min).toBe(0);
+          expect(d.cardio_min, `${d.day} w${d.week} cardio_min`).toBeGreaterThan(0);
         } else {
-          // Lift days (Mon/Wed/Fri/Sat): Tonal chip ONLY (no Bike/Row/
-          // Tread/Outdoor), Strength session, lift minutes > 0.
+          // Lift days (Tue/Wed/Fri/Sat): Tonal chip ONLY (no Bike/Row/
+          // Tread/Outdoor), Strength session, lift minutes > 0,
+          // zero cardio.
           expect(d.is_rest, `${d.day} w${d.week} is_rest`).toBe(false);
           expect(d.session_type).toBe("Strength");
           expect(d.equipment).toBe("Tonal");
           expect(d.equipment_list).toEqual(["Tonal"]);
+          expect(d.cardio_min, `${d.day} w${d.week} cardio_min`).toBe(0);
           expect(d.strength_min, `${d.day} w${d.week} strength_min`).toBeGreaterThan(0);
           expect(d.strength_load, `${d.day} w${d.week} strength_load`).toBeGreaterThan(0);
           // Equipment chips must NOT include any running gear.
@@ -700,13 +716,17 @@ describe("lift-primary (Tonal-only) routing in generatePlanFromConfig (Task #95)
         }
       }
 
-      // Weekly rollups for a Tonal-only block: zero miles, zero non-run
-      // cardio minutes, zero long run, all load comes from lifting.
+      // Weekly rollups for a Tonal-only block: zero miles, zero long
+      // run, lifting drives the strength bucket. Cardio rollup picks
+      // up the Thu / Sun Active Recovery walks (~50 min total) per
+      // the 2026-05-12 user contract — bounded to confirm it's only
+      // the two short walks, not a hidden cardio session.
       for (const wk of liftWeekly) {
         expect(wk.planned_miles, `week ${wk.week} planned_miles`).toBe(0);
-        expect(wk.planned_cardio, `week ${wk.week} planned_cardio`).toBe(0);
         expect(wk.long_run_mi, `week ${wk.week} long_run_mi`).toBe(0);
         expect(wk.planned_strength, `week ${wk.week} planned_strength`).toBeGreaterThan(0);
+        expect(wk.planned_cardio, `week ${wk.week} planned_cardio`).toBeGreaterThan(0);
+        expect(wk.planned_cardio, `week ${wk.week} planned_cardio bound`).toBeLessThanOrEqual(60);
       }
     });
   }
