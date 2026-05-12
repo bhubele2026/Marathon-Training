@@ -42,6 +42,9 @@ type ApiPlannerConfig = {
   notes: string | null;
   startWeight: number | null;
   goalWeight: number | null;
+  // Runner-prescribed starting easy pace (sec/mi); null falls back
+  // to DEFAULT_STARTING_PACE_SEC.
+  startingPaceSec: number | null;
   updatedAt: string;
   lastAppliedAt: string | null;
 };
@@ -58,6 +61,7 @@ function toPlannerConfig(row: PlannerConfigRow): ApiPlannerConfig {
     notes: row.notes,
     startWeight: row.startWeight ?? null,
     goalWeight: row.goalWeight ?? null,
+    startingPaceSec: row.startingPaceSec ?? null,
     updatedAt: row.updatedAt.toISOString(),
     lastAppliedAt: row.lastAppliedAt ? row.lastAppliedAt.toISOString() : null,
   };
@@ -367,6 +371,7 @@ router.post("/planner/configs", async (req, res): Promise<void> => {
       notes: parsed.data.notes ?? null,
       startWeight: parsed.data.startWeight ?? null,
       goalWeight: parsed.data.goalWeight ?? null,
+      startingPaceSec: parsed.data.startingPaceSec ?? null,
       createdAt: now,
       updatedAt: now,
     });
@@ -439,6 +444,7 @@ router.put("/planner/configs/:id", async (req, res): Promise<void> => {
       notes: parsed.data.notes ?? null,
       startWeight: parsed.data.startWeight ?? null,
       goalWeight: parsed.data.goalWeight ?? null,
+      startingPaceSec: parsed.data.startingPaceSec ?? null,
       updatedAt: new Date(),
     })
     .where(eq(plannerConfigsTable.id, id));
@@ -541,6 +547,7 @@ router.post("/planner/configs/:id/duplicate", async (req, res): Promise<void> =>
       notes: src.notes,
       startWeight: src.startWeight,
       goalWeight: src.goalWeight,
+      startingPaceSec: src.startingPaceSec,
       createdAt: now,
       updatedAt: now,
       // Apply lineage is intentionally NOT copied — applied_* and
@@ -635,6 +642,7 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
     marathonDate: row.marathonDate,
     blocks: row.blocks as PhaseBlock[],
     entries: (row.entries as TemplateEntry[] | null) ?? null,
+    startingPaceSec: row.startingPaceSec ?? null,
   };
 
   // Generate OUTSIDE the transaction so a generator bug (e.g. validation
@@ -769,6 +777,7 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
         // OTHER config is itself applied.
         appliedStartWeight: row.startWeight ?? null,
         appliedGoalWeight: row.goalWeight ?? null,
+        appliedStartingPaceSec: row.startingPaceSec ?? null,
       })
       .where(eq(plannerConfigsTable.id, row.id));
 

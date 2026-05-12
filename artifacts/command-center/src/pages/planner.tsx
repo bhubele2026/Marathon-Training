@@ -440,6 +440,7 @@ export default function Planner() {
   // earliest measurement (start) and an em-dash sentinel (goal).
   const [startWeight, setStartWeight] = useState<string>("");
   const [goalWeight, setGoalWeight] = useState<string>("");
+  const [startingPace, setStartingPace] = useState<string>("");
   // Empty / non-numeric input → null (no anchored target). Used by the
   // Save / Apply mutations so blank inputs round-trip a NULL on the
   // applied_* snapshot rather than a zero.
@@ -448,6 +449,22 @@ export default function Planner() {
     if (trimmed === "") return null;
     const n = Number(trimmed);
     return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  function parseOptionalPaceSec(input: string): number | null {
+    const trimmed = input.trim();
+    if (trimmed === "") return null;
+    const m = /^(\d{1,2}):([0-5]\d)$/.exec(trimmed);
+    if (!m) return null;
+    const minutes = Number(m[1]);
+    const seconds = Number(m[2]);
+    if (!Number.isFinite(minutes) || !Number.isFinite(seconds)) return null;
+    const total = minutes * 60 + seconds;
+    return total > 0 ? total : null;
+  }
+  function formatPaceSec(sec: number): string {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
   }
   const [draft, setDraft] = useState<DraftBlock[]>([]);
   const [confirmApplyOpen, setConfirmApplyOpen] = useState(false);
@@ -1077,6 +1094,14 @@ export default function Planner() {
     setGoalWeight(
       typeof (cfg as { goalWeight?: number | null }).goalWeight === "number"
         ? String((cfg as { goalWeight: number }).goalWeight)
+        : "",
+    );
+    setStartingPace(
+      typeof (cfg as { startingPaceSec?: number | null }).startingPaceSec ===
+        "number"
+        ? formatPaceSec(
+            (cfg as { startingPaceSec: number }).startingPaceSec,
+          )
         : "",
     );
     setDraft(blocksToDraft(cfg.blocks as PhaseBlock[]));
@@ -1864,6 +1889,7 @@ export default function Planner() {
           entries: isEntriesMode ? entries! : null,
           startWeight: parseOptionalWeight(startWeight),
           goalWeight: parseOptionalWeight(goalWeight),
+          startingPaceSec: parseOptionalPaceSec(startingPace),
         },
       },
       {
@@ -1910,6 +1936,7 @@ export default function Planner() {
           entries: isEntriesMode ? entries! : null,
           startWeight: parseOptionalWeight(startWeight),
           goalWeight: parseOptionalWeight(goalWeight),
+          startingPaceSec: parseOptionalPaceSec(startingPace),
         },
       },
       {
@@ -2558,6 +2585,25 @@ export default function Planner() {
             <p className="text-[11px] text-muted-foreground leading-snug">
               Drives the &quot;to goal&quot; readout. Leave blank to omit a
               goal target.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="planner-starting-pace">
+              Starting pace (mm:ss / mi, optional)
+            </Label>
+            <Input
+              id="planner-starting-pace"
+              data-testid="planner-starting-pace"
+              type="text"
+              inputMode="numeric"
+              value={startingPace}
+              onChange={(e) => setStartingPace(e.target.value)}
+              placeholder="e.g. 16:00"
+            />
+            <p className="text-[11px] text-muted-foreground leading-snug">
+              Anchors the campaign's pace ramp. Slower than 14:00 starts
+              with Peloton walk-run intervals for ~2 weeks. Leave blank
+              to use the default 14:30/mi.
             </p>
           </div>
           {!isEntriesMode && (

@@ -1280,6 +1280,8 @@ Mass tile and the /plan header instead of the legacy
 hardcoded 281.6 constant.
  */
   startWeight: number | null;
+  /** Optional runner-prescribed starting easy pace (sec/mi). NULL falls back to the default 870 sec/mi (14:30/mi). Ramps ~30 sec/mi per 8 weeks toward the recipe floor; paces slower than 840 sec/mi (14:00/mi) trigger a Peloton walk-run prescription for the first ~2 entry-local weeks. */
+  startingPaceSec: number | null;
   /** Task #330. Optional body-mass goal target (lbs). NULL when
 the runner doesn't want to track a goal weight on this
 config. When non-null, surfaces on the dashboard's Body
@@ -1401,6 +1403,8 @@ export interface CreatePlannerConfigBody {
   startWeight?: number | null;
   /** Task */
   goalWeight?: number | null;
+  /** Optional runner-prescribed starting easy pace (sec/mi). NULL falls back to the default 870 sec/mi (14:30/mi). */
+  startingPaceSec?: number | null;
   /** When true, mark the new config active immediately. Defaults to true if no configs exist yet, false otherwise. */
   setActive?: boolean | null;
 }
@@ -1418,6 +1422,8 @@ export interface UpdatePlannerConfigBody {
   startWeight?: number | null;
   /** Task */
   goalWeight?: number | null;
+  /** Optional runner-prescribed starting easy pace (sec/mi). NULL falls back to the default 870 sec/mi (14:30/mi). */
+  startingPaceSec?: number | null;
 }
 
 export interface DuplicatePlannerConfigBody {

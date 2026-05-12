@@ -2937,6 +2937,12 @@ export const CreatePlannerConfigBody = zod.object({
   notes: zod.string().nullish(),
   startWeight: zod.number().nullish().describe("Task"),
   goalWeight: zod.number().nullish().describe("Task"),
+  startingPaceSec: zod
+    .number()
+    .nullish()
+    .describe(
+      "Optional runner-prescribed starting easy pace (sec\/mi). NULL falls back to the default 870 sec\/mi (14:30\/mi).",
+    ),
   setActive: zod
     .boolean()
     .nullish()
@@ -3053,6 +3059,12 @@ export const GetPlannerConfigResponse = zod.object({
     .describe(
       "Task #330. Optional body-mass start target (lbs). NULL when\nthe runner doesn't want to track a start weight on this\nconfig. When non-null, surfaces on the dashboard's Body\nMass tile and the \/plan header instead of the legacy\nhardcoded 281.6 constant.\n",
     ),
+  startingPaceSec: zod
+    .number()
+    .nullable()
+    .describe(
+      "Optional runner-prescribed starting easy pace (sec\/mi). NULL falls back to the default 870 sec\/mi (14:30\/mi). Ramps ~30 sec\/mi per 8 weeks toward the recipe floor; paces slower than 840 sec\/mi (14:00\/mi) trigger a Peloton walk-run prescription for the first ~2 entry-local weeks.",
+    ),
   goalWeight: zod
     .number()
     .nullable()
@@ -3164,6 +3176,12 @@ export const UpdatePlannerConfigBody = zod.object({
   notes: zod.string().nullish(),
   startWeight: zod.number().nullish().describe("Task"),
   goalWeight: zod.number().nullish().describe("Task"),
+  startingPaceSec: zod
+    .number()
+    .nullish()
+    .describe(
+      "Optional runner-prescribed starting easy pace (sec\/mi). NULL falls back to the default 870 sec\/mi (14:30\/mi).",
+    ),
 });
 
 export const UpdatePlannerConfigResponse = zod.object({
@@ -3269,6 +3287,12 @@ export const UpdatePlannerConfigResponse = zod.object({
     .nullable()
     .describe(
       "Task #330. Optional body-mass start target (lbs). NULL when\nthe runner doesn't want to track a start weight on this\nconfig. When non-null, surfaces on the dashboard's Body\nMass tile and the \/plan header instead of the legacy\nhardcoded 281.6 constant.\n",
+    ),
+  startingPaceSec: zod
+    .number()
+    .nullable()
+    .describe(
+      "Optional runner-prescribed starting easy pace (sec\/mi). NULL falls back to the default 870 sec\/mi (14:30\/mi). Ramps ~30 sec\/mi per 8 weeks toward the recipe floor; paces slower than 840 sec\/mi (14:00\/mi) trigger a Peloton walk-run prescription for the first ~2 entry-local weeks.",
     ),
   goalWeight: zod
     .number()
@@ -3446,6 +3470,12 @@ export const ActivatePlannerConfigResponse = zod.object({
     .nullable()
     .describe(
       "Task #330. Optional body-mass start target (lbs). NULL when\nthe runner doesn't want to track a start weight on this\nconfig. When non-null, surfaces on the dashboard's Body\nMass tile and the \/plan header instead of the legacy\nhardcoded 281.6 constant.\n",
+    ),
+  startingPaceSec: zod
+    .number()
+    .nullable()
+    .describe(
+      "Optional runner-prescribed starting easy pace (sec\/mi). NULL falls back to the default 870 sec\/mi (14:30\/mi). Ramps ~30 sec\/mi per 8 weeks toward the recipe floor; paces slower than 840 sec\/mi (14:00\/mi) trigger a Peloton walk-run prescription for the first ~2 entry-local weeks.",
     ),
   goalWeight: zod
     .number()

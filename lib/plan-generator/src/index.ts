@@ -587,6 +587,70 @@ export interface PhaseBlock {
   customNotes?: string | null;
 }
 
+// Parse mm:ss/mi → seconds; null for blank / malformed input.
+export function parseMmSsPace(input: string | null | undefined): number | null {
+  if (input == null) return null;
+  const trimmed = String(input).trim();
+  if (trimmed === "") return null;
+  const m = /^(\d{1,2}):(\d{2})$/.exec(trimmed);
+  if (!m) return null;
+  const min = Number(m[1]);
+  const sec = Number(m[2]);
+  if (!Number.isFinite(min) || !Number.isFinite(sec)) return null;
+  if (sec >= 60) return null;
+  return min * 60 + sec;
+}
+
+// Format sec/mi → mm:ss for plan_days.pace.
+export function formatMmSsPace(sec: number): string {
+  const safe = Math.max(0, Math.round(sec));
+  const m = Math.floor(safe / 60);
+  const s = safe % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+// Continuous per-week pace ramp at RAMP_SEC_PER_BLOCK/RAMP_BLOCK_WEEKS
+// sec/mi/week from `startingPaceSec`, clamped at the recipe's easy
+// floor. Long = easy + 30, tempo = easy − 60 (each floor-clamped).
+export const RAMP_SEC_PER_BLOCK = 30;
+export const RAMP_BLOCK_WEEKS = 8;
+export const RAMP_SEC_PER_WEEK = RAMP_SEC_PER_BLOCK / RAMP_BLOCK_WEEKS;
+export function computeEffectivePace(
+  startingPaceSec: number,
+  campaignWeek: number,
+  recipeEasyFloorSec: number,
+  recipeLongFloorSec: number,
+  recipeTempoFloorSec: number,
+): { easySec: number; longSec: number; tempoSec: number } {
+  const elapsedWeeks = Math.max(0, campaignWeek - 1);
+  const rampedEasyExact = startingPaceSec - elapsedWeeks * RAMP_SEC_PER_WEEK;
+  const rampedEasy = Math.max(
+    recipeEasyFloorSec,
+    Math.round(rampedEasyExact),
+  );
+  const rampedLong = Math.max(recipeLongFloorSec, rampedEasy + 30);
+  const rampedTempo = Math.max(recipeTempoFloorSec, rampedEasy - 60);
+  return {
+    easySec: rampedEasy,
+    longSec: rampedLong,
+    tempoSec: rampedTempo,
+  };
+}
+
+// Walk-run on-ramp: first WALK_RUN_MAX_ENTRY_LOCAL_WEEK weeks of each
+// entry whose entry-start effective easy pace is still > 14:00/mi.
+export const WALK_RUN_PACE_THRESHOLD_SEC = 840;
+export const WALK_RUN_MAX_ENTRY_LOCAL_WEEK = 2;
+export const WALK_RUN_MAX_CAMPAIGN_WEEK = WALK_RUN_MAX_ENTRY_LOCAL_WEEK;
+
+// Default starting easy pace (14:30/mi) when none is configured.
+export const DEFAULT_STARTING_PACE_SEC = 870;
+
+export function walkRunDescription(runMin: number): string {
+  const repeats = Math.max(1, Math.floor(runMin / 3));
+  return `${repeats} x (2:00 walk @ 18:00/mi + 1:00 jog @ 14:00/mi) on Peloton Tread`;
+}
+
 export interface PlannerConfig {
   // ISO yyyy-mm-dd; week 1 begins on this date. Must be a Monday so the
   // Mon..Sun day pattern lines up with the calendar; the validator enforces
@@ -608,6 +672,8 @@ export interface PlannerConfig {
   // and there is NO auto-pinned 16-week Marathon-Specific tail —
   // templates own their own taper / race week.
   entries?: TemplateEntry[] | null;
+  // Optional week-1 easy pace (sec/mi). Null → DEFAULT_STARTING_PACE_SEC.
+  startingPaceSec?: number | null;
 }
 
 // The trailing Marathon-Specific block is always exactly 16 weeks. Pinned
@@ -1195,12 +1261,62 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
   },
 };
 
+// Per-week pace override threaded into buildWeekDays / fridayContent /
+// buildHybridWeekDays. walkRun=true swaps easy / Foundation-Fri / long
+// run descriptions for a Peloton Tread walk-run interval prescription.
+export interface PaceOverride {
+  easyPace: string;
+  longPace: string;
+  tempoPace: string;
+  walkRun: boolean;
+  startingPaceSec: number;
+  campaignWeek: number;
+}
+
+function buildPaceOverride(
+  startingPaceSec: number,
+  campaignWeek: number,
+  entryLocalWeek: number,
+  recipe: FocusRecipe,
+): PaceOverride {
+  const easyFloor = parseMmSsPace(recipe.easyPace) ?? 0;
+  const longFloor = parseMmSsPace(recipe.longPace) ?? 0;
+  const tempoFloor = parseMmSsPace(recipe.tempoPace) ?? 0;
+  const eff = computeEffectivePace(
+    startingPaceSec,
+    campaignWeek,
+    easyFloor,
+    longFloor,
+    tempoFloor,
+  );
+  const entryStartCampaignWeek = Math.max(1, campaignWeek - entryLocalWeek + 1);
+  const entryStartEff = computeEffectivePace(
+    startingPaceSec,
+    entryStartCampaignWeek,
+    easyFloor,
+    longFloor,
+    tempoFloor,
+  );
+  return {
+    easyPace: formatMmSsPace(eff.easySec),
+    longPace: formatMmSsPace(eff.longSec),
+    tempoPace: formatMmSsPace(eff.tempoSec),
+    walkRun:
+      entryStartEff.easySec > WALK_RUN_PACE_THRESHOLD_SEC &&
+      entryLocalWeek <= WALK_RUN_MAX_ENTRY_LOCAL_WEEK,
+    startingPaceSec,
+    campaignWeek,
+  };
+}
+
 function fridayContent(
   recipe: FocusRecipe,
   block: PhaseBlock,
   weekInBlock: number,
   isCutback: boolean,
   qualityDist: number,
+  paceOverride: PaceOverride | null,
+  qualityRunMin: number,
 ): {
   type: string;
   desc: string;
@@ -1209,14 +1325,20 @@ function fridayContent(
   liftLoad: number;
   liftDescSuffix: string;
 } {
+  const easyPace = paceOverride?.easyPace ?? recipe.easyPace;
+  const tempoPace = paceOverride?.tempoPace ?? recipe.tempoPace;
+  const walkRunDesc =
+    paceOverride?.walkRun ? walkRunDescription(qualityRunMin) : null;
   const accessory = isCutback
     ? Math.max(15, recipe.accessoryTonalMin - 5)
     : recipe.accessoryTonalMin;
   if (isCutback) {
     return {
       type: "Aerobic Base",
-      desc: `Easy recovery Tread run (${qualityDist} mi, conversational)`,
-      pace: recipe.easyPace,
+      desc:
+        walkRunDesc ??
+        `Easy recovery Tread run (${qualityDist} mi, conversational)`,
+      pace: easyPace,
       liftMin: 0,
       liftLoad: 0,
       liftDescSuffix: " — no lift today, recover for the long run",
@@ -1227,7 +1349,7 @@ function fridayContent(
       return {
         type: "Tempo Run",
         desc: `Tread tempo (${qualityDist} mi: 5 min easy, ${Math.max(10, Math.round(qualityDist * 4))} min steady tempo, 5 min cool-down)`,
-        pace: recipe.tempoPace,
+        pace: tempoPace,
         liftMin: 0,
         liftLoad: 0,
         liftDescSuffix: " — no lift today, recover for the long run",
@@ -1236,7 +1358,7 @@ function fridayContent(
       return {
         type: "Threshold Intervals",
         desc: `Tread threshold (${qualityDist} mi: warm-up, then 4 x 800m at threshold w/ 90s jog recovery, cool-down)`,
-        pace: recipe.tempoPace,
+        pace: tempoPace,
         liftMin: 0,
         liftLoad: 0,
         liftDescSuffix: " — no lift today, recover for the long run",
@@ -1245,7 +1367,7 @@ function fridayContent(
       return {
         type: "Race-Pace Workout",
         desc: `Tread marathon-pace (${qualityDist} mi: warm-up, ${Math.max(2, Math.round(qualityDist - 1.5))} mi at goal marathon pace, cool-down)`,
-        pace: recipe.tempoPace,
+        pace: tempoPace,
         liftMin: 0,
         liftLoad: 0,
         liftDescSuffix: " — no lift today, recover for the long run",
@@ -1253,8 +1375,10 @@ function fridayContent(
     case "Sharpener":
       return {
         type: "Sharpener",
-        desc: `Easy Tread run (${qualityDist} mi) with 4 x 30s strides in the final mile`,
-        pace: recipe.easyPace,
+        desc:
+          walkRunDesc ??
+          `Easy Tread run (${qualityDist} mi) with 4 x 30s strides in the final mile`,
+        pace: easyPace,
         liftMin: 0,
         liftLoad: 0,
         liftDescSuffix: " — no lift today",
@@ -1263,8 +1387,10 @@ function fridayContent(
     default:
       return {
         type: "Aerobic Base",
-        desc: `Easy aerobic Tread run (${qualityDist} mi), build durability`,
-        pace: recipe.easyPace,
+        desc:
+          walkRunDesc ??
+          `Easy aerobic Tread run (${qualityDist} mi), build durability`,
+        pace: easyPace,
         liftMin: accessory,
         liftLoad: 22,
         liftDescSuffix: ` + ${accessory} min Tonal core + mobility`,
@@ -1880,6 +2006,7 @@ function buildHybridWeekDays(opts: {
   // hybrid (full load, full ramp) — preserves v1 behavior for short
   // (<12w) custom_hybrid plans and saved hybrid campaigns.
   hybridPhase: HybridPhase | null;
+  paceOverride?: PaceOverride | null;
   // Campaign-final race week (Task #192 / #200). When true, the
   // trailing Saturday of this hybrid week is force-overridden to a
   // "Race Prep" shake-out (15 min Tonal mobility + 15 min easy
@@ -1951,9 +2078,10 @@ function buildHybridWeekDays(opts: {
     isCutback,
     hPhase,
   );
-  const easyPace = "13:00";
-  const qualityPace = "11:30";
-  const longPace = "13:30";
+  const easyPace = opts.paceOverride?.easyPace ?? "13:00";
+  const qualityPace = opts.paceOverride?.tempoPace ?? "11:30";
+  const longPace = opts.paceOverride?.longPace ?? "13:30";
+  const walkRun = opts.paceOverride?.walkRun ?? false;
   const easyMinPerMi = 13;
   const qualityMinPerMi = 11;
   const longMinPerMi = 14;
@@ -2225,7 +2353,11 @@ function buildHybridWeekDays(opts: {
     if (slot.intensity === "long") {
       const distance = mi.long;
       const min = Math.max(20, Math.round(distance * longMinPerMi));
-      const equipment = weekNumber % 2 === 0 ? "Outdoor" : "Peloton Tread";
+      const equipment = walkRun
+        ? "Peloton Tread"
+        : weekNumber % 2 === 0
+          ? "Outdoor"
+          : "Peloton Tread";
       return {
         week: weekNumber,
         phase,
@@ -2235,7 +2367,9 @@ function buildHybridWeekDays(opts: {
         equipment,
         equipment_list: [equipment],
         description:
-          `Long aerobic run (${distance} mi): conversational unless noted, dial in fueling. NO lift today.` +
+          (walkRun
+            ? `${walkRunDescription(min)} (long-run on-ramp, ${distance} mi target). NO lift today.`
+            : `Long aerobic run (${distance} mi): conversational unless noted, dial in fueling. NO lift today.`) +
           customSuffix,
         strength_min: 0,
         cardio_min: 0,
@@ -2283,7 +2417,9 @@ function buildHybridWeekDays(opts: {
       equipment: "Peloton Tread",
       equipment_list: ["Peloton Tread"],
       description:
-        `Easy aerobic Tread run (${distance} mi, conversational, build durability)` +
+        (walkRun
+          ? `${walkRunDescription(min)} (easy on-ramp, ${distance} mi target)`
+          : `Easy aerobic Tread run (${distance} mi, conversational, build durability)`) +
         customSuffix,
       strength_min: 0,
       cardio_min: 0,
@@ -2322,6 +2458,7 @@ function buildWeekDays(opts: {
   // `isRaceWeek` on `raceKind !== "none"` so this guard exists only
   // for defensive symmetry.
   raceKind?: PlanRaceKind;
+  paceOverride?: PaceOverride | null;
 }): DailyRow[] {
   const {
     weekNumber,
@@ -2334,6 +2471,10 @@ function buildWeekDays(opts: {
     isTrailingBlock,
   } = opts;
   const raceKind: PlanRaceKind = opts.raceKind ?? "marathon";
+  const paceOverride = opts.paceOverride ?? null;
+  const effEasyPace = paceOverride?.easyPace ?? recipe.easyPace;
+  const effTempoPace = paceOverride?.tempoPace ?? recipe.tempoPace;
+  const effLongPace = paceOverride?.longPace ?? recipe.longPace;
   const phase = recipe.phaseLabel(block);
   const isCutback = recipe.useCutbacks
     ? blockWeeks >= 4 && weekInBlock % 4 === 0 && weekInBlock !== blockWeeks
@@ -2396,6 +2537,7 @@ function buildWeekDays(opts: {
       customSuffix,
       hybridPhase: blockHybridPhase,
       isRaceWeek,
+      paceOverride,
       // Task #200: thread the campaign-final race kind through so a
       // hybrid 5K / 10K / half / marathon plan ends on the matching
       // RACE DAY distance instead of a hardcoded 26.2 mi marathon.
@@ -2490,24 +2632,31 @@ function buildWeekDays(opts: {
   const wedRunMin = Math.max(20, Math.round(wedDist * recipe.easyRunMinPerMi));
   const wedAccessoryLoad = isCutback ? 20 : 25;
   const wedSteady = recipe.wedKind === "Steady" && !isCutback && !isRaceWeek;
+  // Walk-run rows lead the chip rail with Peloton Tread; Steady Wed
+  // (a quality stimulus) keeps the Tonal-led rail.
+  const wedWalkRun = (paceOverride?.walkRun ?? false) && !wedSteady;
   const wedDay: DailyRow = {
     week: weekNumber,
     phase,
     date: fmt(addDays(wkStart, 2)),
     day: "Wed",
     strength_load: wedAccessoryLoad,
-    equipment: "Tonal",
-    equipment_list: ["Tonal", "Peloton Tread"],
+    equipment: wedWalkRun ? "Peloton Tread" : "Tonal",
+    equipment_list: wedWalkRun
+      ? ["Peloton Tread", "Tonal"]
+      : ["Tonal", "Peloton Tread"],
     description:
       (wedSteady
         ? `Steady-state Tread run (${wedDist} mi, Z3 controlled effort — comfortably hard but conversational in short sentences), then ${accessoryTonalMin} min Tonal core + accessory work`
-        : `Easy aerobic Tread run (${wedDist} mi, conversational), then ${accessoryTonalMin} min Tonal core + accessory work`) +
+        : wedWalkRun
+          ? `${walkRunDescription(wedRunMin)}, then ${accessoryTonalMin} min Tonal core + accessory work`
+          : `Easy aerobic Tread run (${wedDist} mi, conversational), then ${accessoryTonalMin} min Tonal core + accessory work`) +
       customSuffix,
     strength_min: accessoryTonalMin,
     cardio_min: 0,
     run_min: wedRunMin,
     distance_mi: wedDist,
-    pace: wedSteady ? recipe.tempoPace : recipe.easyPace,
+    pace: wedSteady ? effTempoPace : effEasyPace,
     session_type: wedSteady ? "Steady Run + Accessory" : "Run + Accessory",
     is_rest: false,
     total_load: wedRunMin + wedAccessoryLoad,
@@ -2539,17 +2688,38 @@ function buildWeekDays(opts: {
 
   // ---------- FRI: QUALITY RUN ----------
   const friDist = recipe.qualityRunMi(weekInBlock, blockWeeks, isCutback);
-  const fri = fridayContent(recipe, block, weekInBlock, isCutback, friDist);
   const friRunMin = Math.max(20, Math.round(friDist * recipe.qualityRunMinPerMi));
+  const fri = fridayContent(
+    recipe,
+    block,
+    weekInBlock,
+    isCutback,
+    friDist,
+    paceOverride,
+    friRunMin,
+  );
+  // Foundation / AerobicBase / Sharpener / cutback Fridays go Tread-
+  // led when walk-run is on; quality (Tempo/Threshold/RacePace) is not
+  // swapped.
+  const friWalkRun =
+    (paceOverride?.walkRun ?? false) &&
+    (recipe.fridayKind === "AerobicBase" ||
+      recipe.fridayKind === "Sharpener" ||
+      isCutback);
   const friDay: DailyRow = {
     week: weekNumber,
     phase,
     date: fmt(addDays(wkStart, 4)),
     day: "Fri",
     strength_load: fri.liftLoad,
-    equipment: fri.liftMin > 0 ? "Tonal" : "Peloton Tread",
+    equipment:
+      fri.liftMin > 0 ? (friWalkRun ? "Peloton Tread" : "Tonal") : "Peloton Tread",
     equipment_list:
-      fri.liftMin > 0 ? ["Tonal", "Peloton Tread"] : ["Peloton Tread"],
+      fri.liftMin > 0
+        ? friWalkRun
+          ? ["Peloton Tread", "Tonal"]
+          : ["Tonal", "Peloton Tread"]
+        : ["Peloton Tread"],
     description: fri.desc + fri.liftDescSuffix + customSuffix,
     strength_min: fri.liftMin,
     cardio_min: 0,
@@ -2644,7 +2814,12 @@ function buildWeekDays(opts: {
     });
   } else {
     const longRun = recipe.longRunMi(weekInBlock, blockWeeks, isCutback, isTrailingBlock);
-    const longEquipment = weekNumber % 2 === 0 ? "Outdoor" : "Peloton Tread";
+    const sunWalkRun = paceOverride?.walkRun ?? false;
+    const longEquipment = sunWalkRun
+      ? "Peloton Tread"
+      : weekNumber % 2 === 0
+        ? "Outdoor"
+        : "Peloton Tread";
     const longMin = Math.max(20, Math.round(longRun * recipe.longRunMinPerMi));
     sunDay = {
       week: weekNumber,
@@ -2655,13 +2830,15 @@ function buildWeekDays(opts: {
       equipment: longEquipment,
       equipment_list: [longEquipment],
       description:
-        `${recipe.longRunVerb} (${longRun} mi): conversational unless noted, dial in fueling. NO lift today.` +
+        (sunWalkRun
+          ? `${walkRunDescription(longMin)} (long-run on-ramp, ${longRun} mi target). NO lift today.`
+          : `${recipe.longRunVerb} (${longRun} mi): conversational unless noted, dial in fueling. NO lift today.`) +
         customSuffix,
       strength_min: 0,
       cardio_min: 0,
       run_min: longMin,
       distance_mi: longRun,
-      pace: recipe.longPace,
+      pace: effLongPace,
       session_type: "Long Run",
       is_rest: false,
       total_load: longMin + 10,
@@ -3094,6 +3271,11 @@ export interface GeneratePlanOptions {
   // or its entries end on a marathon template; `true` is reserved for
   // future use. Leave `undefined` to use the default derivation.
   endsOnMarathonRaceDayOverride?: boolean;
+  // Campaign-week offset for the per-week pace ramp; per-entry callers
+  // pass the entry's weekOffset so stacked entries see campaign-relative
+  // weeks. Defaults to 0.
+  paceWeekOffset?: number;
+  startingPaceSecOverride?: number | null;
 }
 
 export function generatePlanFromConfig(
@@ -3173,6 +3355,13 @@ export function generatePlanFromConfig(
     ? "marathon"
     : trailingEntriesRaceKind;
 
+  const rawStartingPaceSec =
+    opts.startingPaceSecOverride !== undefined
+      ? opts.startingPaceSecOverride
+      : config.startingPaceSec ?? null;
+  const startingPaceSec = rawStartingPaceSec ?? DEFAULT_STARTING_PACE_SEC;
+  const paceWeekOffset = opts.paceWeekOffset ?? 0;
+
   let weekNumber = 0;
   for (const block of expandedBlocks) {
     const recipe = RECIPES[block.focusType];
@@ -3181,6 +3370,14 @@ export function generatePlanFromConfig(
       const wkStart = addDays(startDate, (weekNumber - 1) * 7);
       const wkEnd = addDays(wkStart, 6);
       const isRaceWeek = endsOnMarathonRaceDay && weekNumber === totalWeeks;
+      const campaignWeek = weekNumber + paceWeekOffset;
+      const entryLocalWeek = weekNumber;
+      const paceOverride = buildPaceOverride(
+        startingPaceSec,
+        campaignWeek,
+        entryLocalWeek,
+        recipe,
+      );
       const days = buildWeekDays({
         weekNumber,
         weekInBlock,
@@ -3191,6 +3388,7 @@ export function generatePlanFromConfig(
         isRaceWeek,
         isTrailingBlock: block === expandedBlocks[expandedBlocks.length - 1],
         raceKind: campaignFinalRaceKind,
+        paceOverride,
       });
       daily.push(...days);
 
@@ -3344,6 +3542,8 @@ export function generatePlanFromConfigPerEntry(
     const isLastEntry = i === config.entries.length - 1;
     const sub = generatePlanFromConfig(synthetic, {
       endsOnMarathonRaceDayOverride: isLastEntry ? undefined : false,
+      paceWeekOffset: weekOffset,
+      startingPaceSecOverride: config.startingPaceSec ?? null,
     });
     // Remap week numbers from entry-local (1..N) to campaign-relative
     // so plan_days.week matches the position of the date in the

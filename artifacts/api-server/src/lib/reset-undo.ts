@@ -115,6 +115,9 @@ export interface AppliedPlannerConfigSnapshot {
   appliedEntries: unknown;
   appliedStartWeight: number | null;
   appliedGoalWeight: number | null;
+  // Task #335. Captured starting easy pace (sec/mi) so undo restores
+  // the exact campaign ramp anchor that was in effect before reset.
+  appliedStartingPaceSec: number | null;
 }
 
 export interface DetachedWorkoutSnapshot {

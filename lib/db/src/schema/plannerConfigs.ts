@@ -87,6 +87,9 @@ export const plannerConfigsTable = pgTable("planner_configs", {
   // the legacy hardcoded 281.6 / 210 constants.
   startWeight: doublePrecision("start_weight"),
   goalWeight: doublePrecision("goal_weight"),
+  // Optional starting easy pace (sec/mi). Generator ramps from here
+  // across the campaign; NULL falls back to DEFAULT_STARTING_PACE_SEC.
+  startingPaceSec: integer("starting_pace_sec"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   // Set by POST /api/planner/apply when the runner regenerates plan_weeks /
@@ -128,6 +131,8 @@ export const plannerConfigsTable = pgTable("planner_configs", {
   // /plan header / dashboard Body Mass tile.
   appliedStartWeight: doublePrecision("applied_start_weight"),
   appliedGoalWeight: doublePrecision("applied_goal_weight"),
+  // Apply-time snapshot of starting_pace_sec (mirrors applied_*).
+  appliedStartingPaceSec: integer("applied_starting_pace_sec"),
 });
 
 export type PlannerConfigRow = typeof plannerConfigsTable.$inferSelect;
