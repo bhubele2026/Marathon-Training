@@ -1239,6 +1239,23 @@ export interface PhaseBlock {
 }
 
 /**
+ * Task #338. Optional per-runner override of the daily
+time-budget contract (Task #336). When non-null, fields set
+here replace WEEKDAY_MIN_TOTAL_MIN / WEEKDAY_MAX_TOTAL_MIN /
+WEEKEND_MIN_TOTAL_MIN in `enforceDailyTimeBudget`. NULL
+fields fall back to the constants (45 / 60 / 60).
+
+ */
+export type PlannerConfigDailyBudget = {
+  /** @minimum 1 */
+  weekdayMin?: number | null;
+  /** @minimum 1 */
+  weekdayMax?: number | null;
+  /** @minimum 1 */
+  weekendMin?: number | null;
+} | null;
+
+/**
  * A single composed entry inside an entries-mode PlannerConfig. References a plan template by id and supplies the runner-chosen week count for that template.
  */
 export interface TemplateEntry {
@@ -1282,6 +1299,13 @@ hardcoded 281.6 constant.
   startWeight: number | null;
   /** Optional runner-prescribed starting easy pace (sec/mi). NULL falls back to the default 870 sec/mi (14:30/mi). Ramps ~30 sec/mi per 8 weeks toward the recipe floor; paces slower than 840 sec/mi (14:00/mi) trigger a Peloton walk-run prescription for the first ~2 entry-local weeks. */
   startingPaceSec: number | null;
+  /** Task #338. Optional per-runner override of the daily
+time-budget contract (Task #336). When non-null, fields set
+here replace WEEKDAY_MIN_TOTAL_MIN / WEEKDAY_MAX_TOTAL_MIN /
+WEEKEND_MIN_TOTAL_MIN in `enforceDailyTimeBudget`. NULL
+fields fall back to the constants (45 / 60 / 60).
+ */
+  dailyBudget: PlannerConfigDailyBudget;
   /** Task #330. Optional body-mass goal target (lbs). NULL when
 the runner doesn't want to track a goal weight on this
 config. When non-null, surfaces on the dashboard's Body
@@ -1390,6 +1414,18 @@ export interface ListPlannerConfigsResponse {
   activeId: number | null;
 }
 
+/**
+ * Task
+ */
+export type CreatePlannerConfigBodyDailyBudget = {
+  /** @minimum 1 */
+  weekdayMin?: number | null;
+  /** @minimum 1 */
+  weekdayMax?: number | null;
+  /** @minimum 1 */
+  weekendMin?: number | null;
+} | null;
+
 export interface CreatePlannerConfigBody {
   name: string;
   startDate: string;
@@ -1405,9 +1441,23 @@ export interface CreatePlannerConfigBody {
   goalWeight?: number | null;
   /** Optional runner-prescribed starting easy pace (sec/mi). NULL falls back to the default 870 sec/mi (14:30/mi). */
   startingPaceSec?: number | null;
+  /** Task */
+  dailyBudget?: CreatePlannerConfigBodyDailyBudget;
   /** When true, mark the new config active immediately. Defaults to true if no configs exist yet, false otherwise. */
   setActive?: boolean | null;
 }
+
+/**
+ * Task
+ */
+export type UpdatePlannerConfigBodyDailyBudget = {
+  /** @minimum 1 */
+  weekdayMin?: number | null;
+  /** @minimum 1 */
+  weekdayMax?: number | null;
+  /** @minimum 1 */
+  weekendMin?: number | null;
+} | null;
 
 export interface UpdatePlannerConfigBody {
   name: string;
@@ -1424,6 +1474,8 @@ export interface UpdatePlannerConfigBody {
   goalWeight?: number | null;
   /** Optional runner-prescribed starting easy pace (sec/mi). NULL falls back to the default 870 sec/mi (14:30/mi). */
   startingPaceSec?: number | null;
+  /** Task */
+  dailyBudget?: UpdatePlannerConfigBodyDailyBudget;
 }
 
 export interface DuplicatePlannerConfigBody {

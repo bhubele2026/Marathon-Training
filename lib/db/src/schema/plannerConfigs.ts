@@ -133,6 +133,23 @@ export const plannerConfigsTable = pgTable("planner_configs", {
   appliedGoalWeight: doublePrecision("applied_goal_weight"),
   // Apply-time snapshot of starting_pace_sec (mirrors applied_*).
   appliedStartingPaceSec: integer("applied_starting_pace_sec"),
+  // Task #338. Optional per-runner override of the daily time-budget
+  // contract (Task #336). Any of weekdayMin / weekdayMax / weekendMin
+  // set here replaces the matching global default in
+  // `enforceDailyTimeBudget`. NULL fields fall back to the constants
+  // (45 / 60 / 60). NULL on the column means the runner has not
+  // overridden any field.
+  dailyBudget: jsonb("daily_budget").$type<{
+    weekdayMin?: number | null;
+    weekdayMax?: number | null;
+    weekendMin?: number | null;
+  } | null>(),
+  // Apply-time snapshot of daily_budget (mirrors applied_*).
+  appliedDailyBudget: jsonb("applied_daily_budget").$type<{
+    weekdayMin?: number | null;
+    weekdayMax?: number | null;
+    weekendMin?: number | null;
+  } | null>(),
 });
 
 export type PlannerConfigRow = typeof plannerConfigsTable.$inferSelect;

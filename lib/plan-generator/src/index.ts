@@ -106,6 +106,40 @@ export const WEEKDAY_MAX_TOTAL_MIN = 75;
 export const WEEKEND_MIN_TOTAL_MIN = 60;
 export const DAILY_STRENGTH_FLOOR_MIN = 30;
 
+// Task #338. Optional per-runner override of the weekday window /
+// weekend floor. When present on a `PlannerConfig`, the override is
+// threaded through every builder into `enforceDailyTimeBudget` so a
+// runner who can carve out 90-min weekday sessions (or wants a hard
+// 30-min floor on weekends because of a tight schedule) can shift
+// every generator path at once. Absent / partially-set fields fall
+// back to the constants above.
+export interface DailyBudgetOverride {
+  weekdayMin?: number | null;
+  weekdayMax?: number | null;
+  weekendMin?: number | null;
+}
+
+function resolveBudget(override?: DailyBudgetOverride | null): {
+  weekdayMin: number;
+  weekdayMax: number;
+  weekendMin: number;
+} {
+  return {
+    weekdayMin:
+      override && typeof override.weekdayMin === "number"
+        ? override.weekdayMin
+        : WEEKDAY_MIN_TOTAL_MIN,
+    weekdayMax:
+      override && typeof override.weekdayMax === "number"
+        ? override.weekdayMax
+        : WEEKDAY_MAX_TOTAL_MIN,
+    weekendMin:
+      override && typeof override.weekendMin === "number"
+        ? override.weekendMin
+        : WEEKEND_MIN_TOTAL_MIN,
+  };
+}
+
 const BUDGET_EXEMPT_SESSION_TYPES = new Set<string>([
   "Race Prep",
   "Race",
@@ -123,7 +157,11 @@ function totalMinOf(row: DailyRow): number {
   return (row.strength_min ?? 0) + (row.cardio_min ?? 0) + (row.run_min ?? 0);
 }
 
-function clampDayBudget(row: DailyRow, opts: { isRaceWeek: boolean }): DailyRow {
+function clampDayBudget(
+  row: DailyRow,
+  opts: { isRaceWeek: boolean; dailyBudget?: DailyBudgetOverride | null },
+): DailyRow {
+  const budget = resolveBudget(opts.dailyBudget);
   // MON is a hard rest day — even if a builder accidentally slotted
   // a session there, force it back to 0/0/0 (without flipping
   // is_rest, since some non-default Mon rows may still want their
@@ -149,12 +187,16 @@ function clampDayBudget(row: DailyRow, opts: { isRaceWeek: boolean }): DailyRow 
   if (opts.isRaceWeek) return row;
   if (isBudgetExempt(row)) return row;
 
-  // Sun is the long-run day — has a floor but no upper cap. Sat is now
-  // a normal weekday for budget purposes (≤ 75 min) since long runs
-  // stay on Sun.
+  // Sun is the long-run day — has a floor (budget.weekendMin) but no
+  // upper cap. Sat is now a normal weekday for budget purposes since
+  // long runs stay on Sun. Both floors and the weekday cap are
+  // configurable via the per-runner dailyBudget override resolved
+  // above (defaults: 45 / 75 / 60).
   const isLongRunDay = row.day === "Sun";
-  const minTotal = isLongRunDay ? WEEKEND_MIN_TOTAL_MIN : WEEKDAY_MIN_TOTAL_MIN;
-  const maxTotal = isLongRunDay ? Number.POSITIVE_INFINITY : WEEKDAY_MAX_TOTAL_MIN;
+  const minTotal = isLongRunDay ? budget.weekendMin : budget.weekdayMin;
+  const maxTotal = isLongRunDay
+    ? Number.POSITIVE_INFINITY
+    : budget.weekdayMax;
 
   let strength = row.strength_min ?? 0;
   let cardio = row.cardio_min ?? 0;
@@ -236,7 +278,7 @@ function clampDayBudget(row: DailyRow, opts: { isRaceWeek: boolean }): DailyRow 
 // at the very end of any builder without disturbing the slot layout.
 export function enforceDailyTimeBudget(
   days: DailyRow[],
-  opts: { isRaceWeek: boolean },
+  opts: { isRaceWeek: boolean; dailyBudget?: DailyBudgetOverride | null },
 ): DailyRow[] {
   return days.map((d) => clampDayBudget(d, opts));
 }
@@ -853,6 +895,14 @@ export interface PlannerConfig {
   entries?: TemplateEntry[] | null;
   // Optional week-1 easy pace (sec/mi). Null → DEFAULT_STARTING_PACE_SEC.
   startingPaceSec?: number | null;
+  // Task #338. Optional per-runner override of the daily time-budget
+  // contract (Task #336). Any field set here replaces the matching
+  // global constant (WEEKDAY_MIN_TOTAL_MIN / WEEKDAY_MAX_TOTAL_MIN /
+  // WEEKEND_MIN_TOTAL_MIN) when this config drives generation. Unset
+  // / null fields fall back to the constants so a partial override
+  // (e.g. only widen the weekday cap to 90) leaves the other two
+  // floors untouched.
+  dailyBudget?: DailyBudgetOverride | null;
 }
 
 // The trailing Marathon-Specific block is always exactly 16 weeks. Pinned
@@ -1593,6 +1643,7 @@ function buildLiftPrimaryWeekDays(opts: {
   accessoryTonalMin: number;
   wkStart: Date;
   customSuffix: string;
+  dailyBudget?: DailyBudgetOverride | null;
 }): DailyRow[] {
   const {
     weekNumber,
@@ -1605,6 +1656,7 @@ function buildLiftPrimaryWeekDays(opts: {
     accessoryTonalMin,
     wkStart,
     customSuffix,
+    dailyBudget,
   } = opts;
 
   // Per-kind labels for the four lift days (Mon, Wed, Fri, Sat). Each
@@ -1717,7 +1769,7 @@ function buildLiftPrimaryWeekDays(opts: {
       lift(5, "Sat", labels[3], true),
       rest(6, "Sun", `Rest day. Full recovery — sleep, hydrate, gentle mobility flow.`),
     ],
-    { isRaceWeek: false },
+    { isRaceWeek: false, dailyBudget },
   );
 }
 
@@ -2225,6 +2277,7 @@ function buildHybridWeekDays(opts: {
   // on `raceKind !== "none"` so this guard exists only for
   // defensive symmetry.
   raceKind?: PlanRaceKind;
+  dailyBudget?: DailyBudgetOverride | null;
 }): DailyRow[] {
   const {
     weekNumber,
@@ -2622,7 +2675,10 @@ function buildHybridWeekDays(opts: {
       total_load: min,
     };
   });
-  return enforceDailyTimeBudget(hybridDays, { isRaceWeek });
+  return enforceDailyTimeBudget(hybridDays, {
+    isRaceWeek,
+    dailyBudget: opts.dailyBudget ?? null,
+  });
 }
 
 // Build the seven days of one week.
@@ -2651,6 +2707,7 @@ function buildWeekDays(opts: {
   // for defensive symmetry.
   raceKind?: PlanRaceKind;
   paceOverride?: PaceOverride | null;
+  dailyBudget?: DailyBudgetOverride | null;
 }): DailyRow[] {
   const {
     weekNumber,
@@ -2662,6 +2719,7 @@ function buildWeekDays(opts: {
     isRaceWeek,
     isTrailingBlock,
   } = opts;
+  const dailyBudget = opts.dailyBudget ?? null;
   const raceKind: PlanRaceKind = opts.raceKind ?? "marathon";
   const paceOverride = opts.paceOverride ?? null;
   const effEasyPace = paceOverride?.easyPace ?? recipe.easyPace;
@@ -2734,6 +2792,7 @@ function buildWeekDays(opts: {
       // hybrid 5K / 10K / half / marathon plan ends on the matching
       // RACE DAY distance instead of a hardcoded 26.2 mi marathon.
       raceKind,
+      dailyBudget,
     });
   }
 
@@ -2758,6 +2817,7 @@ function buildWeekDays(opts: {
       accessoryTonalMin,
       wkStart,
       customSuffix,
+      dailyBudget,
     });
   }
 
@@ -3140,7 +3200,7 @@ function buildWeekDays(opts: {
         satDay,
         resolvedSunDay,
       ],
-      { isRaceWeek },
+      { isRaceWeek, dailyBudget },
     );
   }
 
@@ -3154,7 +3214,7 @@ function buildWeekDays(opts: {
       satDay,
       resolvedSunDay,
     ],
-    { isRaceWeek },
+    { isRaceWeek, dailyBudget },
   );
 }
 
@@ -3587,6 +3647,7 @@ export function generatePlanFromConfig(
         isTrailingBlock: block === expandedBlocks[expandedBlocks.length - 1],
         raceKind: campaignFinalRaceKind,
         paceOverride,
+        dailyBudget: config.dailyBudget ?? null,
       });
       daily.push(...days);
 
@@ -3727,6 +3788,11 @@ export function generatePlanFromConfigPerEntry(
           customNotes: e.customNotes ?? null,
         },
       ],
+      // Task #338: per-runner daily-budget override is a campaign-wide
+      // policy, so propagate it onto every per-entry synthetic config
+      // so each entry's `generatePlanFromConfig` recursion threads it
+      // through into `enforceDailyTimeBudget`.
+      dailyBudget: config.dailyBudget ?? null,
     };
     // Task #184: campaign-final entry only earns the marathon race-day
     // Sunday. For every non-final entry — including mid-campaign

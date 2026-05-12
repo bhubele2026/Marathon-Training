@@ -441,6 +441,13 @@ export default function Planner() {
   const [startWeight, setStartWeight] = useState<string>("");
   const [goalWeight, setGoalWeight] = useState<string>("");
   const [startingPace, setStartingPace] = useState<string>("");
+  // Task #338. Optional per-runner override of the daily time-budget
+  // contract (Task #336). Empty string ⇒ that field is NOT overridden
+  // (defaults of 45 / 60 / 60 apply). When all three are blank the
+  // entire `dailyBudget` payload is sent as null on save / apply.
+  const [weekdayMin, setWeekdayMin] = useState<string>("");
+  const [weekdayMax, setWeekdayMax] = useState<string>("");
+  const [weekendMin, setWeekendMin] = useState<string>("");
   // Empty / non-numeric input → null (no anchored target). Used by the
   // Save / Apply mutations so blank inputs round-trip a NULL on the
   // applied_* snapshot rather than a zero.
@@ -449,6 +456,31 @@ export default function Planner() {
     if (trimmed === "") return null;
     const n = Number(trimmed);
     return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  // Task #338. Empty input ⇒ null (this field is NOT overridden).
+  // Non-numeric / non-positive ⇒ null. Floored to integer minutes.
+  function parseOptionalBudgetMin(input: string): number | null {
+    const trimmed = input.trim();
+    if (trimmed === "") return null;
+    const n = Number(trimmed);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return Math.floor(n);
+  }
+  // Build the dailyBudget payload sent to the server. When every
+  // field is blank, sends null so the server stores null on the
+  // column (no override at all). Otherwise sends an object with the
+  // set fields populated and the unset fields explicitly null so the
+  // generator falls back to the matching default for those.
+  function buildDailyBudgetPayload(): {
+    weekdayMin: number | null;
+    weekdayMax: number | null;
+    weekendMin: number | null;
+  } | null {
+    const wmin = parseOptionalBudgetMin(weekdayMin);
+    const wmax = parseOptionalBudgetMin(weekdayMax);
+    const emin = parseOptionalBudgetMin(weekendMin);
+    if (wmin === null && wmax === null && emin === null) return null;
+    return { weekdayMin: wmin, weekdayMax: wmax, weekendMin: emin };
   }
   function parseOptionalPaceSec(input: string): number | null {
     const trimmed = input.trim();
@@ -1102,6 +1134,31 @@ export default function Planner() {
         ? formatPaceSec(
             (cfg as { startingPaceSec: number }).startingPaceSec,
           )
+        : "",
+    );
+    // Task #338. Hydrate the optional daily-budget override. NULL on
+    // the saved config (or NULL on a per-field key) ⇒ blank input so a
+    // round-trip leaves the field unset.
+    const cfgBudget = (cfg as {
+      dailyBudget?: {
+        weekdayMin?: number | null;
+        weekdayMax?: number | null;
+        weekendMin?: number | null;
+      } | null;
+    }).dailyBudget;
+    setWeekdayMin(
+      cfgBudget && typeof cfgBudget.weekdayMin === "number"
+        ? String(cfgBudget.weekdayMin)
+        : "",
+    );
+    setWeekdayMax(
+      cfgBudget && typeof cfgBudget.weekdayMax === "number"
+        ? String(cfgBudget.weekdayMax)
+        : "",
+    );
+    setWeekendMin(
+      cfgBudget && typeof cfgBudget.weekendMin === "number"
+        ? String(cfgBudget.weekendMin)
         : "",
     );
     setDraft(blocksToDraft(cfg.blocks as PhaseBlock[]));
@@ -1890,6 +1947,7 @@ export default function Planner() {
           startWeight: parseOptionalWeight(startWeight),
           goalWeight: parseOptionalWeight(goalWeight),
           startingPaceSec: parseOptionalPaceSec(startingPace),
+          dailyBudget: buildDailyBudgetPayload(),
         },
       },
       {
@@ -1937,6 +1995,7 @@ export default function Planner() {
           startWeight: parseOptionalWeight(startWeight),
           goalWeight: parseOptionalWeight(goalWeight),
           startingPaceSec: parseOptionalPaceSec(startingPace),
+          dailyBudget: buildDailyBudgetPayload(),
         },
       },
       {
@@ -2604,6 +2663,63 @@ export default function Planner() {
               Anchors the campaign's pace ramp. Slower than 14:00 starts
               with Peloton walk-run intervals for ~2 weeks. Leave blank
               to use the default 14:30/mi.
+            </p>
+          </div>
+          {/* Task #338. Optional per-runner override of the daily
+              time-budget contract. Blank ⇒ use the matching default
+              (45 / 60 / 60 min). All blank ⇒ no override sent. */}
+          <div className="space-y-2">
+            <Label htmlFor="planner-weekday-min">
+              Weekday min (min, optional)
+            </Label>
+            <Input
+              id="planner-weekday-min"
+              data-testid="planner-weekday-min"
+              type="number"
+              step="1"
+              min="1"
+              value={weekdayMin}
+              onChange={(e) => setWeekdayMin(e.target.value)}
+              placeholder="45"
+            />
+            <p className="text-[11px] text-muted-foreground leading-snug">
+              Floor for Tue-Fri sessions. Blank = default 45 min.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="planner-weekday-max">
+              Weekday max (min, optional)
+            </Label>
+            <Input
+              id="planner-weekday-max"
+              data-testid="planner-weekday-max"
+              type="number"
+              step="1"
+              min="1"
+              value={weekdayMax}
+              onChange={(e) => setWeekdayMax(e.target.value)}
+              placeholder="60"
+            />
+            <p className="text-[11px] text-muted-foreground leading-snug">
+              Cap for Tue-Fri sessions. Blank = default 60 min.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="planner-weekend-min">
+              Weekend min (min, optional)
+            </Label>
+            <Input
+              id="planner-weekend-min"
+              data-testid="planner-weekend-min"
+              type="number"
+              step="1"
+              min="1"
+              value={weekendMin}
+              onChange={(e) => setWeekendMin(e.target.value)}
+              placeholder="60"
+            />
+            <p className="text-[11px] text-muted-foreground leading-snug">
+              Floor for Sat/Sun sessions (no cap). Blank = default 60 min.
             </p>
           </div>
           {!isEntriesMode && (

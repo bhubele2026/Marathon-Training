@@ -45,6 +45,13 @@ type ApiPlannerConfig = {
   // Runner-prescribed starting easy pace (sec/mi); null falls back
   // to DEFAULT_STARTING_PACE_SEC.
   startingPaceSec: number | null;
+  // Task #338. Optional per-runner override of the daily time-budget
+  // contract. NULL means no override (defaults apply).
+  dailyBudget: {
+    weekdayMin?: number | null;
+    weekdayMax?: number | null;
+    weekendMin?: number | null;
+  } | null;
   updatedAt: string;
   lastAppliedAt: string | null;
 };
@@ -62,6 +69,7 @@ function toPlannerConfig(row: PlannerConfigRow): ApiPlannerConfig {
     startWeight: row.startWeight ?? null,
     goalWeight: row.goalWeight ?? null,
     startingPaceSec: row.startingPaceSec ?? null,
+    dailyBudget: row.dailyBudget ?? null,
     updatedAt: row.updatedAt.toISOString(),
     lastAppliedAt: row.lastAppliedAt ? row.lastAppliedAt.toISOString() : null,
   };
@@ -133,6 +141,10 @@ export async function readLastAppliedPlannerConfig(): Promise<PlannerConfig | nu
     // Without this an applied entries-mode plan would be re-validated as
     // legacy (auto-pinned 16w tail expected) and immediately fail.
     entries: (row.appliedEntries as TemplateEntry[] | null) ?? null,
+    // Task #338. Surface the snapshotted daily-budget override so a
+    // /plan/full-reset re-runs the generator with the SAME budget the
+    // runner originally applied.
+    dailyBudget: row.appliedDailyBudget ?? null,
   };
 }
 
@@ -372,6 +384,7 @@ router.post("/planner/configs", async (req, res): Promise<void> => {
       startWeight: parsed.data.startWeight ?? null,
       goalWeight: parsed.data.goalWeight ?? null,
       startingPaceSec: parsed.data.startingPaceSec ?? null,
+      dailyBudget: parsed.data.dailyBudget ?? null,
       createdAt: now,
       updatedAt: now,
     });
@@ -445,6 +458,7 @@ router.put("/planner/configs/:id", async (req, res): Promise<void> => {
       startWeight: parsed.data.startWeight ?? null,
       goalWeight: parsed.data.goalWeight ?? null,
       startingPaceSec: parsed.data.startingPaceSec ?? null,
+      dailyBudget: parsed.data.dailyBudget ?? null,
       updatedAt: new Date(),
     })
     .where(eq(plannerConfigsTable.id, id));
@@ -548,6 +562,7 @@ router.post("/planner/configs/:id/duplicate", async (req, res): Promise<void> =>
       startWeight: src.startWeight,
       goalWeight: src.goalWeight,
       startingPaceSec: src.startingPaceSec,
+      dailyBudget: src.dailyBudget,
       createdAt: now,
       updatedAt: now,
       // Apply lineage is intentionally NOT copied — applied_* and
@@ -643,6 +658,10 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
     blocks: row.blocks as PhaseBlock[],
     entries: (row.entries as TemplateEntry[] | null) ?? null,
     startingPaceSec: row.startingPaceSec ?? null,
+    // Task #338: thread the runner's daily-budget override through so
+    // every builder path inside the generator widens / tightens
+    // accordingly.
+    dailyBudget: row.dailyBudget ?? null,
   };
 
   // Generate OUTSIDE the transaction so a generator bug (e.g. validation
@@ -778,6 +797,10 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
         appliedStartWeight: row.startWeight ?? null,
         appliedGoalWeight: row.goalWeight ?? null,
         appliedStartingPaceSec: row.startingPaceSec ?? null,
+        // Task #338. Snapshot the daily-budget override so a later
+        // /plan/full-reset re-runs the generator with the SAME override
+        // the runner applied here.
+        appliedDailyBudget: row.dailyBudget ?? null,
       })
       .where(eq(plannerConfigsTable.id, row.id));
 

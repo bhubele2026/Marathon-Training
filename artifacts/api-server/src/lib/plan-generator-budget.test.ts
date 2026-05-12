@@ -209,6 +209,119 @@ describe("daily time budget contract — lift-primary (every kind)", () => {
 
 // ----- No long run on Friday across every generated plan ------------
 
+// ----- Task #338: per-runner daily-budget override propagates -------
+
+describe("daily time budget contract — per-runner dailyBudget override propagates", () => {
+  // Pick an override that's clearly outside the defaults so the
+  // assertions can't accidentally pass against the constants.
+  const override = { weekdayMin: 60, weekdayMax: 90, weekendMin: 75 };
+
+  it("hybrid generator respects the override floors and cap", () => {
+    const cfg: PlannerConfig = {
+      ...hybridConfig({
+        blockWeeks: 8,
+        position: "balanced",
+        daysPerWeek: 5,
+        level: "intermediate",
+      }),
+      dailyBudget: override,
+    };
+    const { daily } = generatePlanFromConfig(cfg);
+    const blockRows = daily.filter((d) => d.week >= 1 && d.week <= 8);
+    for (const row of blockRows) {
+      if (row.day === "Mon") continue;
+      if (row.is_rest) continue;
+      if (RACE_EXEMPT_SESSION_TYPES.has(row.session_type)) continue;
+      const min = totalMin(row);
+      // Sun is the long-run day (floor only). Sat counts as a weekday
+      // for budget purposes since long runs stay on Sun.
+      if (row.day === "Sun") {
+        expect(min).toBeGreaterThanOrEqual(override.weekendMin);
+      } else {
+        expect(min).toBeGreaterThanOrEqual(override.weekdayMin);
+        expect(min).toBeLessThanOrEqual(override.weekdayMax);
+      }
+    }
+  });
+
+  it("lift-primary applies the override floor end-to-end", () => {
+    const cfgDefault: PlannerConfig = liftPrimaryConfig("upper", 8);
+    const cfgOverride: PlannerConfig = {
+      ...cfgDefault,
+      dailyBudget: override,
+    };
+    const def = generatePlanFromConfig(cfgDefault).daily.filter(
+      (d) => d.week >= 1 && d.week <= 8 && !d.is_rest,
+    );
+    const ovr = generatePlanFromConfig(cfgOverride).daily.filter(
+      (d) => d.week >= 1 && d.week <= 8 && !d.is_rest,
+    );
+    // (1) Under the override, every non-rest weekday sits within the
+    // override window; Sun (long-run day) clears the override floor.
+    for (const row of ovr) {
+      const min = totalMin(row);
+      if (row.day === "Sun") {
+        expect(min).toBeGreaterThanOrEqual(override.weekendMin);
+      } else {
+        expect(min).toBeGreaterThanOrEqual(override.weekdayMin);
+        expect(min).toBeLessThanOrEqual(override.weekdayMax);
+      }
+    }
+    // (2) The override actually CHANGED weekday minutes: a default
+    // weekday session (~45 min lift) sits below the override floor
+    // (60), so propagation must push it up. If the override were
+    // silently dropped both runs would be identical.
+    const sameDay = (a: typeof def[number], b: typeof ovr[number]) =>
+      a.date === b.date;
+    let mutated = false;
+    for (const d of def) {
+      if (d.day === "Sun" || d.day === "Mon") continue;
+      const o = ovr.find((x) => sameDay(d, x));
+      if (!o) continue;
+      if (totalMin(d) < override.weekdayMin) {
+        // Same session under the override must have been padded up.
+        expect(totalMin(o)).toBeGreaterThanOrEqual(override.weekdayMin);
+        expect(totalMin(o)).toBeGreaterThan(totalMin(d));
+        mutated = true;
+      }
+    }
+    expect(
+      mutated,
+      "expected the override to widen at least one lift-primary weekday up to the override floor",
+    ).toBe(true);
+  });
+
+  it("recipe-driven buildWeekDays respects the override on a half-marathon plan", () => {
+    // 24-week half marathon (8w user block + 16w marathon tail).
+    const cfg: PlannerConfig = {
+      startDate: "2026-01-05",
+      marathonDate: new Date(
+        Date.parse("2026-01-05T00:00:00Z") + (24 * 7 - 1) * 86400000,
+      )
+        .toISOString()
+        .slice(0, 10),
+      blocks: [{ focusType: "Base", weeks: 8 }],
+      dailyBudget: override,
+    };
+    const { daily } = generatePlanFromConfig(cfg);
+    for (const row of daily) {
+      if (row.day === "Mon") continue;
+      if (row.is_rest) continue;
+      if (RACE_EXEMPT_SESSION_TYPES.has(row.session_type)) continue;
+      if (row.description.startsWith("RACE DAY")) continue;
+      // Race week (final week) is exempt from the contract.
+      if (row.week === 24) continue;
+      const min = totalMin(row);
+      if (row.day === "Sun") {
+        expect(min).toBeGreaterThanOrEqual(override.weekendMin);
+      } else {
+        expect(min).toBeGreaterThanOrEqual(override.weekdayMin);
+        expect(min).toBeLessThanOrEqual(override.weekdayMax);
+      }
+    }
+  });
+});
+
 describe("long-run placement — never on a Friday", () => {
   it("canonical plan has no Friday long run", () => {
     const { daily } = generatePlan();

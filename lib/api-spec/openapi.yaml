@@ -2582,7 +2582,7 @@ components:
 
     PlannerConfig:
       type: object
-      required: [id, name, isActive, startDate, marathonDate, blocks, startWeight, goalWeight, startingPaceSec]
+      required: [id, name, isActive, startDate, marathonDate, blocks, startWeight, goalWeight, startingPaceSec, dailyBudget]
       properties:
         id:
           type: integer
@@ -2624,6 +2624,28 @@ components:
           type: integer
           nullable: true
           description: Optional runner-prescribed starting easy pace (sec/mi). NULL falls back to the default 870 sec/mi (14:30/mi). Ramps ~30 sec/mi per 8 weeks toward the recipe floor; paces slower than 840 sec/mi (14:00/mi) trigger a Peloton walk-run prescription for the first ~2 entry-local weeks.
+        dailyBudget:
+          type: object
+          nullable: true
+          description: |
+            Task #338. Optional per-runner override of the daily
+            time-budget contract (Task #336). When non-null, fields set
+            here replace WEEKDAY_MIN_TOTAL_MIN / WEEKDAY_MAX_TOTAL_MIN /
+            WEEKEND_MIN_TOTAL_MIN in `enforceDailyTimeBudget`. NULL
+            fields fall back to the constants (45 / 60 / 60).
+          properties:
+            weekdayMin:
+              type: integer
+              nullable: true
+              minimum: 1
+            weekdayMax:
+              type: integer
+              nullable: true
+              minimum: 1
+            weekendMin:
+              type: integer
+              nullable: true
+              minimum: 1
         goalWeight:
           type: number
           nullable: true
@@ -2819,6 +2841,14 @@ components:
           type: integer
           nullable: true
           description: Optional runner-prescribed starting easy pace (sec/mi). NULL falls back to the default 870 sec/mi (14:30/mi).
+        dailyBudget:
+          type: object
+          nullable: true
+          description: Task #338. Optional per-runner override of the daily time-budget contract. NULL means use the defaults (weekday 45-60 min, weekend ≥60 min).
+          properties:
+            weekdayMin: { type: integer, nullable: true, minimum: 1 }
+            weekdayMax: { type: integer, nullable: true, minimum: 1 }
+            weekendMin: { type: integer, nullable: true, minimum: 1 }
         setActive:
           type: boolean
           nullable: true
@@ -2853,6 +2883,14 @@ components:
           type: integer
           nullable: true
           description: Optional runner-prescribed starting easy pace (sec/mi). NULL falls back to the default 870 sec/mi (14:30/mi).
+        dailyBudget:
+          type: object
+          nullable: true
+          description: Task #338. Optional per-runner override of the daily time-budget contract. NULL means use the defaults (weekday 45-60 min, weekend ≥60 min).
+          properties:
+            weekdayMin: { type: integer, nullable: true, minimum: 1 }
+            weekdayMax: { type: integer, nullable: true, minimum: 1 }
+            weekendMin: { type: integer, nullable: true, minimum: 1 }
 
     DuplicatePlannerConfigBody:
       type: object

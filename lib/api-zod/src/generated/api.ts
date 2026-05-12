@@ -2943,6 +2943,14 @@ export const CreatePlannerConfigBody = zod.object({
     .describe(
       "Optional runner-prescribed starting easy pace (sec\/mi). NULL falls back to the default 870 sec\/mi (14:30\/mi).",
     ),
+  dailyBudget: zod
+    .object({
+      weekdayMin: zod.number().min(1).nullish(),
+      weekdayMax: zod.number().min(1).nullish(),
+      weekendMin: zod.number().min(1).nullish(),
+    })
+    .nullish()
+    .describe("Task"),
   setActive: zod
     .boolean()
     .nullish()
@@ -3065,6 +3073,16 @@ export const GetPlannerConfigResponse = zod.object({
     .describe(
       "Optional runner-prescribed starting easy pace (sec\/mi). NULL falls back to the default 870 sec\/mi (14:30\/mi). Ramps ~30 sec\/mi per 8 weeks toward the recipe floor; paces slower than 840 sec\/mi (14:00\/mi) trigger a Peloton walk-run prescription for the first ~2 entry-local weeks.",
     ),
+  dailyBudget: zod
+    .object({
+      weekdayMin: zod.number().min(1).nullish(),
+      weekdayMax: zod.number().min(1).nullish(),
+      weekendMin: zod.number().min(1).nullish(),
+    })
+    .nullable()
+    .describe(
+      "Task #338. Optional per-runner override of the daily\ntime-budget contract (Task #336). When non-null, fields set\nhere replace WEEKDAY_MIN_TOTAL_MIN \/ WEEKDAY_MAX_TOTAL_MIN \/\nWEEKEND_MIN_TOTAL_MIN in `enforceDailyTimeBudget`. NULL\nfields fall back to the constants (45 \/ 60 \/ 60).\n",
+    ),
   goalWeight: zod
     .number()
     .nullable()
@@ -3182,6 +3200,14 @@ export const UpdatePlannerConfigBody = zod.object({
     .describe(
       "Optional runner-prescribed starting easy pace (sec\/mi). NULL falls back to the default 870 sec\/mi (14:30\/mi).",
     ),
+  dailyBudget: zod
+    .object({
+      weekdayMin: zod.number().min(1).nullish(),
+      weekdayMax: zod.number().min(1).nullish(),
+      weekendMin: zod.number().min(1).nullish(),
+    })
+    .nullish()
+    .describe("Task"),
 });
 
 export const UpdatePlannerConfigResponse = zod.object({
@@ -3293,6 +3319,16 @@ export const UpdatePlannerConfigResponse = zod.object({
     .nullable()
     .describe(
       "Optional runner-prescribed starting easy pace (sec\/mi). NULL falls back to the default 870 sec\/mi (14:30\/mi). Ramps ~30 sec\/mi per 8 weeks toward the recipe floor; paces slower than 840 sec\/mi (14:00\/mi) trigger a Peloton walk-run prescription for the first ~2 entry-local weeks.",
+    ),
+  dailyBudget: zod
+    .object({
+      weekdayMin: zod.number().min(1).nullish(),
+      weekdayMax: zod.number().min(1).nullish(),
+      weekendMin: zod.number().min(1).nullish(),
+    })
+    .nullable()
+    .describe(
+      "Task #338. Optional per-runner override of the daily\ntime-budget contract (Task #336). When non-null, fields set\nhere replace WEEKDAY_MIN_TOTAL_MIN \/ WEEKDAY_MAX_TOTAL_MIN \/\nWEEKEND_MIN_TOTAL_MIN in `enforceDailyTimeBudget`. NULL\nfields fall back to the constants (45 \/ 60 \/ 60).\n",
     ),
   goalWeight: zod
     .number()
@@ -3476,6 +3512,16 @@ export const ActivatePlannerConfigResponse = zod.object({
     .nullable()
     .describe(
       "Optional runner-prescribed starting easy pace (sec\/mi). NULL falls back to the default 870 sec\/mi (14:30\/mi). Ramps ~30 sec\/mi per 8 weeks toward the recipe floor; paces slower than 840 sec\/mi (14:00\/mi) trigger a Peloton walk-run prescription for the first ~2 entry-local weeks.",
+    ),
+  dailyBudget: zod
+    .object({
+      weekdayMin: zod.number().min(1).nullish(),
+      weekdayMax: zod.number().min(1).nullish(),
+      weekendMin: zod.number().min(1).nullish(),
+    })
+    .nullable()
+    .describe(
+      "Task #338. Optional per-runner override of the daily\ntime-budget contract (Task #336). When non-null, fields set\nhere replace WEEKDAY_MIN_TOTAL_MIN \/ WEEKDAY_MAX_TOTAL_MIN \/\nWEEKEND_MIN_TOTAL_MIN in `enforceDailyTimeBudget`. NULL\nfields fall back to the constants (45 \/ 60 \/ 60).\n",
     ),
   goalWeight: zod
     .number()
