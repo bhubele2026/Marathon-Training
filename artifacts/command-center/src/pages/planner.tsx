@@ -46,6 +46,10 @@ import {
   type StarterShortcut,
   type TemplateEntry,
   type WeekMileagePreview,
+  WEEKDAY_MIN_TOTAL_MIN,
+  WEEKDAY_MAX_TOTAL_MIN,
+  WEEKEND_MIN_TOTAL_MIN,
+  DAILY_STRENGTH_FLOOR_MIN,
 } from "@workspace/plan-generator";
 import { useQueryClient } from "@tanstack/react-query";
 import { HybridWeekPreview } from "@/components/hybrid-week-preview";
@@ -2683,7 +2687,7 @@ export default function Planner() {
               placeholder="45"
             />
             <p className="text-[11px] text-muted-foreground leading-snug">
-              Floor for Tue-Fri sessions. Blank = default 45 min.
+              Floor for Tue-Sat sessions. Blank = default 45 min.
             </p>
           </div>
           <div className="space-y-2">
@@ -2701,7 +2705,7 @@ export default function Planner() {
               placeholder="60"
             />
             <p className="text-[11px] text-muted-foreground leading-snug">
-              Cap for Tue-Fri sessions. Blank = default 60 min.
+              Cap for Tue-Sat sessions. Blank = default 75 min.
             </p>
           </div>
           <div className="space-y-2">
@@ -2722,6 +2726,65 @@ export default function Planner() {
               Floor for Sat/Sun sessions (no cap). Blank = default 60 min.
             </p>
           </div>
+          {/* Task #341. Live human-readable summary of the active daily
+              time-budget window. Reads from the same parsed override the
+              Save/Apply mutations send so the runner can sanity-check
+              "what will my generated week look like?" before committing.
+              Each row labels itself as (default) when the field is blank
+              or (custom) when overridden. */}
+          {(() => {
+            const parsedWmin = parseOptionalBudgetMin(weekdayMin);
+            const parsedWmax = parseOptionalBudgetMin(weekdayMax);
+            const parsedEmin = parseOptionalBudgetMin(weekendMin);
+            const wmin = parsedWmin ?? WEEKDAY_MIN_TOTAL_MIN;
+            const wmax = parsedWmax ?? WEEKDAY_MAX_TOTAL_MIN;
+            const emin = parsedEmin ?? WEEKEND_MIN_TOTAL_MIN;
+            const weekdayCustom = parsedWmin !== null || parsedWmax !== null;
+            const weekendCustom = parsedEmin !== null;
+            const weekdayInvalid = wmin > wmax;
+            return (
+              <div
+                className="md:col-span-3 rounded-md border border-border/60 bg-muted/30 p-3 space-y-1.5"
+                data-testid="planner-budget-preview"
+              >
+                <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
+                  Daily time-budget preview
+                </p>
+                <ul className="text-xs text-foreground/90 space-y-1">
+                  <li data-testid="planner-budget-preview-mon">
+                    <span className="font-mono">Mon</span> — full rest day (no
+                    sessions scheduled).
+                  </li>
+                  <li data-testid="planner-budget-preview-weekday">
+                    <span className="font-mono">Tue–Sat</span> sessions:{" "}
+                    {weekdayInvalid ? (
+                      <span className="text-destructive">
+                        invalid window ({wmin}–{wmax} min) — min must be ≤ max
+                      </span>
+                    ) : (
+                      <>
+                        {wmin}–{wmax} min{" "}
+                        <span className="text-muted-foreground">
+                          ({weekdayCustom ? "custom" : "default"})
+                        </span>
+                      </>
+                    )}
+                  </li>
+                  <li data-testid="planner-budget-preview-weekend">
+                    <span className="font-mono">Sun</span> long run: ≥ {emin}{" "}
+                    min, no upper cap{" "}
+                    <span className="text-muted-foreground">
+                      ({weekendCustom ? "custom" : "default"})
+                    </span>
+                  </li>
+                  <li data-testid="planner-budget-preview-strength">
+                    Strength floor: ≥ {DAILY_STRENGTH_FLOOR_MIN} min of Tonal
+                    on every Tue–Sun non-rest day.
+                  </li>
+                </ul>
+              </div>
+            );
+          })()}
           {!isEntriesMode && (
             <div className="md:col-span-3 flex items-center gap-2 pt-2 border-t">
               <input
