@@ -15,6 +15,7 @@ tags:
   - name: race-week
   - name: planner
   - name: preferences
+  - name: scheduled-races
 paths:
   /healthz:
     get:
@@ -917,6 +918,42 @@ paths:
                 items: { $ref: "#/components/schemas/RaceResult" }
 
   /race-results/{raceDate}:
+    put:
+      operationId: upsertRaceResult
+      tags: [race-week]
+      description: |
+        Task #345. Upsert a race result by its `race_date` primary key.
+        Creates the row if it doesn't exist, otherwise updates it. Used
+        by the /races and /today "Log result" CTAs to log a finish for
+        a scheduled supplemental race on any date (not just the active
+        campaign A-race). The persisted `race_kind` is captured from the
+        matching `scheduled_races` row when one exists, falling back to
+        the `plan_days` row on the same date so PR comparisons keep
+        working across past campaigns.
+      parameters:
+        - in: path
+          name: raceDate
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SetRaceResultBody" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RaceResult" }
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ValidationError"
     patch:
       operationId: updateRaceResult
       tags: [race-week]
@@ -961,6 +998,117 @@ paths:
         primary key. Used by the race history page to clean up stale
         entries (e.g. a test row, or a campaign the runner never actually
         ran).
+      parameters:
+        - in: path
+          name: raceDate
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: No Content }
+        "400":
+          description: Invalid raceDate
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /scheduled-races:
+    get:
+      operationId: listScheduledRaces
+      tags: [scheduled-races]
+      description: |
+        Task #345. List every scheduled supplemental race the runner has
+        added to their calendar, newest race date first. These
+        rows live independently of the active Phase Planner config so
+        they survive Phase Planner re-applies AND Full Reset, and they
+        do not affect the campaign's A-race / `marathonDate` math.
+        Logging a finish on race day still writes to `race_results`
+        keyed by the same date so PR comparisons (Task #318) and the
+        /races history listing both work without a second store.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ScheduledRace" }
+    post:
+      operationId: createScheduledRace
+      tags: [scheduled-races]
+      description: |
+        Task #345. Schedule a new supplemental race on the calendar.
+        Returns 409 if a row already exists for the given `raceDate`
+        (the primary key) — use PATCH to edit instead.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateScheduledRaceBody" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScheduledRace" }
+        "400":
+          description: Invalid body
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ValidationError"
+        "409":
+          description: A scheduled race already exists for this date
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /scheduled-races/{raceDate}:
+    patch:
+      operationId: updateScheduledRace
+      tags: [scheduled-races]
+      description: |
+        Task #345. Edit the kind, name, or notes of a scheduled race.
+        The `raceDate` primary key is immutable — to move the race to a
+        different date, delete and recreate.
+      parameters:
+        - in: path
+          name: raceDate
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateScheduledRaceBody" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScheduledRace" }
+        "400":
+          description: Invalid body
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ValidationError"
+        "404":
+          description: Scheduled race not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      operationId: deleteScheduledRace
+      tags: [scheduled-races]
+      description: |
+        Task #345. Remove a scheduled race from the calendar. Does NOT
+        delete any matching `race_results` row — those persist
+        independently so PR history is preserved across schedule
+        churn.
       parameters:
         - in: path
           name: raceDate
@@ -1486,6 +1634,19 @@ components:
             single-program campaigns. Ordered by `sourceEntryIndex`
             ascending.
           items: { $ref: "#/components/schemas/PlanWeekProgram" }
+        scheduledRaces:
+          type: array
+          nullable: true
+          description: |
+            Task #345. Every supplemental scheduled race that lands in
+            this week's [startDate, endDate] window, ordered by
+            `raceDate` ascending. Lets weekly summary cards render a
+            "5K · Sat" chip alongside the planned-load summary so
+            runners can see scheduled B-races on the calendar at a
+            glance. Independent of `marathonDate` / the active campaign
+            so the chip survives Phase Planner re-applies and Full
+            Reset. Null on freshly seeded weeks for back-compat.
+          items: { $ref: "#/components/schemas/ScheduledRace" }
         raceKind:
           type: string
           enum: [marathon, half, "10k", "5k"]
@@ -1680,6 +1841,16 @@ components:
             Task #33. Week number containing `nextMissedDate`, surfaced
             so the client can navigate to /plan/:week without a second
             lookup. Null whenever `nextMissedDate` is null.
+        nextScheduledRace:
+          allOf:
+            - $ref: "#/components/schemas/NextScheduledRace"
+          nullable: true
+          description: |
+            Task #345. Closest upcoming supplemental scheduled race
+            (raceDate >= today), or null when none are on the calendar.
+            Carries `daysUntil` (server-computed delta from today, 0 on
+            race day) so the /plan header can render a "Next race · 5K
+            · in N days" chip without a second round-trip.
         nextMissedPlanDayId:
           type: integer
           nullable: true
@@ -1725,6 +1896,18 @@ components:
             - $ref: "#/components/schemas/PlanDay"
           nullable: true
           description: Preview of the first scheduled (non-rest) plan day. Populated alongside daysUntilStart only when today is before that session; null once the campaign has started.
+        nextScheduledRace:
+          allOf:
+            - $ref: "#/components/schemas/NextScheduledRace"
+          nullable: true
+          description: |
+            Task #345. Closest upcoming supplemental scheduled race
+            (raceDate >= today), or null when none are on the
+            calendar. Carries `daysUntil` (server-computed, 0 on
+            race day) so /today can render a "Next race · 5K · in N
+            days" chip without a second round-trip. On the race day
+            itself the row is still surfaced so the UI can swap the
+            chip for a "Log result" CTA.
         raceKind:
           type: string
           enum: [marathon, half, "10k", "5k"]
@@ -2503,6 +2686,78 @@ components:
           description: |
             `currentSeconds - previousBestSeconds`. Negative when this
             finish beats the prior best (a PR); positive when slower.
+
+    ScheduledRace:
+      type: object
+      required: [raceDate, raceKind, recordedAt, updatedAt]
+      properties:
+        raceDate: { type: string }
+        raceKind:
+          type: string
+          enum: [marathon, half, "10k", "5k"]
+        name:
+          type: string
+          nullable: true
+          description: Optional human-readable name (e.g. "Brooklyn Mile 5K").
+        notes:
+          type: string
+          nullable: true
+        hasResult:
+          type: boolean
+          description: |
+            True when a `race_results` row already exists for this
+            scheduled race's date. Lets the /races UI render a "Log
+            result" CTA only on past, unlogged races.
+        recordedAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    NextScheduledRace:
+      type: object
+      required: [raceDate, raceKind, recordedAt, updatedAt, daysUntil]
+      description: |
+        Task #345. Embedded shape for the closest upcoming scheduled
+        race surfaced on /plan/overview and /plan/today. Same wire
+        shape as `ScheduledRace` plus a server-computed `daysUntil`
+        delta from the API server's UTC `today` (0 on race day) so
+        clients don't have to recompute it from `raceDate`.
+      properties:
+        raceDate: { type: string }
+        raceKind:
+          type: string
+          enum: [marathon, half, "10k", "5k"]
+        name: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        hasResult: { type: boolean }
+        recordedAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        daysUntil:
+          type: integer
+          description: |
+            Whole days from the server's UTC `today` to `raceDate`.
+            0 on the race day itself; never negative because the
+            picker only returns races with `raceDate >= today`.
+
+    CreateScheduledRaceBody:
+      type: object
+      required: [raceDate, raceKind]
+      properties:
+        raceDate:
+          type: string
+          description: ISO yyyy-mm-dd race date. Primary key.
+        raceKind:
+          type: string
+          enum: [marathon, half, "10k", "5k"]
+        name: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+
+    UpdateScheduledRaceBody:
+      type: object
+      properties:
+        raceKind:
+          type: string
+          enum: [marathon, half, "10k", "5k"]
+        name: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
 
     SetRaceResultBody:
       type: object

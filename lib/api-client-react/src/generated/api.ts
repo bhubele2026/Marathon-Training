@@ -21,6 +21,7 @@ import type {
   CreateMeasurementBody,
   CreatePlannerConfigBody,
   CreateRaceWeekChecklistItemBody,
+  CreateScheduledRaceBody,
   CreateWorkoutBody,
   DashboardSummary,
   DeletePlannerConfigResponse,
@@ -47,6 +48,7 @@ import type {
   RaceWeekStatus,
   ResetPlanResponse,
   ResetPlanWeekResponse,
+  ScheduledRace,
   SetRaceResultBody,
   SetRaceWeekChecklistItemBody,
   SuggestedRestingHr,
@@ -59,6 +61,7 @@ import type {
   UpdateMeasurementBody,
   UpdatePlanDayBody,
   UpdatePlannerConfigBody,
+  UpdateScheduledRaceBody,
   UpdateUserPreferencesBody,
   UpdateWorkoutBody,
   UserPreferences,
@@ -3493,6 +3496,98 @@ export function useListRaceResults<
 }
 
 /**
+ * Task #345. Upsert a race result by its `race_date` primary key.
+Creates the row if it doesn't exist, otherwise updates it. Used
+by the /races and /today "Log result" CTAs to log a finish for
+a scheduled supplemental race on any date (not just the active
+campaign A-race). The persisted `race_kind` is captured from the
+matching `scheduled_races` row when one exists, falling back to
+the `plan_days` row on the same date so PR comparisons keep
+working across past campaigns.
+
+ */
+export const getUpsertRaceResultUrl = (raceDate: string) => {
+  return `/api/race-results/${raceDate}`;
+};
+
+export const upsertRaceResult = async (
+  raceDate: string,
+  setRaceResultBody: SetRaceResultBody,
+  options?: RequestInit,
+): Promise<RaceResult> => {
+  return customFetch<RaceResult>(getUpsertRaceResultUrl(raceDate), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(setRaceResultBody),
+  });
+};
+
+export const getUpsertRaceResultMutationOptions = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertRaceResult>>,
+    TError,
+    { raceDate: string; data: BodyType<SetRaceResultBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof upsertRaceResult>>,
+  TError,
+  { raceDate: string; data: BodyType<SetRaceResultBody> },
+  TContext
+> => {
+  const mutationKey = ["upsertRaceResult"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof upsertRaceResult>>,
+    { raceDate: string; data: BodyType<SetRaceResultBody> }
+  > = (props) => {
+    const { raceDate, data } = props ?? {};
+
+    return upsertRaceResult(raceDate, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpsertRaceResultMutationResult = NonNullable<
+  Awaited<ReturnType<typeof upsertRaceResult>>
+>;
+export type UpsertRaceResultMutationBody = BodyType<SetRaceResultBody>;
+export type UpsertRaceResultMutationError = ErrorType<Error | ValidationError>;
+
+export const useUpsertRaceResult = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertRaceResult>>,
+    TError,
+    { raceDate: string; data: BodyType<SetRaceResultBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof upsertRaceResult>>,
+  TError,
+  { raceDate: string; data: BodyType<SetRaceResultBody> },
+  TContext
+> => {
+  return useMutation(getUpsertRaceResultMutationOptions(options));
+};
+
+/**
  * Task #266. Edit any persisted race result by its `race_date` primary
 key. Mirrors the body shape of `setRaceResult` so the same form can
 be reused for both the active campaign banner and the history page.
@@ -3662,6 +3757,347 @@ export const useDeleteRaceResult = <
   TContext
 > => {
   return useMutation(getDeleteRaceResultMutationOptions(options));
+};
+
+/**
+ * Task #345. List every scheduled supplemental race the runner has
+added to their calendar, newest race date first. These
+rows live independently of the active Phase Planner config so
+they survive Phase Planner re-applies AND Full Reset, and they
+do not affect the campaign's A-race / `marathonDate` math.
+Logging a finish on race day still writes to `race_results`
+keyed by the same date so PR comparisons (Task #318) and the
+/races history listing both work without a second store.
+
+ */
+export const getListScheduledRacesUrl = () => {
+  return `/api/scheduled-races`;
+};
+
+export const listScheduledRaces = async (
+  options?: RequestInit,
+): Promise<ScheduledRace[]> => {
+  return customFetch<ScheduledRace[]>(getListScheduledRacesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListScheduledRacesQueryKey = () => {
+  return [`/api/scheduled-races`] as const;
+};
+
+export const getListScheduledRacesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listScheduledRaces>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listScheduledRaces>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListScheduledRacesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listScheduledRaces>>
+  > = ({ signal }) => listScheduledRaces({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listScheduledRaces>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListScheduledRacesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listScheduledRaces>>
+>;
+export type ListScheduledRacesQueryError = ErrorType<unknown>;
+
+export function useListScheduledRaces<
+  TData = Awaited<ReturnType<typeof listScheduledRaces>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listScheduledRaces>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListScheduledRacesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Task #345. Schedule a new supplemental race on the calendar.
+Returns 409 if a row already exists for the given `raceDate`
+(the primary key) — use PATCH to edit instead.
+
+ */
+export const getCreateScheduledRaceUrl = () => {
+  return `/api/scheduled-races`;
+};
+
+export const createScheduledRace = async (
+  createScheduledRaceBody: CreateScheduledRaceBody,
+  options?: RequestInit,
+): Promise<ScheduledRace> => {
+  return customFetch<ScheduledRace>(getCreateScheduledRaceUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createScheduledRaceBody),
+  });
+};
+
+export const getCreateScheduledRaceMutationOptions = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createScheduledRace>>,
+    TError,
+    { data: BodyType<CreateScheduledRaceBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createScheduledRace>>,
+  TError,
+  { data: BodyType<CreateScheduledRaceBody> },
+  TContext
+> => {
+  const mutationKey = ["createScheduledRace"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createScheduledRace>>,
+    { data: BodyType<CreateScheduledRaceBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createScheduledRace(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateScheduledRaceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createScheduledRace>>
+>;
+export type CreateScheduledRaceMutationBody = BodyType<CreateScheduledRaceBody>;
+export type CreateScheduledRaceMutationError = ErrorType<
+  Error | ValidationError
+>;
+
+export const useCreateScheduledRace = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createScheduledRace>>,
+    TError,
+    { data: BodyType<CreateScheduledRaceBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createScheduledRace>>,
+  TError,
+  { data: BodyType<CreateScheduledRaceBody> },
+  TContext
+> => {
+  return useMutation(getCreateScheduledRaceMutationOptions(options));
+};
+
+/**
+ * Task #345. Edit the kind, name, or notes of a scheduled race.
+The `raceDate` primary key is immutable — to move the race to a
+different date, delete and recreate.
+
+ */
+export const getUpdateScheduledRaceUrl = (raceDate: string) => {
+  return `/api/scheduled-races/${raceDate}`;
+};
+
+export const updateScheduledRace = async (
+  raceDate: string,
+  updateScheduledRaceBody: UpdateScheduledRaceBody,
+  options?: RequestInit,
+): Promise<ScheduledRace> => {
+  return customFetch<ScheduledRace>(getUpdateScheduledRaceUrl(raceDate), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateScheduledRaceBody),
+  });
+};
+
+export const getUpdateScheduledRaceMutationOptions = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateScheduledRace>>,
+    TError,
+    { raceDate: string; data: BodyType<UpdateScheduledRaceBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateScheduledRace>>,
+  TError,
+  { raceDate: string; data: BodyType<UpdateScheduledRaceBody> },
+  TContext
+> => {
+  const mutationKey = ["updateScheduledRace"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateScheduledRace>>,
+    { raceDate: string; data: BodyType<UpdateScheduledRaceBody> }
+  > = (props) => {
+    const { raceDate, data } = props ?? {};
+
+    return updateScheduledRace(raceDate, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateScheduledRaceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateScheduledRace>>
+>;
+export type UpdateScheduledRaceMutationBody = BodyType<UpdateScheduledRaceBody>;
+export type UpdateScheduledRaceMutationError = ErrorType<
+  Error | ValidationError
+>;
+
+export const useUpdateScheduledRace = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateScheduledRace>>,
+    TError,
+    { raceDate: string; data: BodyType<UpdateScheduledRaceBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateScheduledRace>>,
+  TError,
+  { raceDate: string; data: BodyType<UpdateScheduledRaceBody> },
+  TContext
+> => {
+  return useMutation(getUpdateScheduledRaceMutationOptions(options));
+};
+
+/**
+ * Task #345. Remove a scheduled race from the calendar. Does NOT
+delete any matching `race_results` row — those persist
+independently so PR history is preserved across schedule
+churn.
+
+ */
+export const getDeleteScheduledRaceUrl = (raceDate: string) => {
+  return `/api/scheduled-races/${raceDate}`;
+};
+
+export const deleteScheduledRace = async (
+  raceDate: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteScheduledRaceUrl(raceDate), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteScheduledRaceMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteScheduledRace>>,
+    TError,
+    { raceDate: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteScheduledRace>>,
+  TError,
+  { raceDate: string },
+  TContext
+> => {
+  const mutationKey = ["deleteScheduledRace"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteScheduledRace>>,
+    { raceDate: string }
+  > = (props) => {
+    const { raceDate } = props ?? {};
+
+    return deleteScheduledRace(raceDate, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteScheduledRaceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteScheduledRace>>
+>;
+
+export type DeleteScheduledRaceMutationError = ErrorType<Error>;
+
+export const useDeleteScheduledRace = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteScheduledRace>>,
+    TError,
+    { raceDate: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteScheduledRace>>,
+  TError,
+  { raceDate: string },
+  TContext
+> => {
+  return useMutation(getDeleteScheduledRaceMutationOptions(options));
 };
 
 /**

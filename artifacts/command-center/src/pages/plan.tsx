@@ -32,6 +32,7 @@ import { EmptyPlanState } from "@/components/empty-plan-state";
 import { useFirstRunRedirect } from "@/hooks/use-first-run-redirect";
 import { useListPlannerConfigs } from "@workspace/api-client-react";
 import { formatDistance, formatDate } from "@/lib/format";
+import { format, parseISO } from "date-fns";
 import { useLocation } from "wouter";
 import {
   CalendarDays,
@@ -771,6 +772,32 @@ export default function Plan() {
                                 customizedDays={week.customizedDays!}
                               />
                             )}
+                            {week.scheduledRaces?.map((sr) => {
+                              const kindLabel =
+                                sr.raceKind === "5k"
+                                  ? "5K"
+                                  : sr.raceKind === "10k"
+                                    ? "10K"
+                                    : sr.raceKind === "half"
+                                      ? "HALF"
+                                      : "MARATHON";
+                              const dow = format(
+                                parseISO(sr.raceDate),
+                                "EEE",
+                              );
+                              return (
+                                <span
+                                  key={sr.raceDate}
+                                  className="flex items-center gap-1 bg-primary/15 text-primary px-1.5 py-0.5 rounded font-bold uppercase tracking-wider"
+                                  data-testid={`badge-scheduled-race-week-${week.week}-${sr.raceDate}`}
+                                  data-race-kind={sr.raceKind}
+                                  data-race-dow={dow}
+                                  title={`${kindLabel} · ${sr.raceDate}${sr.name ? ` · ${sr.name}` : ""}`}
+                                >
+                                  {kindLabel} · {dow}
+                                </span>
+                              );
+                            })}
                             {(week.missedSessions ?? 0) > 0 && (
                               <span
                                 className="flex items-center gap-1 bg-destructive/15 text-destructive px-1.5 py-0.5 rounded font-bold uppercase tracking-wider"

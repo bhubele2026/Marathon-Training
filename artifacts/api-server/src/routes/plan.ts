@@ -4,11 +4,14 @@ import {
   planDaysTable,
   planWeeksTable,
   plannerConfigsTable,
+  scheduledRacesTable,
+  raceResultsTable,
   workoutsTable,
   type PlanDayRow,
+  type ScheduledRaceRow,
   type WorkoutRow,
 } from "@workspace/db";
-import { eq, asc, sql, and, gte, lte } from "drizzle-orm";
+import { eq, asc, sql, and, gte, lte, inArray } from "drizzle-orm";
 import {
   UpdatePlanDayBody,
   SwapPlanDayBody,
@@ -27,6 +30,7 @@ import {
 import {
   toPlanDay,
   toPlanWeek,
+  toScheduledRace,
   toWorkout,
   type PlanWeekProgramSummary,
 } from "../lib/transforms";
@@ -196,6 +200,7 @@ router.get("/plan/overview", async (_req, res) => {
   const nextMissed = nextMissedRows.rows[0];
 
   const activeConfigName = await readActiveConfigName();
+  const nextScheduledRace = await fetchNextScheduledRace(today);
 
   // Task #329: derive plan-window dates from the most-recently-applied
   // planner config so the /plan header reflects whatever the runner
@@ -241,6 +246,12 @@ router.get("/plan/overview", async (_req, res) => {
     nextMissedDate: nextMissed?.date ?? null,
     nextMissedWeek: nextMissed?.week ?? null,
     nextMissedPlanDayId: nextMissed?.id ?? null,
+    nextScheduledRace: nextScheduledRace
+      ? {
+          ...toScheduledRace(nextScheduledRace.row, nextScheduledRace.hasResult),
+          daysUntil: nextScheduledRace.daysUntil,
+        }
+      : null,
     activeConfigName,
   });
 });
@@ -403,6 +414,7 @@ router.get("/plan/weeks", async (_req, res) => {
     });
     programsByWeek.set(r.week, list);
   }
+  const scheduledRacesByWeek = await fetchScheduledRacesByWeek(weeks);
   res.json(
     weeks.map((w) => {
       const a = byWeek.get(w.week);
@@ -416,6 +428,7 @@ router.get("/plan/weeks", async (_req, res) => {
         dominantCardioEquipment: dominantByWeek.get(w.week) ?? null,
         wedSteady: wedSteadyByWeek.get(w.week) ?? null,
         programs: programsByWeek.get(w.week) ?? null,
+        scheduledRaces: scheduledRacesByWeek.get(w.week) ?? null,
       });
     }),
   );
@@ -579,6 +592,14 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
     : days.some((d) => d.day === "Wed")
       ? false
       : null;
+  const scheduledRacesByWeek = await fetchScheduledRacesByWeek([
+    {
+      week: weekRow.week,
+      startDate: weekRow.startDate,
+      endDate: weekRow.endDate,
+    },
+  ]);
+  const scheduledRacesForWeek = scheduledRacesByWeek.get(weekRow.week) ?? null;
   res.json({
     ...toPlanWeek(weekRow, {
       actualMiles: actuals.rows[0]?.actual_miles ?? 0,
@@ -589,6 +610,7 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
       wedSteady,
       programs,
       raceKind,
+      scheduledRaces: scheduledRacesForWeek,
     }),
     days: daysWithSuggestions,
   });
@@ -998,6 +1020,81 @@ function daysBetweenISO(from: string, to: string): number {
 // window. Rest days at the very start of week 1 are skipped on purpose so
 // the countdown reflects the first day the user actually has to train, not
 // the technical start of week 1 (which may be a Mon rest day).
+// Task #345. Fetch the closest upcoming supplemental scheduled race
+// (raceDate >= today). Used by both /plan/overview and /plan/today to
+// surface a "Next race · 5K · in N days" chip without forcing the
+// client to round-trip to /scheduled-races. Returns the raw row plus
+// the route-layer `hasResult` flag so the caller can serialize via
+// `toScheduledRace`. Returns null when nothing is scheduled in the
+// future.
+async function fetchNextScheduledRace(
+  today: string,
+): Promise<{ row: ScheduledRaceRow; hasResult: boolean; daysUntil: number } | null> {
+  const rows = await db
+    .select()
+    .from(scheduledRacesTable)
+    .where(gte(scheduledRacesTable.raceDate, today))
+    .orderBy(asc(scheduledRacesTable.raceDate))
+    .limit(1);
+  const row = rows[0];
+  if (!row) return null;
+  const result = await db
+    .select({ raceDate: raceResultsTable.raceDate })
+    .from(raceResultsTable)
+    .where(eq(raceResultsTable.raceDate, row.raceDate))
+    .limit(1);
+  // Compute daysUntil server-side from the same UTC midnight that
+  // /plan/today uses so the chip text doesn't drift across timezones.
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const todayMs = Date.parse(`${today}T00:00:00.000Z`);
+  const raceMs = Date.parse(`${row.raceDate}T00:00:00.000Z`);
+  const daysUntil = Math.max(0, Math.round((raceMs - todayMs) / msPerDay));
+  return { row, hasResult: result.length > 0, daysUntil };
+}
+
+// Task #345. Fetch every scheduled race that lands inside any of the
+// supplied weeks' [startDate, endDate] windows, then group by week so
+// the route handler can pass `programs[]`-style per-week arrays
+// straight to `toPlanWeek`. Single SQL fetch keyed on the global
+// min/max of the supplied range so a 52-week list scan only takes one
+// round-trip; the per-week assignment is done in JS afterwards.
+async function fetchScheduledRacesByWeek(
+  weeks: ReadonlyArray<{ week: number; startDate: string; endDate: string }>,
+): Promise<Map<number, Array<ReturnType<typeof toScheduledRace>>>> {
+  const out = new Map<number, Array<ReturnType<typeof toScheduledRace>>>();
+  if (weeks.length === 0) return out;
+  let minStart = weeks[0]!.startDate;
+  let maxEnd = weeks[0]!.endDate;
+  for (const w of weeks) {
+    if (w.startDate < minStart) minStart = w.startDate;
+    if (w.endDate > maxEnd) maxEnd = w.endDate;
+  }
+  const rows = await db
+    .select()
+    .from(scheduledRacesTable)
+    .where(
+      and(
+        gte(scheduledRacesTable.raceDate, minStart),
+        lte(scheduledRacesTable.raceDate, maxEnd),
+      ),
+    )
+    .orderBy(asc(scheduledRacesTable.raceDate));
+  if (rows.length === 0) return out;
+  const dates = rows.map((r) => r.raceDate);
+  const resultRows = await db
+    .select({ raceDate: raceResultsTable.raceDate })
+    .from(raceResultsTable)
+    .where(inArray(raceResultsTable.raceDate, dates));
+  const resultSet = new Set(resultRows.map((r) => r.raceDate));
+  for (const w of weeks) {
+    const matched = rows
+      .filter((r) => r.raceDate >= w.startDate && r.raceDate <= w.endDate)
+      .map((r) => toScheduledRace(r, resultSet.has(r.raceDate)));
+    if (matched.length > 0) out.set(w.week, matched);
+  }
+  return out;
+}
+
 async function fetchFirstSessionDay(): Promise<PlanDayRow | null> {
   const rows = await db
     .select()
@@ -1098,6 +1195,8 @@ router.get("/plan/today", async (_req, res) => {
       personalizedLongRunPace: longRunByDayId.get(r.id) ?? null,
     });
 
+  const nextScheduledRace = await fetchNextScheduledRace(today);
+
   res.json({
     date: today,
     hasPlan: planRows.length > 0,
@@ -1113,6 +1212,12 @@ router.get("/plan/today", async (_req, res) => {
     daysUntilStart,
     firstSession:
       firstSessionRow && showFirstSession ? todayPlanDay(firstSessionRow) : null,
+    nextScheduledRace: nextScheduledRace
+      ? {
+          ...toScheduledRace(nextScheduledRace.row, nextScheduledRace.hasResult),
+          daysUntil: nextScheduledRace.daysUntil,
+        }
+      : null,
     raceKind,
   });
 });

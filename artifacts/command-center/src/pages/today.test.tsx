@@ -24,6 +24,20 @@ const { raceWeekRef } = vi.hoisted(() => ({
   },
 }));
 
+vi.mock("@tanstack/react-query", async () => {
+  const actual = await vi.importActual<typeof import("@tanstack/react-query")>(
+    "@tanstack/react-query",
+  );
+  return {
+    ...actual,
+    // Task #345: Today now invalidates a handful of query keys after a
+    // race-result upsert. The page mounts the hook unconditionally, so
+    // stub it with a noop client to avoid requiring a QueryClientProvider
+    // wrapper in every existing fixture.
+    useQueryClient: () => ({ invalidateQueries: () => undefined }),
+  };
+});
+
 vi.mock("@workspace/api-client-react", () => ({
   useGetTodayPlan: vi.fn(),
   // Task #307: Today gates EmptyPlanState on the campaign-level
@@ -52,6 +66,14 @@ vi.mock("@workspace/api-client-react", () => ({
   }),
   useGetRaceWeek: () => ({ data: raceWeekRef.current, isLoading: false }),
   getGetRaceWeekQueryKey: () => ["/race-week"],
+  // Task #345: /today uses the upsert hook to log scheduled-race
+  // results inline; stub it as a no-op so non-race-day fixtures
+  // don't have to wire React Query state.
+  useUpsertRaceResult: () => ({ mutate: vi.fn(), isPending: false }),
+  getListRaceResultsQueryKey: () => ["/race-results"],
+  getListScheduledRacesQueryKey: () => ["/scheduled-races"],
+  getGetTodayPlanQueryKey: () => ["/plan/today"],
+  getGetPlanOverviewQueryKey: () => ["/plan/overview"],
 }));
 
 vi.mock("@/hooks/use-mission-actions", () => ({

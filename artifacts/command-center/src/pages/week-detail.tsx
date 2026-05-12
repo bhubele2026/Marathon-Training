@@ -34,6 +34,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
 import { formatDistance, formatLoad, formatDate } from "@/lib/format";
+import { format, parseISO } from "date-fns";
 import {
   ChevronLeft,
   ChevronRight,
@@ -620,6 +621,39 @@ export default function WeekDetail() {
         </Button>
       </div>
 
+      {week.scheduledRaces && week.scheduledRaces.length > 0 && (
+        <div
+          className="flex flex-wrap gap-2"
+          data-testid="week-scheduled-races"
+        >
+          {week.scheduledRaces.map((sr) => {
+            const kindLabel =
+              sr.raceKind === "5k"
+                ? "5K"
+                : sr.raceKind === "10k"
+                  ? "10K"
+                  : sr.raceKind === "half"
+                    ? "HALF"
+                    : "MARATHON";
+            const dow = format(parseISO(sr.raceDate), "EEE");
+            return (
+              <span
+                key={sr.raceDate}
+                className="inline-flex items-center gap-1 text-[11px] bg-primary/15 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider"
+                data-testid={`week-scheduled-race-${sr.raceDate}`}
+                data-race-kind={sr.raceKind}
+                data-race-dow={dow}
+                title={`${kindLabel} · ${formatDate(sr.raceDate)}${sr.name ? ` · ${sr.name}` : ""}`}
+              >
+                <Trophy className="h-3 w-3" />
+                {kindLabel} · {dow}
+                {sr.name ? ` · ${sr.name}` : ""}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
       <div className="space-y-4">
         {week.days.map((day) => {
           // Concurrent programs (Tasks #135 + #143): each program's
@@ -647,6 +681,26 @@ export default function WeekDetail() {
               data-testid={`badge-program-${day.date}-${day.sourceEntryIndex}`}
             >
               {day.sourceEntryLabel}
+            </span>
+          ) : null;
+          // Task #345: per-day Trophy chip whenever a scheduled
+          // supplemental race lands on this day. Renders alongside
+          // the existing program / customized badges so the runner
+          // can spot race-day cards at a glance even when the week
+          // header chip strip has scrolled out of view.
+          const scheduledRaceForDay = (week.scheduledRaces ?? []).find(
+            (sr) => sr.raceDate === day.date,
+          );
+          const scheduledRaceBadge = scheduledRaceForDay ? (
+            <span
+              className="inline-flex items-center gap-1 text-[10px] bg-primary/15 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider"
+              data-testid={`badge-scheduled-race-${day.date}`}
+              data-race-kind={scheduledRaceForDay.raceKind}
+              title={scheduledRaceForDay.name ?? undefined}
+            >
+              <Trophy className="h-3 w-3" />
+              {scheduledRaceForDay.raceKind.toUpperCase()}
+              {scheduledRaceForDay.name ? ` · ${scheduledRaceForDay.name}` : ""}
             </span>
           ) : null;
           // Plan-edit actions are rendered on every day card (rest or not) so
@@ -723,6 +777,7 @@ export default function WeekDetail() {
                           program-name badge is shown here when multiple
                           concurrent programs share the same date. */}
                       {programBadge}
+                      {scheduledRaceBadge}
                       <CustomizedBadge day={day} />
                     </div>
                     <div className="text-sm text-muted-foreground font-medium uppercase tracking-wider flex items-center gap-2">
@@ -871,6 +926,7 @@ export default function WeekDetail() {
                           Task #133 moved them into the right-column
                           disclosure to keep the rail at title + status. */}
                       {programBadge}
+                      {scheduledRaceBadge}
                       <CustomizedBadge day={day} />
                       {/* Task #199 originally added a generic "Race Day"
                           pill here keyed off sessionType === "Race".

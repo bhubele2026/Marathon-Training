@@ -4,6 +4,7 @@ import {
   planDaysTable,
   raceWeekChecklistTable,
   raceResultsTable,
+  scheduledRacesTable,
 } from "@workspace/db";
 import { eq, asc, desc, ne, and, inArray } from "drizzle-orm";
 import {
@@ -103,6 +104,29 @@ async function detectRaceKindForDate(raceDate: string): Promise<RaceDayKind | nu
   )[0];
   if (!planRow) return null;
   return detectRaceKind(planRow.distanceMi, planRow.description, planRow.sessionType);
+}
+
+// Task #345. Resolve the captured `race_kind` for an arbitrary
+// `raceDate` upsert. Prefers an explicit scheduled_races row (set by
+// the runner when they put the supplemental race on the calendar),
+// then falls back to the plan_days race-day classifier so logging the
+// active campaign A-race still works without a corresponding
+// scheduled_races row.
+async function resolveRaceKindForUpsert(raceDate: string): Promise<RaceDayKind | null> {
+  const sched = (
+    await db
+      .select({ raceKind: scheduledRacesTable.raceKind })
+      .from(scheduledRacesTable)
+      .where(eq(scheduledRacesTable.raceDate, raceDate))
+      .limit(1)
+  )[0];
+  if (sched && sched.raceKind) {
+    const k = sched.raceKind;
+    if (k === "marathon" || k === "half" || k === "10k" || k === "5k") {
+      return k;
+    }
+  }
+  return detectRaceKindForDate(raceDate);
 }
 
 // Task #265. Compute the previous-best comparison for `current`. We
@@ -318,6 +342,59 @@ router.get("/race-results", async (_req, res) => {
   res.json(
     rows.map((r) => toRaceResult(r, { raceKind: kindByDate.get(r.raceDate) ?? null })),
   );
+});
+
+// Task #345. Upsert a race result by its primary key so the /races
+// and /today "Log result" CTAs can write a finish for any scheduled
+// supplemental race date (not just the active campaign A-race that
+// PUT /race-week/result targets). Captures `raceKind` from the
+// matching scheduled_races row when one exists, falling back to the
+// plan_days classifier.
+router.put("/race-results/:raceDate", async (req, res): Promise<void> => {
+  const raceDate = req.params.raceDate;
+  if (!raceDate || !RACE_DATE_RE.test(raceDate)) {
+    res.status(400).json({ error: "invalid raceDate" });
+    return;
+  }
+  const parsed = SetRaceResultBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const isPositiveIntOrNullish = (v: number | null | undefined) =>
+    v == null || (Number.isInteger(v) && v >= 1);
+  if (
+    !isPositiveIntOrNullish(parsed.data.placementOverall) ||
+    !isPositiveIntOrNullish(parsed.data.placementTotal)
+  ) {
+    res.status(400).json({
+      error: "placementOverall and placementTotal must be positive integers",
+    });
+    return;
+  }
+  const now = new Date();
+  const detectedKind = await resolveRaceKindForUpsert(raceDate);
+  const values = {
+    raceDate,
+    finishTime: parsed.data.finishTime ?? null,
+    placementOverall: parsed.data.placementOverall ?? null,
+    placementTotal: parsed.data.placementTotal ?? null,
+    feltRating: parsed.data.feltRating ?? null,
+    notes: parsed.data.notes ?? null,
+    raceKind: detectedKind,
+    updatedAt: now,
+  };
+  const upserted = await db
+    .insert(raceResultsTable)
+    .values({ ...values, recordedAt: now })
+    .onConflictDoUpdate({
+      target: raceResultsTable.raceDate,
+      set: values,
+    })
+    .returning();
+  const row = upserted[0]!;
+  const extras = await computeRaceResultExtras(row);
+  res.json(toRaceResult(row, extras));
 });
 
 // Task #266. Edit a stored race result by its primary key. Reuses

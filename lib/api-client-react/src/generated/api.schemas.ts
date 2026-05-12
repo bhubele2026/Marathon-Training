@@ -294,6 +294,31 @@ export interface PlanWeekProgram {
   missedSessions: number;
 }
 
+export type ScheduledRaceRaceKind =
+  (typeof ScheduledRaceRaceKind)[keyof typeof ScheduledRaceRaceKind];
+
+export const ScheduledRaceRaceKind = {
+  marathon: "marathon",
+  half: "half",
+  "10k": "10k",
+  "5k": "5k",
+} as const;
+
+export interface ScheduledRace {
+  raceDate: string;
+  raceKind: ScheduledRaceRaceKind;
+  /** Optional human-readable name (e.g. "Brooklyn Mile 5K"). */
+  name?: string | null;
+  notes?: string | null;
+  /** True when a `race_results` row already exists for this
+scheduled race's date. Lets the /races UI render a "Log
+result" CTA only on past, unlogged races.
+ */
+  hasResult?: boolean;
+  recordedAt: string;
+  updatedAt: string;
+}
+
 export interface PlanWeek {
   week: number;
   phase: string;
@@ -353,6 +378,16 @@ single-program campaigns. Ordered by `sourceEntryIndex`
 ascending.
  */
   programs?: PlanWeekProgram[] | null;
+  /** Task #345. Every supplemental scheduled race that lands in
+this week's [startDate, endDate] window, ordered by
+`raceDate` ascending. Lets weekly summary cards render a
+"5K · Sat" chip alongside the planned-load summary so
+runners can see scheduled B-races on the calendar at a
+glance. Independent of `marathonDate` / the active campaign
+so the chip survives Phase Planner re-applies and Full
+Reset. Null on freshly seeded weeks for back-compat.
+ */
+  scheduledRaces?: ScheduledRace[] | null;
   /** Task #242. Kind of race the campaign is anchored on, mirrored
 on per-week responses so the /plan/:week eyebrow can switch
 to "5K Campaign" / "10K Campaign" / "Half Marathon Campaign"
@@ -430,6 +465,39 @@ export const PlanOverviewRaceKind = {
   "10k": "10k",
   "5k": "5k",
 } as const;
+
+export type NextScheduledRaceRaceKind =
+  (typeof NextScheduledRaceRaceKind)[keyof typeof NextScheduledRaceRaceKind];
+
+export const NextScheduledRaceRaceKind = {
+  marathon: "marathon",
+  half: "half",
+  "10k": "10k",
+  "5k": "5k",
+} as const;
+
+/**
+ * Task #345. Embedded shape for the closest upcoming scheduled
+race surfaced on /plan/overview and /plan/today. Same wire
+shape as `ScheduledRace` plus a server-computed `daysUntil`
+delta from the API server's UTC `today` (0 on race day) so
+clients don't have to recompute it from `raceDate`.
+
+ */
+export interface NextScheduledRace {
+  raceDate: string;
+  raceKind: NextScheduledRaceRaceKind;
+  name?: string | null;
+  notes?: string | null;
+  hasResult?: boolean;
+  recordedAt: string;
+  updatedAt: string;
+  /** Whole days from the server's UTC `today` to `raceDate`.
+0 on the race day itself; never negative because the
+picker only returns races with `raceDate >= today`.
+ */
+  daysUntil: number;
+}
 
 export interface PlanOverview {
   /** Task #307. False when no Phase Planner config has ever been
@@ -522,6 +590,13 @@ so the client can navigate to /plan/:week without a second
 lookup. Null whenever `nextMissedDate` is null.
  */
   nextMissedWeek?: number | null;
+  /** Task #345. Closest upcoming supplemental scheduled race
+(raceDate >= today), or null when none are on the calendar.
+Carries `daysUntil` (server-computed delta from today, 0 on
+race day) so the /plan header can render a "Next race · 5K
+· in N days" chip without a second round-trip.
+ */
+  nextScheduledRace?: NextScheduledRace | null;
   /** Task #33. plan_day.id of the earliest missed session.
 Surfaced so the client can highlight the EXACT card after
 navigation, even when concurrent overlapping programs share
@@ -660,6 +735,15 @@ export interface TodayPlan {
   daysUntilStart?: number | null;
   /** Preview of the first scheduled (non-rest) plan day. Populated alongside daysUntilStart only when today is before that session; null once the campaign has started. */
   firstSession?: PlanDay | null;
+  /** Task #345. Closest upcoming supplemental scheduled race
+(raceDate >= today), or null when none are on the
+calendar. Carries `daysUntil` (server-computed, 0 on
+race day) so /today can render a "Next race · 5K · in N
+days" chip without a second round-trip. On the race day
+itself the row is still surfaced so the UI can swap the
+chip for a "Log result" CTA.
+ */
+  nextScheduledRace?: NextScheduledRace | null;
   /** Task #306. Kind of race the campaign is anchored on, mirrored
 on /plan/today so the Today page eyebrow can switch to the
 per-kind framing ("5K Campaign" / "10K Campaign" / "Half
@@ -1167,6 +1251,40 @@ the UI can hide the nudge without recomputing client-side.
    * @minimum 0
    */
   uncheckedCount: number;
+}
+
+export type CreateScheduledRaceBodyRaceKind =
+  (typeof CreateScheduledRaceBodyRaceKind)[keyof typeof CreateScheduledRaceBodyRaceKind];
+
+export const CreateScheduledRaceBodyRaceKind = {
+  marathon: "marathon",
+  half: "half",
+  "10k": "10k",
+  "5k": "5k",
+} as const;
+
+export interface CreateScheduledRaceBody {
+  /** ISO yyyy-mm-dd race date. Primary key. */
+  raceDate: string;
+  raceKind: CreateScheduledRaceBodyRaceKind;
+  name?: string | null;
+  notes?: string | null;
+}
+
+export type UpdateScheduledRaceBodyRaceKind =
+  (typeof UpdateScheduledRaceBodyRaceKind)[keyof typeof UpdateScheduledRaceBodyRaceKind];
+
+export const UpdateScheduledRaceBodyRaceKind = {
+  marathon: "marathon",
+  half: "half",
+  "10k": "10k",
+  "5k": "5k",
+} as const;
+
+export interface UpdateScheduledRaceBody {
+  raceKind?: UpdateScheduledRaceBodyRaceKind;
+  name?: string | null;
+  notes?: string | null;
 }
 
 export interface SetRaceResultBody {

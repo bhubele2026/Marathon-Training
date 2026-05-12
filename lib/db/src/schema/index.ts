@@ -4,6 +4,7 @@ export * from "./workouts";
 export * from "./measurements";
 export * from "./raceWeekChecklist";
 export * from "./raceResults";
+export * from "./scheduledRaces";
 export * from "./resetUndoSnapshots";
 export * from "./plannerConfigs";
 export * from "./userPreferences";

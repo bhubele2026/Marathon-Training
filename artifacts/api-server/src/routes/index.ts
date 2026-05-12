@@ -7,6 +7,7 @@ import dashboardRouter from "./dashboard";
 import raceWeekRouter from "./race-week";
 import plannerRouter from "./planner";
 import preferencesRouter from "./preferences";
+import scheduledRacesRouter from "./scheduled-races";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(dashboardRouter);
 router.use(raceWeekRouter);
 router.use(plannerRouter);
 router.use(preferencesRouter);
+router.use(scheduledRacesRouter);
 
 export default router;
