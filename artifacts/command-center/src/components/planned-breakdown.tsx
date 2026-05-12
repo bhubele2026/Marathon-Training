@@ -32,6 +32,7 @@
 
 import { formatDistance, formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { TimeBudgetBar } from "@/components/time-budget-bar";
 
 export interface PlannedBreakdownProps {
   // The generated OpenAPI types model nullable optional fields as
@@ -45,6 +46,13 @@ export interface PlannedBreakdownProps {
   // inside the RUN tile (e.g. "32 min · 2.00 mi") so the breakdown is
   // self-contained rather than depending on a sibling DISTANCE tile.
   runDistanceMi?: number | null | undefined;
+  // Task #337: when set, render a TimeBudgetBar under the breakdown
+  // tiles that visualizes the per-day time-budget contract (Tue–Fri
+  // capped at 60 min, Sat/Sun ≥ 60 open-ended). `actualTotalMin` is the
+  // sum of logged-actual minutes for this plan_day; when present it
+  // overlays the planned bar so over-budget days are visible.
+  date?: string;
+  actualTotalMin?: number | null | undefined;
   variant?: "compact" | "prominent";
   testIdPrefix?: string;
 }
@@ -64,11 +72,22 @@ export function PlannedBreakdown({
   cardioMin,
   runMin,
   runDistanceMi,
+  date,
+  actualTotalMin,
   variant = "compact",
   testIdPrefix,
 }: PlannedBreakdownProps) {
   const total = totalMin ?? 0;
   if (total <= 0) return null;
+  const budgetBar = date ? (
+    <TimeBudgetBar
+      date={date}
+      plannedMin={total}
+      actualMin={actualTotalMin}
+      variant={variant}
+      testIdPrefix={testIdPrefix}
+    />
+  ) : null;
 
   // Always include TOTAL; only include the per-bucket cells when they
   // actually have minutes. Empty buckets are dropped, never shown as "—".
@@ -99,6 +118,7 @@ export function PlannedBreakdown({
     // anchored inside the disclosure gutter; TOTAL keeps the primary
     // accent so it visually echoes the headline number above.
     return (
+      <div className="flex flex-col gap-3">
       <div
         className="flex flex-wrap gap-x-7 gap-y-3"
         data-testid={tid("breakdown")}
@@ -130,6 +150,8 @@ export function PlannedBreakdown({
           </div>
         ))}
       </div>
+      {budgetBar}
+      </div>
     );
   }
 
@@ -137,6 +159,7 @@ export function PlannedBreakdown({
   // and the dashboard mini brief. Tighter gap-x-5 keeps the row dense
   // inside the disclosure gutter.
   return (
+    <div className="flex flex-col gap-2 w-full">
     <div
       className="flex flex-wrap gap-x-5 gap-y-2"
       data-testid={tid("breakdown")}
@@ -167,6 +190,8 @@ export function PlannedBreakdown({
           </span>
         </div>
       ))}
+    </div>
+    {budgetBar}
     </div>
   );
 }

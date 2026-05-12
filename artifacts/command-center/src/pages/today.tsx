@@ -265,6 +265,7 @@ export default function Today() {
                       cardioMin={today.firstSession.cardioMin}
                       runMin={today.firstSession.runMin}
                       runDistanceMi={today.firstSession.distanceMi}
+                      date={today.firstSession.date}
                       variant="prominent"
                       testIdPrefix="first-session"
                     />
@@ -666,6 +667,12 @@ export default function Today() {
                             cardioMin={plan.cardioMin}
                             runMin={plan.runMin}
                             runDistanceMi={plan.distanceMi}
+                            date={plan.date}
+                            actualTotalMin={cardSessions.reduce(
+                              (sum, s) =>
+                                sum + (s.totalMin ?? s.durationMin ?? 0),
+                              0,
+                            )}
                             variant="prominent"
                             testIdPrefix={`today-plan-${plan.sourceEntryIndex}`}
                           />

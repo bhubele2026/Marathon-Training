@@ -1169,6 +1169,12 @@ export default function WeekDetail() {
                               cardioMin={day.cardioMin}
                               runMin={day.runMin}
                               runDistanceMi={day.distanceMi}
+                              date={day.date}
+                              actualTotalMin={sessions.reduce(
+                                (sum, s) =>
+                                  sum + (s.totalMin ?? s.durationMin ?? 0),
+                                0,
+                              )}
                               variant="compact"
                               testIdPrefix={`day-${day.date}`}
                             />
