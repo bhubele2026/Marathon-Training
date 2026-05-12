@@ -217,6 +217,49 @@ async function ensureSomeActive(): Promise<void> {
 // editor's source of truth is the entries array. In LEGACY mode (entries
 // null/empty) the body's `blocks` are used as-is and the auto-pinned
 // 16-week Marathon-Specific tail is appended at generation time.
+// Task #340. Daily-budget contract bounds. Per-field upper bound is
+// 180 min (3 h) — anything beyond that produces nonsense weeks because
+// the generator can't pad a single non-rest day past a sane training
+// session. Cross-field rule weekdayMin <= weekdayMax keeps the floor
+// from sitting above the cap (which would force the enforcer into an
+// infinite pad/trim loop). Both checks are zod-level on the OpenAPI
+// schema (per-field min/max) AND route-level here (cross-field).
+const DAILY_BUDGET_MAX_MIN = 180;
+
+function validateDailyBudget(
+  budget:
+    | {
+        weekdayMin?: number | null;
+        weekdayMax?: number | null;
+        weekendMin?: number | null;
+      }
+    | null
+    | undefined,
+): Record<string, string[]> | null {
+  if (!budget) return null;
+  const fieldErrors: Record<string, string[]> = {};
+  const wmin = budget.weekdayMin ?? null;
+  const wmax = budget.weekdayMax ?? null;
+  const emin = budget.weekendMin ?? null;
+  for (const [key, val] of [
+    ["weekdayMin", wmin],
+    ["weekdayMax", wmax],
+    ["weekendMin", emin],
+  ] as const) {
+    if (val !== null && val > DAILY_BUDGET_MAX_MIN) {
+      (fieldErrors[`dailyBudget.${key}`] ??= []).push(
+        `must be at most ${DAILY_BUDGET_MAX_MIN} min (got ${val})`,
+      );
+    }
+  }
+  if (wmin !== null && wmax !== null && wmin > wmax) {
+    (fieldErrors[`dailyBudget.weekdayMin`] ??= []).push(
+      `weekday floor (${wmin}) must be ≤ weekday cap (${wmax})`,
+    );
+  }
+  return Object.keys(fieldErrors).length === 0 ? null : fieldErrors;
+}
+
 function validateBody(body: {
   startDate: string;
   marathonDate: string;
@@ -235,9 +278,24 @@ function validateBody(body: {
         startDate?: string | null;
       }>
     | null;
+  dailyBudget?: {
+    weekdayMin?: number | null;
+    weekdayMax?: number | null;
+    weekendMin?: number | null;
+  } | null;
 }):
   | { ok: true; blocks: PhaseBlock[]; entries: TemplateEntry[] | null }
   | { ok: false; status: 400; error: unknown } {
+  // Task #340. Cross-field daily-budget validation — zod handles the
+  // per-field min/max, this catches floor-above-cap.
+  const budgetErrors = validateDailyBudget(body.dailyBudget);
+  if (budgetErrors) {
+    return {
+      ok: false,
+      status: 400,
+      error: { formErrors: [], fieldErrors: budgetErrors },
+    };
+  }
   // entries-mode is determined by entries being PRESENT (non-null/undefined),
   // not by length. An explicit empty array is rejected here so the editor
   // can't silently fall back to legacy blocks-mode after the runner cleared

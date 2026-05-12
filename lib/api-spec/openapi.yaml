@@ -2633,20 +2633,26 @@ components:
             time-budget contract (Task #336). When non-null, fields set
             here replace WEEKDAY_MIN_TOTAL_MIN / WEEKDAY_MAX_TOTAL_MIN /
             WEEKEND_MIN_TOTAL_MIN in `enforceDailyTimeBudget`. NULL
-            fields fall back to the constants (45 / 60 / 60).
+            fields fall back to the constants (45 / 60 / 60). Task
+            #340 adds an upper bound (180 min) per field and a
+            cross-field rule (weekdayMin <= weekdayMax) enforced at
+            the route layer so impossible windows can't be saved.
           properties:
             weekdayMin:
               type: integer
               nullable: true
               minimum: 1
+              maximum: 180
             weekdayMax:
               type: integer
               nullable: true
               minimum: 1
+              maximum: 180
             weekendMin:
               type: integer
               nullable: true
               minimum: 1
+              maximum: 180
         goalWeight:
           type: number
           nullable: true
@@ -2845,11 +2851,11 @@ components:
         dailyBudget:
           type: object
           nullable: true
-          description: Task #338. Optional per-runner override of the daily time-budget contract. NULL means use the defaults (weekday 45-60 min, weekend ≥60 min).
+          description: Task #338. Optional per-runner override of the daily time-budget contract. NULL means use the defaults (weekday 45-60 min, weekend ≥60 min). Task #340 caps each field at 180 min and enforces weekdayMin <= weekdayMax at the route layer.
           properties:
-            weekdayMin: { type: integer, nullable: true, minimum: 1 }
-            weekdayMax: { type: integer, nullable: true, minimum: 1 }
-            weekendMin: { type: integer, nullable: true, minimum: 1 }
+            weekdayMin: { type: integer, nullable: true, minimum: 1, maximum: 180 }
+            weekdayMax: { type: integer, nullable: true, minimum: 1, maximum: 180 }
+            weekendMin: { type: integer, nullable: true, minimum: 1, maximum: 180 }
         setActive:
           type: boolean
           nullable: true
@@ -2887,11 +2893,11 @@ components:
         dailyBudget:
           type: object
           nullable: true
-          description: Task #338. Optional per-runner override of the daily time-budget contract. NULL means use the defaults (weekday 45-60 min, weekend ≥60 min).
+          description: Task #338. Optional per-runner override of the daily time-budget contract. NULL means use the defaults (weekday 45-60 min, weekend ≥60 min). Task #340 caps each field at 180 min and enforces weekdayMin <= weekdayMax at the route layer.
           properties:
-            weekdayMin: { type: integer, nullable: true, minimum: 1 }
-            weekdayMax: { type: integer, nullable: true, minimum: 1 }
-            weekendMin: { type: integer, nullable: true, minimum: 1 }
+            weekdayMin: { type: integer, nullable: true, minimum: 1, maximum: 180 }
+            weekdayMax: { type: integer, nullable: true, minimum: 1, maximum: 180 }
+            weekendMin: { type: integer, nullable: true, minimum: 1, maximum: 180 }
 
     DuplicatePlannerConfigBody:
       type: object

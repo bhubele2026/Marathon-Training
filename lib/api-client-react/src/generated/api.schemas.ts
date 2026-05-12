@@ -1244,15 +1244,27 @@ export interface PhaseBlock {
 time-budget contract (Task #336). When non-null, fields set
 here replace WEEKDAY_MIN_TOTAL_MIN / WEEKDAY_MAX_TOTAL_MIN /
 WEEKEND_MIN_TOTAL_MIN in `enforceDailyTimeBudget`. NULL
-fields fall back to the constants (45 / 60 / 60).
+fields fall back to the constants (45 / 60 / 60). Task
+#340 adds an upper bound (180 min) per field and a
+cross-field rule (weekdayMin <= weekdayMax) enforced at
+the route layer so impossible windows can't be saved.
 
  */
 export type PlannerConfigDailyBudget = {
-  /** @minimum 1 */
+  /**
+   * @minimum 1
+   * @maximum 180
+   */
   weekdayMin?: number | null;
-  /** @minimum 1 */
+  /**
+   * @minimum 1
+   * @maximum 180
+   */
   weekdayMax?: number | null;
-  /** @minimum 1 */
+  /**
+   * @minimum 1
+   * @maximum 180
+   */
   weekendMin?: number | null;
 } | null;
 
@@ -1304,7 +1316,10 @@ hardcoded 281.6 constant.
 time-budget contract (Task #336). When non-null, fields set
 here replace WEEKDAY_MIN_TOTAL_MIN / WEEKDAY_MAX_TOTAL_MIN /
 WEEKEND_MIN_TOTAL_MIN in `enforceDailyTimeBudget`. NULL
-fields fall back to the constants (45 / 60 / 60).
+fields fall back to the constants (45 / 60 / 60). Task
+#340 adds an upper bound (180 min) per field and a
+cross-field rule (weekdayMin <= weekdayMax) enforced at
+the route layer so impossible windows can't be saved.
  */
   dailyBudget: PlannerConfigDailyBudget;
   /** Task #330. Optional body-mass goal target (lbs). NULL when
@@ -1419,11 +1434,20 @@ export interface ListPlannerConfigsResponse {
  * Task
  */
 export type CreatePlannerConfigBodyDailyBudget = {
-  /** @minimum 1 */
+  /**
+   * @minimum 1
+   * @maximum 180
+   */
   weekdayMin?: number | null;
-  /** @minimum 1 */
+  /**
+   * @minimum 1
+   * @maximum 180
+   */
   weekdayMax?: number | null;
-  /** @minimum 1 */
+  /**
+   * @minimum 1
+   * @maximum 180
+   */
   weekendMin?: number | null;
 } | null;
 
@@ -1452,11 +1476,20 @@ export interface CreatePlannerConfigBody {
  * Task
  */
 export type UpdatePlannerConfigBodyDailyBudget = {
-  /** @minimum 1 */
+  /**
+   * @minimum 1
+   * @maximum 180
+   */
   weekdayMin?: number | null;
-  /** @minimum 1 */
+  /**
+   * @minimum 1
+   * @maximum 180
+   */
   weekdayMax?: number | null;
-  /** @minimum 1 */
+  /**
+   * @minimum 1
+   * @maximum 180
+   */
   weekendMin?: number | null;
 } | null;
 

@@ -1367,6 +1367,41 @@ export default function Planner() {
   ]);
 
   const issues: string[] = [];
+  // Task #340. Daily-budget bounds: each field ≤ 180 min and the
+  // weekday floor must be ≤ the weekday cap. Mirrors the route-level
+  // contract in artifacts/api-server/src/routes/planner.ts so Save /
+  // Apply gating reflects what the server will accept.
+  const DAILY_BUDGET_MAX_MIN = 180;
+  const dailyBudgetIssues: string[] = [];
+  const wminParsed = parseOptionalBudgetMin(weekdayMin);
+  const wmaxParsed = parseOptionalBudgetMin(weekdayMax);
+  const eminParsed = parseOptionalBudgetMin(weekendMin);
+  for (const [label, raw, parsed] of [
+    ["Weekday min", weekdayMin, wminParsed],
+    ["Weekday max", weekdayMax, wmaxParsed],
+    ["Weekend min", weekendMin, eminParsed],
+  ] as const) {
+    if (raw.trim() !== "") {
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n <= 0) {
+        dailyBudgetIssues.push(`${label} must be a positive whole number.`);
+      } else if (parsed !== null && parsed > DAILY_BUDGET_MAX_MIN) {
+        dailyBudgetIssues.push(
+          `${label} can't exceed ${DAILY_BUDGET_MAX_MIN} min (got ${parsed}).`,
+        );
+      }
+    }
+  }
+  if (
+    wminParsed !== null &&
+    wmaxParsed !== null &&
+    wminParsed > wmaxParsed
+  ) {
+    dailyBudgetIssues.push(
+      `Weekday min (${wminParsed}) must be ≤ weekday max (${wmaxParsed}).`,
+    );
+  }
+  for (const m of dailyBudgetIssues) issues.push(m);
   if (!name.trim()) issues.push("Pick a name for this config.");
   if (!startDate) issues.push("Pick a training start date.");
   else if (startDow !== 1) issues.push("Training start date must be a Monday.");
@@ -2745,7 +2780,10 @@ export default function Planner() {
           </div>
           {/* Task #338. Optional per-runner override of the daily
               time-budget contract. Blank ⇒ use the matching default
-              (45 / 60 / 60 min). All blank ⇒ no override sent. */}
+              (45 / 60 / 60 min). All blank ⇒ no override sent.
+              Task #340 caps each field at 180 min and enforces
+              weekday floor ≤ weekday cap; violations surface inline
+              below and gate Save / Apply. */}
           <div className="space-y-2">
             <Label htmlFor="planner-weekday-min">
               Weekday min (min, optional)
@@ -2800,6 +2838,18 @@ export default function Planner() {
               Floor for Sat/Sun sessions (no cap). Blank = default 60 min.
             </p>
           </div>
+          {dailyBudgetIssues.length > 0 && (
+            <div
+              className="md:col-span-3"
+              data-testid="planner-daily-budget-error"
+            >
+              <ul className="space-y-1 text-xs text-destructive list-disc list-inside">
+                {dailyBudgetIssues.map((m, i) => (
+                  <li key={i}>{m}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           {/* Task #341. Live human-readable summary of the active daily
               time-budget window. Reads from the same parsed override the
               Save/Apply mutations send so the runner can sanity-check

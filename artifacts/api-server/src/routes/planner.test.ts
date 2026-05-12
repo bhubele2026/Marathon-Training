@@ -122,6 +122,92 @@ describe("POST /api/planner/configs", () => {
     expect(list.body.activeId).toBe(a.id);
   });
 
+  // Task #340. Daily-budget bounds: each field ≤ 180 min and the
+  // weekday floor must be ≤ the weekday cap. Per-field max is enforced
+  // by the generated zod schema (OpenAPI `maximum: 180`); the
+  // floor-vs-cap rule is enforced by validateBody in the route layer.
+  it("rejects when daily-budget weekdayMin exceeds weekdayMax", async () => {
+    const res = await request(app)
+      .post("/api/planner/configs")
+      .send({
+        name: "Floor above cap",
+        startDate: PLAN_START_ISO,
+        marathonDate: RACE_DATE_ISO,
+        blocks: canonicalBlocks(),
+        dailyBudget: { weekdayMin: 90, weekdayMax: 60, weekendMin: null },
+      });
+    expect(res.status).toBe(400);
+    const fieldErrors = res.body?.error?.fieldErrors ?? {};
+    expect(fieldErrors["dailyBudget.weekdayMin"]).toBeDefined();
+  });
+
+  it("rejects when a daily-budget field exceeds the 180-min upper bound", async () => {
+    const res = await request(app)
+      .post("/api/planner/configs")
+      .send({
+        name: "Over the cap",
+        startDate: PLAN_START_ISO,
+        marathonDate: RACE_DATE_ISO,
+        blocks: canonicalBlocks(),
+        dailyBudget: { weekdayMin: null, weekdayMax: 600, weekendMin: null },
+      });
+    expect(res.status).toBe(400);
+  });
+
+  it("accepts a daily-budget override within bounds", async () => {
+    const res = await request(app)
+      .post("/api/planner/configs")
+      .send({
+        name: "Sane budget",
+        startDate: PLAN_START_ISO,
+        marathonDate: RACE_DATE_ISO,
+        blocks: canonicalBlocks(),
+        dailyBudget: { weekdayMin: 45, weekdayMax: 75, weekendMin: 90 },
+      });
+    expect(res.status).toBe(201);
+  });
+
+  // Task #340. Same daily-budget invariants must apply on PUT so a
+  // runner can't smuggle an impossible window in via an edit. Both
+  // routes share validateBody, but pinning the PUT path explicitly
+  // locks regression coverage.
+  it("PUT rejects a floor-above-cap daily-budget edit and accepts a sane one", async () => {
+    const a = await createCanonicalConfig("PUT-budget");
+    const bad = await request(app)
+      .put(`/api/planner/configs/${a.id}`)
+      .send({
+        name: "PUT-budget",
+        startDate: PLAN_START_ISO,
+        marathonDate: RACE_DATE_ISO,
+        blocks: canonicalBlocks(),
+        dailyBudget: { weekdayMin: 90, weekdayMax: 60, weekendMin: null },
+      });
+    expect(bad.status).toBe(400);
+    expect(bad.body?.error?.fieldErrors?.["dailyBudget.weekdayMin"]).toBeDefined();
+
+    const overCap = await request(app)
+      .put(`/api/planner/configs/${a.id}`)
+      .send({
+        name: "PUT-budget",
+        startDate: PLAN_START_ISO,
+        marathonDate: RACE_DATE_ISO,
+        blocks: canonicalBlocks(),
+        dailyBudget: { weekdayMin: null, weekdayMax: 600, weekendMin: null },
+      });
+    expect(overCap.status).toBe(400);
+
+    const good = await request(app)
+      .put(`/api/planner/configs/${a.id}`)
+      .send({
+        name: "PUT-budget",
+        startDate: PLAN_START_ISO,
+        marathonDate: RACE_DATE_ISO,
+        blocks: canonicalBlocks(),
+        dailyBudget: { weekdayMin: 45, weekdayMax: 75, weekendMin: 90 },
+      });
+    expect(good.status).toBe(200);
+  });
+
   it("rejects when startDate is not a Monday", async () => {
     const res = await request(app)
       .post("/api/planner/configs")
