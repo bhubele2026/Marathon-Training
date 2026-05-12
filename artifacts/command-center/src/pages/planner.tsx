@@ -50,7 +50,11 @@ import {
   WEEKDAY_MAX_TOTAL_MIN,
   WEEKEND_MIN_TOTAL_MIN,
   DAILY_STRENGTH_FLOOR_MIN,
+  generatePlanFromConfig,
+  type DailyRow,
+  type PlannerConfig,
 } from "@workspace/plan-generator";
+import { PlannedBreakdown } from "@/components/planned-breakdown";
 import { useQueryClient } from "@tanstack/react-query";
 import { HybridWeekPreview } from "@/components/hybrid-week-preview";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -503,6 +507,19 @@ export default function Planner() {
     return `${m}:${String(s).padStart(2, "0")}`;
   }
   const [draft, setDraft] = useState<DraftBlock[]>([]);
+  // Task #342. In-memory "Preview week" snapshot — 7 DailyRow entries
+  // (Mon..Sun) regenerated against the current draft daily-budget
+  // override (and starting pace). Cleared whenever the budget inputs
+  // change so a stale preview never lingers next to a freshly-edited
+  // window. `previewError` carries the generator's error message when
+  // the synthetic config fails to validate (defensive — the synthetic
+  // payload below is always shape-valid).
+  const [previewWeek, setPreviewWeek] = useState<DailyRow[] | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  useEffect(() => {
+    setPreviewWeek(null);
+    setPreviewError(null);
+  }, [weekdayMin, weekdayMax, weekendMin, startingPace]);
   const [confirmApplyOpen, setConfirmApplyOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -1929,6 +1946,63 @@ export default function Planner() {
     }
   }
 
+  // ---- Preview week (Task #342) ----------------------------------------
+  // Regenerates one representative Mon..Sun week against the current
+  // draft daily-budget override so the runner can feel the impact of
+  // widening / narrowing the window before clicking Apply. Builds a
+  // synthetic always-valid blocks-mode config (1 user-block week + the
+  // auto-pinned 16-week Marathon-Specific tail) so the preview works
+  // regardless of the runner's actual draft state — the focus type for
+  // the leading week is taken from the runner's first composition
+  // block when available so the preview reflects what they're
+  // currently designing, with a sensible "Base" fallback otherwise.
+  // No persistence — the synthetic config is never saved or sent to
+  // the server.
+  function handlePreviewWeek() {
+    const start = nextMondayISO();
+    const totalWeeks = 1 + MARATHON_TAIL_WEEKS;
+    const marathon = computeRaceDateForTotalWeeks(start, totalWeeks);
+    // Use the runner's first draft block's focus type when available so
+    // the preview week reflects the kind of training they're shaping
+    // (lift-primary Custom, Base, Build, etc.). Custom blocks carry
+    // through the customNotes sentinel so lift-primary / hybrid-mix
+    // routing fires the matching builder.
+    const firstBlock = draft[0];
+    const headBlock: PhaseBlock =
+      firstBlock != null
+        ? {
+            focusType: firstBlock.focusType,
+            weeks: 1,
+            customName:
+              firstBlock.focusType === "Custom"
+                ? firstBlock.customName.trim() || "Preview"
+                : null,
+            customNotes: firstBlock.customNotes.trim() || null,
+          }
+        : {
+            focusType: "Base",
+            weeks: 1,
+            customName: null,
+            customNotes: null,
+          };
+    const synthetic: PlannerConfig = {
+      startDate: start,
+      marathonDate: marathon,
+      blocks: [headBlock],
+      entries: null,
+      startingPaceSec: parseOptionalPaceSec(startingPace),
+      dailyBudget: buildDailyBudgetPayload(),
+    };
+    try {
+      const { daily } = generatePlanFromConfig(synthetic);
+      setPreviewWeek(daily.slice(0, 7));
+      setPreviewError(null);
+    } catch (err) {
+      setPreviewWeek(null);
+      setPreviewError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   // ---- Save / Apply -----------------------------------------------------
   function handleSave() {
     if (!isValid || selectedId === null) {
@@ -2782,6 +2856,95 @@ export default function Planner() {
                     on every Tue–Sun non-rest day.
                   </li>
                 </ul>
+                {/* Task #342. "Preview week" button regenerates one
+                    representative Mon..Sun week against the current
+                    draft daily-budget override (no persistence). Re-
+                    clicking after editing the budget inputs reflects
+                    the new numbers immediately — the budget-input
+                    effect above clears the stale snapshot on edit so
+                    the runner always sees a fresh roll. */}
+                <div className="pt-2 flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePreviewWeek}
+                    data-testid="planner-budget-preview-button"
+                  >
+                    {previewWeek != null
+                      ? "Refresh preview week"
+                      : "Preview week"}
+                  </Button>
+                  {previewWeek != null && (
+                    <span className="text-[11px] text-muted-foreground">
+                      Regenerated against the current window — no
+                      persistence.
+                    </span>
+                  )}
+                </div>
+                {previewError != null && (
+                  <p
+                    className="text-xs text-destructive pt-2"
+                    data-testid="planner-budget-preview-error"
+                  >
+                    Preview failed: {previewError}
+                  </p>
+                )}
+                {previewWeek != null && (
+                  <div
+                    className="pt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-2"
+                    data-testid="planner-budget-preview-week"
+                  >
+                    {previewWeek.map((row) => {
+                      const total =
+                        (row.strength_min || 0) +
+                        (row.cardio_min || 0) +
+                        (row.run_min || 0);
+                      const tid = `planner-budget-preview-day-${row.day.toLowerCase()}`;
+                      return (
+                        <div
+                          key={row.date}
+                          className="rounded-md border border-border/60 bg-background/40 p-2 space-y-1.5"
+                          data-testid={tid}
+                        >
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="text-[11px] uppercase tracking-wider font-semibold">
+                              {row.day}
+                            </span>
+                            {row.is_rest && (
+                              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-mono">
+                                Rest
+                              </span>
+                            )}
+                          </div>
+                          {row.equipment_list.length > 0 && !row.is_rest && (
+                            <div className="flex flex-wrap gap-1">
+                              {row.equipment_list.map((eq) => (
+                                <span
+                                  key={eq}
+                                  className="text-[9px] uppercase tracking-wider font-mono px-1.5 py-0.5 rounded border border-border/60 bg-muted/50"
+                                >
+                                  {eq}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {!row.is_rest && total > 0 && (
+                            <PlannedBreakdown
+                              totalMin={total}
+                              strengthMin={row.strength_min}
+                              cardioMin={row.cardio_min}
+                              runMin={row.run_min}
+                              runDistanceMi={row.distance_mi}
+                              variant="compact"
+                              testIdPrefix={tid}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })()}
