@@ -65,6 +65,143 @@ export type DailyRow = {
   total_load: number;
 };
 
+// ---------------------------------------------------------------------------
+// DAILY TIME BUDGET CONTRACT (Task #336).
+// ---------------------------------------------------------------------------
+// Every weekday emitted by every generator path (legacy `generatePlan`,
+// recipe-driven `buildWeekDays`, hybrid `buildHybridWeekDays`,
+// lift-primary `buildLiftPrimaryWeekDays`) must obey the same daily
+// time-budget contract:
+//
+//   - Mon: full rest day, all three minute buckets at 0.
+//   - Tue-Fri (non-rest): totalMin ∈ [WEEKDAY_MIN_TOTAL_MIN,
+//     WEEKDAY_MAX_TOTAL_MIN] = [45, 60] inclusive.
+//   - Sat/Sun (non-rest): totalMin ≥ WEEKEND_MIN_TOTAL_MIN = 60.
+//   - Long-run sessions are only emitted on Sat/Sun (the schedules
+//     themselves enforce this; the helper only clamps minute counts).
+//
+// Rest rows are exempt from the floor/cap (they're 0/0/0 by design). The
+// shared race-eve Sat / race-day Sun helpers (`buildRaceEveSatRow`,
+// `buildRaceDaySunRow`) and the hybrid Mon-Fri race-week taper rows are
+// also exempt — those are intentionally light so the runner lands fresh
+// on race day. The `isRaceWeek` opt flag bypasses all non-rest checks
+// for the campaign-final week.
+//
+// When a row is over the cap we trim cardio first, then strength, then
+// run (run is the headline session intent for run-led days). When a row
+// is under the floor we pad whichever bucket is already non-zero
+// (preferring cardio if the day has any cardio, else strength, else
+// run). `total_load` is adjusted by the same delta so weekly load
+// summaries stay coherent.
+export const REST_MIN_TOTAL_MIN = 0;
+export const WEEKDAY_MIN_TOTAL_MIN = 45;
+export const WEEKDAY_MAX_TOTAL_MIN = 60;
+export const WEEKEND_MIN_TOTAL_MIN = 60;
+
+const BUDGET_EXEMPT_SESSION_TYPES = new Set<string>([
+  "Race Prep",
+  "Race",
+  "Race Shakeout",
+]);
+
+function isBudgetExempt(row: DailyRow): boolean {
+  if (row.is_rest) return true;
+  if (BUDGET_EXEMPT_SESSION_TYPES.has(row.session_type)) return true;
+  if (row.description.startsWith("RACE DAY")) return true;
+  return false;
+}
+
+function totalMinOf(row: DailyRow): number {
+  return (row.strength_min ?? 0) + (row.cardio_min ?? 0) + (row.run_min ?? 0);
+}
+
+function clampDayBudget(row: DailyRow, opts: { isRaceWeek: boolean }): DailyRow {
+  // MON is a hard rest day — even if a builder accidentally slotted
+  // a session there, force it back to 0/0/0 (without flipping
+  // is_rest, since some non-default Mon rows may still want their
+  // mobility/walking copy preserved by the builder).
+  if (row.day === "Mon") {
+    if (
+      (row.strength_min ?? 0) !== 0 ||
+      (row.cardio_min ?? 0) !== 0 ||
+      (row.run_min ?? 0) !== 0
+    ) {
+      const before = totalMinOf(row);
+      return {
+        ...row,
+        strength_min: 0,
+        cardio_min: 0,
+        run_min: 0,
+        total_load: Math.max(0, (row.total_load ?? 0) - before),
+      };
+    }
+    return row;
+  }
+
+  if (opts.isRaceWeek) return row;
+  if (isBudgetExempt(row)) return row;
+
+  const isWeekend = row.day === "Sat" || row.day === "Sun";
+  const minTotal = isWeekend ? WEEKEND_MIN_TOTAL_MIN : WEEKDAY_MIN_TOTAL_MIN;
+  const maxTotal = isWeekend ? Number.POSITIVE_INFINITY : WEEKDAY_MAX_TOTAL_MIN;
+
+  let strength = row.strength_min ?? 0;
+  let cardio = row.cardio_min ?? 0;
+  let run = row.run_min ?? 0;
+  const before = strength + cardio + run;
+
+  // Cap (weekdays only). Trim cardio → strength → run.
+  if (before > maxTotal) {
+    let excess = before - maxTotal;
+    const trimCardio = Math.min(cardio, excess);
+    cardio -= trimCardio;
+    excess -= trimCardio;
+    if (excess > 0) {
+      const trimStrength = Math.min(strength, excess);
+      strength -= trimStrength;
+      excess -= trimStrength;
+    }
+    if (excess > 0) {
+      run = Math.max(0, run - excess);
+    }
+  }
+
+  // Floor. Pad whichever bucket is already non-zero (cardio first if
+  // present, else strength, else run). For run-only rows under the
+  // weekend floor (e.g. early-foundation Sun long runs), the run
+  // bucket grows so the runner is on their feet for ≥60 minutes.
+  let total = strength + cardio + run;
+  if (total < minTotal) {
+    const deficit = minTotal - total;
+    if (cardio > 0) cardio += deficit;
+    else if (strength > 0) strength += deficit;
+    else run += deficit;
+    total = strength + cardio + run;
+  }
+
+  if (strength === (row.strength_min ?? 0) && cardio === (row.cardio_min ?? 0) && run === (row.run_min ?? 0)) {
+    return row;
+  }
+  const delta = total - before;
+  return {
+    ...row,
+    strength_min: strength,
+    cardio_min: cardio,
+    run_min: run,
+    total_load: Math.max(0, (row.total_load ?? 0) + delta),
+  };
+}
+
+// Apply the per-row budget contract to a built week. Returns the same
+// shape array — Mon stays at index 0 etc — so callers can drop this in
+// at the very end of any builder without disturbing the slot layout.
+export function enforceDailyTimeBudget(
+  days: DailyRow[],
+  opts: { isRaceWeek: boolean },
+): DailyRow[] {
+  return days.map((d) => clampDayBudget(d, opts));
+}
+
 export type WeeklyRow = {
   week: number;
   phase: string;
@@ -491,7 +628,10 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
       };
     }
 
-    const days = [monDay, tueDay, wedDay, thuDay, friDay, satDay, sunDay];
+    const days = enforceDailyTimeBudget(
+      [monDay, tueDay, wedDay, thuDay, friDay, satDay, sunDay],
+      { isRaceWeek },
+    );
     daily.push(...days);
 
     const planned_strength = days.reduce((s, d) => s + (d.strength_load || 0), 0);
@@ -1525,15 +1665,21 @@ function buildLiftPrimaryWeekDays(opts: {
   // Light cutback wave on every 4th week-in-block: trims the Saturday
   // accessory session so the runner gets a true deload day after three
   // full lift weeks.
-  return [
-    lift(0, "Mon", labels[0], false),
-    rest(1, "Tue", `Rest day. Mobility, foam roll, hydrate. Lift block week ${weekInBlock}.`),
-    lift(2, "Wed", labels[1], false),
-    rest(3, "Thu", `Rest day. Optional 20-30 min easy walk, mobility, hydrate.`),
-    lift(4, "Fri", labels[2], false),
-    lift(5, "Sat", labels[3], true),
-    rest(6, "Sun", `Rest day. Full recovery — sleep, hydrate, gentle mobility flow.`),
-  ];
+  // Mon is a hard rest day across every template (Task #336 budget
+  // contract). The four lift days slot in Tue / Wed / Fri / Sat with
+  // Thu / Sun as recovery.
+  return enforceDailyTimeBudget(
+    [
+      rest(0, "Mon", `Rest day. Mobility, foam roll, hydrate. Lift block week ${weekInBlock}.`),
+      lift(1, "Tue", labels[0], false),
+      lift(2, "Wed", labels[1], false),
+      rest(3, "Thu", `Rest day. Optional 20-30 min easy walk, mobility, hydrate.`),
+      lift(4, "Fri", labels[2], false),
+      lift(5, "Sat", labels[3], true),
+      rest(6, "Sun", `Rest day. Full recovery — sleep, hydrate, gentle mobility flow.`),
+    ],
+    { isRaceWeek: false },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1579,8 +1725,8 @@ const HYBRID_DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as c
 // run_primary) so the long run is never accidentally trimmed.
 const HYBRID_BASE_SCHEDULES: Record<HybridMixPosition, HybridSlot[]> = {
   lift_primary: [
-    { kind: "lift", focus: "upper", heavy: true },     // Mon
-    { kind: "rest" },                                   // Tue
+    { kind: "rest" },                                   // Mon (hard rest, Task #336)
+    { kind: "lift", focus: "upper", heavy: true },     // Tue
     { kind: "lift", focus: "lower", heavy: true },     // Wed
     { kind: "run", intensity: "easy" },                 // Thu
     { kind: "lift", focus: "push", heavy: true },      // Fri
@@ -1588,9 +1734,9 @@ const HYBRID_BASE_SCHEDULES: Record<HybridMixPosition, HybridSlot[]> = {
     { kind: "rest" },                                   // Sun
   ],
   lift_leaning: [
-    { kind: "lift", focus: "upper", heavy: true },     // Mon
+    { kind: "rest" },                                   // Mon (hard rest, Task #336)
     { kind: "run", intensity: "easy" },                 // Tue
-    { kind: "rest" },                                   // Wed
+    { kind: "lift", focus: "upper", heavy: true },     // Wed
     { kind: "lift", focus: "lower", heavy: true },     // Thu
     { kind: "lift", focus: "full", heavy: true },      // Fri
     { kind: "run", intensity: "quality" },              // Sat
@@ -1615,10 +1761,10 @@ const HYBRID_BASE_SCHEDULES: Record<HybridMixPosition, HybridSlot[]> = {
     { kind: "run", intensity: "long" },                 // Sun
   ],
   run_primary: [
-    { kind: "lift", focus: "upper", heavy: false },    // Mon (maintenance)
+    { kind: "rest" },                                   // Mon (hard rest, Task #336)
     { kind: "run", intensity: "quality" },              // Tue
     { kind: "run", intensity: "easy" },                 // Wed
-    { kind: "rest" },                                   // Thu
+    { kind: "lift", focus: "upper", heavy: false },    // Thu (maintenance)
     { kind: "lift", focus: "lower", heavy: false },    // Fri (maintenance)
     { kind: "run", intensity: "easy" },                 // Sat
     { kind: "run", intensity: "long" },                 // Sun
@@ -1635,7 +1781,13 @@ const HYBRID_DROP_PRIORITY = [5, 3, 1, 2, 0, 4, 6] as const;
 // Add-priority order used to fill in extra easy runs when the runner
 // picks more days/week than the canonical schedule. Prefers spreading
 // into Mon → Wed → Sun so the runner gets recovery between sessions.
-const HYBRID_ADD_PRIORITY = [0, 2, 6, 3, 1, 4, 5] as const;
+// Mon (idx 0) is intentionally OMITTED — Mon is a hard rest day across
+// every template (Task #336 budget contract) so the pad path can never
+// convert it back into a session. The effective max is therefore 6
+// sessions/week (the six non-Mon slots). Order: Sun, Wed, Thu, Tue,
+// Fri, Sat — Sun is filled first since it's the long-run / easy-run
+// slot for run-leaning positions.
+const HYBRID_ADD_PRIORITY = [6, 2, 3, 1, 4, 5] as const;
 
 function pickHybridSchedule(
   position: HybridMixPosition,
@@ -2086,7 +2238,7 @@ function buildHybridWeekDays(opts: {
   const qualityMinPerMi = 11;
   const longMinPerMi = 14;
 
-  return schedule.map((slot, dayOffset) => {
+  const hybridDays = schedule.map((slot, dayOffset) => {
     const day = HYBRID_DAY_LABELS[dayOffset]!;
     const date = fmt(addDays(wkStart, dayOffset));
 
@@ -2431,6 +2583,7 @@ function buildHybridWeekDays(opts: {
       total_load: min,
     };
   });
+  return enforceDailyTimeBudget(hybridDays, { isRaceWeek });
 }
 
 // Build the seven days of one week.
@@ -2923,41 +3076,47 @@ function buildWeekDays(opts: {
   // Recovery focus drops the Friday quality (replace with rest) so the runner
   // gets two rest days during the recovery block.
   if (recipe.isRecovery) {
-    return [
+    return enforceDailyTimeBudget(
+      [
+        monDay,
+        tueDay,
+        resolvedWedDay,
+        thuDay,
+        {
+          ...resolvedFriDay,
+          strength_load: 0,
+          equipment: "Off / Rest",
+          equipment_list: ["Off / Rest"],
+          description:
+            "Rest day. Walk, mobility, foam roll. Recovery block — no quality work this week." + customSuffix,
+          strength_min: 0,
+          cardio_min: 0,
+          run_min: 0,
+          distance_mi: null,
+          pace: null,
+          session_type: "Rest",
+          is_rest: true,
+          total_load: 0,
+        },
+        satDay,
+        resolvedSunDay,
+      ],
+      { isRaceWeek },
+    );
+  }
+
+  return enforceDailyTimeBudget(
+    [
       monDay,
       tueDay,
       resolvedWedDay,
       thuDay,
-      {
-        ...resolvedFriDay,
-        strength_load: 0,
-        equipment: "Off / Rest",
-        equipment_list: ["Off / Rest"],
-        description:
-          "Rest day. Walk, mobility, foam roll. Recovery block — no quality work this week." + customSuffix,
-        strength_min: 0,
-        cardio_min: 0,
-        run_min: 0,
-        distance_mi: null,
-        pace: null,
-        session_type: "Rest",
-        is_rest: true,
-        total_load: 0,
-      },
+      resolvedFriDay,
       satDay,
       resolvedSunDay,
-    ];
-  }
-
-  return [
-    monDay,
-    tueDay,
-    resolvedWedDay,
-    thuDay,
-    resolvedFriDay,
-    satDay,
-    resolvedSunDay,
-  ];
+    ],
+    { isRaceWeek },
+  );
 }
 
 // ---------------------------------------------------------------------------

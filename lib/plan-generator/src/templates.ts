@@ -922,7 +922,9 @@ const HYBRID_LEVELS: ReadonlySet<HybridFitnessLevel> = new Set<HybridFitnessLeve
 
 export const HYBRID_DEFAULT_DAYS_PER_WEEK = 5;
 export const HYBRID_MIN_DAYS_PER_WEEK = 3;
-export const HYBRID_MAX_DAYS_PER_WEEK = 7;
+// Mon is a hard rest day across every template (Task #336 budget
+// contract), so the maximum workable schedule is the six non-Mon slots.
+export const HYBRID_MAX_DAYS_PER_WEEK = 6;
 
 // Mesocycle tag stamped on each Custom block produced by the
 // custom_hybrid template's phased expansion (Task #154). Plans long

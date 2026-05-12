@@ -674,7 +674,7 @@ describe("lift-primary (Tonal-only) routing in generatePlanFromConfig (Task #95)
         expect(d.distance_mi, `${d.day} w${d.week} distance_mi`).toBeNull();
         expect(d.pace, `${d.day} w${d.week} pace`).toBeNull();
 
-        if (d.day === "Tue" || d.day === "Thu" || d.day === "Sun") {
+        if (d.day === "Mon" || d.day === "Thu" || d.day === "Sun") {
           // Rest days: full rest, "Off / Rest" chip, no load.
           expect(d.is_rest, `${d.day} w${d.week} is_rest`).toBe(true);
           expect(d.session_type).toBe("Rest");

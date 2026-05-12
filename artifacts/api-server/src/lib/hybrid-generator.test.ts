@@ -243,8 +243,11 @@ describe("pickHybridSchedule — days/week trim preserves the long run on run-le
   ];
 
   for (const position of longRunPositions) {
-    it(`${position}: long run survives when trimming from 7 → 3 days/week`, () => {
-      for (let days = 7; days >= 3; days--) {
+    it(`${position}: long run survives when trimming from 6 → 3 days/week`, () => {
+      // Task #336 lowered HYBRID_MAX_DAYS_PER_WEEK from 7 to 6 so Mon
+      // can be a hard rest day across every template; the trim path
+      // is otherwise unchanged.
+      for (let days = 6; days >= 3; days--) {
         const cfg = hybridBlockConfig({
           blockWeeks: 8,
           position,
@@ -287,19 +290,24 @@ describe("pickHybridSchedule — days/week trim preserves the long run on run-le
     expect(runs).toBe(1);
   });
 
-  it("pads to 7 days/week by adding easy runs on otherwise-rest days", () => {
-    // run_primary canonical = 6 sessions. Pad to 7 should add one
-    // easy run; the long run on Sunday must remain a long run.
+  it("pads to 6 days/week by adding an easy run on an otherwise-rest day, while Mon stays rest (Task #336)", () => {
+    // lift_leaning canonical = 5 sessions (3 lifts + 2 runs + 2 rests
+    // including Mon). Pad to 6 should convert the Sun rest into an
+    // easy run — Mon is OFF the pad-priority list (Task #336) so it
+    // stays a rest day. Pre-#336 this test padded to 7 days/week
+    // (no rest at all); the new contract enforces Mon = full rest.
     const cfg = hybridBlockConfig({
       blockWeeks: 8,
-      position: "run_primary",
-      daysPerWeek: 7,
+      position: "lift_leaning",
+      daysPerWeek: 6,
     });
     const { daily } = generatePlanFromConfig(cfg);
     const weekOne = hybridDaysOnly(8, daily).filter((d) => d.week === 1);
-    expect(weekOne.filter((d) => d.is_rest)).toHaveLength(0);
-    const sun = weekOne.find((d) => d.day === "Sun")!;
-    expect(sun.session_type).toBe("Long Run");
+    const rests = weekOne.filter((d) => d.is_rest);
+    expect(rests, "exactly one rest day after padding").toHaveLength(1);
+    expect(rests[0]!.day, "the surviving rest day must be Mon").toBe("Mon");
+    // Sessions match the requested days/week.
+    expect(weekOne.filter((d) => !d.is_rest)).toHaveLength(6);
   });
 });
 
@@ -417,12 +425,15 @@ describe("previewWeeklyMileage matches generatePlanFromConfig for hybrid blocks"
     });
   }
 
-  it("respects days/week when scaling preview mileage (run_primary 7 vs 3 days/week)", () => {
+  it("respects days/week when scaling preview mileage (run_primary 6 vs 3 days/week)", () => {
     const blockWeeks = 8;
     const fullCfg = hybridBlockConfig({
       blockWeeks,
       position: "run_primary",
-      daysPerWeek: 7,
+      // Task #336 lowered the per-week max from 7 to 6 so Mon can
+      // be a hard rest day. Compare full-volume (6 days) vs trimmed
+      // (3 days) — the rest of the assertion is unchanged.
+      daysPerWeek: 6,
       level: "intermediate",
     });
     const trimCfg = hybridBlockConfig({
