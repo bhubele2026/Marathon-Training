@@ -1264,7 +1264,9 @@ describe("Week detail — Tonal-only lift-primary week rendering (task #95)", ()
 
     for (const date of ["2026-05-04", "2026-05-06", "2026-05-08", "2026-05-09"]) {
       const chip = screen.getByTestId(`chip-equipment-${date}-0`);
-      expect(chip.textContent).toBe("Tonal");
+      // Chip text now includes a per-machine minute split (e.g. "Tonal · 60 MIN");
+      // assert the machine name only — minutes are covered by other tests.
+      expect(chip.textContent).toContain("Tonal");
       // Lift days have a single-machine chip rail — no Peloton Tread /
       // Outdoor / Bike / Row should leak in on a Tonal-only week.
       expect(screen.queryByTestId(`chip-equipment-${date}-1`)).toBeNull();

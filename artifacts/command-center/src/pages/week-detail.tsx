@@ -59,7 +59,7 @@ import { adherenceStatus, adherenceTextClass } from "@/lib/adherence";
 import { raceDayLabel } from "@/lib/race-day-label";
 import type { RaceDayKind } from "@/lib/race-day-label";
 import { PlanDayForm } from "@/components/plan-day-form";
-import { EquipmentChipRail } from "@/components/equipment-chip-rail";
+import { EquipmentChipRail, splitMinutesByEquipment } from "@/components/equipment-chip-rail";
 import { MoveDayPicker } from "@/components/move-day-picker";
 import { sortWorkoutsByTimeOfDay } from "@/lib/time-of-day";
 import { TimeOfDayBadge } from "@/components/time-of-day-badge";
@@ -1141,6 +1141,12 @@ export default function WeekDetail() {
                         equipment={day.equipment}
                         chipTestIdPrefix={`chip-equipment-${chipTestIdSuffix}`}
                         keyPrefix={`${day.date}-eq`}
+                        minutesByIndex={splitMinutesByEquipment(
+                          day.equipmentList ?? (day.equipment ? [day.equipment] : []),
+                          day.strengthMin,
+                          day.cardioMin,
+                          day.runMin,
+                        )}
                       />
                       <SessionDetailDisclosure testId={`toggle-day-plan-detail-${chipTestIdSuffix}`}>
                         <div className="space-y-3">
