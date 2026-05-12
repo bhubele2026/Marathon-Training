@@ -2004,13 +2004,29 @@ function levelScalar(level: HybridFitnessLevel): number {
 // marathon training (peak long ~20 mi, weekly mileage 30-40 mpw), so
 // without a clamp a 5K plan could prescribe a 4 mi long run in week 1
 // and an 8 mi long run by mid-block — well over the 3.1 mi race
-// distance. Per-race-kind peaks below match the published Higdon /
-// Pfitz / Daniels plans we cite in `templates.ts`:
-//   * 5K  — long peak ≈ 3 mi (Higdon Novice 5K), easy/quality ≈ 2.5 mi
-//   * 10K — long peak ≈ 8 mi (Higdon Intermediate 10K), q ≈ 5, e ≈ 4
-//   * half — long peak ≈ 13 mi (Pfitz HM, Higdon HM), q ≈ 7, e ≈ 5
+// distance. Per-race-kind peaks below were cross-checked against the
+// actual published week-by-week tables for the templates we cite in
+// `templates.ts`. Wed → recipe.easyRunMi (mid-week easy), Fri →
+// recipe.qualityRunMi (tempo / threshold), Sun → recipe.longRunMi.
+//
+//   * 5K — Higdon Novice 5K (halhigdon.com). Peak long 3.0 mi (Sat
+//     W7), peak hard weekday 3.0 mi (Tue W7), mid-week easy 2.0 mi
+//     (Thu W5-W8). Caps: easy 2.5 (one notch above Higdon's 2.0
+//     ceiling so a slightly hotter mid-week run is still possible
+//     without going over race distance), quality 3.0 (matches Tue
+//     peak), long 3.0 (matches Sat peak).
+//   * 10K — Higdon Intermediate 10K. Peak long 8.0 mi (Sun W7),
+//     Wed tempo 35-50 min (~5 mi), Thu peak 4.0 mi. Caps mirror
+//     those exactly: easy 4, quality 5, long 8.
+//   * half — Higdon Intermediate-1 HM. Peak long 12 mi (W11), Wed
+//     peak 8 mi (W9 medium-long), Tue/Thu peak 5 mi. Caps: easy 5
+//     (matches Tue/Thu), quality 8 (matches Wed peak), long 13
+//     (covers Higdon 12 + Pfitz HM 14-16 trim — Pfitz peaks at 16
+//     but a 13 mi cap keeps the long run at race distance, which is
+//     defensible for a generalist hybrid plan; users on advanced
+//     Pfitz blocks can still ramp under the cap).
 //   * marathon / none — no clamp (marathon is what the recipes were
-//     tuned for; "none" is lift-only and never surfaces run mileage)
+//     tuned for; "none" is lift-only and never surfaces run mileage).
 //
 // The clamp is one-sided: we cap from above but never raise. Recipe
 // progressions, hybrid-mix slider, cutback factor, level scalar and
@@ -2019,9 +2035,9 @@ function levelScalar(level: HybridFitnessLevel): number {
 type RunIntensityKind = "easy" | "quality" | "long";
 type RunMileageCeiling = Record<RunIntensityKind, number>;
 const RACE_KIND_RUN_CEILING: Partial<Record<PlanRaceKind, RunMileageCeiling>> = {
-  "5k": { easy: 2.5, quality: 2.5, long: 3.0 },
+  "5k": { easy: 2.5, quality: 3.0, long: 3.0 },
   "10k": { easy: 4.0, quality: 5.0, long: 8.0 },
-  half: { easy: 5.0, quality: 7.0, long: 13.0 },
+  half: { easy: 5.0, quality: 8.0, long: 13.0 },
 };
 
 export function clampRunMi(
