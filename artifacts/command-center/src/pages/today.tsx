@@ -208,7 +208,10 @@ export default function Today() {
           <TodayEyebrow raceKind={(today.raceKind ?? null) as RaceDayKind | null} />
           {today.nextScheduledRace && (
             <div className="mt-1">
-              <NextScheduledRaceChip race={today.nextScheduledRace} />
+              <NextScheduledRaceChip
+                race={today.nextScheduledRace}
+                onLogResult={() => openLogDraftFor(today.nextScheduledRace!)}
+              />
             </div>
           )}
           <h2 className="text-3xl font-black uppercase tracking-tight text-primary">Today's Mission</h2>

@@ -11,6 +11,7 @@ const RACE_KIND_LABELS: Record<RaceDayKind, string> = {
 export function NextScheduledRaceChip({
   race,
   testId = "chip-next-scheduled-race",
+  onLogResult,
 }: {
   race: {
     raceDate: string;
@@ -20,10 +21,32 @@ export function NextScheduledRaceChip({
     daysUntil: number;
   };
   testId?: string;
+  onLogResult?: () => void;
 }) {
   const days = race.daysUntil;
   const kindLabel =
     RACE_KIND_LABELS[race.raceKind as RaceDayKind] ?? race.raceKind.toUpperCase();
+  // Task #349: on race day with no result yet, the chip becomes an
+  // actionable "Log result" CTA that opens the finish-time form right
+  // from the page header rather than navigating to /races.
+  const isRaceDayUnlogged = days === 0 && !race.hasResult;
+  if (isRaceDayUnlogged && onLogResult) {
+    return (
+      <button
+        type="button"
+        onClick={onLogResult}
+        className="inline-flex items-center gap-1 text-[10px] bg-primary text-primary-foreground px-2 py-1 rounded font-bold uppercase tracking-wider w-fit hover:bg-primary/90 transition-colors"
+        data-testid={testId}
+        data-race-date={race.raceDate}
+        data-race-kind={race.raceKind}
+        data-days-until={days}
+        data-log-result-cta="true"
+      >
+        <Trophy className="h-3 w-3" />
+        {`Log result · ${kindLabel}`}
+      </button>
+    );
+  }
   const text =
     days === 0
       ? `Race Today · ${kindLabel}`
