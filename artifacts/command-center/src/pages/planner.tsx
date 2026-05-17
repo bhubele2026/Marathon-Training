@@ -3497,6 +3497,39 @@ export default function Planner() {
                         ))}
                       </div>
                     )}
+                    <div
+                      className="flex items-center gap-2"
+                      data-testid={`planner-template-${tpl.id}-sparkline-row`}
+                    >
+                      <TemplateSparkline
+                        templateId={tpl.id}
+                        weeks={weeks}
+                        testId={`planner-template-${tpl.id}-sparkline`}
+                      />
+                      {(() => {
+                        const target = peakLongRunTargetMi(
+                          templateRaceKindById(tpl.id),
+                        );
+                        if (target === null) return null;
+                        const localTpl = getTemplateById(tpl.id);
+                        if (!localTpl) return null;
+                        const previewPeak = templatePeakLongMi(
+                          localTpl,
+                          weeks,
+                        );
+                        if (previewPeak >= target) return null;
+                        return (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] border-amber-500/60 text-amber-600 dark:text-amber-400"
+                            data-testid={`planner-template-${tpl.id}-below-target`}
+                            title={`Peak long run ${previewPeak.toFixed(1)} mi at ${weeks}w · research target ≥${target} mi for ${tpl.goalDistance}`}
+                          >
+                            Below target
+                          </Badge>
+                        );
+                      })()}
+                    </div>
                     <div className="flex flex-wrap gap-x-3 gap-y-1 rounded-md bg-muted/40 px-2 py-1.5 text-[11px] tabular-nums">
                       <span data-testid={`planner-template-${tpl.id}-peak-lr`}>
                         <span className="text-muted-foreground">LR </span>
@@ -5742,6 +5775,143 @@ export default function Planner() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+// Research-aligned peak long-run targets used to flag a Phase Planner
+// template card as "Below target" (Task #355). Sourced from the same
+// RECIPES peaks that drive the generator (replit.md: marathon peak 18-20
+// via Pfitz 18/55, half 12 via Higdon Intermediate-1 HM, 10K 8 ceiling,
+// 5K 3 ceiling). When the template's expanded preview at the runner's
+// chosen weeks doesn't clear this threshold, the sparkline row renders
+// a small amber "Below target" chip so under-tuned picks (flat curves,
+// undershoots) are visible before applying. Non-racing templates
+// (custom_hybrid, lifting-only, archived) return null so they never
+// warn — they have no fixed race distance to undershoot.
+function peakLongRunTargetMi(raceKind: PlanRaceKind): number | null {
+  switch (raceKind) {
+    case "marathon":
+      return 18;
+    case "half":
+      return 12;
+    case "10k":
+      return 8;
+    case "5k":
+      return 3;
+    default:
+      return null;
+  }
+}
+
+// Compute the peak long-run mileage from a template's expanded preview
+// at the runner's chosen weeks. Returns 0 when the preview fails (e.g.
+// degenerate week count); callers treat 0 as "below any positive
+// target" which correctly flags those edges.
+function templatePeakLongMi(template: PlanTemplate, weeks: number): number {
+  try {
+    const blocks = template.expand(Math.max(1, Math.floor(weeks)));
+    const preview = previewWeeklyMileage(blocks, {
+      appendMarathonTail: false,
+      entriesRaceKind: templateRaceKindById(template.id),
+    });
+    return preview.reduce((m, w) => Math.max(m, w.longRunMi), 0);
+  } catch {
+    return 0;
+  }
+}
+
+// Tiny per-template sparkline rendered on each Plan Template Library
+// card (Task #355). Plots Sunday long-run miles per week for the
+// runner's currently-chosen `weeks` count, scaled to the template's
+// own peak so each card's curve fills the 60x20 box (this is a shape
+// preview — runners cross-reference absolute values via the metadata
+// strip below). Hovering each per-week dot surfaces a native browser
+// tooltip with the week index, phase label, and exact long-run miles.
+// Expands the template through `previewWeeklyMileage` with
+// `appendMarathonTail: false` (templates own their own taper) and the
+// template's `entriesRaceKind` so race-week Sundays preview at the
+// correct race distance (26.2 / 13.1 / 6.2 / 3.1).
+function TemplateSparkline({
+  templateId,
+  weeks,
+  testId,
+}: {
+  templateId: string;
+  weeks: number;
+  testId: string;
+}) {
+  const preview = useMemo<WeekMileagePreview[]>(() => {
+    const template = getTemplateById(templateId);
+    if (!template) return [];
+    try {
+      const blocks = template.expand(Math.max(1, Math.floor(weeks)));
+      return previewWeeklyMileage(blocks, {
+        appendMarathonTail: false,
+        entriesRaceKind: templateRaceKindById(templateId),
+      });
+    } catch {
+      return [];
+    }
+  }, [templateId, weeks]);
+  if (preview.length === 0) {
+    return (
+      <div
+        className="h-5 w-[60px] shrink-0 text-[9px] uppercase tracking-wider text-muted-foreground flex items-center"
+        data-testid={testId}
+      >
+        —
+      </div>
+    );
+  }
+  const W = 60;
+  const H = 20;
+  const PAD = 1.75;
+  const peak = preview.reduce((m, w) => Math.max(m, w.longRunMi), 0);
+  const ceiling = Math.max(0.1, peak);
+  const x = (i: number) =>
+    preview.length === 1
+      ? W / 2
+      : PAD + (i / (preview.length - 1)) * (W - PAD * 2);
+  const y = (mi: number) =>
+    H - PAD - (mi / ceiling) * (H - PAD * 2);
+  const longPath = preview
+    .map(
+      (w, i) =>
+        `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(w.longRunMi).toFixed(1)}`,
+    )
+    .join(" ");
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      width={W}
+      height={H}
+      className="block shrink-0"
+      preserveAspectRatio="none"
+      role="img"
+      aria-label={`Long-run mileage by week, peaking at ${peak.toFixed(1)} mi`}
+      data-testid={testId}
+    >
+      <path
+        d={longPath}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.25}
+        className="text-primary"
+        vectorEffect="non-scaling-stroke"
+      />
+      {preview.map((w, i) => (
+        <circle
+          key={w.week}
+          cx={x(i).toFixed(1)}
+          cy={y(w.longRunMi).toFixed(1)}
+          r={1.6}
+          className="fill-primary"
+          data-testid={`${testId}-w${w.week}`}
+        >
+          <title>{`Wk ${w.week} · ${w.blockLabel} · Long ${w.longRunMi.toFixed(1)} mi`}</title>
+        </circle>
+      ))}
+    </svg>
   );
 }
 
