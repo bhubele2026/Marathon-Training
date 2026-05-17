@@ -25,6 +25,12 @@ vi.mock("@workspace/api-client-react", () => ({
   useGetLongRunProgression: vi.fn(),
   useGetRecentActivity: vi.fn(),
   useGetTodayPlan: vi.fn(),
+  // Task #348: dashboard surfaces overview.nextScheduledRace as a chip
+  // near the Race Day countdown. Stub with an empty payload so existing
+  // scenarios behave the same as before this task.
+  useGetPlanOverview: () => ({
+    data: { nextScheduledRace: null },
+  }),
   // Task #308: dashboard auto-redirects to /planner on first visit when
   // hasPlan=false AND no saved drafts exist. Stub with a non-empty
   // configs list so existing scenarios never trigger the redirect.

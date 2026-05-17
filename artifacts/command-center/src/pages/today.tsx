@@ -50,6 +50,7 @@ import { RunTargetLine } from "@/components/run-target-line";
 import { raceDayLabel } from "@/lib/race-day-label";
 import { ChecklistNudge } from "@/components/race-week-banner";
 import { EmptyPlanState } from "@/components/empty-plan-state";
+import { NextScheduledRaceChip } from "@/components/next-scheduled-race-chip";
 import { useFirstRunRedirect } from "@/hooks/use-first-run-redirect";
 import { useListPlannerConfigs } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
@@ -206,7 +207,9 @@ export default function Today() {
         <div>
           <TodayEyebrow raceKind={(today.raceKind ?? null) as RaceDayKind | null} />
           {today.nextScheduledRace && (
-            <NextScheduledRaceChip race={today.nextScheduledRace} />
+            <div className="mt-1">
+              <NextScheduledRaceChip race={today.nextScheduledRace} />
+            </div>
           )}
           <h2 className="text-3xl font-black uppercase tracking-tight text-primary">Today's Mission</h2>
           <p className="text-muted-foreground uppercase font-medium tracking-widest">{today.date}</p>
@@ -1296,45 +1299,6 @@ const RACE_KIND_LABELS: Record<RaceDayKind, string> = {
   "10k": "10K",
   "5k": "5K",
 };
-
-// Task #345: small chip just under the page eyebrow that surfaces the
-// next supplemental scheduled race (5K/10K/Half/Marathon) so a runner
-// always knows how far out their next "B race" is from the Today
-// screen. Renders "Race Today · 5K" on race day so the runner can
-// click straight to /races to log the result. Hidden when no upcoming
-// scheduled race exists.
-function NextScheduledRaceChip({
-  race,
-}: {
-  race: {
-    raceDate: string;
-    raceKind: string;
-    name?: string | null;
-    hasResult?: boolean;
-    daysUntil: number;
-  };
-}) {
-  const days = race.daysUntil;
-  const kindLabel =
-    RACE_KIND_LABELS[race.raceKind as RaceDayKind] ?? race.raceKind.toUpperCase();
-  const text =
-    days === 0
-      ? `Race Today · ${kindLabel}`
-      : `Next race · ${kindLabel} · in ${days} day${days === 1 ? "" : "s"}`;
-  return (
-    <a
-      href="/races"
-      className="inline-flex items-center gap-1 text-[10px] bg-primary/15 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider w-fit mt-1 hover:bg-primary/25 transition-colors"
-      data-testid="chip-next-scheduled-race"
-      data-race-date={race.raceDate}
-      data-race-kind={race.raceKind}
-      data-days-until={days}
-    >
-      <Trophy className="h-3 w-3" />
-      {text}
-    </a>
-  );
-}
 
 function TodayEyebrow({ raceKind }: { raceKind: RaceDayKind | null }) {
   // Reuses the same query key as RaceWeekBanner / ChecklistNudge so

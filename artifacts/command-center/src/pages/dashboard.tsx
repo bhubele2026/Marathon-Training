@@ -5,7 +5,8 @@ import {
   useGetEquipmentUsage, 
   useGetLongRunProgression, 
   useGetRecentActivity,
-  useGetTodayPlan
+  useGetTodayPlan,
+  useGetPlanOverview
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -37,6 +38,7 @@ import { TimeOfDayBadge } from "@/components/time-of-day-badge";
 import { phaseColor } from "@/lib/phase-colors";
 import { programColor } from "@/lib/program-colors";
 import { EmptyPlanState } from "@/components/empty-plan-state";
+import { NextScheduledRaceChip } from "@/components/next-scheduled-race-chip";
 import { useFirstRunRedirect } from "@/hooks/use-first-run-redirect";
 import { useListPlannerConfigs } from "@workspace/api-client-react";
 
@@ -159,6 +161,7 @@ export default function Dashboard() {
   const { data: longRun, isLoading: loadingLongRun } = useGetLongRunProgression();
   const { data: activity, isLoading: loadingActivity } = useGetRecentActivity();
   const { data: today, isLoading: loadingToday } = useGetTodayPlan();
+  const { data: overview } = useGetPlanOverview();
   const { openLog, openEdit, requestDelete, requestSkip, crushIt, isDeleting, isCrushing, dialogs } =
     useMissionActions();
   const todayBaseCtx = today
@@ -316,6 +319,12 @@ export default function Dashboard() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
       <div data-testid="dashboard-header" className="flex flex-col gap-2">
+        {overview?.nextScheduledRace && (
+          <NextScheduledRaceChip
+            race={overview.nextScheduledRace}
+            testId="dashboard-chip-next-scheduled-race"
+          />
+        )}
         <h2
           className="text-3xl font-black uppercase tracking-tight text-primary"
           data-testid="dashboard-header-title"
