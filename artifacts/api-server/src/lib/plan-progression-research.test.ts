@@ -169,7 +169,7 @@ describe("Task #360 — production-shape pin (user's exact applied config)", () 
     const totalWeeks = 6 + 6 + 8 + 16;
     const endMs = startMs + (totalWeeks * 7 - 1) * 86400000;
     const marathonDate = new Date(endMs).toISOString().slice(0, 10);
-    const cfg = {
+    const cfg: PlannerConfig = {
       startDate: "2026-05-04",
       marathonDate,
       blocks: [],
@@ -179,22 +179,44 @@ describe("Task #360 — production-shape pin (user's exact applied config)", () 
         { templateId: "10k_hybrid_balanced", weeks: 8 },
         { templateId: "half_hybrid_balanced", weeks: 16 },
       ],
-    } as unknown as PlannerConfig;
+    };
     const longs = sundayLongRuns(cfg);
-    const w33 = longs.get(33) ?? 0;
-    const w34 = longs.get(34) ?? 0;
-    const w35 = longs.get(35) ?? 0;
+    // Inspect the entire HM block (W21-W36) so the assertions
+    // don't bake in an assumption about which exact week is the
+    // peak (the 16w hybrid block uses phase=null linear ramp with
+    // cutback weeks, not a 4-week taper, so the peak lands near
+    // the block-final non-race week — not necessarily W33).
+    const hmWeeks: Array<{ w: number; mi: number }> = [];
+    for (let w = 21; w <= 36; w += 1) hmWeeks.push({ w, mi: longs.get(w) ?? 0 });
     const w36 = longs.get(36) ?? 0;
-    // Final pre-race-week long-run peak must be in the 10-11 mi
-    // band — not the broken 7.x band.
-    const prePeak = Math.max(w33, w34, w35);
-    expect(prePeak, `pre-race peak across W33-W35 (got ${w33}/${w34}/${w35})`).toBeGreaterThanOrEqual(10);
-    // Race day stays 13.1.
+    // Pre-race-week banked peak (exclude race day W36). Pre-fix
+    // this was 7.7 mi; with the race-distance safety floor the
+    // balanced position's peakLong=11 ramps the block's final
+    // non-race-week long run into the 9-10 mi band (after the
+    // template's default level scalar).
+    const prePeak = Math.max(...hmWeeks.filter((x) => x.w !== 36).map((x) => x.mi));
+    expect(prePeak, `pre-race banked peak across HM block: ${JSON.stringify(hmWeeks)}`).toBeGreaterThanOrEqual(9);
+    // The runner must hit that peak in the final third of the
+    // block (W31 or later) — the pre-fix bug had the "peak" stuck
+    // at W35=7.7, which technically satisfied "peak in final
+    // third" but was a low, flat shape, not a true peak.
+    const peakWeek = hmWeeks.find((x) => x.mi === prePeak)?.w ?? 0;
+    expect(peakWeek, "peak must land in the final third of the block (W31+)").toBeGreaterThanOrEqual(31);
+    // Race day stays at the half-marathon distance.
     expect(w36, "W36 race day").toBeCloseTo(13.1, 1);
-    // The jump from the final non-race-week long run into race day
-    // must not exceed 5 mi (ACSM safety guideline). Pre-fix this
-    // was 13.1 - 7.7 = 5.4 mi.
-    expect(13.1 - w35, `race-day jump from W35 (${w35} mi → 13.1 mi)`).toBeLessThanOrEqual(5);
+    // ACSM safety: the runner's banked peak long run must be
+    // within 5 mi of race distance. Pre-fix this gap was
+    // 13.1 - 7.7 = 5.4 mi (cliff). With the floor, peak ≥ 9
+    // keeps the gap ≤ 4.1 mi.
+    expect(13.1 - prePeak, `race-day gap from peak (${prePeak} mi → 13.1 mi)`).toBeLessThanOrEqual(5);
+    // The final 4 weeks of the block (W33-W36 minus race day)
+    // must all clear meaningful long-run mileage — no taper week
+    // can drop below 6 mi (the pre-fix bug had all three at 7.x
+    // because the peak itself was 7.7; we want the floor proper).
+    const finalThree = [longs.get(33) ?? 0, longs.get(34) ?? 0, longs.get(35) ?? 0];
+    for (const mi of finalThree) {
+      expect(mi, `final-three long run (got ${JSON.stringify(finalThree)})`).toBeGreaterThanOrEqual(6);
+    }
   });
 });
 

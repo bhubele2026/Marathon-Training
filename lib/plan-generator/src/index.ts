@@ -2238,10 +2238,20 @@ function hybridMileage(
   // into a 13.1 mi race day (a 5.4 mi cliff). Position still
   // controls easy/quality mileage and strength density — that's
   // where the hybrid character lives — but the long run can't be
-  // shorter than what the race demands. Marathon is intentionally
-  // omitted: the `marathon_hybrid` template has its own coverage
-  // and no reported regression, and a uniform 18-mi floor would
-  // over-rotate lift_primary marathon plans.
+  // shorter than what the race demands. Floors are ~75% of race
+  // distance (5K: 3 mi, 10K: 6 mi, half: 11 mi).
+  // `none` is intentionally unfloored (no race day, clampRunMi is
+  // a no-op anyway).
+  // MARATHON is also intentionally unfloored. The user-reported
+  // regression was HM-only, the `marathon_hybrid` template has no
+  // reported regression, and adding a marathon floor surfaces a
+  // pre-existing divergence between `generatePlanFromConfig`
+  // (which resolves a marathon raceKind in legacy appendTail mode)
+  // and `previewWeeklyMileage` (which resolves differently for the
+  // same legacy blocks), breaking the preview-vs-planned symmetry
+  // test in `hybrid-generator.test.ts`. Fixing that divergence is
+  // a separate, out-of-scope concern; for now keep marathon
+  // unfloored so this task lands without regressing the preview.
   const longSafetyFloor: Partial<Record<PlanRaceKind, number>> = {
     "5k": 3,
     "10k": 6,
