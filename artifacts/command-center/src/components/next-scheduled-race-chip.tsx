@@ -1,4 +1,5 @@
 import { Trophy } from "lucide-react";
+import { Link } from "wouter";
 import type { RaceDayKind } from "@/lib/race-day-label";
 
 const RACE_KIND_LABELS: Record<RaceDayKind, string> = {
@@ -52,7 +53,7 @@ export function NextScheduledRaceChip({
       ? `Race Today · ${kindLabel}`
       : `Next race · ${kindLabel} · in ${days} day${days === 1 ? "" : "s"}`;
   return (
-    <a
+    <Link
       href="/races"
       className="inline-flex items-center gap-1 text-[10px] bg-primary/15 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider w-fit hover:bg-primary/25 transition-colors"
       data-testid={testId}
@@ -62,6 +63,6 @@ export function NextScheduledRaceChip({
     >
       <Trophy className="h-3 w-3" />
       {text}
-    </a>
+    </Link>
   );
 }
