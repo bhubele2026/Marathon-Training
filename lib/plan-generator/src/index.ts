@@ -1289,12 +1289,49 @@ function r1(n: number): number {
   return Math.round(n * 10) / 10;
 }
 
+// Length-aware linear ramp from `start` (week 1) to `peak` (final week)
+// across `blockWeeks` weeks. The pre-fix recipes (Base, Time on Feet,
+// Cardio+Weight Loss, Speed, Custom) used a fixed per-week step like
+// `Math.min(10, 4 + (w-1) * 0.5)` that needed a specific block length
+// to actually reach the cap — e.g. Base needed 13 weeks to climb 4→10
+// and Speed needed 17 weeks to climb 6→10. When a template's distribute()
+// gave the block fewer weeks (a 12-week HM splits roughly 6 Base + 4
+// Speed + 2 Taper, so Speed gets 4 weeks), the long-run ramp plateaued
+// mid-climb. The user's 2026-05-19 screenshot showed exactly this:
+// W30-W35 of the build read 6.0, 6.3, 4.7 (cb), 7.0, 7.3, 7.7 mi
+// because Speed's `6 + (w-1)*0.25` over 7 weeks tops out at 7.5 mi —
+// well below the 10-12 mi peak that Higdon Novice/Intermediate, Hansons,
+// and Pfitz all hit 2-3 weeks before a 13.1 mi race.
+//
+// This helper centralizes the length-aware shape so every recipe lands
+// exactly at `peak` on the block-final week regardless of how the
+// template's distribute() carved the block. Single-week blocks
+// short-circuit to `peak` (no ramp to climb). Marathon-Specific and
+// Taper already implemented this pattern by hand and continue to use
+// their own bespoke versions.
+function rampToBlockEnd(
+  weekInBlock: number,
+  blockWeeks: number,
+  start: number,
+  peak: number,
+): number {
+  if (blockWeeks <= 1) return peak;
+  const t = (weekInBlock - 1) / (blockWeeks - 1);
+  return start + t * (peak - start);
+}
+
 const RECIPES: Record<FocusType, FocusRecipe> = {
   Base: {
     phaseLabel: () => "Base",
-    longRunMi: (w, _bw, isCutback) => {
-      // Start 4mi, +0.5/wk, cap 10, cutback 70%.
-      const base = Math.min(10, 4 + (w - 1) * 0.5);
+    longRunMi: (w, bw, isCutback) => {
+      // Length-aware ramp 4 -> 10 mi across the block, cutback 70%.
+      // Pre-fix this used `min(10, 4 + (w-1) * 0.5)` which needed 13
+      // weeks to reach 10; under shorter blocks (a 12w HM giving Base
+      // ~6 weeks) the long run plateaued mid-climb. See rampToBlockEnd
+      // comment block for the full diagnosis. 10 mi matches Higdon
+      // Novice/Intermediate base-block peaks; race-distance clamping
+      // (clampRunMi) downscales it for 5K (cap 3) / 10K (cap 8) plans.
+      const base = rampToBlockEnd(w, bw, 4, 10);
       return r1(isCutback ? base * 0.7 : base);
     },
     easyRunMi: (_w, _bw, isCutback) => r1(isCutback ? 2.0 : 3.0),
@@ -1315,8 +1352,12 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
   },
   "Time on Feet": {
     phaseLabel: () => "Time on Feet",
-    longRunMi: (w, _bw, isCutback) => {
-      const base = Math.min(14, 6 + (w - 1) * 0.75);
+    longRunMi: (w, bw, isCutback) => {
+      // Length-aware ramp 10 -> 14 mi across the block, cutback 70%.
+      // Used in marathon templates between Base (peaks 10) and
+      // Marathon-Specific (peaks 20), so the start = Base's end and
+      // the peak hands off cleanly to the MS block's own ramp from 12.
+      const base = rampToBlockEnd(w, bw, 10, 14);
       return r1(isCutback ? base * 0.7 : base);
     },
     easyRunMi: (_w, _bw, isCutback) => r1(isCutback ? 2.5 : 3.5),
@@ -1337,8 +1378,12 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
   },
   "Cardio + Weight Loss": {
     phaseLabel: () => "Cardio + Weight Loss",
-    longRunMi: (w, _bw, isCutback) => {
-      const base = Math.min(8, 5 + (w - 1) * 0.25);
+    longRunMi: (w, bw, isCutback) => {
+      // Length-aware ramp 5 -> 8 mi across the block, cutback 75%.
+      // Caps lower than Base because this focus deliberately spreads
+      // aerobic stimulus into the daily cross-train block rather than
+      // chasing big long runs.
+      const base = rampToBlockEnd(w, bw, 5, 8);
       return r1(isCutback ? base * 0.75 : base);
     },
     easyRunMi: (_w, _bw, isCutback) => r1(isCutback ? 2.0 : 2.5),
@@ -1360,12 +1405,21 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
   },
   Speed: {
     phaseLabel: () => "Speed",
-    longRunMi: (w, _bw, isCutback) => {
-      const base = Math.min(10, 6 + (w - 1) * 0.25);
+    longRunMi: (w, bw, isCutback) => {
+      // Length-aware ramp 8 -> 11 mi across the block, cutback 70%.
+      // Start is bumped from the pre-fix 6 to 8 so the curve hands off
+      // smoothly from Base (which peaks 10) into Speed in HM templates
+      // that expand Base -> Speed -> Taper. Peak 11 lets a 12w Higdon
+      // HM hit ~11 mi 2 weeks before race (matching Higdon Intermediate)
+      // before the Taper block drops volume into race week. HM-clamp
+      // (clampRunMi cap = 13) leaves the full range intact; 10K plans
+      // clamp to 8 and 5K plans to 3.
+      const base = rampToBlockEnd(w, bw, 8, 11);
       return r1(isCutback ? base * 0.7 : base);
     },
     easyRunMi: (_w, _bw, isCutback) => r1(isCutback ? 2.5 : 3.0),
-    qualityRunMi: (w, _bw, isCutback) => r1(isCutback ? 2.5 : Math.min(5, 3.5 + (w - 1) * 0.1)),
+    qualityRunMi: (w, bw, isCutback) =>
+      r1(isCutback ? 2.5 : rampToBlockEnd(w, bw, 3.5, 5)),
     easyPace: "12:30",
     longPace: "13:00",
     tempoPace: "11:00",
@@ -1533,8 +1587,12 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
       if (hp === "taper") return "Hybrid Taper";
       return b.customName?.trim() ? b.customName.trim() : "Custom";
     },
-    longRunMi: (w, _bw, isCutback) => {
-      const base = Math.min(10, 4 + (w - 1) * 0.5);
+    longRunMi: (w, bw, isCutback) => {
+      // Length-aware ramp 4 -> 10 mi across the block, cutback 70%.
+      // Mirrors the Base recipe shape since Custom blocks default to
+      // generic aerobic-build behavior unless overridden by hybrid /
+      // lift-primary / primary-machine sentinels (handled elsewhere).
+      const base = rampToBlockEnd(w, bw, 4, 10);
       return r1(isCutback ? base * 0.7 : base);
     },
     easyRunMi: (_w, _bw, isCutback) => r1(isCutback ? 2.0 : 3.0),
