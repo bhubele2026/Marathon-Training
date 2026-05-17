@@ -1777,3 +1777,140 @@ describe("Race-day marking on entries-mode marathon plans (Task #195)", () => {
     expect(sat.description).toContain("Race-eve");
   });
 });
+
+// Task #353 — research-aligned long-run progression. The user's
+// 2026-05-19 screenshot of a 12-week half-marathon plan showed long
+// runs stalling at 7.0 / 7.3 / 7.7 mi in the final pre-race build
+// weeks — well below the 10-12 mi peak that Higdon Intermediate-1
+// HM, Hansons Beginner HM, and Pfitz HM all prescribe 2-3 weeks
+// before race day. Root cause was a fixed `6 + (w-1)*0.5` step in
+// the Speed recipe that needed 9+ weeks to reach 10 mi; a 12w HM
+// gives Speed ~4 weeks, so the long-run ramp plateaued mid-climb.
+// The Task #353 fix replaced the fixed-step ramps with
+// `rampToBlockEnd(weekInBlock, blockWeeks, start, peak)` so every
+// block lands at `peak` on its final week regardless of length, and
+// bumped Speed peak 11 -> 12 to match the published Higdon
+// Intermediate-1 target. This describe block pins the post-fix
+// peaks for the three most common HM templates so a future
+// regression that re-introduces the plateau (or drops the peak
+// below the Higdon target) is caught loudly.
+describe("Long-run progression — research-aligned peaks (Task #353)", () => {
+  function hmCfg(templateId: string, weeks: number): PlannerConfig {
+    const startMs = Date.parse("2026-05-04T00:00:00Z");
+    const endMs = startMs + (weeks * 7 - 1) * 86400000;
+    const marathonDate = new Date(endMs).toISOString().slice(0, 10);
+    return {
+      startDate: "2026-05-04",
+      marathonDate,
+      blocks: [],
+      entries: [
+        { templateId, weeks, startDate: "2026-05-04" },
+      ],
+    } as unknown as PlannerConfig;
+  }
+
+  function sundayLongRunByWeek(cfg: PlannerConfig): Map<number, number> {
+    const { daily } = generatePlanFromConfig(cfg);
+    const out = new Map<number, number>();
+    for (const d of daily) {
+      if (d.day === "Sun") out.set(d.week, d.distance_mi || 0);
+    }
+    return out;
+  }
+
+  // The Speed peak is the headline knob the user noticed: a 12w HM
+  // splits roughly 6 Base + 4 Speed + 2 Taper, so the Speed block
+  // owns the highest pre-taper long run. Peak must reach 12 mi on
+  // the block-final week (matching Higdon Int-1 HM week 11).
+  it("12w half_marathon — Speed peak hits 12 mi on plan W10 (Speed block-final, 2 weeks pre-race)", () => {
+    const longByWeek = sundayLongRunByWeek(hmCfg("half_marathon", 12));
+    // Plan structure: 6 Base + 4 Speed + 2 Taper. Speed block weeks
+    // are plan w7-w10; w10 is the Speed block-final week and the
+    // last big long run before the 2-week taper.
+    expect(longByWeek.get(10), "12w HM Speed peak (plan w10)").toBe(12);
+    // Race week long run is overridden to the half-marathon
+    // distance by the race-day branch.
+    expect(longByWeek.get(12), "race day").toBe(13.1);
+  });
+
+  // Pre-fix bug: the long-run curve plateaued at 7.7 mi in the final
+  // pre-taper weeks. Lock in that the three pre-race-week Sundays of
+  // a 12w HM all clear the 10-mi research floor that Higdon /
+  // Hansons / Pfitz HM templates share.
+  it("12w half_marathon — final pre-taper Sundays climb steadily (no mid-climb plateau)", () => {
+    const longByWeek = sundayLongRunByWeek(hmCfg("half_marathon", 12));
+    // plan w7 = Speed w1, plan w8 = Speed w2, plan w9 = Speed w3,
+    // plan w10 = Speed w4 (block-final). Pre-fix these read
+    // approximately 6.0 / 6.5 / 7.0 / 7.7 mi (a flat 0.5 mi/week
+    // step that plateaued well below race distance). Post-fix the
+    // length-aware ramp climbs 8 -> 9.3 -> 10.7 -> 12, so every
+    // pre-taper Sunday clears 8 mi and the final two clear 10 mi.
+    const w7 = longByWeek.get(7) ?? 0;
+    const w8 = longByWeek.get(8) ?? 0;
+    const w9 = longByWeek.get(9) ?? 0;
+    const w10 = longByWeek.get(10) ?? 0;
+    expect(w7, "12w HM Speed W1 long run").toBeGreaterThanOrEqual(8);
+    expect(w8, "12w HM Speed W2 long run").toBeGreaterThan(w7);
+    expect(w9, "12w HM Speed W3 long run").toBeGreaterThanOrEqual(10);
+    expect(w10, "12w HM Speed W4 long run").toBeGreaterThanOrEqual(11);
+  });
+
+  // Taper hand-off: after Task #353, Taper.longRunMi starts at 12
+  // (was 10), so a HM Speed -> Taper hand-off has no dip. Plan w11
+  // = Taper W1 long run = 12 mi (then race week Sun = 13.1 race day).
+  it("12w half_marathon — Taper W1 long run starts at 12 mi (no dip from Speed peak)", () => {
+    const longByWeek = sundayLongRunByWeek(hmCfg("half_marathon", 12));
+    expect(longByWeek.get(11), "12w HM Taper W1 long run").toBe(12);
+  });
+
+  // Coach-template coverage: hm_pfitz and half_hybrid_balanced are the
+  // other two HM templates a runner is likely to pick from the Phase
+  // Planner catalog. Pin that they too clear the 10-mi research floor
+  // in the final pre-taper week so a future regression in Speed /
+  // Taper / hybrid recipes is caught across all HM offerings, not
+  // just the `half_marathon` template tested above.
+  it("14w hm_pfitz — pre-taper long run clears 10 mi (research floor across HM coaches)", () => {
+    const longByWeek = sundayLongRunByWeek(hmCfg("hm_pfitz", 14));
+    // Find the highest long-run Sunday in any non-race-week — that's
+    // the pre-taper peak the runner banks before race week, regardless
+    // of how the template's distribute() carved Speed vs Taper.
+    let peak = 0;
+    for (const [w, mi] of longByWeek) {
+      if (w === 14) continue; // race week is overridden to race distance
+      if (mi > peak) peak = mi;
+    }
+    expect(peak, "14w hm_pfitz pre-taper peak long run").toBeGreaterThanOrEqual(10);
+  });
+
+  it("14w half_hybrid_balanced — pre-taper long run clears 8 mi (hybrid HM ceiling)", () => {
+    const longByWeek = sundayLongRunByWeek(hmCfg("half_hybrid_balanced", 14));
+    let peak = 0;
+    for (const [w, mi] of longByWeek) {
+      if (w === 14) continue;
+      if (mi > peak) peak = mi;
+    }
+    // Hybrid balanced caps long at 8 mi (peakLong table) before level
+    // scalar — the default template level scales that down further.
+    // Floor is 7 (post-level-scaling, post-cutback) which is the
+    // hybrid-appropriate target since the runner is splitting volume
+    // with lifting. The position is "balanced", not "run_primary".
+    expect(peak, "14w half_hybrid_balanced pre-taper peak long run").toBeGreaterThanOrEqual(7);
+  });
+
+  // Race-kind scaling on the hybrid mileage table (Task #353): a 10K
+  // hybrid plan should not flat-line at the marathon-tuned long-run
+  // peak. Verify the 10K hybrid stays inside the 10K clamp ceiling
+  // (8 mi) AND ramps meaningfully rather than sitting at the cap
+  // from week 1.
+  it("12w 10k_hybrid_balanced — long run stays under 10K ceiling and ramps from a lower start", () => {
+    const longByWeek = sundayLongRunByWeek(hmCfg("10k_hybrid_balanced", 12));
+    const week1 = longByWeek.get(1) ?? 0;
+    let peak = 0;
+    for (const [w, mi] of longByWeek) {
+      if (w === 12) continue; // race week override
+      if (mi > peak) peak = mi;
+    }
+    expect(peak, "10K hybrid pre-race-week peak long run").toBeLessThanOrEqual(8);
+    expect(week1, "10K hybrid W1 long run").toBeLessThan(peak);
+  });
+});

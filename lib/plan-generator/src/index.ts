@@ -1353,11 +1353,15 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
   "Time on Feet": {
     phaseLabel: () => "Time on Feet",
     longRunMi: (w, bw, isCutback) => {
-      // Length-aware ramp 10 -> 14 mi across the block, cutback 70%.
+      // Length-aware ramp 10 -> 16 mi across the block, cutback 70%.
       // Used in marathon templates between Base (peaks 10) and
       // Marathon-Specific (peaks 20), so the start = Base's end and
       // the peak hands off cleanly to the MS block's own ramp from 12.
-      const base = rampToBlockEnd(w, bw, 10, 14);
+      // Raised from 14 to 16 (Task #353) so a Pfitz-style ToF block
+      // bridges to MS without a step-down — Higdon Marathon (Novice
+      // and Intermediate) puts a 16 mi long run 6-7 weeks pre-race,
+      // and Daniels Q-sessions land in the same 14-16 mi range.
+      const base = rampToBlockEnd(w, bw, 10, 16);
       return r1(isCutback ? base * 0.7 : base);
     },
     easyRunMi: (_w, _bw, isCutback) => r1(isCutback ? 2.5 : 3.5),
@@ -1406,15 +1410,16 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
   Speed: {
     phaseLabel: () => "Speed",
     longRunMi: (w, bw, isCutback) => {
-      // Length-aware ramp 8 -> 11 mi across the block, cutback 70%.
+      // Length-aware ramp 8 -> 12 mi across the block, cutback 70%.
       // Start is bumped from the pre-fix 6 to 8 so the curve hands off
       // smoothly from Base (which peaks 10) into Speed in HM templates
-      // that expand Base -> Speed -> Taper. Peak 11 lets a 12w Higdon
-      // HM hit ~11 mi 2 weeks before race (matching Higdon Intermediate)
+      // that expand Base -> Speed -> Taper. Peak 12 lets a 12w Higdon
+      // Intermediate HM hit 12 mi 2 weeks before race (matching the
+      // published Higdon Intermediate-1 long-run progression to 10-12 mi)
       // before the Taper block drops volume into race week. HM-clamp
-      // (clampRunMi cap = 13) leaves the full range intact; 10K plans
+      // (clampRunMi cap = 14) leaves the full range intact; 10K plans
       // clamp to 8 and 5K plans to 3.
-      const base = rampToBlockEnd(w, bw, 8, 11);
+      const base = rampToBlockEnd(w, bw, 8, 12);
       return r1(isCutback ? base * 0.7 : base);
     },
     easyRunMi: (_w, _bw, isCutback) => r1(isCutback ? 2.5 : 3.0),
@@ -1487,9 +1492,17 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
   Taper: {
     phaseLabel: () => "Taper",
     longRunMi: (w, blockWeeks, _isCutback) => {
-      // Drop volume across the block. Final week is half of starting.
+      // Drop volume across the block. Starts at 12 (matches Speed's
+      // peak so a HM Speed -> Taper handoff has no dip — Task #353)
+      // and descends to 6 over the block. Race-week Sunday is
+      // overridden to the matching race distance by the race-day
+      // branch in `buildWeekDays`, so the final-week value is
+      // overwritten anyway; the descending shape matters for the
+      // 1-2 pre-race weeks. Marathon plans hand off from MS peak 20
+      // -> Taper W1 12 -> W2 9 -> W3 6 (overridden), which mirrors
+      // Pfitz's published 20/12/8 taper-pattern long-run rule.
       const t = (w - 1) / Math.max(1, blockWeeks - 1); // 0..1
-      return r1(10 - t * 6);
+      return r1(12 - t * 6);
     },
     easyRunMi: (w, blockWeeks, _isCutback) => {
       const t = (w - 1) / Math.max(1, blockWeeks - 1);
@@ -2117,7 +2130,7 @@ type RunMileageCeiling = Record<RunIntensityKind, number>;
 const RACE_KIND_RUN_CEILING: Partial<Record<PlanRaceKind, RunMileageCeiling>> = {
   "5k": { easy: 2.5, quality: 3.0, long: 3.0 },
   "10k": { easy: 4.0, quality: 5.0, long: 8.0 },
-  half: { easy: 5.0, quality: 8.0, long: 13.0 },
+  half: { easy: 5.0, quality: 8.0, long: 14.0 },
 };
 
 export function clampRunMi(
@@ -2168,12 +2181,26 @@ function hybridMileage(
     run_leaning: 4.0,
     run_primary: 5.0,
   };
+  // Race-distance scalar applied to the long-run peak so a 5K or 10K
+  // hybrid plan doesn't flat-line at the marathon-tuned ceiling.
+  // Marathon and "none" pass through at 1.0 (marathon is the baseline;
+  // "none" templates have no race day so clampRunMi is a no-op anyway).
+  // half is also 1.0 because the marathon-tuned hybrid peaks (run_primary
+  // 12 mi) are already inside the half-marathon ceiling (14). Task #353.
+  const longPeakScalar: Record<PlanRaceKind, number> = {
+    "5k": 0.4,
+    "10k": 0.7,
+    half: 1.0,
+    marathon: 1.0,
+    none: 1.0,
+  };
+  const scaleLong = longPeakScalar[raceKind] ?? 1.0;
   const peakLong: Record<HybridMixPosition, number> = {
-    lift_primary: 3.0,
-    lift_leaning: 5.0,
-    balanced: 8.0,
-    run_leaning: 10.0,
-    run_primary: 12.0,
+    lift_primary: 3.0 * scaleLong,
+    lift_leaning: 5.0 * scaleLong,
+    balanced: 8.0 * scaleLong,
+    run_leaning: 10.0 * scaleLong,
+    run_primary: 12.0 * scaleLong,
   };
 
   // Phase-aware ramp window (Task #154). When `phase` is null the

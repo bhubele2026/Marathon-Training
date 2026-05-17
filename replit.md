@@ -6,6 +6,8 @@ Personal training tracker reframed as a general workout planner. Originally a 1-
 
 UI is an orange-on-dark "mission control" theme. No emojis anywhere.
 
+Long-run progression across every recipe (`lib/plan-generator/src/index.ts` RECIPES) is length-aware via `rampToBlockEnd(weekInBlock, blockWeeks, start, peak)` so each block lands at `peak` on its block-final week regardless of how the template's distribute() carved the block. Research-aligned peaks (Task #353): Base 4→10, Time on Feet 10→16 (Higdon Marathon / Pfitz bridge), Speed 8→12 (Higdon Intermediate-1 HM), Marathon-Specific 12→20 (Pfitz 18/55), Taper 12→6 (matches Speed peak so HM Speed → Taper hand-off has no dip). Race-distance ceilings in `clampRunMi` cap from above without raising: 5K long 3, 10K long 8, half long 14 (room for Pfitz HM 14-16). The hybrid mileage table scales its long-run peak by raceKind so 5K / 10K hybrid plans don't flat-line at the marathon-tuned ceiling.
+
 The HR Zone targeting mode supports four zone models — `five_zone_max` (default), `friel_7_zone`, `coggan_5_zone`, `polarized_3_zone` — picked from a dropdown on Settings. Per-model zone tables, labels, and bucket→zone mapping live in `artifacts/command-center/src/lib/run-target.ts` (`HR_ZONE_MODEL_DEFS`).
 
 ## Weekly schedule (lift-priority, hybrid)
