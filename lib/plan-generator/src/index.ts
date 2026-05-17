@@ -267,9 +267,31 @@ function clampDayBudget(
   ) {
     return row;
   }
+  // Description-text sync. The description is templated upstream with
+  // the *recipe's* heavyTonalMin (e.g. "Heavy upper-body Tonal (20 min,
+  // push/pull at 80-85% effort), then 15 min easy Peloton Bike spin").
+  // If the strength-floor enforcer above bumped strength from 20 to 30,
+  // the description's "Tonal (20 min," prefix drifts out of sync with
+  // the breakdown chip rail ("TONAL · 30 MIN") — visible bug from the
+  // 2026-05-19 user screenshot. Rewrite the first "Tonal (N min,"
+  // mention to match the post-pad strength bucket. The regex
+  // intentionally matches the shared template shape used by every
+  // Heavy/Accessory Tonal description (lift-primary buildWeekDays, the
+  // hybrid buildHybridWeekDays, and the lift-only fillTonalSession
+  // helper) so a single patch covers all of them. Anchored on the
+  // first `Tonal (\d+ min,` to leave any "then X min" cardio/run
+  // copy after that point untouched.
+  let description = row.description;
+  if (strength !== (row.strength_min ?? 0) && strength > 0) {
+    description = description.replace(
+      /Tonal \(\d+ min,/,
+      `Tonal (${strength} min,`,
+    );
+  }
   const delta = total - before;
   return {
     ...row,
+    description,
     strength_min: strength,
     cardio_min: cardio,
     run_min: run,
