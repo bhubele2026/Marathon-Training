@@ -2242,20 +2242,16 @@ function hybridMileage(
   // distance (5K: 3 mi, 10K: 6 mi, half: 11 mi).
   // `none` is intentionally unfloored (no race day, clampRunMi is
   // a no-op anyway).
-  // MARATHON is also intentionally unfloored. The user-reported
-  // regression was HM-only, the `marathon_hybrid` template has no
-  // reported regression, and adding a marathon floor surfaces a
-  // pre-existing divergence between `generatePlanFromConfig`
-  // (which resolves a marathon raceKind in legacy appendTail mode)
-  // and `previewWeeklyMileage` (which resolves differently for the
-  // same legacy blocks), breaking the preview-vs-planned symmetry
-  // test in `hybrid-generator.test.ts`. Fixing that divergence is
-  // a separate, out-of-scope concern; for now keep marathon
-  // unfloored so this task lands without regressing the preview.
+  // Marathon (18 mi) is ~69% of 26.2 — the bottom of the ACSM
+  // range. Preview/planned symmetry for legacy appendTail mode is
+  // preserved by aligning `previewWeeklyMileage`'s hybrid raceKind
+  // with `generatePlanFromConfig`'s "marathon" default (see
+  // ~line 3752).
   const longSafetyFloor: Partial<Record<PlanRaceKind, number>> = {
     "5k": 3,
     "10k": 6,
     half: 11,
+    marathon: 18,
   };
   const floor = longSafetyFloor[raceKind];
   if (floor !== undefined) {
@@ -3737,6 +3733,18 @@ export function previewWeeklyMileage(
       let qualityMi: number;
       let longMi: number;
       if (hybridSpecForPreview && hybridScheduleCounts) {
+        // Align raceKind with `generatePlanFromConfig`'s per-block
+        // hybrid week builder, which defaults to "marathon" when
+        // `opts.raceKind` is unset (see `buildHybridWeekDays`
+        // raceKind default ~line 2585). In legacy blocks-mode the
+        // generator builds every hybrid block as a marathon-tail
+        // contributor, so the preview must do the same or the
+        // preview-vs-planned symmetry test diverges (and the
+        // marathon race-distance floor below mis-applies). Entries
+        // mode keeps the resolved entries-race-kind.
+        const hybridRaceKindForPreview: PlanRaceKind = appendTail
+          ? "marathon"
+          : resolvedEntriesRaceKind;
         const mi = hybridMileage(
           hybridSpecForPreview.position,
           hybridSpecForPreview.level,
@@ -3744,7 +3752,7 @@ export function previewWeeklyMileage(
           w,
           isCutback,
           hybridPhaseForPreview,
-          resolvedEntriesRaceKind,
+          hybridRaceKindForPreview,
         );
         if (isRaceWeek) {
           // Race-week override (Task #192 / #198 / #200). The hybrid

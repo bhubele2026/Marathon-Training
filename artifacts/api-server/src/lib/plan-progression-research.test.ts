@@ -209,14 +209,23 @@ describe("Task #360 — production-shape pin (user's exact applied config)", () 
     // 13.1 - 7.7 = 5.4 mi (cliff). With the floor, peak ≥ 9
     // keeps the gap ≤ 4.1 mi.
     expect(13.1 - prePeak, `race-day gap from peak (${prePeak} mi → 13.1 mi)`).toBeLessThanOrEqual(5);
-    // The final 4 weeks of the block (W33-W36 minus race day)
-    // must all clear meaningful long-run mileage — no taper week
-    // can drop below 6 mi (the pre-fix bug had all three at 7.x
-    // because the peak itself was 7.7; we want the floor proper).
-    const finalThree = [longs.get(33) ?? 0, longs.get(34) ?? 0, longs.get(35) ?? 0];
-    for (const mi of finalThree) {
-      expect(mi, `final-three long run (got ${JSON.stringify(finalThree)})`).toBeGreaterThanOrEqual(6);
-    }
+    // Explicit per-week pins on the exact user-reported sequence
+    // (pre-fix values were W33=7.0, W34=7.3, W35=7.7). The new
+    // floor + ramp must clear meaningful thresholds on each of
+    // the last three pre-race weeks — not just one peak. Cutback
+    // weeks (% 4) are exempt: W32 is a planned cutback inside the
+    // 16w block (weekInBlock=12), so the W33-W35 window is
+    // the post-cutback ramp into race day.
+    const w33 = longs.get(33) ?? 0;
+    const w34 = longs.get(34) ?? 0;
+    const w35 = longs.get(35) ?? 0;
+    expect(w33, `W33 long run (got ${w33})`).toBeGreaterThanOrEqual(9);
+    expect(w34, `W34 long run (got ${w34})`).toBeGreaterThanOrEqual(9);
+    expect(w35, `W35 long run (got ${w35})`).toBeGreaterThanOrEqual(8);
+    // The step into race day must not be a cliff — ACSM
+    // guideline puts last-long-run within ~3 mi of race day for
+    // a safe progression. Pre-fix this was 13.1 - 7.7 = 5.4 mi.
+    expect(13.1 - w35, `race-day step from W35 (${w35} mi → 13.1 mi)`).toBeLessThanOrEqual(3);
   });
 });
 
