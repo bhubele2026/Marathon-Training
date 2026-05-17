@@ -11,7 +11,7 @@ import {
   type ScheduledRaceRow,
   type WorkoutRow,
 } from "@workspace/db";
-import { eq, asc, sql, and, gte, lte, inArray } from "drizzle-orm";
+import { eq, asc, desc, sql, and, gte, lte, inArray } from "drizzle-orm";
 import {
   UpdatePlanDayBody,
   SwapPlanDayBody,
@@ -19,6 +19,7 @@ import {
 } from "@workspace/api-zod";
 import {
   detectRaceKind,
+  PLAN_SCIENCE_VERSION,
   type PlannerConfig,
   type TemplateEntry,
 } from "@workspace/plan-generator";
@@ -221,6 +222,32 @@ router.get("/plan/overview", async (_req, res) => {
     raceDate = allWeeks[allWeeks.length - 1]!.endDate;
   }
 
+  // Task #354. Coach-upgrade nudge. Pull the lastAppliedAt timestamp +
+  // id of the most-recently-applied config so the /plan banner can
+  // detect that the runner's plan was generated against an older
+  // version of the training science. The banner re-applies that same
+  // config (activate -> apply) to refresh this week's targets.
+  const lastAppliedRows = await db
+    .select({
+      id: plannerConfigsTable.id,
+      lastAppliedAt: plannerConfigsTable.lastAppliedAt,
+    })
+    .from(plannerConfigsTable)
+    .where(sql`${plannerConfigsTable.lastAppliedAt} IS NOT NULL`)
+    .orderBy(desc(plannerConfigsTable.lastAppliedAt))
+    .limit(1);
+  const lastAppliedRow = lastAppliedRows[0];
+  const lastAppliedAt = lastAppliedRow?.lastAppliedAt
+    ? lastAppliedRow.lastAppliedAt.toISOString()
+    : null;
+  const lastAppliedConfigId = lastAppliedRow?.id ?? null;
+  // Stamp comparison is lexicographic on ISO strings: any timestamp
+  // before midnight UTC on the science-version date counts as stale.
+  // (PLAN_SCIENCE_VERSION is a yyyy-mm-dd string, which sorts <= the
+  // shortest ISO timestamp on that day.)
+  const coachUpgradeAvailable =
+    lastAppliedAt !== null && lastAppliedAt < PLAN_SCIENCE_VERSION;
+
   // Task #330. Body-mass targets — applied snapshot wins, then
   // earliest measurement (start only), then null sentinels.
   const bodyTargets = await readActiveBodyTargets();
@@ -253,6 +280,10 @@ router.get("/plan/overview", async (_req, res) => {
         }
       : null,
     activeConfigName,
+    scienceVersion: PLAN_SCIENCE_VERSION,
+    lastAppliedAt,
+    lastAppliedConfigId,
+    coachUpgradeAvailable,
   });
 });
 

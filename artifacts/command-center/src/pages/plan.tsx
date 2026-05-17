@@ -1,6 +1,8 @@
 import { useState } from "react";
 import {
   getGetPlanWeekQueryKey,
+  useActivatePlannerConfig,
+  useApplyPlannerConfig,
   useFullResetPlan,
   useGetPlanOverview,
   useGetPlanWeek,
@@ -8,6 +10,7 @@ import {
   useResetPlan,
   useUndoPlanReset,
 } from "@workspace/api-client-react";
+import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { UndoCountdownAction } from "@/components/undo-countdown-action";
 import { Card, CardContent } from "@/components/ui/card";
@@ -43,6 +46,8 @@ import {
   Flame,
   Sparkles,
   ChevronRight,
+  Wand2,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { phaseColor } from "@/lib/phase-colors";
@@ -145,6 +150,12 @@ function WeekCustomizedBadge({
 
 const RESET_PLAN_CONFIRM_PHRASE = "RESET PLAN";
 
+// Task #354. localStorage key for dismissing the coach-upgrade banner.
+// The dismissal is keyed by the server's scienceVersion stamp so the
+// banner re-arms automatically the next time the science is bumped —
+// dismissing once doesn't silence future upgrades.
+const COACH_UPGRADE_DISMISS_KEY = "plan.coachUpgradeDismissedVersion";
+
 export default function Plan() {
   const { data: overview, isLoading: loadingOverview } = useGetPlanOverview();
   const { data: weeks, isLoading: loadingWeeks } = useListPlanWeeks();
@@ -154,9 +165,21 @@ export default function Plan() {
   const resetPlan = useResetPlan();
   const undoPlanReset = useUndoPlanReset();
   const fullResetPlan = useFullResetPlan();
+  const activatePlannerConfig = useActivatePlannerConfig();
+  const applyPlannerConfig = useApplyPlannerConfig();
   const [resetPlanOpen, setResetPlanOpen] = useState(false);
   const [resetPlanConfirmText, setResetPlanConfirmText] = useState("");
   const [fullResetOpen, setFullResetOpen] = useState(false);
+  const [dismissedVersion, setDismissedVersion] = useState<string | null>(
+    () => {
+      if (typeof window === "undefined") return null;
+      try {
+        return window.localStorage.getItem(COACH_UPGRADE_DISMISS_KEY);
+      } catch {
+        return null;
+      }
+    },
+  );
 
   // Task #308: bounce the runner straight into the Phase Planner on
   // first visit when no plan has ever been applied AND no planner
@@ -598,6 +621,117 @@ export default function Plan() {
           </Card>
         );
       })()}
+
+      {/* Task #354. Coach-upgrade nudge. When the server reports the
+          applied snapshot predates the current science version (and
+          the runner hasn't dismissed THIS version) surface a banner
+          with a one-click Re-Apply. The button activates the
+          most-recently-applied config + re-runs the apply flow, then
+          invalidates every mission query so the new numbers paint
+          everywhere. */}
+      {overview.coachUpgradeAvailable &&
+        overview.scienceVersion !== dismissedVersion &&
+        overview.lastAppliedConfigId != null && (() => {
+          const reapplyPending =
+            activatePlannerConfig.isPending || applyPlannerConfig.isPending;
+          const handleReapply = () => {
+            const configId = overview.lastAppliedConfigId;
+            if (configId == null) return;
+            activatePlannerConfig.mutate(
+              { id: configId },
+              {
+                onSuccess: () => {
+                  applyPlannerConfig.mutate(undefined, {
+                    onSuccess: (resp) => {
+                      toast({
+                        title: "Plan refreshed with the latest coach upgrades",
+                        description: `${resp.weeksSeeded} weeks · ${resp.daysSeeded} days · ${resp.workoutsPreserved} workouts kept`,
+                      });
+                      invalidateMissionRelatedQueries(queryClient);
+                    },
+                    onError: () => {
+                      toast({
+                        title: "Re-Apply failed",
+                        description:
+                          "Open the Phase Planner and apply your config from there.",
+                        variant: "destructive",
+                      });
+                    },
+                  });
+                },
+                onError: () => {
+                  toast({
+                    title: "Re-Apply failed",
+                    description:
+                      "Couldn't reactivate your config. Open the Phase Planner and apply from there.",
+                    variant: "destructive",
+                  });
+                },
+              },
+            );
+          };
+          const handleDismiss = () => {
+            setDismissedVersion(overview.scienceVersion);
+            try {
+              window.localStorage.setItem(
+                COACH_UPGRADE_DISMISS_KEY,
+                overview.scienceVersion,
+              );
+            } catch {
+              /* localStorage unavailable — in-memory state still hides
+                 the banner for the rest of the session. */
+            }
+          };
+          return (
+            <Card
+              className="border-2 border-primary/40 bg-primary/5"
+              data-testid="banner-coach-upgrade"
+              data-science-version={overview.scienceVersion}
+            >
+              <CardContent className="p-5">
+                <div className="flex flex-col md:flex-row md:items-center gap-4">
+                  <div className="flex items-start gap-3 flex-1">
+                    <Wand2 className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="text-sm font-bold uppercase tracking-wider text-primary">
+                        Coach upgrades available
+                      </p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        The training science has been updated since you
+                        last applied this plan. Re-Apply to refresh this
+                        week's targets — logged workouts and measurements
+                        stay put.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 self-start md:self-auto">
+                    <Button
+                      size="sm"
+                      className="text-xs uppercase font-bold tracking-wider"
+                      onClick={handleReapply}
+                      disabled={reapplyPending}
+                      data-testid="button-coach-upgrade-reapply"
+                    >
+                      <Wand2 className="h-3 w-3 mr-1.5" />
+                      {reapplyPending ? "Re-Applying…" : "Re-Apply"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs uppercase font-bold tracking-wider"
+                      onClick={handleDismiss}
+                      disabled={reapplyPending}
+                      data-testid="button-coach-upgrade-dismiss"
+                      aria-label="Dismiss coach upgrade banner"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
 
       <div className="space-y-12">
         {Object.entries(groupedWeeks).map(([phase, phaseWeeks]) => {

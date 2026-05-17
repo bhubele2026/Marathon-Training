@@ -605,6 +605,42 @@ a calendar date and the missed row isn't the primary
 `nextMissedDate` is null.
  */
   nextMissedPlanDayId?: number | null;
+  /** Task #354. Stamp identifying the current version of the
+underlying training science (long-run progression curves,
+race-distance ceilings, per-zone targeting, etc.). Bumped
+whenever the generator output changes meaningfully for a
+previously-applied plan. The /plan page compares this
+against `lastAppliedAt`; when the applied snapshot predates
+this stamp the page surfaces a dismissable "Coach upgrades
+available — re-Apply your config" banner. Format is the
+yyyy-mm-dd of the upgrade so banner-dismissal can be keyed
+by stamp in localStorage and re-arm at the next bump.
+ */
+  scienceVersion: string;
+  /** Task #354. ISO timestamp of the most recent `/planner/apply`
+against the runner's currently-applied config. Null on
+fresh installs / after Full Reset (no config has ever been
+applied — `hasPlan === false`). Surfaced alongside
+`scienceVersion` so the /plan coach-upgrade banner can
+decide whether the applied snapshot is stale.
+ */
+  lastAppliedAt: string | null;
+  /** Task #354. planner_configs.id of the most-recently-applied
+config. The /plan coach-upgrade banner's "Re-Apply" button
+activates this row and re-runs Apply so the runner doesn't
+have to round-trip through the Phase Planner. Null whenever
+`lastAppliedAt` is null.
+ */
+  lastAppliedConfigId: number | null;
+  /** Task #354. True when there is an applied planner config AND
+its `lastAppliedAt` predates the server's current
+`scienceVersion` — i.e. the generator has been upgraded
+since the runner last applied their plan and the visible
+numbers are out of date. Drives the /plan page's
+dismissable nudge banner. Always false when nothing has
+been applied yet (the EmptyPlanState CTA covers that case).
+ */
+  coachUpgradeAvailable: boolean;
 }
 
 /**

@@ -113,6 +113,28 @@ export const GetPlanOverviewResponse = zod.object({
     .describe(
       "Task #33. plan_day.id of the earliest missed session.\nSurfaced so the client can highlight the EXACT card after\nnavigation, even when concurrent overlapping programs share\na calendar date and the missed row isn't the primary\n(lowest-source-entry-index) card. Null whenever\n`nextMissedDate` is null.\n",
     ),
+  scienceVersion: zod
+    .string()
+    .describe(
+      'Task #354. Stamp identifying the current version of the\nunderlying training science (long-run progression curves,\nrace-distance ceilings, per-zone targeting, etc.). Bumped\nwhenever the generator output changes meaningfully for a\npreviously-applied plan. The \/plan page compares this\nagainst `lastAppliedAt`; when the applied snapshot predates\nthis stamp the page surfaces a dismissable \"Coach upgrades\navailable — re-Apply your config\" banner. Format is the\nyyyy-mm-dd of the upgrade so banner-dismissal can be keyed\nby stamp in localStorage and re-arm at the next bump.\n',
+    ),
+  lastAppliedAt: zod
+    .string()
+    .nullable()
+    .describe(
+      "Task #354. ISO timestamp of the most recent `\/planner\/apply`\nagainst the runner's currently-applied config. Null on\nfresh installs \/ after Full Reset (no config has ever been\napplied — `hasPlan === false`). Surfaced alongside\n`scienceVersion` so the \/plan coach-upgrade banner can\ndecide whether the applied snapshot is stale.\n",
+    ),
+  lastAppliedConfigId: zod
+    .number()
+    .nullable()
+    .describe(
+      "Task #354. planner_configs.id of the most-recently-applied\nconfig. The \/plan coach-upgrade banner's \"Re-Apply\" button\nactivates this row and re-runs Apply so the runner doesn't\nhave to round-trip through the Phase Planner. Null whenever\n`lastAppliedAt` is null.\n",
+    ),
+  coachUpgradeAvailable: zod
+    .boolean()
+    .describe(
+      "Task #354. True when there is an applied planner config AND\nits `lastAppliedAt` predates the server's current\n`scienceVersion` — i.e. the generator has been upgraded\nsince the runner last applied their plan and the visible\nnumbers are out of date. Drives the \/plan page's\ndismissable nudge banner. Always false when nothing has\nbeen applied yet (the EmptyPlanState CTA covers that case).\n",
+    ),
 });
 
 export const ListPlanWeeksResponseItem = zod.object({

@@ -65,6 +65,8 @@ vi.mock("@workspace/api-client-react", () => ({
   useResetPlan: () => ({ mutate: resetPlanMutate, isPending: false }),
   useUndoPlanReset: () => ({ mutate: undoPlanResetMutate, isPending: false }),
   useFullResetPlan: () => ({ mutate: vi.fn(), isPending: false }),
+  useActivatePlannerConfig: () => ({ mutate: vi.fn(), isPending: false }),
+  useApplyPlannerConfig: () => ({ mutate: vi.fn(), isPending: false }),
   useGetPlanWeek: () => ({ data: undefined, isLoading: false }),
   getGetPlanWeekQueryKey: (week: number) => ["plan-week", week],
 }));

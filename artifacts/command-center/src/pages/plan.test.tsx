@@ -11,6 +11,8 @@ vi.mock("@workspace/api-client-react", () => ({
   useResetPlan: () => ({ mutate: vi.fn(), isPending: false }),
   useUndoPlanReset: () => ({ mutate: vi.fn(), isPending: false }),
   useFullResetPlan: () => ({ mutate: vi.fn(), isPending: false }),
+  useActivatePlannerConfig: () => ({ mutate: vi.fn(), isPending: false }),
+  useApplyPlannerConfig: () => ({ mutate: vi.fn(), isPending: false }),
   // Task #308: plan page auto-redirects to /planner on first visit
   // when hasPlan=false AND no saved drafts exist. Stub with a
   // non-empty configs list so existing scenarios never trigger.

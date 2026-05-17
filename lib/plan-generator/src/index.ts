@@ -345,6 +345,19 @@ export const PLAN_START_ISO = "2026-05-04";
 export const RACE_DATE_ISO = "2027-05-02";
 export const TOTAL_WEEKS = 52;
 
+// Task #354. Stamp that gets bumped whenever the underlying training
+// science changes in a way that would materially alter the numbers a
+// runner sees on a previously-applied plan (long-run progression
+// recalibration, race-distance ceilings, per-zone targeting, etc.).
+// `/plan/overview` compares the most-recently-applied planner config's
+// `last_applied_at` against this constant; the /plan page surfaces a
+// dismissable "Coach upgrades available — re-Apply your config" banner
+// whenever the applied snapshot predates the current science version.
+// Bump this (move the date forward) any time the generator output
+// changes meaningfully for an already-applied plan. The most recent
+// bump landed alongside Task #353 (research-aligned long-run peaks).
+export const PLAN_SCIENCE_VERSION = "2026-05-17";
+
 const longRuns: (number | null)[] = [
   null,
   2.0, 2.5, 3.0, 2.0, 3.5, 4.0,
