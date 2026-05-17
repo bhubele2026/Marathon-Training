@@ -1320,6 +1320,33 @@ function rampToBlockEnd(
   return start + t * (peak - start);
 }
 
+// Canonical exported alias for the block-curve helper above. Task #353
+// promotes `buildBlockMileageCurve` as the single source of truth that
+// every recipe / preview / hybrid path is expected to call when it
+// needs a "start at `start`, land at `peak` on the block-final week"
+// progression. New recipes should import this name rather than the
+// private `rampToBlockEnd` so the public contract is discoverable.
+export function buildBlockMileageCurve(
+  weekInBlock: number,
+  blockWeeks: number,
+  start: number,
+  peak: number,
+): number {
+  return rampToBlockEnd(weekInBlock, blockWeeks, start, peak);
+}
+
+// Unified cutback (deload-week) factor applied to the long run on
+// every 4th week-in-block (the `weekInBlock % 4 === 0 && weekInBlock
+// !== blockWeeks` rule). Pre-Task-#353 each recipe carried its own
+// factor (Base/Speed/Custom 0.70, Cardio+WL 0.75, MS 0.75 with an
+// 8 mi floor) which produced inconsistent deload depth across
+// templates. 0.82 reflects the ~18% volume reduction recommended by
+// Hansons / Pfitz / Daniels for in-block deload weeks (vs end-of-
+// mesocycle full recovery weeks which can drop further). MS keeps
+// its 8 mi floor because the marathon long run should never drop
+// below the runner's existing comfortable distance.
+export const CUTBACK_LONG_FACTOR = 0.82;
+
 const RECIPES: Record<FocusType, FocusRecipe> = {
   Base: {
     phaseLabel: () => "Base",
@@ -1332,7 +1359,7 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
       // Novice/Intermediate base-block peaks; race-distance clamping
       // (clampRunMi) downscales it for 5K (cap 3) / 10K (cap 8) plans.
       const base = rampToBlockEnd(w, bw, 4, 10);
-      return r1(isCutback ? base * 0.7 : base);
+      return r1(isCutback ? base * CUTBACK_LONG_FACTOR : base);
     },
     easyRunMi: (_w, _bw, isCutback) => r1(isCutback ? 2.0 : 3.0),
     qualityRunMi: (_w, _bw, isCutback) => r1(isCutback ? 2.0 : 3.0),
@@ -1353,7 +1380,7 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
   "Time on Feet": {
     phaseLabel: () => "Time on Feet",
     longRunMi: (w, bw, isCutback) => {
-      // Length-aware ramp 10 -> 16 mi across the block, cutback 70%.
+      // Length-aware ramp 10 -> 16 mi across the block, unified cutback.
       // Used in marathon templates between Base (peaks 10) and
       // Marathon-Specific (peaks 20), so the start = Base's end and
       // the peak hands off cleanly to the MS block's own ramp from 12.
@@ -1362,7 +1389,7 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
       // and Intermediate) puts a 16 mi long run 6-7 weeks pre-race,
       // and Daniels Q-sessions land in the same 14-16 mi range.
       const base = rampToBlockEnd(w, bw, 10, 16);
-      return r1(isCutback ? base * 0.7 : base);
+      return r1(isCutback ? base * CUTBACK_LONG_FACTOR : base);
     },
     easyRunMi: (_w, _bw, isCutback) => r1(isCutback ? 2.5 : 3.5),
     qualityRunMi: (_w, _bw, isCutback) => r1(isCutback ? 2.5 : 3.5),
@@ -1388,7 +1415,7 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
       // aerobic stimulus into the daily cross-train block rather than
       // chasing big long runs.
       const base = rampToBlockEnd(w, bw, 5, 8);
-      return r1(isCutback ? base * 0.75 : base);
+      return r1(isCutback ? base * CUTBACK_LONG_FACTOR : base);
     },
     easyRunMi: (_w, _bw, isCutback) => r1(isCutback ? 2.0 : 2.5),
     qualityRunMi: (_w, _bw, isCutback) => r1(isCutback ? 2.0 : 2.5),
@@ -1420,7 +1447,7 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
       // (clampRunMi cap = 14) leaves the full range intact; 10K plans
       // clamp to 8 and 5K plans to 3.
       const base = rampToBlockEnd(w, bw, 8, 12);
-      return r1(isCutback ? base * 0.7 : base);
+      return r1(isCutback ? base * CUTBACK_LONG_FACTOR : base);
     },
     easyRunMi: (_w, _bw, isCutback) => r1(isCutback ? 2.5 : 3.0),
     qualityRunMi: (w, bw, isCutback) =>
@@ -1470,7 +1497,7 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
       }
       const peak = 20;
       const base = Math.min(peak, 12 + (w - 1) * ((peak - 12) / Math.max(1, blockWeeks - 4)));
-      return r1(isCutback ? Math.max(8, base * 0.75) : base);
+      return r1(isCutback ? Math.max(8, base * CUTBACK_LONG_FACTOR) : base);
     },
     easyRunMi: (_w, _bw, isCutback) => r1(isCutback ? 3.0 : 4.0),
     qualityRunMi: (_w, _bw, isCutback) => r1(isCutback ? 3.0 : 4.5),
@@ -1606,7 +1633,7 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
       // generic aerobic-build behavior unless overridden by hybrid /
       // lift-primary / primary-machine sentinels (handled elsewhere).
       const base = rampToBlockEnd(w, bw, 4, 10);
-      return r1(isCutback ? base * 0.7 : base);
+      return r1(isCutback ? base * CUTBACK_LONG_FACTOR : base);
     },
     easyRunMi: (_w, _bw, isCutback) => r1(isCutback ? 2.0 : 3.0),
     qualityRunMi: (_w, _bw, isCutback) => r1(isCutback ? 2.0 : 3.0),

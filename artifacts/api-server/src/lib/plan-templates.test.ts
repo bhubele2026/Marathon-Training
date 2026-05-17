@@ -1389,15 +1389,18 @@ describe("Marathon-Specific recipe — no phantom 26.2 mi long run mid-plan (Tas
     //
     // Block layout for 18w "marathon": 4 Base + 5 ToF + 6 MS + 3 Taper.
     // MS weeks are plan weeks 10-15 with blockWeeks=6.
-    // Recipe ramp: base = min(20, 12 + (w-1) * (8/2)); cutback every 4w.
+    // Recipe ramp: base = min(20, 12 + (w-1) * (8/2)); cutback every 4w
+    // using the unified CUTBACK_LONG_FACTOR (0.82).
     //   plan w12 = MS w3:           20 mi (peak)
-    //   plan w13 = MS w4 (cutback): max(8, 20*0.75) = 15 mi
+    //   plan w13 = MS w4 (cutback): max(8, 20*0.82) = 16.4 mi
     //   plan w14 = MS w5:           20 mi (peak)
     //   plan w15 = MS w6:           20 mi (peak — Taper block follows)
     // Pre-Task #190 these read 16 → 13 → 8 → 13 mi (the blocks-mode
-    // tail-taper short-circuits firing in entries-mode).
+    // tail-taper short-circuits firing in entries-mode). Pre-Task #353
+    // the cutback was 0.75 (15 mi); the unified 0.82 factor reflects
+    // Hansons/Pfitz/Daniels-aligned deload depth across templates.
     expect(longRunByWeek.get(12), "week 12 long run mi").toBe(20);
-    expect(longRunByWeek.get(13), "week 13 long run mi").toBe(15);
+    expect(longRunByWeek.get(13), "week 13 long run mi").toBe(16.4);
     expect(longRunByWeek.get(14), "week 14 long run mi").toBe(20);
     expect(longRunByWeek.get(15), "week 15 long run mi").toBe(20);
     // Belt-and-suspenders: week 15 (the block-final week) must be at
@@ -1534,18 +1537,19 @@ describe("Marathon-Specific recipe — entries-mode smoothed late-MS ramp (Task 
     }
 
     // Recipe ramp: base = min(20, 12 + (w-1) * (8/2)); cutback every
-    // 4w. blockWeeks=6 so MS w4 is a cutback (15 mi after 0.75
-    // multiplier on the 20 mi peak).
+    // 4w. blockWeeks=6 so MS w4 is a cutback (16.4 mi after the
+    // unified CUTBACK_LONG_FACTOR 0.82 multiplier on the 20 mi peak —
+    // pre-Task-#353 this was 0.75 → 15 mi).
     //   MS w1 (plan w10): 12 mi
     //   MS w2 (plan w11): 16 mi
     //   MS w3 (plan w12): 20 mi (peak)
-    //   MS w4 (plan w13): cutback → 15 mi
+    //   MS w4 (plan w13): cutback → 16.4 mi
     //   MS w5 (plan w14): 20 mi
     //   MS w6 (plan w15): 20 mi (block-final, Taper follows)
     expect(longRunByWeek.get(10), "MS w1 (plan w10)").toBe(12);
     expect(longRunByWeek.get(11), "MS w2 (plan w11)").toBe(16);
     expect(longRunByWeek.get(12), "MS w3 (plan w12)").toBe(20);
-    expect(longRunByWeek.get(13), "MS w4 cutback (plan w13)").toBe(15);
+    expect(longRunByWeek.get(13), "MS w4 cutback (plan w13)").toBe(16.4);
     expect(longRunByWeek.get(14), "MS w5 (plan w14)").toBe(20);
     expect(longRunByWeek.get(15), "MS w6 block-final (plan w15)").toBe(20);
 
@@ -1634,7 +1638,7 @@ describe("Marathon-Specific recipe — entries-mode smoothed late-MS ramp (Task 
     expect(preview[9]!.longRunMi, "preview MS w1 (plan w10)").toBe(12);
     expect(preview[10]!.longRunMi, "preview MS w2 (plan w11)").toBe(16);
     expect(preview[11]!.longRunMi, "preview MS w3 (plan w12)").toBe(20);
-    expect(preview[12]!.longRunMi, "preview MS w4 cutback (plan w13)").toBe(15);
+    expect(preview[12]!.longRunMi, "preview MS w4 cutback (plan w13)").toBe(16.4);
     expect(preview[13]!.longRunMi, "preview MS w5 (plan w14)").toBe(20);
     expect(preview[14]!.longRunMi, "preview MS w6 block-final (plan w15)").toBe(20);
   });
