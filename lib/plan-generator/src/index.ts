@@ -2229,6 +2229,30 @@ function hybridMileage(
     run_leaning: 10.0 * scaleLong,
     run_primary: 12.0 * scaleLong,
   };
+  // Race-distance safety floor (Task #360). Regardless of the
+  // runner's lift/run position, a hybrid plan with a race target
+  // must deliver a long-run peak that makes race day a reasonable
+  // progression — the ACSM guideline is the longest pre-race long
+  // run should be at least ~75-85% of race distance. Without this
+  // floor, a `half_hybrid_balanced` plan peaked at 7.7 mi heading
+  // into a 13.1 mi race day (a 5.4 mi cliff). Position still
+  // controls easy/quality mileage and strength density — that's
+  // where the hybrid character lives — but the long run can't be
+  // shorter than what the race demands. Marathon is intentionally
+  // omitted: the `marathon_hybrid` template has its own coverage
+  // and no reported regression, and a uniform 18-mi floor would
+  // over-rotate lift_primary marathon plans.
+  const longSafetyFloor: Partial<Record<PlanRaceKind, number>> = {
+    "5k": 3,
+    "10k": 6,
+    half: 11,
+  };
+  const floor = longSafetyFloor[raceKind];
+  if (floor !== undefined) {
+    for (const pos of Object.keys(peakLong) as HybridMixPosition[]) {
+      if (peakLong[pos] < floor) peakLong[pos] = floor;
+    }
+  }
 
   // Phase-aware ramp window (Task #154). When `phase` is null the
   // block ramps from `start` to peak across the whole block — that's

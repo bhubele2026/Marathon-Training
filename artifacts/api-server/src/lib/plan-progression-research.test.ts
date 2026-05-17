@@ -108,7 +108,7 @@ describe("Task #353 — research peak floors across HM templates", () => {
     { id: "half_marathon", weeks: 12, floor: 10, note: "default HM, run-primary" },
     { id: "half_marathon", weeks: 16, floor: 12, note: "longer HM gets to higher peak" },
     { id: "hm_pfitz", weeks: 14, floor: 10, note: "Pfitz HM, run-primary" },
-    { id: "half_hybrid_balanced", weeks: 14, floor: 7, note: "hybrid splits volume" },
+    { id: "half_hybrid_balanced", weeks: 14, floor: 10, note: "hybrid HM race-distance safety floor (Task #360)" },
   ];
 
   for (const tpl of HM_TEMPLATES) {
@@ -152,6 +152,50 @@ describe("Task #353 — race-kind clamps hold across hybrid templates", () => {
       expect(peak, `${tpl.id} ${tpl.weeks}w pre-race peak`).toBeLessThanOrEqual(tpl.ceiling);
     });
   }
+});
+
+describe("Task #360 — production-shape pin (user's exact applied config)", () => {
+  // The runner's production config that triggered Task #360:
+  // C25K (6w) → 5K hybrid balanced (6w) → 10K hybrid balanced (8w)
+  // → HM hybrid balanced (16w). Before the fix this peaked at
+  // 7.0 / 7.3 / 7.7 mi in W33-W35 then jumped to 13.1 mi on race
+  // day W36 — a 5.4 mi cliff, well outside the ACSM 75-85%-of-race
+  // guideline. After the race-distance safety floor in
+  // `hybridMileage()`, the final pre-race long runs must clear the
+  // safe floors below. If anything ever regresses the user's
+  // specific plan again, this test fails immediately.
+  it("4-entry C25K→5K→10K→HM hybrid sequence — W33-W36 Sundays clear safe floors", () => {
+    const startMs = Date.parse("2026-05-04T00:00:00Z");
+    const totalWeeks = 6 + 6 + 8 + 16;
+    const endMs = startMs + (totalWeeks * 7 - 1) * 86400000;
+    const marathonDate = new Date(endMs).toISOString().slice(0, 10);
+    const cfg = {
+      startDate: "2026-05-04",
+      marathonDate,
+      blocks: [],
+      entries: [
+        { templateId: "couch_to_5k", weeks: 6 },
+        { templateId: "5k_hybrid_balanced", weeks: 6 },
+        { templateId: "10k_hybrid_balanced", weeks: 8 },
+        { templateId: "half_hybrid_balanced", weeks: 16 },
+      ],
+    } as unknown as PlannerConfig;
+    const longs = sundayLongRuns(cfg);
+    const w33 = longs.get(33) ?? 0;
+    const w34 = longs.get(34) ?? 0;
+    const w35 = longs.get(35) ?? 0;
+    const w36 = longs.get(36) ?? 0;
+    // Final pre-race-week long-run peak must be in the 10-11 mi
+    // band — not the broken 7.x band.
+    const prePeak = Math.max(w33, w34, w35);
+    expect(prePeak, `pre-race peak across W33-W35 (got ${w33}/${w34}/${w35})`).toBeGreaterThanOrEqual(10);
+    // Race day stays 13.1.
+    expect(w36, "W36 race day").toBeCloseTo(13.1, 1);
+    // The jump from the final non-race-week long run into race day
+    // must not exceed 5 mi (ACSM safety guideline). Pre-fix this
+    // was 13.1 - 7.7 = 5.4 mi.
+    expect(13.1 - w35, `race-day jump from W35 (${w35} mi → 13.1 mi)`).toBeLessThanOrEqual(5);
+  });
 });
 
 describe("Task #353 — no template plateaus in the bottom half of its range", () => {

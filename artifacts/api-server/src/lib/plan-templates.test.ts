@@ -1886,19 +1886,23 @@ describe("Long-run progression — research-aligned peaks (Task #353)", () => {
     expect(peak, "14w hm_pfitz pre-taper peak long run").toBeGreaterThanOrEqual(10);
   });
 
-  it("14w half_hybrid_balanced — pre-taper long run clears 8 mi (hybrid HM ceiling)", () => {
+  it("14w half_hybrid_balanced — pre-taper long run clears 10 mi (race-distance safety floor)", () => {
     const longByWeek = sundayLongRunByWeek(hmCfg("half_hybrid_balanced", 14));
     let peak = 0;
     for (const [w, mi] of longByWeek) {
       if (w === 14) continue;
       if (mi > peak) peak = mi;
     }
-    // Hybrid balanced caps long at 8 mi (peakLong table) before level
-    // scalar — the default template level scales that down further.
-    // Floor is 7 (post-level-scaling, post-cutback) which is the
-    // hybrid-appropriate target since the runner is splitting volume
-    // with lifting. The position is "balanced", not "run_primary".
-    expect(peak, "14w half_hybrid_balanced pre-taper peak long run").toBeGreaterThanOrEqual(7);
+    // Task #360 race-distance safety floor: any hybrid plan with a
+    // half-marathon race target must peak ≥ 11 mi in `peakLong`,
+    // which after the level scalar and the phase-taper ramp window
+    // lands the pre-race-week long run in the 10-11 mi band. The
+    // runner is still splitting volume with lifting (position is
+    // "balanced", not "run_primary"), but the long run can't be
+    // shorter than what a 13.1 mi race day demands — going from
+    // 7.7 mi straight to 13.1 mi is a 5.4 mi cliff, well outside
+    // the ACSM 75-85%-of-race-distance guideline.
+    expect(peak, "14w half_hybrid_balanced pre-taper peak long run").toBeGreaterThanOrEqual(10);
   });
 
   // Race-kind scaling on the hybrid mileage table (Task #353): a 10K
