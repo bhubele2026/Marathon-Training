@@ -32,6 +32,14 @@ pnpm --filter @workspace/scripts run check-workout-orphans
 # once a runner accumulates more than one result of the same kind.
 # Idempotent — safe to re-run.
 pnpm --filter @workspace/scripts run backfill-race-result-kind
+# Task #361 backfill: retrofit the walk-run coherence fix onto the
+# existing applied campaign WITHOUT wiping workouts/measurements.
+# Updates seed_description / seed_run_min / seed_distance_mi on every
+# walk-run on-ramp plan_day to the new coherent generator output, and
+# mirrors into the runtime columns only when they still equal the
+# prior seed (no user customization to clobber). Idempotent — safe to
+# re-run; no-op when no planner_configs row has been applied.
+pnpm --filter @workspace/scripts run backfill-walk-run-coherence
 # Task #327: enforce the "plan tables stay EMPTY until a Phase Planner
 # config has been applied" invariant. Pre-Task #307 databases still
 # carry the auto-generated 52-week canonical plan even though
