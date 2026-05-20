@@ -25,8 +25,11 @@ const ENTRIES: TemplateEntry[] = [
 
 const STARTING_PACE_SEC = 960; // 16:00/mi — slower than walk-run threshold.
 
+// Task #361: walk-run description may carry an optional 1-2 min
+// walk-or-jog tail so the interval sum honors the recipe-prescribed
+// RUN minutes within the 0.05 mi distance tolerance.
 const WALK_RUN_REGEX =
-  /\d+ x \(2:00 walk @ 18:00\/mi \+ 1:00 jog @ 14:00\/mi\) on Peloton Tread/;
+  /\d+ x \(2:00 walk @ 18:00\/mi \+ 1:00 jog @ 14:00\/mi\)(?: \+ \d+:00 (?:walk|jog) @ (?:18:00|14:00)\/mi)? on Peloton Tread/;
 
 function makeConfig(): PlannerConfig {
   return {
@@ -183,8 +186,14 @@ describe("Task #335: stacked pace ramp from 16:00/mi", () => {
 
   it("WALK_RUN_PACE_THRESHOLD_SEC + walkRunDescription stay in lockstep", () => {
     expect(STARTING_PACE_SEC).toBeGreaterThan(WALK_RUN_PACE_THRESHOLD_SEC);
+    // Task #361: walk-run description may carry an optional 1-2 min
+    // walk-or-jog tail (after the 3-min cycle reps) so the interval
+    // sum lands inside the recipe-prescribed RUN minutes and within
+    // 0.05 mi of the prescribed DISTANCE. The lockstep guarantee
+    // we care about here is just that the threshold still routes
+    // walk-run output through this shape.
     expect(walkRunDescription(1.0)).toMatch(
-      /^\d+ x \(2:00 walk @ 18:00\/mi \+ 1:00 jog @ 14:00\/mi\) on Peloton Tread$/,
+      /^\d+ x \(2:00 walk @ 18:00\/mi \+ 1:00 jog @ 14:00\/mi\)(?: \+ \d+:00 (?:walk|jog) @ (?:18:00|14:00)\/mi)? on Peloton Tread$/,
     );
   });
 });

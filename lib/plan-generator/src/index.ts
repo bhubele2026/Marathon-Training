@@ -908,40 +908,139 @@ export const WALK_RUN_MAX_CAMPAIGN_WEEK = WALK_RUN_MAX_ENTRY_LOCAL_WEEK;
 // Default starting easy pace (14:30/mi) when none is configured.
 export const DEFAULT_STARTING_PACE_SEC = 870;
 
-// Walk-run interval composition: 2:00 walk @ 18:00/mi + 1:00 jog @
-// 14:00/mi. Per rep: 180 sec, 0.1825 mi. The description, displayed
-// minutes, and displayed distance for every walk-run on-ramp slot all
-// flow from one repeat count picked here so the three numbers always
-// describe the same workout (Task #361).
-const WALK_RUN_PER_REP_SEC = 180;
+// Walk-run on-ramp interval composition (Task #361).
+//
+// Each rep is 2:00 walk @ 18:00/mi + 1:00 jog @ 14:00/mi — 180 seconds
+// and ~0.1825 mi. `composeWalkRun(targetMi, targetMin)` enumerates
+// (reps, tail) candidates and picks the one whose interval distance
+// lands within 0.05 mi of `targetMi` (the recipe-prescribed distance)
+// while keeping its summed minutes as close as possible to `targetMin`
+// (the recipe-prescribed minutes). The chosen `runMin` is then the
+// truthful per-day RUN total: the description, run_min, and the
+// recipe-prescribed distance all describe the same workout.
+//
+// Day rows preserve `day.distance_mi = targetMi` (the recipe-prescribed
+// distance) so weekly mileage stays in lock-step with the Phase
+// Planner preview. The 0.05 mi tolerance is the user-facing contract
+// pinned by the invariant test in plan-templates.test.ts.
 const WALK_RUN_PER_REP_MI = 120 / 1080 + 60 / 840; // ~0.1825 mi
+const WALK_RUN_WALK_MI_PER_MIN = 1 / 18;
+const WALK_RUN_JOG_MI_PER_MIN = 1 / 14;
+const WALK_RUN_DISTANCE_TOLERANCE_MI = 0.05;
 
 export interface WalkRunComposition {
   repeats: number;
+  tailMin: number; // 0, 1, or 2
+  tailKind: "walk" | "jog" | null;
   runMin: number;
-  distanceMi: number;
+  intervalDistanceMi: number;
   description: string;
 }
 
-export function composeWalkRun(targetMi: number): WalkRunComposition {
-  const repeats = Math.max(1, Math.round(targetMi / WALK_RUN_PER_REP_MI));
-  const runMin = (repeats * WALK_RUN_PER_REP_SEC) / 60;
-  const distanceMi = r1(repeats * WALK_RUN_PER_REP_MI);
+function walkRunDescriptionFor(
+  reps: number,
+  tailMin: number,
+  tailKind: "walk" | "jog" | null,
+): string {
+  const head = `${reps} x (2:00 walk @ 18:00/mi + 1:00 jog @ 14:00/mi)`;
+  if (tailMin === 0 || tailKind === null) {
+    return `${head} on Peloton Tread`;
+  }
+  const pace = tailKind === "walk" ? "18:00" : "14:00";
+  return `${head} + ${tailMin}:00 ${tailKind} @ ${pace}/mi on Peloton Tread`;
+}
+
+export function composeWalkRun(
+  targetMi: number,
+  targetMin: number,
+): WalkRunComposition {
+  // Cycle = 3 min. Search reps within ±2 of the nominal `targetMin/3`,
+  // and tails of 0-2 min at either walk or jog pace. Score each
+  // candidate primarily by minute gap to targetMin (the
+  // recipe-prescribed RUN minutes), then by distance gap; reject
+  // anything outside the 0.05 mi tolerance unless nothing else fits.
+  type Candidate = {
+    reps: number;
+    tailMin: number;
+    tailKind: "walk" | "jog" | null;
+    runMin: number;
+    intervalDistanceMi: number;
+    distGap: number;
+    minGap: number;
+  };
+  const candidates: Candidate[] = [];
+  // Search a range wide enough to bracket both the minute nominal
+  // (targetMin / 3) and the distance nominal (targetMi / PER_REP_MI)
+  // so distance tolerance can always be hit even when the
+  // recipe-prescribed minutes underbudget the slow walk-run pace
+  // (jog @ 14:00/mi, walk @ 18:00/mi).
+  const nominalRepsByMin = Math.max(1, Math.floor(targetMin / 3));
+  const nominalRepsByDist = Math.max(
+    1,
+    Math.round(targetMi / WALK_RUN_PER_REP_MI),
+  );
+  const minReps = Math.max(1, Math.min(nominalRepsByMin, nominalRepsByDist) - 3);
+  const maxReps = Math.max(nominalRepsByMin, nominalRepsByDist) + 3;
+  for (let reps = minReps; reps <= maxReps; reps++) {
+    for (let tail = 0; tail <= 2; tail++) {
+      const tailKinds: Array<"walk" | "jog" | null> =
+        tail === 0 ? [null] : ["walk", "jog"];
+      for (const tailKind of tailKinds) {
+        const runMin = reps * 3 + tail;
+        if (runMin <= 0) continue;
+        const tailMi =
+          tailKind === "walk"
+            ? tail * WALK_RUN_WALK_MI_PER_MIN
+            : tailKind === "jog"
+              ? tail * WALK_RUN_JOG_MI_PER_MIN
+              : 0;
+        const intervalDistanceMi = reps * WALK_RUN_PER_REP_MI + tailMi;
+        candidates.push({
+          reps,
+          tailMin: tail,
+          tailKind,
+          runMin,
+          intervalDistanceMi,
+          distGap: Math.abs(intervalDistanceMi - targetMi),
+          minGap: Math.abs(runMin - targetMin),
+        });
+      }
+    }
+  }
+  // Distance tolerance is the hard contract: prefer any in-tolerance
+  // candidate (ordered by minute closeness) over any out-of-tolerance
+  // fallback (ordered by distance closeness, then minute closeness).
+  const inTolerance = candidates.filter(
+    (c) => c.distGap <= WALK_RUN_DISTANCE_TOLERANCE_MI,
+  );
+  let best: Candidate;
+  if (inTolerance.length > 0) {
+    inTolerance.sort((a, b) => a.minGap - b.minGap || a.distGap - b.distGap);
+    best = inTolerance[0]!;
+  } else {
+    candidates.sort((a, b) => a.distGap - b.distGap || a.minGap - b.minGap);
+    best = candidates[0]!;
+  }
   return {
-    repeats,
-    runMin,
-    distanceMi,
-    description: `${repeats} x (2:00 walk @ 18:00/mi + 1:00 jog @ 14:00/mi) on Peloton Tread`,
+    repeats: best.reps,
+    tailMin: best.tailMin,
+    tailKind: best.tailKind,
+    runMin: best.runMin,
+    intervalDistanceMi: best.intervalDistanceMi,
+    description: walkRunDescriptionFor(best.reps, best.tailMin, best.tailKind),
   };
 }
 
-// Back-compat shim: callers that already know the target distance
-// should prefer `composeWalkRun(targetMi)` and read `description` off
-// the result. This wrapper exists so legacy `walkRunDescription(target)`
-// call sites and tests keep compiling — it accepts the same target
-// distance in miles.
+// Back-compat shim: a few legacy callers / tests only need the
+// description text. The argument is the prescribed target distance in
+// miles (e.g. the recipe's `easyRunMi(...)` output for that week).
 export function walkRunDescription(targetMi: number): string {
-  return composeWalkRun(targetMi).description;
+  // Use a sensible default minute target (16 min/mi ≈ C25K easy pace)
+  // when callers only have the distance — the description text is
+  // identical for the same (reps, tail) pick, and the shim is only
+  // used by the lockstep regex test today.
+  return composeWalkRun(targetMi, Math.max(3, Math.round(targetMi * 16)))
+    .description;
 }
 
 export interface PlannerConfig {
@@ -2953,9 +3052,12 @@ function buildHybridWeekDays(opts: {
     // run slot
     if (slot.intensity === "long") {
       const distance = mi.long;
-      const wr = walkRun ? composeWalkRun(distance) : null;
-      const min = wr ? wr.runMin : Math.max(20, Math.round(distance * longMinPerMi));
-      const effDistance = wr ? wr.distanceMi : distance;
+      const wr = walkRun
+        ? composeWalkRun(distance, Math.round(distance * longMinPerMi))
+        : null;
+      const min = wr
+        ? wr.runMin
+        : Math.max(20, Math.round(distance * longMinPerMi));
       const equipment = walkRun
         ? "Peloton Tread"
         : weekNumber % 2 === 0
@@ -2971,13 +3073,13 @@ function buildHybridWeekDays(opts: {
         equipment_list: [equipment],
         description:
           (wr
-            ? `${wr.description} (long-run on-ramp, ${effDistance} mi). NO lift today.`
+            ? `${wr.description} (long-run on-ramp, ${distance} mi target). NO lift today.`
             : `Long aerobic run (${distance} mi): conversational unless noted, dial in fueling. NO lift today.`) +
           customSuffix,
         strength_min: 0,
         cardio_min: 0,
         run_min: min,
-        distance_mi: effDistance,
+        distance_mi: distance,
         pace: longPace,
         session_type: "Long Run",
         is_rest: false,
@@ -3010,9 +3112,10 @@ function buildHybridWeekDays(opts: {
     }
     // easy run
     const distance = mi.easy;
-    const wr = walkRun ? composeWalkRun(distance) : null;
+    const wr = walkRun
+      ? composeWalkRun(distance, Math.round(distance * easyMinPerMi))
+      : null;
     const min = wr ? wr.runMin : Math.max(20, Math.round(distance * easyMinPerMi));
-    const effDistance = wr ? wr.distanceMi : distance;
     return {
       week: weekNumber,
       phase,
@@ -3023,13 +3126,13 @@ function buildHybridWeekDays(opts: {
       equipment_list: ["Peloton Tread"],
       description:
         (wr
-          ? `${wr.description} (easy on-ramp, ${effDistance} mi)`
+          ? `${wr.description} (easy on-ramp, ${distance} mi target)`
           : `Easy aerobic Tread run (${distance} mi, conversational, build durability)`) +
         customSuffix,
       strength_min: 0,
       cardio_min: 0,
       run_min: min,
-      distance_mi: effDistance,
+      distance_mi: distance,
       pace: easyPace,
       session_type: "Aerobic Base",
       is_rest: false,
@@ -3251,11 +3354,12 @@ function buildWeekDays(opts: {
   // Walk-run rows lead the chip rail with Peloton Tread; Steady Wed
   // (a quality stimulus) keeps the Tonal-led rail.
   const wedWalkRun = (paceOverride?.walkRun ?? false) && !wedSteady;
-  const wedWr = wedWalkRun ? composeWalkRun(wedDist) : null;
+  const wedWr = wedWalkRun
+    ? composeWalkRun(wedDist, Math.round(wedDist * recipe.easyRunMinPerMi))
+    : null;
   const wedRunMin = wedWr
     ? wedWr.runMin
     : Math.max(20, Math.round(wedDist * recipe.easyRunMinPerMi));
-  const wedEffDist = wedWr ? wedWr.distanceMi : wedDist;
   const wedDay: DailyRow = {
     week: weekNumber,
     phase,
@@ -3270,13 +3374,13 @@ function buildWeekDays(opts: {
       (wedSteady
         ? `Steady-state Tread run (${wedDist} mi, Z3 controlled effort — comfortably hard but conversational in short sentences), then ${accessoryTonalMin} min Tonal core + accessory work`
         : wedWr
-          ? `${wedWr.description} (easy on-ramp, ${wedEffDist} mi), then ${accessoryTonalMin} min Tonal core + accessory work`
+          ? `${wedWr.description} (easy on-ramp, ${wedDist} mi target), then ${accessoryTonalMin} min Tonal core + accessory work`
           : `Easy aerobic Tread run (${wedDist} mi, conversational), then ${accessoryTonalMin} min Tonal core + accessory work`) +
       customSuffix,
     strength_min: accessoryTonalMin,
     cardio_min: 0,
     run_min: wedRunMin,
-    distance_mi: wedEffDist,
+    distance_mi: wedDist,
     pace: wedSteady ? effTempoPace : effEasyPace,
     session_type: wedSteady ? "Steady Run + Accessory" : "Run + Accessory",
     is_rest: false,
@@ -3321,17 +3425,18 @@ function buildWeekDays(opts: {
     (recipe.fridayKind === "AerobicBase" ||
       recipe.fridayKind === "Sharpener" ||
       isCutback);
-  const friWr = friWalkRun ? composeWalkRun(friDist) : null;
+  const friWr = friWalkRun
+    ? composeWalkRun(friDist, Math.round(friDist * recipe.qualityRunMinPerMi))
+    : null;
   const friRunMin = friWr
     ? friWr.runMin
     : Math.max(20, Math.round(friDist * recipe.qualityRunMinPerMi));
-  const friEffDist = friWr ? friWr.distanceMi : friDist;
   const fri = fridayContent(
     recipe,
     block,
     weekInBlock,
     isCutback,
-    friEffDist,
+    friDist,
     paceOverride,
     friWr,
   );
@@ -3353,7 +3458,7 @@ function buildWeekDays(opts: {
     strength_min: fri.liftMin,
     cardio_min: 0,
     run_min: friRunMin,
-    distance_mi: friEffDist,
+    distance_mi: friDist,
     pace: fri.pace,
     session_type: fri.liftLoad > 0 ? `${fri.type} + Accessory` : fri.type,
     is_rest: false,
@@ -3448,7 +3553,9 @@ function buildWeekDays(opts: {
       "long",
     );
     const sunWalkRun = paceOverride?.walkRun ?? false;
-    const sunWr = sunWalkRun ? composeWalkRun(longRun) : null;
+    const sunWr = sunWalkRun
+      ? composeWalkRun(longRun, Math.round(longRun * recipe.longRunMinPerMi))
+      : null;
     const longEquipment = sunWalkRun
       ? "Peloton Tread"
       : weekNumber % 2 === 0
@@ -3457,7 +3564,6 @@ function buildWeekDays(opts: {
     const longMin = sunWr
       ? sunWr.runMin
       : Math.max(20, Math.round(longRun * recipe.longRunMinPerMi));
-    const longEffDist = sunWr ? sunWr.distanceMi : longRun;
     sunDay = {
       week: weekNumber,
       phase,
@@ -3468,13 +3574,13 @@ function buildWeekDays(opts: {
       equipment_list: [longEquipment],
       description:
         (sunWr
-          ? `${sunWr.description} (long-run on-ramp, ${longEffDist} mi). NO lift today.`
+          ? `${sunWr.description} (long-run on-ramp, ${longRun} mi target). NO lift today.`
           : `${recipe.longRunVerb} (${longRun} mi): conversational unless noted, dial in fueling. NO lift today.`) +
         customSuffix,
       strength_min: 0,
       cardio_min: 0,
       run_min: longMin,
-      distance_mi: longEffDist,
+      distance_mi: longRun,
       pace: effLongPace,
       session_type: "Long Run",
       is_rest: false,

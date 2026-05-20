@@ -1932,27 +1932,70 @@ describe("Long-run progression — research-aligned peaks (Task #353)", () => {
 // RUN 20 min, and "6 x (2:00 walk + 1:00 jog)" (18 min, ~1.10 mi)
 // all disagreed.
 describe("walk-run on-ramp coherence (Task #361)", () => {
+  // Walk-run description shape (Task #361). Reps run at the canonical
+  // 3-min cycle (2:00 walk @ 18:00/mi + 1:00 jog @ 14:00/mi); an
+  // optional 1-2 min walk-or-jog tail closes the gap to the
+  // recipe-prescribed minutes. Parser is intentionally independent of
+  // generator internals so it pins the user-facing contract.
   const WALK_RUN_REGEX =
-    /(\d+) x \(2:00 walk @ 18:00\/mi \+ 1:00 jog @ 14:00\/mi\) on Peloton Tread/;
-  // Per-rep mi: 2:00 walk @ 18:00/mi + 1:00 jog @ 14:00/mi
-  //          = 120/1080 + 60/840 mi
-  const PER_REP_MI = 120 / 1080 + 60 / 840;
+    /(\d+) x \(2:00 walk @ 18:00\/mi \+ 1:00 jog @ 14:00\/mi\)(?: \+ (\d+):00 (walk|jog) @ (?:18:00|14:00)\/mi)? on Peloton Tread/;
+  const PER_REP_MI = 120 / 1080 + 60 / 840; // 2:00 walk @ 18:00 + 1:00 jog @ 14:00
+  const WALK_MI_PER_MIN = 1 / 18;
+  const JOG_MI_PER_MIN = 1 / 14;
 
-  function parsedIntervals(desc: string): { totalMin: number; distanceMi: number } | null {
+  function parsedIntervals(
+    desc: string,
+  ): { totalMin: number; distanceMi: number } | null {
     const m = WALK_RUN_REGEX.exec(desc);
     if (!m) return null;
     const repeats = Number(m[1]);
-    return { totalMin: repeats * 3, distanceMi: repeats * PER_REP_MI };
+    const tailMin = m[2] ? Number(m[2]) : 0;
+    const tailKind = m[3] as "walk" | "jog" | undefined;
+    const tailMi =
+      tailKind === "walk"
+        ? tailMin * WALK_MI_PER_MIN
+        : tailKind === "jog"
+          ? tailMin * JOG_MI_PER_MIN
+          : 0;
+    return {
+      totalMin: repeats * 3 + tailMin,
+      distanceMi: repeats * PER_REP_MI + tailMi,
+    };
   }
 
-  it("composeWalkRun() produces self-consistent runMin + distanceMi + description", () => {
-    for (const targetMi of [0.5, 1.0, 1.5, 2.0, 3.0]) {
-      const wr = composeWalkRun(targetMi);
-      const parsed = parsedIntervals(wr.description)!;
-      expect(parsed.totalMin, `targetMi=${targetMi} runMin`).toBe(wr.runMin);
+  it("composeWalkRun() intervals match the requested run minutes exactly and land within 0.05 mi of the target distance", () => {
+    // Sweep covers the realistic C25K W1-W2 footprint: short easy
+    // (~1 mi @ 16 min/mi), small jumps from Wed, Fri quality (~15 min
+    // floor), and long-run on-ramp (~1.4 mi). Each case must parse
+    // cleanly, sum to compose.runMin exactly, and land within 0.05 mi
+    // of the input target.
+    const cases: Array<{ mi: number; min: number }> = [
+      { mi: 1.0, min: 16 },
+      { mi: 1.0, min: 15 },
+      { mi: 1.1, min: 18 },
+      { mi: 1.2, min: 19 },
+      { mi: 1.4, min: 22 },
+      { mi: 1.5, min: 24 },
+      { mi: 2.0, min: 32 },
+      // Non-C25K stressors: the recipe-prescribed minutes can
+      // underbudget the slow walk-run pace (jog @ 14:00/mi). The
+      // search must expand reps from the distance nominal so the
+      // 0.05 mi tolerance still holds even when the requested
+      // minutes are too few.
+      { mi: 3.0, min: 39 },
+      { mi: 2.5, min: 33 },
+    ];
+    for (const { mi, min } of cases) {
+      const wr = composeWalkRun(mi, min);
+      const parsed = parsedIntervals(wr.description);
+      expect(parsed, `mi=${mi} min=${min} description "${wr.description}"`).not.toBeNull();
       expect(
-        Math.abs(parsed.distanceMi - wr.distanceMi),
-        `targetMi=${targetMi} distance |${parsed.distanceMi} - ${wr.distanceMi}|`,
+        parsed!.totalMin,
+        `mi=${mi} min=${min}: parsed.totalMin should equal compose.runMin`,
+      ).toBe(wr.runMin);
+      expect(
+        Math.abs(parsed!.distanceMi - mi),
+        `mi=${mi} min=${min}: |parsed.distanceMi ${parsed!.distanceMi.toFixed(3)} - target ${mi}|`,
       ).toBeLessThanOrEqual(0.05);
     }
   });
@@ -1981,6 +2024,18 @@ describe("walk-run on-ramp coherence (Task #361)", () => {
       (d) => d.week <= 2 && WALK_RUN_REGEX.test(d.description ?? ""),
     );
     expect(walkRunDays.length, "C25K W1-W2 walk-run days").toBeGreaterThan(0);
+
+    // Pin the W1 "target preserved" headline contract independently
+    // of compose internals: every C25K W1 walk-run day must keep the
+    // recipe-prescribed 1.00 mi target distance verbatim.
+    const w1WalkRun = walkRunDays.filter((d) => d.week === 1);
+    expect(w1WalkRun.length, "C25K W1 walk-run days").toBeGreaterThan(0);
+    for (const d of w1WalkRun) {
+      expect(
+        d.distance_mi,
+        `W1 ${d.day} ${d.date}: distance_mi should equal recipe target 1.00 mi`,
+      ).toBe(1);
+    }
 
     for (const d of walkRunDays) {
       const parsed = parsedIntervals(d.description)!;
