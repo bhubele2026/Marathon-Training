@@ -15,6 +15,7 @@ import {
   RACE_EVE_SAT_SPEC,
   RACE_DAY_SPECS,
   buildRaceEveSatRow,
+  composeWalkRun,
   type PlannerConfig,
 } from "@workspace/plan-generator";
 
@@ -1920,5 +1921,77 @@ describe("Long-run progression — research-aligned peaks (Task #353)", () => {
     }
     expect(peak, "10K hybrid pre-race-week peak long run").toBeLessThanOrEqual(8);
     expect(week1, "10K hybrid W1 long run").toBeLessThan(peak);
+  });
+});
+
+// Task #361 — walk-run on-ramp coherence invariant. For every walk-
+// run-eligible day on C25K W1-W2, the description's parsed interval
+// composition (repeats × 3:00 cycle) must sum to exactly the day's
+// displayed RUN minutes and to within 0.05 mi of the displayed
+// DISTANCE. Guards against the previous bug where DISTANCE 1.00 mi,
+// RUN 20 min, and "6 x (2:00 walk + 1:00 jog)" (18 min, ~1.10 mi)
+// all disagreed.
+describe("walk-run on-ramp coherence (Task #361)", () => {
+  const WALK_RUN_REGEX =
+    /(\d+) x \(2:00 walk @ 18:00\/mi \+ 1:00 jog @ 14:00\/mi\) on Peloton Tread/;
+  // Per-rep mi: 2:00 walk @ 18:00/mi + 1:00 jog @ 14:00/mi
+  //          = 120/1080 + 60/840 mi
+  const PER_REP_MI = 120 / 1080 + 60 / 840;
+
+  function parsedIntervals(desc: string): { totalMin: number; distanceMi: number } | null {
+    const m = WALK_RUN_REGEX.exec(desc);
+    if (!m) return null;
+    const repeats = Number(m[1]);
+    return { totalMin: repeats * 3, distanceMi: repeats * PER_REP_MI };
+  }
+
+  it("composeWalkRun() produces self-consistent runMin + distanceMi + description", () => {
+    for (const targetMi of [0.5, 1.0, 1.5, 2.0, 3.0]) {
+      const wr = composeWalkRun(targetMi);
+      const parsed = parsedIntervals(wr.description)!;
+      expect(parsed.totalMin, `targetMi=${targetMi} runMin`).toBe(wr.runMin);
+      expect(
+        Math.abs(parsed.distanceMi - wr.distanceMi),
+        `targetMi=${targetMi} distance |${parsed.distanceMi} - ${wr.distanceMi}|`,
+      ).toBeLessThanOrEqual(0.05);
+    }
+  });
+
+  it("C25K W1-W2: every walk-run day's description, run_min, and distance_mi describe the same workout", () => {
+    // Couch to 5K (minWeeks=6). Starting on a Monday so the recipe's
+    // walk-run gate (entry-start effective easy pace > 14:00/mi) fires
+    // for W1-W2 of the entry.
+    const startDate = "2026-01-05"; // Mon
+    const totalWeeks = 6;
+    const startMs = Date.parse(`${startDate}T00:00:00Z`);
+    const raceMs = startMs + (totalWeeks * 7 - 1) * 86_400_000;
+    const raceDateISO = new Date(raceMs).toISOString().slice(0, 10);
+    const entries = [{ templateId: "couch_to_5k", weeks: totalWeeks }];
+    const blocks = expandEntriesToBlocks(entries);
+    const config: PlannerConfig = {
+      startDate,
+      marathonDate: raceDateISO,
+      blocks,
+      entries,
+    };
+    const { daily } = generatePlanFromConfig(config);
+
+    // Sanity: should find at least one walk-run day across W1-W2.
+    const walkRunDays = daily.filter(
+      (d) => d.week <= 2 && WALK_RUN_REGEX.test(d.description ?? ""),
+    );
+    expect(walkRunDays.length, "C25K W1-W2 walk-run days").toBeGreaterThan(0);
+
+    for (const d of walkRunDays) {
+      const parsed = parsedIntervals(d.description)!;
+      expect(
+        parsed.totalMin,
+        `W${d.week} ${d.day} ${d.date}: parsed.totalMin should equal day.run_min`,
+      ).toBe(d.run_min);
+      expect(
+        Math.abs(parsed.distanceMi - (d.distance_mi ?? 0)),
+        `W${d.week} ${d.day} ${d.date}: |parsed.distanceMi ${parsed.distanceMi} - day.distance_mi ${d.distance_mi}|`,
+      ).toBeLessThanOrEqual(0.05);
+    }
   });
 });

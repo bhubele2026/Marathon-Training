@@ -183,7 +183,7 @@ describe("Task #335: stacked pace ramp from 16:00/mi", () => {
 
   it("WALK_RUN_PACE_THRESHOLD_SEC + walkRunDescription stay in lockstep", () => {
     expect(STARTING_PACE_SEC).toBeGreaterThan(WALK_RUN_PACE_THRESHOLD_SEC);
-    expect(walkRunDescription(15)).toMatch(
+    expect(walkRunDescription(1.0)).toMatch(
       /^\d+ x \(2:00 walk @ 18:00\/mi \+ 1:00 jog @ 14:00\/mi\) on Peloton Tread$/,
     );
   });
