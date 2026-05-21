@@ -43,6 +43,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { FullResetDialog } from "@/components/full-reset-dialog";
 import { EmptyPlanState } from "@/components/empty-plan-state";
+import { PaceCurveChart } from "@/components/pace-curve-chart";
 import { useFirstRunRedirect } from "@/hooks/use-first-run-redirect";
 import { useListPlannerConfigs } from "@workspace/api-client-react";
 import { formatDistance, formatDate } from "@/lib/format";
@@ -194,6 +195,23 @@ export default function Plan() {
   function formatPaceMmss(sec: number | null | undefined): string {
     if (sec == null) return "";
     return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+  }
+
+  // Task #374. Lenient mm:ss parser for the live pace-curve preview.
+  // Returns null on partial / unparseable input so the chart silently
+  // falls back to the recipe-default pace instead of error-flashing
+  // while the runner is mid-typing. The strict parser inside the
+  // Update button click handler still owns validation on submit.
+  function parsePaceMmssLoose(raw: string): number | null {
+    const trimmed = raw.trim();
+    const m = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return null;
+    const min = Number(m[1]);
+    const sec = Number(m[2]);
+    if (sec >= 60) return null;
+    const total = min * 60 + sec;
+    if (total < 360 || total > 1500) return null;
+    return total;
   }
 
   // Task #370: /today's "Adjust Pace" button deep-links here with
@@ -1208,6 +1226,23 @@ export default function Plan() {
                 the campaign. Blank clears the goal anchor and reverts
                 to the default ramp.
               </p>
+            </div>
+            {/* Task #374. Live pace-per-week preview. Reads the same
+                ramp math the generator uses so what the runner sees
+                here is what the backfill will write. Updates on every
+                keystroke; phase bands + race-distance offsets make an
+                unrealistic goal visually obvious. */}
+            <div className="space-y-1">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                Preview
+              </div>
+              <PaceCurveChart
+                startSec={parsePaceMmssLoose(repaceInput.start)}
+                goalSec={parsePaceMmssLoose(repaceInput.goal)}
+                totalWeeks={overview.totalWeeks}
+                raceKind={overview.raceKind ?? null}
+                weeks={weeks.map((w) => ({ week: w.week, phase: w.phase }))}
+              />
             </div>
           </div>
           <DialogFooter>
