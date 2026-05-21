@@ -493,9 +493,10 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
     // quality day. The Tonal accessory block is unchanged so weekly load
     // math is unaffected.
     const wedDist = easyRunDist(w, isCutback);
-    const wedRunMin = Math.max(20, Math.round(wedDist * (w <= 6 ? 16 : w <= 18 ? 13 : 12)));
-    const wedAccessoryLoad = isCutback ? 20 : 25;
     const wedSteady = w >= 33 && w <= 46 && !isCutback;
+    const wedPace = wedSteady ? tempoPace : easyPace;
+    const wedRunMin = runMinFromDistanceAndPace(wedDist, wedPace);
+    const wedAccessoryLoad = isCutback ? 20 : 25;
     const wedDay: DailyRow = {
       week: w,
       phase,
@@ -517,7 +518,7 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
       cardio_min: 0,
       run_min: wedRunMin,
       distance_mi: wedDist,
-      pace: wedSteady ? tempoPace : easyPace,
+      pace: wedPace,
       session_type: wedSteady ? "Steady Run + Accessory" : "Run + Accessory",
       is_rest: false,
       total_load: wedRunMin + wedAccessoryLoad,
@@ -547,73 +548,81 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
 
     // ---------- FRI: QUALITY RUN (big run = no lift; easy = + accessory) ----------
     const friDist = qualityRunDist(w, isCutback);
-    const friRunMin = Math.max(20, Math.round(friDist * (w <= 6 ? 16 : w <= 18 ? 13 : w <= 32 ? 12 : 11.5)));
     let friType: string;
     let friDesc: string;
     let friPace: string;
+    let friRunMin: number;
     let friLiftLoad: number;
     let friLiftMin: number;
     let friLiftDesc: string;
 
     if (w <= 6) {
+      friPace = easyPace;
+      friRunMin = runMinFromDistanceAndPace(friDist, friPace);
       friType = "Aerobic Base";
       friDesc = `${paceTargetSentence("Easy", friRunMin, easyPace, friDist)}, build durability`;
-      friPace = easyPace;
       friLiftLoad = isCutback ? 18 : 22;
       friLiftMin = accessoryTonalMin;
       friLiftDesc = ` + ${accessoryTonalMin} min Tonal core + mobility`;
     } else if (w <= 18) {
+      friPace = isCutback ? easyPace : tempoPace;
+      friRunMin = runMinFromDistanceAndPace(friDist, friPace);
       friType = isCutback ? "Aerobic Base" : "Tempo Run";
       friDesc = isCutback
         ? `${paceTargetSentence("Easy", friRunMin, easyPace, friDist)}, easy recovery — conversational`
         : `${paceTargetSentence("Tempo", friRunMin, tempoPace, friDist)} — 5 min easy warm-up, ${Math.max(10, friDist * 4)} min steady tempo, 5 min cool-down`;
-      friPace = isCutback ? easyPace : tempoPace;
       friLiftLoad = 0;
       friLiftMin = 0;
       friLiftDesc = " — no lift today, recover for the long run";
     } else if (w <= 32) {
+      friPace = isCutback ? easyPace : tempoPace;
+      friRunMin = runMinFromDistanceAndPace(friDist, friPace);
       friType = isCutback ? "Aerobic Base" : "Threshold Intervals";
       friDesc = isCutback
         ? `${paceTargetSentence("Easy", friRunMin, easyPace, friDist)}, easy recovery — conversational`
         : `${paceTargetSentence("Threshold", friRunMin, tempoPace, friDist)} — warm-up, then 4 x 800m at threshold w/ 90s jog recovery, cool-down`;
-      friPace = isCutback ? easyPace : tempoPace;
       friLiftLoad = 0;
       friLiftMin = 0;
       friLiftDesc = " — no lift today, recover for the long run";
     } else if (w <= 46) {
+      friPace = isCutback ? easyPace : tempoPace;
+      friRunMin = runMinFromDistanceAndPace(friDist, friPace);
       friType = isCutback ? "Aerobic Base" : "Race-Pace Workout";
       friDesc = isCutback
         ? `${paceTargetSentence("Easy", friRunMin, easyPace, friDist)}, easy recovery — conversational`
         : `${paceTargetSentence("Race-pace", friRunMin, tempoPace, friDist)} — warm-up, 3 x 1 mi at goal half-marathon pace w/ 2 min recovery, cool-down`;
-      friPace = isCutback ? easyPace : tempoPace;
       friLiftLoad = 0;
       friLiftMin = 0;
       friLiftDesc = " — no lift today, recover for the long run";
     } else if (w <= 49) {
+      friPace = tempoPace;
+      friRunMin = runMinFromDistanceAndPace(friDist, friPace);
       friType = "Tempo Run";
       friDesc = `${paceTargetSentence("Sharpener", friRunMin, tempoPace, friDist)} — 10 min easy, 15-20 min steady tempo, 5 min cool-down`;
-      friPace = tempoPace;
       friLiftLoad = 0;
       friLiftMin = 0;
       friLiftDesc = " — no lift today";
     } else if (w === 50) {
+      friPace = tempoPace;
+      friRunMin = runMinFromDistanceAndPace(friDist, friPace);
       friType = "Tempo Run";
       friDesc = `${paceTargetSentence("Tempo", friRunMin, tempoPace, friDist)} — 10 min easy, 12 min tempo, 5 min cool-down (taper)`;
-      friPace = tempoPace;
       friLiftLoad = 0;
       friLiftMin = 0;
       friLiftDesc = " — no lift today";
     } else if (w === 51) {
+      friPace = easyPace;
+      friRunMin = runMinFromDistanceAndPace(friDist, friPace);
       friType = "Sharpener";
       friDesc = `${paceTargetSentence("Easy", friRunMin, easyPace, friDist)} with 4 x 30s strides in the final mile`;
-      friPace = easyPace;
       friLiftLoad = 0;
       friLiftMin = 0;
       friLiftDesc = " — no lift today";
     } else {
+      friPace = easyPace;
+      friRunMin = runMinFromDistanceAndPace(friDist, friPace);
       friType = "Race Shakeout";
       friDesc = `${paceTargetSentence("Easy", friRunMin, easyPace, friDist)} shakeout with 3 x 30s strides`;
-      friPace = easyPace;
       friLiftLoad = 0;
       friLiftMin = 0;
       friLiftDesc = " — no lift today, race tomorrow";
@@ -714,7 +723,7 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
       });
     } else {
       const longEquipment = w % 2 === 0 ? "Outdoor" : "Peloton Tread";
-      const longMin = Math.round(longRun * (w <= 6 ? 16 : w <= 18 ? 14 : w <= 32 ? 13 : 12.5));
+      const longMin = runMinFromDistanceAndPace(longRun, longPace);
       const longDesc =
         w <= 6
           ? `${paceTargetSentence("Long", longMin, longPace, longRun)}, easy aerobic effort, build durability. NO lift today.`
@@ -972,6 +981,21 @@ export function paceTargetSentence(
 ): string {
   const dist = distanceMi >= 10 ? distanceMi.toFixed(1) : distanceMi.toFixed(2);
   return `${kind} run: ${min} min @ ${pace}/mi (~${dist} mi)`;
+}
+
+// Task #367: single source of truth for run minutes — mileage is the
+// goal, minutes are just distance × current pace. No 20-min floor, no
+// hardcoded per-mile constants. Returns max(1, round(distMi *
+// paceSec / 60)). If `pace` fails to parse, falls back to
+// DEFAULT_STARTING_PACE_SEC so we never silently return 0 on a real
+// run day.
+export function runMinFromDistanceAndPace(
+  distanceMi: number,
+  pace: string,
+): number {
+  if (!(distanceMi > 0)) return 0;
+  const paceSec = parseMmSsPace(pace) ?? DEFAULT_STARTING_PACE_SEC;
+  return Math.max(1, Math.round((distanceMi * paceSec) / 60));
 }
 
 // Walk-run on-ramp interval composition (Task #361).
@@ -1462,10 +1486,6 @@ interface FocusRecipe {
   easyPace: string;
   longPace: string;
   tempoPace: string;
-  // Run-minute multipliers (min/mile). Used to convert distance to run_min.
-  easyRunMinPerMi: number;
-  qualityRunMinPerMi: number;
-  longRunMinPerMi: number;
   // Strength + cardio block sizing.
   heavyStrengthLoad: number; // base, gets *0.75 on cutback
   heavyTonalMin: number; // base
@@ -1575,9 +1595,6 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
     easyPace: "13:30",
     longPace: "14:00",
     tempoPace: "12:30",
-    easyRunMinPerMi: 13,
-    qualityRunMinPerMi: 13,
-    longRunMinPerMi: 14,
     heavyStrengthLoad: 60,
     heavyTonalMin: 45,
     shortCardioMin: 25,
@@ -1605,9 +1622,6 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
     easyPace: "13:30",
     longPace: "14:30",
     tempoPace: "12:30",
-    easyRunMinPerMi: 14,
-    qualityRunMinPerMi: 14,
-    longRunMinPerMi: 15,
     heavyStrengthLoad: 50,
     heavyTonalMin: 35,
     shortCardioMin: 25,
@@ -1631,9 +1645,6 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
     easyPace: "13:30",
     longPace: "14:00",
     tempoPace: "12:30",
-    easyRunMinPerMi: 13,
-    qualityRunMinPerMi: 13,
-    longRunMinPerMi: 14,
     heavyStrengthLoad: 35,
     heavyTonalMin: 25,
     shortCardioMin: 50,
@@ -1664,9 +1675,6 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
     easyPace: "12:30",
     longPace: "13:00",
     tempoPace: "11:00",
-    easyRunMinPerMi: 12,
-    qualityRunMinPerMi: 11,
-    longRunMinPerMi: 13,
     heavyStrengthLoad: 60,
     heavyTonalMin: 40,
     shortCardioMin: 25,
@@ -1713,9 +1721,6 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
     easyPace: "12:30",
     longPace: "13:00",
     tempoPace: "11:30",
-    easyRunMinPerMi: 12,
-    qualityRunMinPerMi: 11,
-    longRunMinPerMi: 12,
     heavyStrengthLoad: 50,
     heavyTonalMin: 35,
     shortCardioMin: 25,
@@ -1751,9 +1756,6 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
     easyPace: "12:30",
     longPace: "13:00",
     tempoPace: "11:30",
-    easyRunMinPerMi: 12,
-    qualityRunMinPerMi: 11,
-    longRunMinPerMi: 13,
     heavyStrengthLoad: 35,
     heavyTonalMin: 25,
     shortCardioMin: 15,
@@ -1771,9 +1773,6 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
     easyPace: "14:00",
     longPace: "14:30",
     tempoPace: "13:30",
-    easyRunMinPerMi: 14,
-    qualityRunMinPerMi: 14,
-    longRunMinPerMi: 15,
     heavyStrengthLoad: 25,
     heavyTonalMin: 20,
     shortCardioMin: 15,
@@ -1809,9 +1808,6 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
     easyPace: "15:00",
     longPace: "15:00",
     tempoPace: "14:00",
-    easyRunMinPerMi: 16,
-    qualityRunMinPerMi: 15,
-    longRunMinPerMi: 16,
     heavyStrengthLoad: 30,
     heavyTonalMin: 25,
     shortCardioMin: 20,
@@ -1849,9 +1845,6 @@ const RECIPES: Record<FocusType, FocusRecipe> = {
     easyPace: "13:30",
     longPace: "14:00",
     tempoPace: "12:30",
-    easyRunMinPerMi: 13,
-    qualityRunMinPerMi: 13,
-    longRunMinPerMi: 14,
     heavyStrengthLoad: 60,
     heavyTonalMin: 45,
     shortCardioMin: 25,
@@ -1922,11 +1915,11 @@ function fridayContent(
   qualityDist: number,
   paceOverride: PaceOverride | null,
   walkRunComp: WalkRunComposition | null,
-  friRunMin: number = Math.max(20, Math.round(qualityDist * recipe.qualityRunMinPerMi)),
 ): {
   type: string;
   desc: string;
   pace: string;
+  min: number;
   liftMin: number;
   liftLoad: number;
   liftDescSuffix: string;
@@ -1939,62 +1932,79 @@ function fridayContent(
     : recipe.accessoryTonalMin;
   void walkRunDesc;
   if (isCutback) {
+    const min = runMinFromDistanceAndPace(qualityDist, easyPace);
     return {
       type: "Aerobic Base",
-      desc: `${paceTargetSentence("Easy", friRunMin, easyPace, qualityDist)}, easy recovery — conversational`,
+      desc: `${paceTargetSentence("Easy", min, easyPace, qualityDist)}, easy recovery — conversational`,
       pace: easyPace,
+      min,
       liftMin: 0,
       liftLoad: 0,
       liftDescSuffix: " — no lift today, recover for the long run",
     };
   }
   switch (recipe.fridayKind) {
-    case "Tempo":
+    case "Tempo": {
+      const min = runMinFromDistanceAndPace(qualityDist, tempoPace);
       return {
         type: "Tempo Run",
-        desc: `${paceTargetSentence("Tempo", friRunMin, tempoPace, qualityDist)} — 5 min easy warm-up, sustained tempo, 5 min cool-down`,
+        desc: `${paceTargetSentence("Tempo", min, tempoPace, qualityDist)} — 5 min easy warm-up, sustained tempo, 5 min cool-down`,
         pace: tempoPace,
+        min,
         liftMin: 0,
         liftLoad: 0,
         liftDescSuffix: " — no lift today, recover for the long run",
       };
-    case "Threshold":
+    }
+    case "Threshold": {
+      const min = runMinFromDistanceAndPace(qualityDist, tempoPace);
       return {
         type: "Threshold Intervals",
-        desc: `${paceTargetSentence("Threshold", friRunMin, tempoPace, qualityDist)} — warm-up, then 4 x 800m at threshold w/ 90s jog recovery, cool-down`,
+        desc: `${paceTargetSentence("Threshold", min, tempoPace, qualityDist)} — warm-up, then 4 x 800m at threshold w/ 90s jog recovery, cool-down`,
         pace: tempoPace,
+        min,
         liftMin: 0,
         liftLoad: 0,
         liftDescSuffix: " — no lift today, recover for the long run",
       };
-    case "RacePace":
+    }
+    case "RacePace": {
+      const min = runMinFromDistanceAndPace(qualityDist, tempoPace);
       return {
         type: "Race-Pace Workout",
-        desc: `${paceTargetSentence("Race-pace", friRunMin, tempoPace, qualityDist)} — warm-up, ${Math.max(2, Math.round(qualityDist - 1.5))} mi at goal race pace, cool-down`,
+        desc: `${paceTargetSentence("Race-pace", min, tempoPace, qualityDist)} — warm-up, ${Math.max(2, Math.round(qualityDist - 1.5))} mi at goal race pace, cool-down`,
         pace: tempoPace,
+        min,
         liftMin: 0,
         liftLoad: 0,
         liftDescSuffix: " — no lift today, recover for the long run",
       };
-    case "Sharpener":
+    }
+    case "Sharpener": {
+      const min = runMinFromDistanceAndPace(qualityDist, easyPace);
       return {
         type: "Sharpener",
-        desc: `${paceTargetSentence("Sharpener", friRunMin, easyPace, qualityDist)} with 4 x 30s strides in the final mile`,
+        desc: `${paceTargetSentence("Sharpener", min, easyPace, qualityDist)} with 4 x 30s strides in the final mile`,
         pace: easyPace,
+        min,
         liftMin: 0,
         liftLoad: 0,
         liftDescSuffix: " — no lift today",
       };
+    }
     case "AerobicBase":
-    default:
+    default: {
+      const min = runMinFromDistanceAndPace(qualityDist, easyPace);
       return {
         type: "Aerobic Base",
-        desc: `${paceTargetSentence("Easy", friRunMin, easyPace, qualityDist)}, build durability`,
+        desc: `${paceTargetSentence("Easy", min, easyPace, qualityDist)}, build durability`,
         pace: easyPace,
+        min,
         liftMin: accessory,
         liftLoad: 22,
         liftDescSuffix: ` + ${accessory} min Tonal core + mobility`,
       };
+    }
   }
 }
 
@@ -2828,9 +2838,6 @@ function buildHybridWeekDays(opts: {
   const qualityPace = adjustedPaceOverride?.tempoPace ?? "11:30";
   const longPace = adjustedPaceOverride?.longPace ?? "13:30";
   const walkRun = adjustedPaceOverride?.walkRun ?? false;
-  const easyMinPerMi = 13;
-  const qualityMinPerMi = 11;
-  const longMinPerMi = 14;
 
   const hybridDays = schedule.map((slot, dayOffset) => {
     const day = HYBRID_DAY_LABELS[dayOffset]!;
@@ -2930,7 +2937,7 @@ function buildHybridWeekDays(opts: {
       // the runner's per-mile easy pace.
       const spec = HYBRID_RACE_WEEK_TAPER.wed;
       const wedDist = spec.distanceMi ?? 0;
-      const wedMin = Math.max(20, Math.round(wedDist * easyMinPerMi));
+      const wedMin = runMinFromDistanceAndPace(wedDist, easyPace);
       return {
         week: weekNumber,
         phase,
@@ -2986,7 +2993,7 @@ function buildHybridWeekDays(opts: {
       // derive from the runner's per-mile quality pace.
       const spec = HYBRID_RACE_WEEK_TAPER.fri;
       const friDist = spec.distanceMi ?? 0;
-      const friMin = Math.max(20, Math.round(friDist * qualityMinPerMi));
+      const friMin = runMinFromDistanceAndPace(friDist, qualityPace);
       return {
         week: weekNumber,
         phase,
@@ -3124,12 +3131,9 @@ function buildHybridWeekDays(opts: {
     // run slot
     if (slot.intensity === "long") {
       const distance = mi.long;
-      const wr = walkRun
-        ? composeWalkRun(distance, Math.round(distance * longMinPerMi))
-        : null;
-      const min = wr
-        ? wr.runMin
-        : Math.max(20, Math.round(distance * longMinPerMi));
+      const naturalMin = runMinFromDistanceAndPace(distance, longPace);
+      const wr = walkRun ? composeWalkRun(distance, naturalMin) : null;
+      const min = wr ? wr.runMin : naturalMin;
       const equipment = walkRun
         ? "Peloton Tread"
         : weekNumber % 2 === 0
@@ -3158,7 +3162,7 @@ function buildHybridWeekDays(opts: {
     }
     if (slot.intensity === "quality") {
       const distance = mi.quality;
-      const min = Math.max(20, Math.round(distance * qualityMinPerMi));
+      const min = runMinFromDistanceAndPace(distance, qualityPace);
       return {
         week: weekNumber,
         phase,
@@ -3182,10 +3186,9 @@ function buildHybridWeekDays(opts: {
     }
     // easy run
     const distance = mi.easy;
-    const wr = walkRun
-      ? composeWalkRun(distance, Math.round(distance * easyMinPerMi))
-      : null;
-    const min = wr ? wr.runMin : Math.max(20, Math.round(distance * easyMinPerMi));
+    const naturalMin = runMinFromDistanceAndPace(distance, easyPace);
+    const wr = walkRun ? composeWalkRun(distance, naturalMin) : null;
+    const min = wr ? wr.runMin : naturalMin;
     return {
       week: weekNumber,
       phase,
@@ -3428,12 +3431,12 @@ function buildWeekDays(opts: {
   // Walk-run rows lead the chip rail with Peloton Tread; Steady Wed
   // (a quality stimulus) keeps the Tonal-led rail.
   const wedWalkRun = (paceOverride?.walkRun ?? false) && !wedSteady;
+  const wedPace = wedSteady ? effTempoPace : effEasyPace;
+  const wedNaturalMin = runMinFromDistanceAndPace(wedDist, wedPace);
   const wedWr = wedWalkRun
-    ? composeWalkRun(wedDist, Math.round(wedDist * recipe.easyRunMinPerMi))
+    ? composeWalkRun(wedDist, wedNaturalMin)
     : null;
-  const wedRunMin = wedWr
-    ? wedWr.runMin
-    : Math.max(20, Math.round(wedDist * recipe.easyRunMinPerMi));
+  const wedRunMin = wedWr ? wedWr.runMin : wedNaturalMin;
   const wedDay: DailyRow = {
     week: weekNumber,
     phase,
@@ -3497,12 +3500,6 @@ function buildWeekDays(opts: {
     (recipe.fridayKind === "AerobicBase" ||
       recipe.fridayKind === "Sharpener" ||
       isCutback);
-  const friWr = friWalkRun
-    ? composeWalkRun(friDist, Math.round(friDist * recipe.qualityRunMinPerMi))
-    : null;
-  const friRunMin = friWr
-    ? friWr.runMin
-    : Math.max(20, Math.round(friDist * recipe.qualityRunMinPerMi));
   const fri = fridayContent(
     recipe,
     block,
@@ -3510,9 +3507,10 @@ function buildWeekDays(opts: {
     isCutback,
     friDist,
     paceOverride,
-    friWr,
-    friRunMin,
+    null,
   );
+  const friWr = friWalkRun ? composeWalkRun(friDist, fri.min) : null;
+  const friRunMin = friWr ? friWr.runMin : fri.min;
   const friDay: DailyRow = {
     week: weekNumber,
     phase,
@@ -3626,17 +3624,14 @@ function buildWeekDays(opts: {
       "long",
     );
     const sunWalkRun = paceOverride?.walkRun ?? false;
-    const sunWr = sunWalkRun
-      ? composeWalkRun(longRun, Math.round(longRun * recipe.longRunMinPerMi))
-      : null;
+    const sunNaturalMin = runMinFromDistanceAndPace(longRun, effLongPace);
+    const sunWr = sunWalkRun ? composeWalkRun(longRun, sunNaturalMin) : null;
     const longEquipment = sunWalkRun
       ? "Peloton Tread"
       : weekNumber % 2 === 0
         ? "Outdoor"
         : "Peloton Tread";
-    const longMin = sunWr
-      ? sunWr.runMin
-      : Math.max(20, Math.round(longRun * recipe.longRunMinPerMi));
+    const longMin = sunWr ? sunWr.runMin : sunNaturalMin;
     sunDay = {
       week: weekNumber,
       phase,
@@ -3723,7 +3718,7 @@ function buildWeekDays(opts: {
       raceKind,
       "long",
     );
-    const longMin = Math.max(20, Math.round(longRunMi * recipe.longRunMinPerMi));
+    const longMin = runMinFromDistanceAndPace(longRunMi, effLongPace);
     resolvedSunDay = {
       ...sunDay,
       equipment: machineLabel,

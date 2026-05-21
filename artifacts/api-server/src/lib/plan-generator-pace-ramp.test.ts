@@ -183,6 +183,76 @@ describe("Task #335: stacked pace ramp from 16:00/mi", () => {
     }
   });
 
+  // Task #367: run-card minutes are derived from distance × ramped
+  // pace (no 20-min floor, no hardcoded per-mile constants). The
+  // invariant: |run_min − round(distance_mi × paceSec / 60)| ≤ 1 for
+  // every non-walk-run run row whose description is a pace-target
+  // sentence carrying the same pace as the row.
+  it("Task #367: run_min ≈ distance × paceSec / 60 (no floor, honors ramped pace) for every pace-target run row", () => {
+    // Use a starting pace below WALK_RUN_PACE_THRESHOLD_SEC (840) so
+    // composeWalkRun() never overrides the natural minutes — the
+    // invariant only holds for non-walk-run rows. Walk-run composition
+    // is a separate cardio-bucket concern (Task #361/#365).
+    const { taggedDaily } = expandConfigToPlanRows({
+      startDate: START,
+      marathonDate: RACE,
+      blocks: [],
+      entries: ENTRIES,
+      startingPaceSec: 810, // 13:30/mi, < 840 threshold
+    });
+    // The strength-floor enforcer pads Fri-quality days (lift 0 → 30
+    // min) and steals from run minutes to keep the Fri budget ≤ 75 —
+    // that's a separate composition concern, not the per-row math.
+    // Pin the formula on Wed/Sun where the recipe's own lift block
+    // already meets the floor and run minutes are not budget-trimmed.
+    const runRows = taggedDaily.filter(
+      (r) =>
+        (r.row.day === "Wed" || r.row.day === "Sun") &&
+        (r.row.run_min ?? 0) > 0 &&
+        (r.row.distance_mi ?? 0) > 0 &&
+        (r.row.pace ?? "") !== "" &&
+        PACE_TARGET_REGEX.test(r.row.description ?? ""),
+    );
+    expect(runRows.length).toBeGreaterThan(0);
+    for (const r of runRows) {
+      const paceSec = parseMmSsPace(r.row.pace ?? null);
+      expect(paceSec, `row W${r.row.week} ${r.row.day} has pace`).not.toBeNull();
+      const expected = Math.max(
+        1,
+        Math.round((r.row.distance_mi ?? 0) * paceSec! / 60),
+      );
+      expect(
+        Math.abs((r.row.run_min ?? 0) - expected),
+        `W${r.row.week} ${r.row.day}: run_min=${r.row.run_min} should be ~${expected} (dist=${r.row.distance_mi}, pace=${r.row.pace})`,
+      ).toBeLessThanOrEqual(1);
+    }
+  });
+
+  // Task #367: a configured startingPaceSec slower than the recipe
+  // floor should be honored end-to-end. C25K's recipe easy floor is
+  // 15:00/mi (900 sec); 17:00 (1020) is slower, so it must win.
+  it("Task #367: configured startingPaceSec=1020 (17:00) on couch_to_5k wins over recipe floor in week 1", () => {
+    // couch_to_5k 9 weeks → race date 9 weeks after START.
+    const c25kRace = "2026-07-05"; // 2026-05-04 Mon + 9 weeks → Sun 2026-07-05
+    const { taggedDaily } = expandConfigToPlanRows({
+      startDate: START,
+      marathonDate: c25kRace,
+      blocks: [],
+      entries: [{ templateId: "couch_to_5k", weeks: 9 }],
+      startingPaceSec: 1020,
+    });
+    const week1Easy = taggedDaily.find(
+      (r) =>
+        r.row.week === 1 &&
+        r.row.day === "Wed" &&
+        (r.row.run_min ?? 0) > 0,
+    );
+    expect(week1Easy, "C25K W1 Wed easy row").toBeDefined();
+    const paceSec = parseMmSsPace(week1Easy!.row.pace ?? null);
+    expect(paceSec).not.toBeNull();
+    expect(paceSec!).toBeGreaterThanOrEqual(1020);
+  });
+
   it("walkRunDescription() pure helper still exists for back-compat (composeWalkRun unit-test surface)", () => {
     expect(STARTING_PACE_SEC).toBeGreaterThan(WALK_RUN_PACE_THRESHOLD_SEC);
     expect(walkRunDescription(1.0)).toMatch(
