@@ -53,6 +53,16 @@ pnpm --filter @workspace/scripts run backfill-race-result-kind
 # prior seed (no user customization to clobber). Idempotent — safe to
 # re-run; no-op when no planner_configs row has been applied.
 pnpm --filter @workspace/scripts run backfill-walk-run-coherence
+# Task #365 backfill: retrofit the pace-target run cards onto the
+# existing applied campaign WITHOUT wiping workouts/measurements.
+# Replaces the legacy "Easy aerobic Tread run (X mi, conversational)"
+# / "Long aerobic run" / "Tread tempo" / walk-run interval headlines
+# with the new "{Kind} run: {min} min @ {pace}/mi (~{dist} mi)"
+# sentence and updates seed_pace to reflect the race-distance-offset
+# easy/long pace. Mirrors into runtime columns only when they still
+# equal the prior seed (no user customization to clobber). Idempotent
+# — safe to re-run; no-op when no planner_configs row has been applied.
+pnpm --filter @workspace/scripts run backfill-pace-target-cards
 # Task #327: enforce the "plan tables stay EMPTY until a Phase Planner
 # config has been applied" invariant. Pre-Task #307 databases still
 # carry the auto-generated 52-week canonical plan even though

@@ -509,10 +509,10 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
       equipment: "Tonal",
       equipment_list: ["Tonal", "Peloton Tread"],
       description: wedSteady
-        ? `Steady-state Tread run (${wedDist} mi, Z3 controlled effort — comfortably hard but conversational in short sentences), then ${accessoryTonalMin} min Tonal core + accessory work (no heavy lifting)`
+        ? `${paceTargetSentence("Steady", wedRunMin, tempoPace, wedDist)}, Z3 controlled effort — comfortably hard but conversational in short sentences, then ${accessoryTonalMin} min Tonal core + accessory work (no heavy lifting)`
         : isCutback
-        ? `Easy aerobic Tread run (${wedDist} mi, conversational), then ${accessoryTonalMin} min light Tonal core + mobility`
-        : `Easy aerobic Tread run (${wedDist} mi, fully conversational pace), then ${accessoryTonalMin} min Tonal core + accessory work (no heavy lifting)`,
+        ? `${paceTargetSentence("Easy", wedRunMin, easyPace, wedDist)}, conversational, then ${accessoryTonalMin} min light Tonal core + mobility`
+        : `${paceTargetSentence("Easy", wedRunMin, easyPace, wedDist)}, fully conversational pace, then ${accessoryTonalMin} min Tonal core + accessory work (no heavy lifting)`,
       strength_min: accessoryTonalMin,
       cardio_min: 0,
       run_min: wedRunMin,
@@ -547,6 +547,7 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
 
     // ---------- FRI: QUALITY RUN (big run = no lift; easy = + accessory) ----------
     const friDist = qualityRunDist(w, isCutback);
+    const friRunMin = Math.max(20, Math.round(friDist * (w <= 6 ? 16 : w <= 18 ? 13 : w <= 32 ? 12 : 11.5)));
     let friType: string;
     let friDesc: string;
     let friPace: string;
@@ -556,7 +557,7 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
 
     if (w <= 6) {
       friType = "Aerobic Base";
-      friDesc = `Easy aerobic Tread run (${friDist} mi), build durability`;
+      friDesc = `${paceTargetSentence("Easy", friRunMin, easyPace, friDist)}, build durability`;
       friPace = easyPace;
       friLiftLoad = isCutback ? 18 : 22;
       friLiftMin = accessoryTonalMin;
@@ -564,8 +565,8 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
     } else if (w <= 18) {
       friType = isCutback ? "Aerobic Base" : "Tempo Run";
       friDesc = isCutback
-        ? `Easy recovery Tread run (${friDist} mi)`
-        : `Tread tempo (${friDist} mi: 5 min easy, ${Math.max(10, friDist * 4)} min steady tempo, 5 min cool-down)`;
+        ? `${paceTargetSentence("Easy", friRunMin, easyPace, friDist)}, easy recovery — conversational`
+        : `${paceTargetSentence("Tempo", friRunMin, tempoPace, friDist)} — 5 min easy warm-up, ${Math.max(10, friDist * 4)} min steady tempo, 5 min cool-down`;
       friPace = isCutback ? easyPace : tempoPace;
       friLiftLoad = 0;
       friLiftMin = 0;
@@ -573,8 +574,8 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
     } else if (w <= 32) {
       friType = isCutback ? "Aerobic Base" : "Threshold Intervals";
       friDesc = isCutback
-        ? `Easy recovery Tread run (${friDist} mi)`
-        : `Tread threshold (${friDist} mi: warm-up, then 4 x 800m at threshold w/ 90s jog recovery, cool-down)`;
+        ? `${paceTargetSentence("Easy", friRunMin, easyPace, friDist)}, easy recovery — conversational`
+        : `${paceTargetSentence("Threshold", friRunMin, tempoPace, friDist)} — warm-up, then 4 x 800m at threshold w/ 90s jog recovery, cool-down`;
       friPace = isCutback ? easyPace : tempoPace;
       friLiftLoad = 0;
       friLiftMin = 0;
@@ -582,42 +583,41 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
     } else if (w <= 46) {
       friType = isCutback ? "Aerobic Base" : "Race-Pace Workout";
       friDesc = isCutback
-        ? `Easy recovery Tread run (${friDist} mi)`
-        : `Tread race-pace (${friDist} mi: warm-up, 3 x 1 mi at goal half-marathon pace w/ 2 min recovery, cool-down)`;
+        ? `${paceTargetSentence("Easy", friRunMin, easyPace, friDist)}, easy recovery — conversational`
+        : `${paceTargetSentence("Race-pace", friRunMin, tempoPace, friDist)} — warm-up, 3 x 1 mi at goal half-marathon pace w/ 2 min recovery, cool-down`;
       friPace = isCutback ? easyPace : tempoPace;
       friLiftLoad = 0;
       friLiftMin = 0;
       friLiftDesc = " — no lift today, recover for the long run";
     } else if (w <= 49) {
       friType = "Tempo Run";
-      friDesc = `Tread sharpener (${friDist} mi: 10 min easy, 15-20 min steady tempo, 5 min cool-down)`;
+      friDesc = `${paceTargetSentence("Sharpener", friRunMin, tempoPace, friDist)} — 10 min easy, 15-20 min steady tempo, 5 min cool-down`;
       friPace = tempoPace;
       friLiftLoad = 0;
       friLiftMin = 0;
       friLiftDesc = " — no lift today";
     } else if (w === 50) {
       friType = "Tempo Run";
-      friDesc = `Tread taper tempo (${friDist} mi: 10 min easy, 12 min tempo, 5 min cool-down)`;
+      friDesc = `${paceTargetSentence("Tempo", friRunMin, tempoPace, friDist)} — 10 min easy, 12 min tempo, 5 min cool-down (taper)`;
       friPace = tempoPace;
       friLiftLoad = 0;
       friLiftMin = 0;
       friLiftDesc = " — no lift today";
     } else if (w === 51) {
       friType = "Sharpener";
-      friDesc = `Easy Tread run (${friDist} mi) with 4 x 30s strides in the final mile`;
+      friDesc = `${paceTargetSentence("Easy", friRunMin, easyPace, friDist)} with 4 x 30s strides in the final mile`;
       friPace = easyPace;
       friLiftLoad = 0;
       friLiftMin = 0;
       friLiftDesc = " — no lift today";
     } else {
       friType = "Race Shakeout";
-      friDesc = `Easy Tread shakeout (${friDist} mi) with 3 x 30s strides`;
+      friDesc = `${paceTargetSentence("Easy", friRunMin, easyPace, friDist)} shakeout with 3 x 30s strides`;
       friPace = easyPace;
       friLiftLoad = 0;
       friLiftMin = 0;
       friLiftDesc = " — no lift today, race tomorrow";
     }
-    const friRunMin = Math.max(20, Math.round(friDist * (w <= 6 ? 16 : w <= 18 ? 13 : w <= 32 ? 12 : 11.5)));
     const friDay: DailyRow = {
       week: w,
       phase,
@@ -714,21 +714,21 @@ export function generatePlan(): { daily: DailyRow[]; weekly: WeeklyRow[]; body: 
       });
     } else {
       const longEquipment = w % 2 === 0 ? "Outdoor" : "Peloton Tread";
+      const longMin = Math.round(longRun * (w <= 6 ? 16 : w <= 18 ? 14 : w <= 32 ? 13 : 12.5));
       const longDesc =
         w <= 6
-          ? `Long run/walk (${longRun} mi): easy walk-run intervals, build aerobic durability. NO lift today.`
+          ? `${paceTargetSentence("Long", longMin, longPace, longRun)}, easy aerobic effort, build durability. NO lift today.`
           : w <= 18
-          ? `Long aerobic run (${longRun} mi): conversational pace, focus on time on feet. NO lift today.`
+          ? `${paceTargetSentence("Long", longMin, longPace, longRun)}, conversational pace, focus on time on feet. NO lift today.`
           : w <= 32
-          ? `Steady long run (${longRun} mi): build endurance, dial in fueling and hydration. NO lift today.`
+          ? `${paceTargetSentence("Long", longMin, longPace, longRun)}, build endurance, dial in fueling and hydration. NO lift today.`
           : w <= 46
-          ? `Goal-pace long (${longRun} mi): 2 mi easy warm-up, then progressive miles at race pace, 1 mi cool-down. NO lift today.`
+          ? `${paceTargetSentence("Long", longMin, longPace, longRun)} — 2 mi easy warm-up, then progressive miles at race pace, 1 mi cool-down. NO lift today.`
           : w <= 49
-          ? `Final long efforts (${longRun} mi): steady aerobic, dress-rehearse race kit and fueling. NO lift today.`
+          ? `${paceTargetSentence("Long", longMin, longPace, longRun)}, steady aerobic, dress-rehearse race kit and fueling. NO lift today.`
           : w === 50
-          ? `Reduced long run (${longRun} mi): easy controlled effort, no surges, build freshness. NO lift today.`
-          : `Short taper long (${longRun} mi): easy effort, focus on feeling fresh for race day. NO lift today.`;
-      const longMin = Math.round(longRun * (w <= 6 ? 16 : w <= 18 ? 14 : w <= 32 ? 13 : 12.5));
+          ? `${paceTargetSentence("Long", longMin, longPace, longRun)}, easy controlled effort, no surges, build freshness. NO lift today.`
+          : `${paceTargetSentence("Long", longMin, longPace, longRun)}, easy effort, focus on feeling fresh for race day. NO lift today.`;
       sunDay = {
         week: w,
         phase,
@@ -901,12 +901,78 @@ export function computeEffectivePace(
 
 // Walk-run on-ramp: first WALK_RUN_MAX_ENTRY_LOCAL_WEEK weeks of each
 // entry whose entry-start effective easy pace is still > 14:00/mi.
+// Task #365: the runtime no longer emits walk-run interval cards —
+// descriptions are pace-target sentences across the board. The
+// constants stay exported for back-compat with downstream tooling that
+// still reads them, but `buildPaceOverride` always returns
+// `walkRun: false` so the description routing never fires.
 export const WALK_RUN_PACE_THRESHOLD_SEC = 840;
 export const WALK_RUN_MAX_ENTRY_LOCAL_WEEK = 2;
 export const WALK_RUN_MAX_CAMPAIGN_WEEK = WALK_RUN_MAX_ENTRY_LOCAL_WEEK;
 
 // Default starting easy pace (14:30/mi) when none is configured.
 export const DEFAULT_STARTING_PACE_SEC = 870;
+
+// Task #365: race-distance pace offsets. Easy/long runs get slower as
+// the goal race grows so the runner trains at race-appropriate
+// aerobic intensity. Tempo/quality pace is anchored to easy − 60
+// (unchanged from Task #335). Values aligned with Daniels VDOT E-pace
+// ranges and Pfitz general-aerobic / long-run offsets vs goal MP:
+//   5K / 10K: easy ≈ MP + 60-75 sec; long ≈ same as easy.
+//   Half: easy ≈ MP + 75-90 sec; long ≈ easy + 15.
+//   Marathon: easy ≈ MP + 90-120 sec; long ≈ easy + 30.
+// Offsets are in sec/mi ON TOP of the per-week ramped easy pace.
+export const RACE_KIND_EASY_OFFSET_SEC: Record<string, number> = {
+  "5k": 0,
+  "10k": 5,
+  half: 15,
+  marathon: 25,
+  none: 0,
+};
+export const RACE_KIND_LONG_EXTRA_OFFSET_SEC: Record<string, number> = {
+  "5k": 0,
+  "10k": 5,
+  half: 15,
+  marathon: 30,
+  none: 0,
+};
+
+// Apply the race-kind offset to a base PaceOverride. Returns a new
+// override (same shape) whose easyPace is +easyOffset slower, longPace
+// is +(easyOffset + longExtra) slower, and tempoPace is unchanged
+// (tempo is anchored to race effort, not training pace).
+export function applyRaceKindPaceOffset<T extends { easyPace: string; longPace: string; tempoPace: string } | null>(
+  pace: T,
+  raceKind: string,
+): T {
+  if (!pace) return pace;
+  const easyOff = RACE_KIND_EASY_OFFSET_SEC[raceKind] ?? 0;
+  const longExtra = RACE_KIND_LONG_EXTRA_OFFSET_SEC[raceKind] ?? 0;
+  if (easyOff === 0 && longExtra === 0) return pace;
+  const easySec = parseMmSsPace(pace.easyPace);
+  const longSec = parseMmSsPace(pace.longPace);
+  if (easySec === null || longSec === null) return pace;
+  return {
+    ...pace,
+    easyPace: formatMmSsPace(easySec + easyOff),
+    longPace: formatMmSsPace(longSec + easyOff + longExtra),
+  };
+}
+
+// Task #365: build the user-facing pace-target sentence shown on every
+// run card. Replaces the old walk-run interval prose and the legacy
+// "Easy aerobic Tread run (X mi, conversational)" framing. The
+// runner sees minutes (primary input), pace (per-mile target), and a
+// derived distance — all three describe the same workout.
+export function paceTargetSentence(
+  kind: "Easy" | "Long" | "Tempo" | "Steady" | "Sharpener" | "Race-pace" | "Threshold",
+  min: number,
+  pace: string,
+  distanceMi: number,
+): string {
+  const dist = distanceMi >= 10 ? distanceMi.toFixed(1) : distanceMi.toFixed(2);
+  return `${kind} run: ${min} min @ ${pace}/mi (~${dist} mi)`;
+}
 
 // Walk-run on-ramp interval composition (Task #361).
 //
@@ -1836,9 +1902,13 @@ function buildPaceOverride(
     easyPace: formatMmSsPace(eff.easySec),
     longPace: formatMmSsPace(eff.longSec),
     tempoPace: formatMmSsPace(eff.tempoSec),
-    walkRun:
-      entryStartEff.easySec > WALK_RUN_PACE_THRESHOLD_SEC &&
-      entryLocalWeek <= WALK_RUN_MAX_ENTRY_LOCAL_WEEK,
+    // Task #365: walk-run interval cards are retired. The runtime
+    // always emits a pace-target sentence; the legacy walkRun branch
+    // in buildWeekDays / buildHybridWeekDays / fridayContent is dead
+    // code (kept compiled for now to preserve test coverage on
+    // composeWalkRun() itself). Forcing this to `false` is the single
+    // routing flip that flips the description shape everywhere.
+    walkRun: false && entryStartEff.easySec > WALK_RUN_PACE_THRESHOLD_SEC,
     startingPaceSec,
     campaignWeek,
   };
@@ -1852,6 +1922,7 @@ function fridayContent(
   qualityDist: number,
   paceOverride: PaceOverride | null,
   walkRunComp: WalkRunComposition | null,
+  friRunMin: number = Math.max(20, Math.round(qualityDist * recipe.qualityRunMinPerMi)),
 ): {
   type: string;
   desc: string;
@@ -1866,12 +1937,11 @@ function fridayContent(
   const accessory = isCutback
     ? Math.max(15, recipe.accessoryTonalMin - 5)
     : recipe.accessoryTonalMin;
+  void walkRunDesc;
   if (isCutback) {
     return {
       type: "Aerobic Base",
-      desc:
-        walkRunDesc ??
-        `Easy recovery Tread run (${qualityDist} mi, conversational)`,
+      desc: `${paceTargetSentence("Easy", friRunMin, easyPace, qualityDist)}, easy recovery — conversational`,
       pace: easyPace,
       liftMin: 0,
       liftLoad: 0,
@@ -1882,7 +1952,7 @@ function fridayContent(
     case "Tempo":
       return {
         type: "Tempo Run",
-        desc: `Tread tempo (${qualityDist} mi: 5 min easy, ${Math.max(10, Math.round(qualityDist * 4))} min steady tempo, 5 min cool-down)`,
+        desc: `${paceTargetSentence("Tempo", friRunMin, tempoPace, qualityDist)} — 5 min easy warm-up, sustained tempo, 5 min cool-down`,
         pace: tempoPace,
         liftMin: 0,
         liftLoad: 0,
@@ -1891,7 +1961,7 @@ function fridayContent(
     case "Threshold":
       return {
         type: "Threshold Intervals",
-        desc: `Tread threshold (${qualityDist} mi: warm-up, then 4 x 800m at threshold w/ 90s jog recovery, cool-down)`,
+        desc: `${paceTargetSentence("Threshold", friRunMin, tempoPace, qualityDist)} — warm-up, then 4 x 800m at threshold w/ 90s jog recovery, cool-down`,
         pace: tempoPace,
         liftMin: 0,
         liftLoad: 0,
@@ -1900,7 +1970,7 @@ function fridayContent(
     case "RacePace":
       return {
         type: "Race-Pace Workout",
-        desc: `Tread marathon-pace (${qualityDist} mi: warm-up, ${Math.max(2, Math.round(qualityDist - 1.5))} mi at goal marathon pace, cool-down)`,
+        desc: `${paceTargetSentence("Race-pace", friRunMin, tempoPace, qualityDist)} — warm-up, ${Math.max(2, Math.round(qualityDist - 1.5))} mi at goal race pace, cool-down`,
         pace: tempoPace,
         liftMin: 0,
         liftLoad: 0,
@@ -1909,9 +1979,7 @@ function fridayContent(
     case "Sharpener":
       return {
         type: "Sharpener",
-        desc:
-          walkRunDesc ??
-          `Easy Tread run (${qualityDist} mi) with 4 x 30s strides in the final mile`,
+        desc: `${paceTargetSentence("Sharpener", friRunMin, easyPace, qualityDist)} with 4 x 30s strides in the final mile`,
         pace: easyPace,
         liftMin: 0,
         liftLoad: 0,
@@ -1921,9 +1989,7 @@ function fridayContent(
     default:
       return {
         type: "Aerobic Base",
-        desc:
-          walkRunDesc ??
-          `Easy aerobic Tread run (${qualityDist} mi), build durability`,
+        desc: `${paceTargetSentence("Easy", friRunMin, easyPace, qualityDist)}, build durability`,
         pace: easyPace,
         liftMin: accessory,
         liftLoad: 22,
@@ -2752,10 +2818,16 @@ function buildHybridWeekDays(opts: {
     hPhase,
     raceKind,
   );
-  const easyPace = opts.paceOverride?.easyPace ?? "13:00";
-  const qualityPace = opts.paceOverride?.tempoPace ?? "11:30";
-  const longPace = opts.paceOverride?.longPace ?? "13:30";
-  const walkRun = opts.paceOverride?.walkRun ?? false;
+  // Task #365: apply the race-distance pace offset so hybrid
+  // campaigns train easy/long pace at race-appropriate mm:ss/mi.
+  const adjustedPaceOverride = applyRaceKindPaceOffset(
+    opts.paceOverride ?? null,
+    raceKind,
+  );
+  const easyPace = adjustedPaceOverride?.easyPace ?? "13:00";
+  const qualityPace = adjustedPaceOverride?.tempoPace ?? "11:30";
+  const longPace = adjustedPaceOverride?.longPace ?? "13:30";
+  const walkRun = adjustedPaceOverride?.walkRun ?? false;
   const easyMinPerMi = 13;
   const qualityMinPerMi = 11;
   const longMinPerMi = 14;
@@ -2868,7 +2940,7 @@ function buildHybridWeekDays(opts: {
         equipment: "Peloton Tread",
         equipment_list: ["Peloton Tread"],
         description:
-          `Easy aerobic Tread run (${wedDist} mi, conversational pace). Keep it short — the race is Sunday.` +
+          `${paceTargetSentence("Easy", wedMin, easyPace, wedDist)}, conversational pace. Keep it short — the race is Sunday.` +
           customSuffix,
         strength_min: spec.strengthMin,
         cardio_min: spec.cardioMin,
@@ -2924,7 +2996,7 @@ function buildHybridWeekDays(opts: {
         equipment: "Peloton Tread",
         equipment_list: ["Peloton Tread"],
         description:
-          `Tune-up Tread run (${friDist} mi at marathon pace) with 4 x 30s strides in the final mile. Wake the legs up, fuel + sleep tonight.` +
+          `${paceTargetSentence("Tempo", friMin, qualityPace, friDist)} at marathon pace, with 4 x 30s strides in the final mile. Wake the legs up, fuel + sleep tonight.` +
           customSuffix,
         strength_min: spec.strengthMin,
         cardio_min: spec.cardioMin,
@@ -3072,9 +3144,7 @@ function buildHybridWeekDays(opts: {
         equipment,
         equipment_list: [equipment],
         description:
-          (wr
-            ? `${wr.description} (long-run on-ramp, ${distance} mi target). NO lift today.`
-            : `Long aerobic run (${distance} mi): conversational unless noted, dial in fueling. NO lift today.`) +
+          `${paceTargetSentence("Long", min, longPace, distance)}, conversational unless noted, dial in fueling. NO lift today.` +
           customSuffix,
         strength_min: 0,
         cardio_min: 0,
@@ -3098,7 +3168,7 @@ function buildHybridWeekDays(opts: {
         equipment: "Peloton Tread",
         equipment_list: ["Peloton Tread"],
         description:
-          `Tread tempo run (${distance} mi: warm-up, then ${Math.max(10, Math.round(distance * 4))} min at steady tempo, cool-down)` +
+          `${paceTargetSentence("Tempo", min, qualityPace, distance)} — warm-up, sustained tempo, cool-down` +
           customSuffix,
         strength_min: 0,
         cardio_min: 0,
@@ -3125,9 +3195,7 @@ function buildHybridWeekDays(opts: {
       equipment: "Peloton Tread",
       equipment_list: ["Peloton Tread"],
       description:
-        (wr
-          ? `${wr.description} (easy on-ramp, ${distance} mi target)`
-          : `Easy aerobic Tread run (${distance} mi, conversational, build durability)`) +
+        `${paceTargetSentence("Easy", min, easyPace, distance)}, conversational, build durability` +
         customSuffix,
       strength_min: 0,
       cardio_min: 0,
@@ -3185,7 +3253,13 @@ function buildWeekDays(opts: {
   } = opts;
   const dailyBudget = opts.dailyBudget ?? null;
   const raceKind: PlanRaceKind = opts.raceKind ?? "marathon";
-  const paceOverride = opts.paceOverride ?? null;
+  // Task #365: apply the race-distance pace offset so a marathon
+  // campaign trains easy/long pace at slower mm:ss/mi than a 5K
+  // campaign at the same campaignWeek (Daniels/Pfitz alignment).
+  const paceOverride = applyRaceKindPaceOffset(
+    opts.paceOverride ?? null,
+    raceKind,
+  );
   const effEasyPace = paceOverride?.easyPace ?? recipe.easyPace;
   const effTempoPace = paceOverride?.tempoPace ?? recipe.tempoPace;
   const effLongPace = paceOverride?.longPace ?? recipe.longPace;
@@ -3372,10 +3446,8 @@ function buildWeekDays(opts: {
       : ["Tonal", "Peloton Tread"],
     description:
       (wedSteady
-        ? `Steady-state Tread run (${wedDist} mi, Z3 controlled effort — comfortably hard but conversational in short sentences), then ${accessoryTonalMin} min Tonal core + accessory work`
-        : wedWr
-          ? `${wedWr.description} (easy on-ramp, ${wedDist} mi target), then ${accessoryTonalMin} min Tonal core + accessory work`
-          : `Easy aerobic Tread run (${wedDist} mi, conversational), then ${accessoryTonalMin} min Tonal core + accessory work`) +
+        ? `${paceTargetSentence("Steady", wedRunMin, effTempoPace, wedDist)}, Z3 controlled effort — comfortably hard but conversational in short sentences, then ${accessoryTonalMin} min Tonal core + accessory work`
+        : `${paceTargetSentence("Easy", wedRunMin, effEasyPace, wedDist)}, conversational, then ${accessoryTonalMin} min Tonal core + accessory work`) +
       customSuffix,
     strength_min: accessoryTonalMin,
     cardio_min: 0,
@@ -3439,6 +3511,7 @@ function buildWeekDays(opts: {
     friDist,
     paceOverride,
     friWr,
+    friRunMin,
   );
   const friDay: DailyRow = {
     week: weekNumber,
@@ -3573,9 +3646,7 @@ function buildWeekDays(opts: {
       equipment: longEquipment,
       equipment_list: [longEquipment],
       description:
-        (sunWr
-          ? `${sunWr.description} (long-run on-ramp, ${longRun} mi target). NO lift today.`
-          : `${recipe.longRunVerb} (${longRun} mi): conversational unless noted, dial in fueling. NO lift today.`) +
+        `${paceTargetSentence("Long", longMin, effLongPace, longRun)}, conversational unless noted, dial in fueling. NO lift today.` +
         customSuffix,
       strength_min: 0,
       cardio_min: 0,

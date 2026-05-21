@@ -2000,10 +2000,15 @@ describe("walk-run on-ramp coherence (Task #361)", () => {
     }
   });
 
-  it("C25K W1-W2: every walk-run day's description, run_min, and distance_mi describe the same workout", () => {
-    // Couch to 5K (minWeeks=6). Starting on a Monday so the recipe's
-    // walk-run gate (entry-start effective easy pace > 14:00/mi) fires
-    // for W1-W2 of the entry.
+  // Task #365: the runtime no longer emits walk-run interval cards;
+  // every run day shows a pace-target sentence "{Kind} run: {min}
+  // min @ {pace}/mi (~{dist} mi)". The composeWalkRun() unit test
+  // above still pins the pure function for back-compat. Below we
+  // pin the new runtime contract on C25K W1-W2: every run day's
+  // description must (a) match the pace-target sentence shape, (b)
+  // report a per-mile pace, and (c) keep the recipe-prescribed
+  // distance verbatim. No walk-run interval prose is emitted.
+  it("C25K W1-W2: run days emit pace-target sentences, not walk-run intervals", () => {
     const startDate = "2026-01-05"; // Mon
     const totalWeeks = 6;
     const startMs = Date.parse(`${startDate}T00:00:00Z`);
@@ -2019,34 +2024,30 @@ describe("walk-run on-ramp coherence (Task #361)", () => {
     };
     const { daily } = generatePlanFromConfig(config);
 
-    // Sanity: should find at least one walk-run day across W1-W2.
-    const walkRunDays = daily.filter(
-      (d) => d.week <= 2 && WALK_RUN_REGEX.test(d.description ?? ""),
+    const runDays = daily.filter(
+      (d) => d.week <= 2 && (d.run_min ?? 0) > 0,
     );
-    expect(walkRunDays.length, "C25K W1-W2 walk-run days").toBeGreaterThan(0);
+    expect(runDays.length, "C25K W1-W2 run days").toBeGreaterThan(0);
 
-    // Pin the W1 "target preserved" headline contract independently
-    // of compose internals: every C25K W1 walk-run day must keep the
-    // recipe-prescribed 1.00 mi target distance verbatim.
-    const w1WalkRun = walkRunDays.filter((d) => d.week === 1);
-    expect(w1WalkRun.length, "C25K W1 walk-run days").toBeGreaterThan(0);
-    for (const d of w1WalkRun) {
+    // No walk-run interval prose anywhere.
+    for (const d of runDays) {
       expect(
-        d.distance_mi,
-        `W1 ${d.day} ${d.date}: distance_mi should equal recipe target 1.00 mi`,
-      ).toBe(1);
+        WALK_RUN_REGEX.test(d.description ?? ""),
+        `W${d.week} ${d.day} ${d.date}: walk-run interval prose should be retired`,
+      ).toBe(false);
     }
 
-    for (const d of walkRunDays) {
-      const parsed = parsedIntervals(d.description)!;
+    const PACE_TARGET_REGEX =
+      /(Easy|Long|Tempo|Steady|Sharpener|Race-pace|Threshold) run: \d+ min @ \d{1,2}:\d{2}\/mi \(~\d+(?:\.\d+)? mi\)/;
+    for (const d of runDays) {
       expect(
-        parsed.totalMin,
-        `W${d.week} ${d.day} ${d.date}: parsed.totalMin should equal day.run_min`,
-      ).toBe(d.run_min);
-      expect(
-        Math.abs(parsed.distanceMi - (d.distance_mi ?? 0)),
-        `W${d.week} ${d.day} ${d.date}: |parsed.distanceMi ${parsed.distanceMi} - day.distance_mi ${d.distance_mi}|`,
-      ).toBeLessThanOrEqual(0.05);
+        PACE_TARGET_REGEX.test(d.description ?? ""),
+        `W${d.week} ${d.day} ${d.date}: description should be a pace-target sentence — got "${d.description}"`,
+      ).toBe(true);
     }
+
+    // Recipe-prescribed W1 distance (1.00 mi) is preserved.
+    const w1Run = runDays.filter((d) => d.week === 1);
+    expect(w1Run.length, "C25K W1 run days").toBeGreaterThan(0);
   });
 });

@@ -65,6 +65,16 @@ describe("Task #335: stacked pace ramp from 16:00/mi", () => {
     return parseMmSsPace(row.row.pace ?? null);
   }
 
+  // Task #365: race-kind transitions at stacked-entry seams introduce
+  // a small step in displayed easy pace (10K is +5 sec slower than
+  // 5K; half +15; marathon +25 — Daniels/Pfitz aligned). The
+  // underlying ramp is still continuous; the per-week delta tests
+  // below skip the known race-kind seam weeks where the displayed
+  // pace legitimately steps by the offset delta.
+  const RACE_KIND_SEAMS = new Set([8, 16, 24, 32]);
+  // |easyOff(10k) − easyOff(5k)| = 5 sec/mi.
+  const MAX_RACE_KIND_SEAM_STEP = 5;
+
   it("ramps easy pace continuously week-over-week (~3.75 sec/mi/week, ~30 per 8 weeks) across stacked entries", () => {
     const { taggedDaily } = expandConfigToPlanRows(makeConfig());
     const easyByWeek: number[] = [];
@@ -74,25 +84,37 @@ describe("Task #335: stacked pace ramp from 16:00/mi", () => {
       easyByWeek.push(p!);
     }
     for (let i = 1; i < easyByWeek.length; i++) {
+      const prevWeek = i; // 1-indexed week of easyByWeek[i-1]
+      const allowSeamStep = RACE_KIND_SEAMS.has(prevWeek);
+      const slack = allowSeamStep ? MAX_RACE_KIND_SEAM_STEP : 0;
       expect(
         easyByWeek[i],
-        `week ${i + 1} should not be slower than week ${i}`,
-      ).toBeLessThanOrEqual(easyByWeek[i - 1]);
+        `week ${i + 1} should not be slower than week ${i} by more than ${slack}`,
+      ).toBeLessThanOrEqual(easyByWeek[i - 1] + slack);
     }
     for (let i = 1; i < easyByWeek.length; i++) {
       const delta = easyByWeek[i - 1] - easyByWeek[i];
+      const prevWeek = i;
+      const cap = RACE_KIND_SEAMS.has(prevWeek) ? 4 + MAX_RACE_KIND_SEAM_STEP : 4;
       expect(
         delta,
-        `week ${i + 1} step from week ${i} should be at most 4 sec/mi`,
-      ).toBeLessThanOrEqual(4);
+        `week ${i + 1} step from week ${i} should be at most ${cap} sec/mi`,
+      ).toBeLessThanOrEqual(cap);
     }
+    // Within-entry ramp (no race-kind seam crossings): 5K → 5K stays
+    // pure-ramp. The 10K → 10K cohort starts +5 above same-week 5K
+    // pace so its absolute pace is shifted but its 8-week delta is
+    // still ≥25.
     expect(easyByWeek[0] - easyByWeek[7]).toBeGreaterThanOrEqual(25);
     expect(easyByWeek[8] - easyByWeek[15]).toBeGreaterThanOrEqual(25);
     expect(easyByWeek[16] - easyByWeek[23]).toBeGreaterThanOrEqual(25);
+    // W33 is the start of entry #5 (5K, offset 0). After 32 weeks of
+    // ramp the underlying easy pace is well under 14:30; with offset
+    // 0 the displayed pace stays ≤ 840 (14:00/mi).
     expect(easyByWeek[32]).toBeLessThanOrEqual(840);
   });
 
-  it("entry seams are continuous — no jump beyond per-week ramp rate", () => {
+  it("entry seams are continuous up to the race-kind offset delta", () => {
     const { taggedDaily } = expandConfigToPlanRows(makeConfig());
     for (const seamLastWeek of [8, 16, 24, 32]) {
       const before = easyPaceForWeek(taggedDaily, seamLastWeek);
@@ -100,70 +122,50 @@ describe("Task #335: stacked pace ramp from 16:00/mi", () => {
       expect(before).not.toBeNull();
       expect(after).not.toBeNull();
       const delta = before! - after!;
+      // Race-kind offset can step the displayed pace either way by
+      // up to MAX_RACE_KIND_SEAM_STEP sec/mi (5K↔10K). The
+      // underlying ramp is monotonic; the displayed seam jump just
+      // reflects the configured offset delta.
       expect(
-        delta,
-        `seam jump at weeks ${seamLastWeek}→${seamLastWeek + 1}`,
-      ).toBeGreaterThanOrEqual(0);
-      expect(
-        delta,
-        `seam jump at weeks ${seamLastWeek}→${seamLastWeek + 1}`,
-      ).toBeLessThanOrEqual(4);
+        Math.abs(delta),
+        `seam jump at weeks ${seamLastWeek}→${seamLastWeek + 1} (race-kind offset)`,
+      ).toBeLessThanOrEqual(4 + MAX_RACE_KIND_SEAM_STEP);
     }
   });
 
-  it("emits walk-run on-ramp on the first 2 weeks of EACH stacked entry while effective pace > 14:00/mi", () => {
+  // Task #365: walk-run on-ramp cards are retired. The pace ramp +
+  // entry seam continuity tests above still pin the underlying ramp
+  // math; below we pin the new contract — every run day's
+  // description is a pace-target sentence and walk-run interval prose
+  // never appears at runtime even on entry-start weeks where the
+  // legacy gate would have fired.
+  const PACE_TARGET_REGEX =
+    /(Easy|Long|Tempo|Steady|Sharpener|Race-pace|Threshold) run: \d+ min @ \d{1,2}:\d{2}\/mi \(~\d+(?:\.\d+)? mi\)/;
+
+  it("emits pace-target sentences (not walk-run intervals) on every run day, including entry-start weeks", () => {
     const { taggedDaily } = expandConfigToPlanRows(makeConfig());
-    const expectedWalkRunStarts = [1, 9, 17, 25];
-    for (const startWeek of expectedWalkRunStarts) {
+    const entryStartWeeks = [1, 9, 17, 25, 33];
+    for (const startWeek of entryStartWeeks) {
       for (let dw = 0; dw < WALK_RUN_MAX_ENTRY_LOCAL_WEEK; dw++) {
         const week = startWeek + dw;
         const runRows = taggedDaily.filter(
           (r) => r.row.week === week && (r.row.run_min ?? 0) > 0,
         );
-        expect(
-          runRows.some((r) => WALK_RUN_REGEX.test(r.row.description ?? "")),
-          `expected walk-run on-ramp in week ${week} (entry-start ${startWeek})`,
-        ).toBe(true);
-      }
-    }
-    for (let dw = 0; dw < WALK_RUN_MAX_ENTRY_LOCAL_WEEK; dw++) {
-      const week = 33 + dw;
-      const runRows = taggedDaily.filter(
-        (r) => r.row.week === week && (r.row.run_min ?? 0) > 0,
-      );
-      for (const r of runRows) {
-        expect(WALK_RUN_REGEX.test(r.row.description ?? "")).toBe(false);
-      }
-    }
-    const inEntryOnRamp = (campaignWeek: number) =>
-      expectedWalkRunStarts.some(
-        (s) => campaignWeek >= s && campaignWeek < s + WALK_RUN_MAX_ENTRY_LOCAL_WEEK,
-      );
-    for (const r of taggedDaily) {
-      if ((r.row.run_min ?? 0) > 0 && !inEntryOnRamp(r.row.week)) {
-        expect(WALK_RUN_REGEX.test(r.row.description ?? "")).toBe(false);
+        for (const r of runRows) {
+          expect(
+            WALK_RUN_REGEX.test(r.row.description ?? ""),
+            `W${week} ${r.row.day}: walk-run prose should never appear at runtime`,
+          ).toBe(false);
+          expect(
+            PACE_TARGET_REGEX.test(r.row.description ?? ""),
+            `W${week} ${r.row.day}: description should be a pace-target sentence — got "${r.row.description}"`,
+          ).toBe(true);
+        }
       }
     }
   });
 
-  it("walk-run rows lead the equipment chip rail with Peloton Tread", () => {
-    const { taggedDaily } = expandConfigToPlanRows(makeConfig());
-    const week1Runs = taggedDaily.filter(
-      (r) =>
-        r.row.week === 1 &&
-        (r.row.run_min ?? 0) > 0 &&
-        WALK_RUN_REGEX.test(r.row.description ?? ""),
-    );
-    expect(week1Runs.length).toBeGreaterThan(0);
-    for (const r of week1Runs) {
-      const list = r.row.equipment_list ?? [];
-      expect(list.length).toBeGreaterThan(0);
-      expect(list[0]).toBe("Peloton Tread");
-      expect(r.row.equipment).toBe(list[0]);
-    }
-  });
-
-  it("falls back to DEFAULT_STARTING_PACE_SEC (14:30) when starting pace is unset", () => {
+  it("falls back to DEFAULT_STARTING_PACE_SEC (14:30) when starting pace is unset, still no walk-run prose", () => {
     expect(DEFAULT_STARTING_PACE_SEC).toBe(870);
     const { taggedDaily } = expandConfigToPlanRows({
       startDate: START,
@@ -174,24 +176,15 @@ describe("Task #335: stacked pace ramp from 16:00/mi", () => {
     const week1Runs = taggedDaily.filter(
       (r) => r.row.week === 1 && (r.row.run_min ?? 0) > 0,
     );
-    expect(week1Runs.some((r) => WALK_RUN_REGEX.test(r.row.description ?? "")))
-      .toBe(true);
-    const week9Runs = taggedDaily.filter(
-      (r) => r.row.week === 9 && (r.row.run_min ?? 0) > 0,
-    );
-    for (const r of week9Runs) {
+    expect(week1Runs.length).toBeGreaterThan(0);
+    for (const r of week1Runs) {
       expect(WALK_RUN_REGEX.test(r.row.description ?? "")).toBe(false);
+      expect(PACE_TARGET_REGEX.test(r.row.description ?? "")).toBe(true);
     }
   });
 
-  it("WALK_RUN_PACE_THRESHOLD_SEC + walkRunDescription stay in lockstep", () => {
+  it("walkRunDescription() pure helper still exists for back-compat (composeWalkRun unit-test surface)", () => {
     expect(STARTING_PACE_SEC).toBeGreaterThan(WALK_RUN_PACE_THRESHOLD_SEC);
-    // Task #361: walk-run description may carry an optional 1-2 min
-    // walk-or-jog tail (after the 3-min cycle reps) so the interval
-    // sum lands inside the recipe-prescribed RUN minutes and within
-    // 0.05 mi of the prescribed DISTANCE. The lockstep guarantee
-    // we care about here is just that the threshold still routes
-    // walk-run output through this shape.
     expect(walkRunDescription(1.0)).toMatch(
       /^\d+ x \(2:00 walk @ 18:00\/mi \+ 1:00 jog @ 14:00\/mi\)(?: \+ \d+:00 (?:walk|jog) @ (?:18:00|14:00)\/mi)? on Peloton Tread$/,
     );
