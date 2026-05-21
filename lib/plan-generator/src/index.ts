@@ -4207,7 +4207,17 @@ export function generatePlanFromConfig(
     opts.startingPaceSecOverride !== undefined
       ? opts.startingPaceSecOverride
       : config.startingPaceSec ?? null;
-  const startingPaceSec = rawStartingPaceSec ?? DEFAULT_STARTING_PACE_SEC;
+  // Task #367: when no starting pace is configured, default to the
+  // FIRST block's recipe easy pace so the ramp baseline tracks the
+  // template the runner picked (e.g. a couch-to-5k plan starts at
+  // 17:00/mi, a Pfitz 18/55 starts at 9:00/mi) instead of the
+  // one-size-fits-all 14:30/mi DEFAULT_STARTING_PACE_SEC. The first
+  // expanded block always exists — validatePlannerConfig rejects
+  // empty configs before we get here.
+  const firstRecipeEasySec =
+    parseMmSsPace(RECIPES[expandedBlocks[0].focusType].easyPace) ??
+    DEFAULT_STARTING_PACE_SEC;
+  const startingPaceSec = rawStartingPaceSec ?? firstRecipeEasySec;
   const paceWeekOffset = opts.paceWeekOffset ?? 0;
 
   let weekNumber = 0;

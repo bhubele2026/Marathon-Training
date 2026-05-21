@@ -35,13 +35,9 @@ describe("buildConfigFromApplied (Task #367 backfill config rebuild)", () => {
 
   it("carries appliedDailyBudget into the rebuilt PlannerConfig", () => {
     const budget: DailyBudgetOverride = {
-      Mon: { min: 0, max: 0 },
-      Tue: { min: 50, max: 80 },
-      Wed: { min: 50, max: 80 },
-      Thu: { min: 50, max: 80 },
-      Fri: { min: 50, max: 80 },
-      Sat: { min: 50, max: 80 },
-      Sun: { min: 60, max: null },
+      weekdayMin: 50,
+      weekdayMax: 80,
+      weekendMin: 60,
     };
     const cfg = buildConfigFromApplied({
       ...baseRow,

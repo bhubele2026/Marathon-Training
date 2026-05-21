@@ -265,6 +265,59 @@ describe("Task #335: stacked pace ramp from 16:00/mi", () => {
     ).toBeLessThanOrEqual(1);
   });
 
+  // Task #367: when the runner leaves starting pace blank, generation
+  // should anchor to the FIRST block's recipe.easyPace, not the global
+  // 14:30/mi default. couch_to_5k expands to the C25K recipe whose
+  // easyPace is 15:00/mi, so a blank starting pace must produce W1
+  // easy at 15:00 (5k race-kind offset = +0).
+  it("Task #367: null startingPaceSec defaults to first recipe.easyPace baseline", () => {
+    const { taggedDaily } = expandConfigToPlanRows({
+      startDate: START,
+      marathonDate: "2026-07-05", // 9 weeks
+      blocks: [],
+      entries: [{ templateId: "couch_to_5k", weeks: 9 }],
+      // startingPaceSec intentionally omitted
+    });
+    const w1Wed = taggedDaily.find(
+      (r) =>
+        r.row.week === 1 &&
+        r.row.day === "Wed" &&
+        (r.row.run_min ?? 0) > 0,
+    );
+    expect(w1Wed).toBeDefined();
+    // C25K recipe easyPace 15:00 + 5K race offset 0 = 15:00. Crucially
+    // NOT 14:30 (DEFAULT_STARTING_PACE_SEC) — proves null-start is
+    // anchored to the recipe, not the global default.
+    expect(w1Wed!.row.pace).toBe("15:00");
+  });
+
+  it("Task #367: null startingPaceSec on a marathon plan still anchors at the recipe baseline, not 14:30", () => {
+    // The "marathon" template's first block uses a recipe whose
+    // easyPace ≤ 13:30/mi. With marathon race-kind offset (+25 sec)
+    // the W1 easy pace should be ≤ 13:55 — strictly faster than the
+    // 14:30 DEFAULT (which would yield ~14:55 with offset). Proves
+    // the null-start fallback is recipe-anchored, not default-anchored.
+    const { taggedDaily } = expandConfigToPlanRows({
+      startDate: START,
+      marathonDate: "2026-09-06", // 18 weeks
+      blocks: [],
+      entries: [{ templateId: "marathon", weeks: 18 }],
+    });
+    const w1Wed = taggedDaily.find(
+      (r) =>
+        r.row.week === 1 &&
+        r.row.day === "Wed" &&
+        (r.row.run_min ?? 0) > 0 &&
+        (r.row.pace ?? "") !== "",
+    );
+    expect(w1Wed).toBeDefined();
+    const paceSec = parseMmSsPace(w1Wed!.row.pace ?? null);
+    expect(paceSec).not.toBeNull();
+    // Strictly faster than (DEFAULT 870 + marathon offset 25 = 895 =
+    // 14:55) — proves we're not silently anchored to the default.
+    expect(paceSec!).toBeLessThan(895);
+  });
+
   // Task #367: pin the formula on a hybrid path too. half_hybrid_balanced
   // exercises buildHybridWeekDays (separate from buildWeekDays), so this
   // catches any divergence between the two run-card generator paths.

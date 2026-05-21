@@ -124,8 +124,8 @@ function snapshotKey(date: string, sourceEntryIndex: number): string {
 // custom-pace plans with default-pace ones) is unit-testable without
 // a live DB.
 export interface AppliedConfigRow {
-  appliedStartDate: string;
-  appliedMarathonDate: string;
+  appliedStartDate: string | null;
+  appliedMarathonDate: string | null;
   appliedBlocks: unknown;
   appliedEntries: unknown;
   appliedStartingPaceSec: number | null;
@@ -135,6 +135,14 @@ export interface AppliedConfigRow {
 export function buildConfigFromApplied(
   cfg: AppliedConfigRow,
 ): PlannerConfig {
+  // Caller is expected to gate this call on a non-null applied
+  // snapshot (appliedStartDate / appliedMarathonDate / appliedBlocks
+  // all present), so assertions here are safe.
+  if (!cfg.appliedStartDate || !cfg.appliedMarathonDate) {
+    throw new Error(
+      "buildConfigFromApplied: applied snapshot missing required dates",
+    );
+  }
   return {
     startDate: cfg.appliedStartDate,
     marathonDate: cfg.appliedMarathonDate,
