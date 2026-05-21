@@ -38,6 +38,16 @@
 // Workouts, body_measurements, race_results, and race_week_checklist
 // are NEVER touched. Idempotent — safe to re-run. Runs automatically
 // from scripts/post-merge.sh + the deploy hook in .replit.
+//
+// Task #367 NOTE: this script also corrects already-applied campaigns
+// for the run-card minute-math fix. It re-runs expandConfigToPlanRows
+// from the live generator, so the new run_min = distance × pace
+// formula (no 20-min floor, no per-mile constants) flows in
+// automatically on the next post-merge pass — no script changes
+// needed. The pace-target sentence regex above also matches new
+// post-#367 descriptions whose minute count differs from the
+// pre-#367 row, so seedRunMin / seedDescription / runtime mirrors
+// are corrected in place.
 
 import {
   db,

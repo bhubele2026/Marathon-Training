@@ -248,9 +248,55 @@ describe("Task #335: stacked pace ramp from 16:00/mi", () => {
         (r.row.run_min ?? 0) > 0,
     );
     expect(week1Easy, "C25K W1 Wed easy row").toBeDefined();
+    // Exact pace must round-trip 17:00. Allow at most the 5 sec/mi
+    // race-kind easy offset (5K = +0, but the assertion stays robust
+    // if someone adjusts the table later).
+    expect(week1Easy!.row.pace).toBe("17:00");
     const paceSec = parseMmSsPace(week1Easy!.row.pace ?? null);
-    expect(paceSec).not.toBeNull();
-    expect(paceSec!).toBeGreaterThanOrEqual(1020);
+    expect(paceSec).toBe(1020);
+    // And the row's minutes match the new formula: ceil to 1 of
+    // dist × 1020 / 60.
+    const expectedMin = Math.max(
+      1,
+      Math.round((week1Easy!.row.distance_mi ?? 0) * 1020 / 60),
+    );
+    expect(
+      Math.abs((week1Easy!.row.run_min ?? 0) - expectedMin),
+    ).toBeLessThanOrEqual(1);
+  });
+
+  // Task #367: pin the formula on a hybrid path too. half_hybrid_balanced
+  // exercises buildHybridWeekDays (separate from buildWeekDays), so this
+  // catches any divergence between the two run-card generator paths.
+  it("Task #367: hybrid path also honors run_min ≈ distance × paceSec / 60 on long-run Sundays", () => {
+    const { taggedDaily } = expandConfigToPlanRows({
+      startDate: START,
+      marathonDate: "2026-07-26", // 12 weeks → Sun 2026-07-26
+      blocks: [],
+      entries: [{ templateId: "half_hybrid_balanced", weeks: 12 }],
+      startingPaceSec: 810,
+    });
+    const longRows = taggedDaily.filter(
+      (r) =>
+        r.row.day === "Sun" &&
+        (r.row.run_min ?? 0) > 0 &&
+        (r.row.distance_mi ?? 0) > 0 &&
+        (r.row.pace ?? "") !== "" &&
+        PACE_TARGET_REGEX.test(r.row.description ?? ""),
+    );
+    expect(longRows.length).toBeGreaterThan(0);
+    for (const r of longRows) {
+      const paceSec = parseMmSsPace(r.row.pace ?? null);
+      expect(paceSec).not.toBeNull();
+      const expected = Math.max(
+        1,
+        Math.round((r.row.distance_mi ?? 0) * paceSec! / 60),
+      );
+      expect(
+        Math.abs((r.row.run_min ?? 0) - expected),
+        `hybrid W${r.row.week} Sun: run_min=${r.row.run_min} should be ~${expected} (dist=${r.row.distance_mi}, pace=${r.row.pace})`,
+      ).toBeLessThanOrEqual(1);
+    }
   });
 
   it("walkRunDescription() pure helper still exists for back-compat (composeWalkRun unit-test surface)", () => {
