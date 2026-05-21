@@ -57,6 +57,7 @@ import {
 import { and, eq, sql } from "drizzle-orm";
 import {
   expandConfigToPlanRows,
+  type DailyBudgetOverride,
   type PhaseBlock,
   type PlannerConfig,
   type TemplateEntry,
@@ -117,6 +118,34 @@ function snapshotKey(date: string, sourceEntryIndex: number): string {
   return `${date}#${sourceEntryIndex}`;
 }
 
+// Task #367: extracted so the config-rebuild step (which must carry
+// the runner's applied starting pace + daily budget over to
+// expandConfigToPlanRows, or regeneration silently overwrites
+// custom-pace plans with default-pace ones) is unit-testable without
+// a live DB.
+export interface AppliedConfigRow {
+  appliedStartDate: string;
+  appliedMarathonDate: string;
+  appliedBlocks: unknown;
+  appliedEntries: unknown;
+  appliedStartingPaceSec: number | null;
+  appliedDailyBudget: unknown;
+}
+
+export function buildConfigFromApplied(
+  cfg: AppliedConfigRow,
+): PlannerConfig {
+  return {
+    startDate: cfg.appliedStartDate,
+    marathonDate: cfg.appliedMarathonDate,
+    blocks: cfg.appliedBlocks as PhaseBlock[],
+    entries: (cfg.appliedEntries as TemplateEntry[] | null) ?? null,
+    startingPaceSec: cfg.appliedStartingPaceSec ?? null,
+    dailyBudget:
+      (cfg.appliedDailyBudget as DailyBudgetOverride | null) ?? null,
+  };
+}
+
 export async function backfillPaceTargetCards(): Promise<{
   scanned: number;
   seedUpdated: number;
@@ -146,12 +175,7 @@ export async function backfillPaceTargetCards(): Promise<{
     };
   }
 
-  const config: PlannerConfig = {
-    startDate: cfg.appliedStartDate,
-    marathonDate: cfg.appliedMarathonDate,
-    blocks: cfg.appliedBlocks as PhaseBlock[],
-    entries: (cfg.appliedEntries as TemplateEntry[] | null) ?? null,
-  };
+  const config = buildConfigFromApplied(cfg);
   const { taggedDaily } = expandConfigToPlanRows(config);
   const byKey = new Map<string, GeneratedSnapshot>();
   for (const t of taggedDaily) {
