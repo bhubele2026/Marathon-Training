@@ -1140,7 +1140,7 @@ export default function Planner() {
     if (!cfg) return;
     setName(cfg.name);
     setStartDate(cfg.startDate);
-    setMarathonDate(cfg.marathonDate);
+    setMarathonDate(cfg.marathonDate ?? "");
     // Task #330. Hydrate optional body-mass targets. Empty string in
     // the form when the saved config carries null (no anchored target)
     // so the resulting save round-trips a null instead of a zero.
@@ -1353,6 +1353,12 @@ export default function Planner() {
   useEffect(() => {
     if (!startDate || dayOfWeekUTC(startDate) !== 1) return;
     if (selectedId !== null && hydratedForId !== selectedId) return;
+    // Task #379. In blocks-mode workout-planner mode (the "Training for a
+    // marathon?" toggle is OFF) the runner has no pinned race day, so
+    // leave marathonDate alone — the form posts null to the server. The
+    // entries-mode auto-derive still runs so templates (which DO end on
+    // a meaningful Sunday) keep populating the field.
+    if (!isEntriesMode && !isMarathonMode) return;
     let span = 0;
     if (isEntriesMode && entries) {
       if (entries.length === 0) return;
@@ -1418,8 +1424,9 @@ export default function Planner() {
   if (!name.trim()) issues.push("Pick a name for this config.");
   if (!startDate) issues.push("Pick a training start date.");
   else if (startDow !== 1) issues.push("Training start date must be a Monday.");
-  if (!marathonDate) issues.push("Pick a marathon date.");
-  else if (raceDow !== 0) issues.push("Marathon date must be a Sunday.");
+  // Task #379. `marathonDate` is optional (date-optional / workout-planner
+  // mode) — only validate Sunday shape when the runner has filled it in.
+  if (marathonDate && raceDow !== 0) issues.push("Marathon date must be a Sunday.");
   if (isEntriesMode) {
     // Entries-mode: each template owns its own taper, so entries weeks
     // (plus any per-entry gap weeks) must sum to the FULL total span
@@ -2068,7 +2075,7 @@ export default function Planner() {
         data: {
           name: name.trim(),
           startDate,
-          marathonDate,
+          marathonDate: marathonDate || null,
           blocks: draftToBlocks(draft),
           entries: isEntriesMode ? entries! : null,
           startWeight: parseOptionalWeight(startWeight),
@@ -2117,7 +2124,7 @@ export default function Planner() {
         data: {
           name: name.trim(),
           startDate,
-          marathonDate,
+          marathonDate: marathonDate || null,
           blocks: draftToBlocks(draft),
           entries: isEntriesMode ? entries! : null,
           startWeight: parseOptionalWeight(startWeight),

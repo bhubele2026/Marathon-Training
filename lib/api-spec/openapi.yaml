@@ -2688,7 +2688,10 @@ components:
       type: object
       required: [raceDate, daysToRace, hoursToRace, inWindow, isRaceDay, racePassed, checklist, uncheckedCount]
       properties:
-        raceDate: { type: string }
+        raceDate:
+          type: string
+          nullable: true
+          description: ISO yyyy-mm-dd of the runner's APPLIED marathon date. Null when the active planner config is in date-optional / workout-planner mode (Task #379) — daysToRace/hoursToRace collapse to 0 and inWindow/isRaceDay/racePassed are all false.
         daysToRace: { type: integer }
         hoursToRace: { type: integer }
         inWindow: { type: boolean }
@@ -2962,7 +2965,8 @@ components:
           description: ISO yyyy-mm-dd; week 1 begins on this date. Must be a Monday.
         marathonDate:
           type: string
-          description: ISO yyyy-mm-dd; race / final day. Must be a Sunday. In legacy blocks-mode it must be at least 16 weeks after startDate (the auto-pinned Marathon-Specific tail). In entries-mode it must equal sum(entries.weeks) weeks after startDate (templates own their own taper).
+          nullable: true
+          description: ISO yyyy-mm-dd; race / final day. When set, must be a Sunday and the dates must form a whole number of Mon..Sun weeks. In legacy blocks-mode (when set) it must be at least 16 weeks after startDate (the auto-pinned Marathon-Specific tail). In entries-mode (when set) it must equal sum(entries.weeks) weeks after startDate. **Task #379**: nullable for date-optional / workout-planner mode — when null the campaign has no pinned race day and totalWeeks is derived from sum(entries.weeks) (entries-mode) or sum(blocks.weeks) (blocks-mode, no auto-pinned tail).
         blocks:
           type: array
           items: { $ref: "#/components/schemas/PhaseBlock" }
@@ -3177,7 +3181,7 @@ components:
         name: { type: string }
         isActive: { type: boolean }
         startDate: { type: string }
-        marathonDate: { type: string }
+        marathonDate: { type: string, nullable: true }
         updatedAt: { type: string, format: date-time }
         lastAppliedAt: { type: string, format: date-time, nullable: true }
 
@@ -3195,11 +3199,14 @@ components:
 
     CreatePlannerConfigBody:
       type: object
-      required: [name, startDate, marathonDate, blocks]
+      required: [name, startDate, blocks]
       properties:
         name: { type: string }
         startDate: { type: string }
-        marathonDate: { type: string }
+        marathonDate:
+          type: string
+          nullable: true
+          description: ISO yyyy-mm-dd. Optional (Task #379). Omit / null for workout-planner mode — server derives end date from sum(entries.weeks) or sum(blocks.weeks).
         blocks:
           type: array
           items: { $ref: "#/components/schemas/PhaseBlock" }
@@ -3241,11 +3248,14 @@ components:
 
     UpdatePlannerConfigBody:
       type: object
-      required: [name, startDate, marathonDate, blocks]
+      required: [name, startDate, blocks]
       properties:
         name: { type: string }
         startDate: { type: string }
-        marathonDate: { type: string }
+        marathonDate:
+          type: string
+          nullable: true
+          description: ISO yyyy-mm-dd. Optional (Task #379). Omit / null for workout-planner mode — server derives end date from sum(entries.weeks) or sum(blocks.weeks).
         blocks:
           type: array
           items: { $ref: "#/components/schemas/PhaseBlock" }

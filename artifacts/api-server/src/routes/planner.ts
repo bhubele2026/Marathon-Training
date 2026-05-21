@@ -37,7 +37,10 @@ type ApiPlannerConfig = {
   name: string;
   isActive: boolean;
   startDate: string;
-  marathonDate: string;
+  // Task #379. Nullable for date-optional / workout-planner mode — when
+  // null the campaign has no pinned race day and totalWeeks is derived
+  // from the composition.
+  marathonDate: string | null;
   blocks: PhaseBlock[];
   entries: TemplateEntry[] | null;
   notes: string | null;
@@ -95,12 +98,24 @@ function toSummary(row: PlannerConfigRow) {
 }
 
 // The marathon date the rest of the app anchors on: the most recently
-// APPLIED Planner config's marathonDate, or RACE_DATE_ISO when nothing has
-// ever been applied. Used by dashboard (countdown) and race-week (race-day
-// plan row lookup) so a custom Planner apply re-points every consumer.
-export async function readActiveRaceDate(): Promise<string> {
+// APPLIED Planner config's marathonDate. Returns null when nothing has
+// ever been applied OR when the applied config is in date-optional /
+// workout-planner mode (Task #379, marathonDate null). Used by dashboard
+// (countdown) and race-week (race-day plan row lookup) so a custom
+// Planner apply re-points every consumer — and so a runner who hasn't
+// pinned a race day sees the generic "Workout Plan" framing instead of
+// a stale legacy RACE_DATE_ISO.
+export async function readActiveRaceDate(): Promise<string | null> {
   const cfg = await readLastAppliedPlannerConfig();
-  return cfg?.marathonDate ?? RACE_DATE_ISO;
+  // Three cases:
+  //   - No applied config ever  → legacy RACE_DATE_ISO fallback so the
+  //     pre-Phase-Planner test fixtures + dashboard countdown keep
+  //     working before the runner applies their first config.
+  //   - Applied config + marathonDate set → that date.
+  //   - Applied config + marathonDate null (Task #379 workout-planner
+  //     mode) → null so consumers gate their race-only surfaces off.
+  if (cfg == null) return RACE_DATE_ISO;
+  return cfg.marathonDate;
 }
 
 // Task #244. Display name of the currently-active planner config (the
@@ -131,10 +146,12 @@ export async function readLastAppliedPlannerConfig(): Promise<PlannerConfig | nu
     .orderBy(desc(plannerConfigsTable.lastAppliedAt))
     .limit(1);
   const row = rows[0];
+  // Task #379. `appliedMarathonDate` can legitimately be null when the
+  // applied config is in workout-planner mode — no longer a "never
+  // applied" sentinel.
   if (
     !row ||
     row.appliedStartDate === null ||
-    row.appliedMarathonDate === null ||
     row.appliedBlocks === null
   ) {
     return null;
@@ -278,7 +295,8 @@ function validateDailyBudget(
 
 function validateBody(body: {
   startDate: string;
-  marathonDate: string;
+  // Task #379. Nullable for date-optional / workout-planner mode.
+  marathonDate?: string | null;
   blocks: Array<{
     focusType: string;
     weeks: number;
@@ -358,7 +376,9 @@ function validateBody(body: {
       }));
   const config: PlannerConfig = {
     startDate: body.startDate,
-    marathonDate: body.marathonDate,
+    // Task #379. Normalize missing/empty to null so the validator and
+    // generator take the workout-planner-mode codepath.
+    marathonDate: body.marathonDate ?? null,
     blocks,
     entries,
   };

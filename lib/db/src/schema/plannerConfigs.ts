@@ -39,8 +39,11 @@ export const plannerConfigsTable = pgTable("planner_configs", {
   // ISO yyyy-mm-dd; week 1 begins on this date (must be a Monday).
   startDate: date("start_date").notNull(),
   // ISO yyyy-mm-dd; race day, the final Sunday of the auto-pinned 16-week
-  // Marathon-Specific block.
-  marathonDate: date("marathon_date").notNull(),
+  // Marathon-Specific block. Task #379: nullable for date-optional /
+  // workout-planner mode — when null, the campaign has no pinned race
+  // day and totalWeeks is derived from sum(entries.weeks) or sum(blocks.weeks)
+  // by the validator/generator.
+  marathonDate: date("marathon_date"),
   // Ordered list of user-defined PhaseBlock objects (focusType, weeks,
   // optional customName, optional customNotes). In LEGACY mode (entries
   // is null) the 16-week Marathon-Specific tail is auto-appended at

@@ -2967,7 +2967,7 @@ export const ListPlannerConfigsResponse = zod.object({
         name: zod.string(),
         isActive: zod.boolean(),
         startDate: zod.string(),
-        marathonDate: zod.string(),
+        marathonDate: zod.string().nullable(),
         updatedAt: zod.coerce.date(),
         lastAppliedAt: zod.coerce.date().nullish(),
       })
@@ -2992,7 +2992,10 @@ export const createPlannerConfigBodyDailyBudgetWeekendMinMax = 180;
 export const CreatePlannerConfigBody = zod.object({
   name: zod.string(),
   startDate: zod.string(),
-  marathonDate: zod.string(),
+  marathonDate: zod
+    .string()
+    .nullish()
+    .describe("ISO yyyy-mm-dd. Optional (Task"),
   blocks: zod
     .array(
       zod
@@ -3136,8 +3139,9 @@ export const GetPlannerConfigResponse = zod.object({
     .describe("ISO yyyy-mm-dd; week 1 begins on this date. Must be a Monday."),
   marathonDate: zod
     .string()
+    .nullable()
     .describe(
-      "ISO yyyy-mm-dd; race \/ final day. Must be a Sunday. In legacy blocks-mode it must be at least 16 weeks after startDate (the auto-pinned Marathon-Specific tail). In entries-mode it must equal sum(entries.weeks) weeks after startDate (templates own their own taper).",
+      "ISO yyyy-mm-dd; race \/ final day. When set, must be a Sunday and the dates must form a whole number of Mon..Sun weeks. In legacy blocks-mode (when set) it must be at least 16 weeks after startDate (the auto-pinned Marathon-Specific tail). In entries-mode (when set) it must equal sum(entries.weeks) weeks after startDate. \*\*Task",
     ),
   blocks: zod
     .array(
@@ -3294,7 +3298,10 @@ export const updatePlannerConfigBodyDailyBudgetWeekendMinMax = 180;
 export const UpdatePlannerConfigBody = zod.object({
   name: zod.string(),
   startDate: zod.string(),
-  marathonDate: zod.string(),
+  marathonDate: zod
+    .string()
+    .nullish()
+    .describe("ISO yyyy-mm-dd. Optional (Task"),
   blocks: zod
     .array(
       zod
@@ -3428,8 +3435,9 @@ export const UpdatePlannerConfigResponse = zod.object({
     .describe("ISO yyyy-mm-dd; week 1 begins on this date. Must be a Monday."),
   marathonDate: zod
     .string()
+    .nullable()
     .describe(
-      "ISO yyyy-mm-dd; race \/ final day. Must be a Sunday. In legacy blocks-mode it must be at least 16 weeks after startDate (the auto-pinned Marathon-Specific tail). In entries-mode it must equal sum(entries.weeks) weeks after startDate (templates own their own taper).",
+      "ISO yyyy-mm-dd; race \/ final day. When set, must be a Sunday and the dates must form a whole number of Mon..Sun weeks. In legacy blocks-mode (when set) it must be at least 16 weeks after startDate (the auto-pinned Marathon-Specific tail). In entries-mode (when set) it must equal sum(entries.weeks) weeks after startDate. \*\*Task",
     ),
   blocks: zod
     .array(
@@ -3646,8 +3654,9 @@ export const ActivatePlannerConfigResponse = zod.object({
     .describe("ISO yyyy-mm-dd; week 1 begins on this date. Must be a Monday."),
   marathonDate: zod
     .string()
+    .nullable()
     .describe(
-      "ISO yyyy-mm-dd; race \/ final day. Must be a Sunday. In legacy blocks-mode it must be at least 16 weeks after startDate (the auto-pinned Marathon-Specific tail). In entries-mode it must equal sum(entries.weeks) weeks after startDate (templates own their own taper).",
+      "ISO yyyy-mm-dd; race \/ final day. When set, must be a Sunday and the dates must form a whole number of Mon..Sun weeks. In legacy blocks-mode (when set) it must be at least 16 weeks after startDate (the auto-pinned Marathon-Specific tail). In entries-mode (when set) it must equal sum(entries.weeks) weeks after startDate. \*\*Task",
     ),
   blocks: zod
     .array(
@@ -4099,7 +4108,12 @@ export const getRaceWeekResponseRaceResultOneFeltRatingMax = 5;
 export const getRaceWeekResponseUncheckedCountMin = 0;
 
 export const GetRaceWeekResponse = zod.object({
-  raceDate: zod.string(),
+  raceDate: zod
+    .string()
+    .nullable()
+    .describe(
+      "ISO yyyy-mm-dd of the runner's APPLIED marathon date. Null when the active planner config is in date-optional \/ workout-planner mode (Task",
+    ),
   daysToRace: zod.number(),
   hoursToRace: zod.number(),
   inWindow: zod.boolean(),

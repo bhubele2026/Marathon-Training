@@ -258,8 +258,15 @@ router.get("/dashboard/summary", async (_req, res) => {
 
   // Anchor on the runner's chosen marathon date when they've applied a
   // custom Planner config; otherwise fall back to the canonical race date.
+  // Task #379. `readActiveRaceDate()` returns null in workout-planner mode
+  // (no pinned race day) — in that case the countdown collapses to 0 and
+  // the dashboard race-only surfaces (countdown, "Race Campaign" framing)
+  // fall back to the generic "Workout Plan" header copy that already
+  // gates on `raceKind`.
   const activeRaceDate = await readActiveRaceDate();
-  const daysToRace = Math.max(0, Math.ceil((new Date(activeRaceDate).getTime() - Date.now()) / (24 * 3600 * 1000)));
+  const daysToRace = activeRaceDate
+    ? Math.max(0, Math.ceil((new Date(activeRaceDate).getTime() - Date.now()) / (24 * 3600 * 1000)))
+    : 0;
 
   // Task #209: per-kind race-campaign framing for the dashboard header
   // and race-week banner. Mirrors the trailing-Sunday detection used by

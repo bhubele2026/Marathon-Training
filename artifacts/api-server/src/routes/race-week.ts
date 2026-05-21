@@ -181,6 +181,52 @@ router.get("/race-week", async (_req, res) => {
   // Anchor race-week math on the runner's APPLIED marathon date so the
   // status, race-day plan lookup, and checklist all follow the active plan.
   const raceDate = await readActiveRaceDate();
+  // Task #379. Workout-planner mode: no pinned race day. Return an
+  // empty race-week stub (checklist is still emitted so the runner can
+  // tick generic items) so the dashboard/Today race-only surfaces all
+  // gate cleanly on `raceDate === null` instead of trying to date-math
+  // a null anchor.
+  if (raceDate == null) {
+    const stored = await db
+      .select()
+      .from(raceWeekChecklistTable)
+      .orderBy(asc(raceWeekChecklistTable.createdAt));
+    const byId = new Map(stored.map((r) => [r.itemId, r] as const));
+    const defaults = RACE_WEEK_CHECKLIST_DEFAULTS.map((d) => {
+      const row = byId.get(d.itemId);
+      return {
+        itemId: d.itemId,
+        label: d.label,
+        checked: row?.checked ?? false,
+        checkedAt: row?.checked && row.updatedAt ? row.updatedAt.toISOString() : null,
+        isCustom: false,
+      };
+    });
+    const customs = stored
+      .filter((r) => r.isCustom)
+      .map((r) => ({
+        itemId: r.itemId,
+        label: r.label ?? "(unnamed)",
+        checked: r.checked,
+        checkedAt: r.checked && r.updatedAt ? r.updatedAt.toISOString() : null,
+        isCustom: true,
+      }));
+    const checklist = [...defaults, ...customs];
+    res.json({
+      raceDate: null,
+      daysToRace: 0,
+      hoursToRace: 0,
+      inWindow: false,
+      isRaceDay: false,
+      racePassed: false,
+      daysAfterRace: null,
+      racePlan: null,
+      raceResult: null,
+      checklist,
+      uncheckedCount: checklist.filter((c) => !c.checked).length,
+    });
+    return;
+  }
   const raceStart = new Date(`${raceDate}T00:00:00.000Z`);
   const today = todayUtcMidnight();
   const msPerDay = 24 * 3600 * 1000;
@@ -476,6 +522,13 @@ router.put("/race-week/result", async (req, res): Promise<void> => {
     return;
   }
   const raceDate = await readActiveRaceDate();
+  if (raceDate == null) {
+    res.status(400).json({
+      error:
+        "No active race date — set a marathon date on the active planner config before logging a race result here, or use PUT /race-results/{raceDate}.",
+    });
+    return;
+  }
   const now = new Date();
   // Task #265. Capture the race kind at write time from the active
   // plan_day so PR comparisons across past campaigns survive Phase

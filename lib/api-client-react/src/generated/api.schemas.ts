@@ -1281,7 +1281,8 @@ with an unparseable `finishTime` or null `raceKind`.
 }
 
 export interface RaceWeekStatus {
-  raceDate: string;
+  /** ISO yyyy-mm-dd of the runner's APPLIED marathon date. Null when the active planner config is in date-optional / workout-planner mode (Task */
+  raceDate: string | null;
   daysToRace: number;
   hoursToRace: number;
   inWindow: boolean;
@@ -1470,8 +1471,8 @@ export interface PlannerConfig {
   isActive: boolean;
   /** ISO yyyy-mm-dd; week 1 begins on this date. Must be a Monday. */
   startDate: string;
-  /** ISO yyyy-mm-dd; race / final day. Must be a Sunday. In legacy blocks-mode it must be at least 16 weeks after startDate (the auto-pinned Marathon-Specific tail). In entries-mode it must equal sum(entries.weeks) weeks after startDate (templates own their own taper). */
-  marathonDate: string;
+  /** ISO yyyy-mm-dd; race / final day. When set, must be a Sunday and the dates must form a whole number of Mon..Sun weeks. In legacy blocks-mode (when set) it must be at least 16 weeks after startDate (the auto-pinned Marathon-Specific tail). In entries-mode (when set) it must equal sum(entries.weeks) weeks after startDate. **Task */
+  marathonDate: string | null;
   /** In legacy mode, the user-edited PhaseBlock list (auto-pinned 16-week tail appended at generation time). In entries-mode, the server-computed projection of `entries` for downstream consumers. */
   blocks: PhaseBlock[];
   /** Ordered list of TemplateEntry objects. When non-null, entries are the source of truth for the editor; the server projects entries → blocks on every write. Sum of entry weeks must equal totalWeeks (no auto-pinned tail). NULL for legacy blocks-only configs. */
@@ -1602,7 +1603,7 @@ export interface PlannerConfigSummary {
   name: string;
   isActive: boolean;
   startDate: string;
-  marathonDate: string;
+  marathonDate: string | null;
   updatedAt: string;
   lastAppliedAt?: string | null;
 }
@@ -1637,7 +1638,8 @@ export type CreatePlannerConfigBodyDailyBudget = {
 export interface CreatePlannerConfigBody {
   name: string;
   startDate: string;
-  marathonDate: string;
+  /** ISO yyyy-mm-dd. Optional (Task */
+  marathonDate?: string | null;
   /** Required for legacy mode. Ignored when `entries` is non-null — the server recomputes blocks from entries. */
   blocks: PhaseBlock[];
   /** Optional. When non-null, switches the config into entries-mode. The server projects entries → blocks and stores both. Sum of entry weeks must equal the totalWeeks span between startDate and marathonDate. */
@@ -1681,7 +1683,8 @@ export type UpdatePlannerConfigBodyDailyBudget = {
 export interface UpdatePlannerConfigBody {
   name: string;
   startDate: string;
-  marathonDate: string;
+  /** ISO yyyy-mm-dd. Optional (Task */
+  marathonDate?: string | null;
   /** Required for legacy mode. Ignored when `entries` is non-null — the server recomputes blocks from entries. */
   blocks: PhaseBlock[];
   /** Optional. When non-null, switches the config into entries-mode. The server projects entries → blocks and stores both. Sum of entry weeks must equal the totalWeeks span between startDate and marathonDate. */

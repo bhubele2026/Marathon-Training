@@ -1157,11 +1157,15 @@ export interface PlannerConfig {
   // Mon..Sun day pattern lines up with the calendar; the validator enforces
   // this so a runner can't accidentally start mid-week.
   startDate: string;
-  // ISO yyyy-mm-dd; race day. Must be a Sunday and the dates must form a
-  // whole number of Mon..Sun weeks. In LEGACY mode (entries == null/undef)
-  // the span must be at least MARATHON_TAIL_WEEKS so the auto-pinned tail
-  // fits; in ENTRIES mode the span must equal sum(entries.weeks).
-  marathonDate: string;
+  // ISO yyyy-mm-dd; race day. When set, must be a Sunday and the dates
+  // must form a whole number of Mon..Sun weeks. In LEGACY mode (entries ==
+  // null/undef) and when set, the span must be at least MARATHON_TAIL_WEEKS
+  // so the auto-pinned tail fits; in ENTRIES mode (when set) the span
+  // must equal sum(entries.weeks). **Task #379**: nullable for date-optional
+  // / workout-planner mode — when null, totalWeeks is derived from
+  // sum(entries.weeks) (entries-mode) or sum(blocks.weeks) (blocks-mode,
+  // no auto-pinned tail) and the validator skips date-shape checks.
+  marathonDate: string | null;
   // Ordered user-defined blocks (LEGACY mode). When `entries` is present,
   // `blocks` is treated as the projection of entries->blocks computed by
   // the server at write time — the validator does NOT re-check
@@ -1204,8 +1208,9 @@ export const MARATHON_DISTANCE_MI = 26.2;
 // Monday→Sunday week-aligned span.
 export function totalWeeksFromDates(
   startDate: string,
-  marathonDate: string,
+  marathonDate: string | null,
 ): number {
+  if (marathonDate == null) return -1;
   const start = Date.parse(`${startDate}T00:00:00Z`);
   const race = Date.parse(`${marathonDate}T00:00:00Z`);
   if (!Number.isFinite(start) || !Number.isFinite(race)) return -1;
@@ -1219,11 +1224,44 @@ export function totalWeeksFromDates(
 // auto-pinned Marathon-Specific block landing on race day.
 export function expectedUserBlockWeeks(
   startDate: string,
-  marathonDate: string,
+  marathonDate: string | null,
 ): number {
   const total = totalWeeksFromDates(startDate, marathonDate);
   if (total < 0) return -1;
   return total - MARATHON_TAIL_WEEKS;
+}
+
+// Task #379. Derive the effective end-of-campaign Sunday from a planner
+// config's composition. Used when `marathonDate` is null (date-optional /
+// workout-planner mode) so the generator and consumers downstream always
+// see a concrete final Sunday.
+//   - entries-mode: latest projected entry end (handles overlaps + gaps).
+//   - blocks-mode:  startDate + sum(blocks.weeks) * 7 - 1 day.
+// Returns null when the composition can't determine a span (empty entries
+// AND empty blocks; or an invalid startDate). When `marathonDate` is
+// already set, returns it unchanged.
+export function deriveEffectiveMarathonDate(
+  config: Pick<PlannerConfig, "startDate" | "marathonDate" | "blocks" | "entries">,
+): string | null {
+  if (config.marathonDate != null) return config.marathonDate;
+  const startMs = Date.parse(`${config.startDate}T00:00:00Z`);
+  if (!Number.isFinite(startMs)) return null;
+  if (Array.isArray(config.entries)) {
+    if (config.entries.length === 0) return null;
+    const projections = projectEntries(config.entries, config.startDate);
+    let latestEndMs = Number.NEGATIVE_INFINITY;
+    for (const p of projections) {
+      const endMs = Date.parse(`${p.endDateISO}T00:00:00Z`);
+      if (Number.isFinite(endMs) && endMs > latestEndMs) latestEndMs = endMs;
+    }
+    if (!Number.isFinite(latestEndMs)) return null;
+    return new Date(latestEndMs).toISOString().slice(0, 10);
+  }
+  const sum = config.blocks.reduce((s, b) => s + (b.weeks || 0), 0);
+  if (sum < 1) return null;
+  return new Date(startMs + (sum * 7 - 1) * 86400000)
+    .toISOString()
+    .slice(0, 10);
 }
 
 export interface PlannerValidationIssue {
@@ -1272,26 +1310,43 @@ export function validatePlannerConfig(
     });
   }
 
-  if (!ISO_DATE_RE.test(config.marathonDate)) {
-    issues.push({
-      field: "marathonDate",
-      message: "must be a yyyy-mm-dd date",
-    });
-  } else if (!isSunday(config.marathonDate)) {
-    issues.push({
-      field: "marathonDate",
-      message: "must be a Sunday — marathons are run on the final Sun of the plan",
-    });
-  } else if (opts.todayISO && config.marathonDate < opts.todayISO) {
-    issues.push({
-      field: "marathonDate",
-      message: `must be in the future (got ${config.marathonDate}, today is ${opts.todayISO})`,
-    });
+  // Task #379. `marathonDate` is optional (date-optional / workout-planner
+  // mode). When null/omitted, skip all date-shape checks and derive
+  // totalWeeks from the composition (entries-mode: sum + gaps; blocks-mode:
+  // sum). When set, the legacy Sunday + ≥-startDate + in-future checks apply.
+  if (config.marathonDate != null) {
+    if (!ISO_DATE_RE.test(config.marathonDate)) {
+      issues.push({
+        field: "marathonDate",
+        message: "must be a yyyy-mm-dd date",
+      });
+    } else if (!isSunday(config.marathonDate)) {
+      issues.push({
+        field: "marathonDate",
+        message: "must be a Sunday — marathons are run on the final Sun of the plan",
+      });
+    } else if (opts.todayISO && config.marathonDate < opts.todayISO) {
+      issues.push({
+        field: "marathonDate",
+        message: `must be in the future (got ${config.marathonDate}, today is ${opts.todayISO})`,
+      });
+    }
   }
 
   if (issues.length > 0) return issues;
 
-  const totalWeeks = totalWeeksFromDates(config.startDate, config.marathonDate);
+  // When marathonDate is null, derive totalWeeks from the composition.
+  // entries-mode: latest projected end - startDate.
+  // blocks-mode:  sum(blocks.weeks).
+  // When set, totalWeeks comes from the dates as before.
+  const totalWeeks =
+    config.marathonDate != null
+      ? totalWeeksFromDates(config.startDate, config.marathonDate)
+      : (() => {
+          const effective = deriveEffectiveMarathonDate(config);
+          if (effective == null) return -1;
+          return totalWeeksFromDates(config.startDate, effective);
+        })();
   // entries-mode is determined by presence of the entries array, not its
   // length. An empty array is invalid (the API route rejects it before we
   // reach here), but treat it defensively as entries-mode so the validator
@@ -1412,16 +1467,29 @@ export function validatePlannerConfig(
     return issues;
   }
 
-  // Legacy blocks-only mode: auto-pinned 16-week Marathon-Specific tail.
-  if (totalWeeks < MARATHON_TAIL_WEEKS) {
+  // Legacy blocks-only mode: auto-pinned 16-week Marathon-Specific tail
+  // when `marathonDate` is set. When `marathonDate` is null (Task #379
+  // workout-planner mode) totalWeeks is derived from sum(blocks.weeks)
+  // and NO auto-pinned tail is appended.
+  const hasMarathonAnchor = config.marathonDate != null;
+  if (hasMarathonAnchor && totalWeeks < MARATHON_TAIL_WEEKS) {
     issues.push({
       field: "marathonDate",
       message: `must be at least ${MARATHON_TAIL_WEEKS} weeks after startDate (the trailing Marathon-Specific block is auto-pinned at ${MARATHON_TAIL_WEEKS} weeks)`,
     });
     return issues;
   }
+  if (!hasMarathonAnchor && totalWeeks < 1) {
+    issues.push({
+      field: "blocks",
+      message: "block weeks must sum to at least 1 when no marathon date is set",
+    });
+    return issues;
+  }
 
-  const expected = totalWeeks - MARATHON_TAIL_WEEKS;
+  const expected = hasMarathonAnchor
+    ? totalWeeks - MARATHON_TAIL_WEEKS
+    : totalWeeks;
   let sum = 0;
   for (let i = 0; i < config.blocks.length; i++) {
     const b = config.blocks[i]!;
@@ -1452,7 +1520,9 @@ export function validatePlannerConfig(
   if (sum !== expected) {
     issues.push({
       field: "blocks",
-      message: `block weeks must sum to ${expected} (got ${sum}); the trailing ${MARATHON_TAIL_WEEKS}-week Marathon-Specific block is auto-pinned`,
+      message: hasMarathonAnchor
+        ? `block weeks must sum to ${expected} (got ${sum}); the trailing ${MARATHON_TAIL_WEEKS}-week Marathon-Specific block is auto-pinned`
+        : `block weeks must sum to ${expected} (got ${sum})`,
     });
   }
 
@@ -1472,6 +1542,15 @@ export function expandPlannerBlocks(config: PlannerConfig): PhaseBlock[] {
     // rest weeks. Falls back to back-to-back stacking if startDate is
     // malformed (the validator surfaces that error separately).
     return expandEntriesToBlocksWithGaps(config.entries, config.startDate);
+  }
+  // Task #379. The 16-week MARATHON_TAIL is the "Training for a marathon?"
+  // pin in blocks-mode. It is gated on `marathonDate` (the same anchor
+  // the UI Config card's toggle controls): null marathonDate → no
+  // auto-pin, just the user's raw blocks. This keeps the applied seed
+  // length in sync with the UI's `appendMarathonTail` preview and with
+  // `deriveEffectiveMarathonDate` / `totalWeeksFromDates` math.
+  if (config.marathonDate == null) {
+    return [...config.blocks];
   }
   return [
     ...config.blocks,
@@ -4175,7 +4254,16 @@ export function generatePlanFromConfig(
   }
 
   const expandedBlocks = expandPlannerBlocks(config);
-  const totalWeeks = totalWeeksFromDates(config.startDate, config.marathonDate);
+  // Task #379. `marathonDate` is optional — when null, derive the
+  // effective end-of-campaign Sunday from the composition so every
+  // downstream date math (week index, week dates, race-day branch) still
+  // works against a concrete Sunday.
+  const effectiveMarathonDate =
+    deriveEffectiveMarathonDate(config) ?? config.startDate;
+  const totalWeeks = totalWeeksFromDates(
+    config.startDate,
+    effectiveMarathonDate,
+  );
 
   const startDate = new Date(`${config.startDate}T00:00:00Z`);
   const weekly: WeeklyRow[] = [];
@@ -4440,6 +4528,12 @@ export function generatePlanFromConfigPerEntry(
     throw new Error(`invalid planner config: ${summary}`);
   }
 
+  // Task #379. Effective end-of-campaign Sunday derived from the
+  // composition when marathonDate is null (workout-planner mode) so
+  // every per-entry sub-plan still anchors on a concrete Sunday.
+  const effectiveMarathonDate =
+    deriveEffectiveMarathonDate(config) ?? config.startDate;
+
   // Blocks-mode (legacy single-program campaign): one virtual entry
   // covering the whole config.
   if (!Array.isArray(config.entries)) {
@@ -4449,7 +4543,7 @@ export function generatePlanFromConfigPerEntry(
         entryIndex: 0,
         label: null,
         startDate: config.startDate,
-        endDate: config.marathonDate,
+        endDate: effectiveMarathonDate,
         daily: plan.daily,
         weekly: plan.weekly,
       },
@@ -4467,7 +4561,7 @@ export function generatePlanFromConfigPerEntry(
   // taper blocks and subtract from total.
   const totalCampaignWeeks = totalWeeksFromDates(
     config.startDate,
-    config.marathonDate,
+    effectiveMarathonDate,
   );
   let campaignNonTaperWeeks = totalCampaignWeeks;
   {
