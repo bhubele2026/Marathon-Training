@@ -449,6 +449,11 @@ export default function Planner() {
   const [startWeight, setStartWeight] = useState<string>("");
   const [goalWeight, setGoalWeight] = useState<string>("");
   const [startingPace, setStartingPace] = useState<string>("");
+  // Task #373. Optional goal ending easy pace anchor. When both
+  // startingPace and goalEndingPace parse to numeric mm:ss values, the
+  // generator linearly interpolates from start (week 1) to goal (final
+  // week) instead of using the fixed ~3.75 sec/mi/week ramp.
+  const [goalEndingPace, setGoalEndingPace] = useState<string>("");
   // Task #338. Optional per-runner override of the daily time-budget
   // contract (Task #336). Empty string ⇒ that field is NOT overridden
   // (defaults of 45 / 60 / 60 apply). When all three are blank the
@@ -519,7 +524,7 @@ export default function Planner() {
   useEffect(() => {
     setPreviewWeek(null);
     setPreviewError(null);
-  }, [weekdayMin, weekdayMax, weekendMin, startingPace]);
+  }, [weekdayMin, weekdayMax, weekendMin, startingPace, goalEndingPace]);
   const [confirmApplyOpen, setConfirmApplyOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -1154,6 +1159,14 @@ export default function Planner() {
         "number"
         ? formatPaceSec(
             (cfg as { startingPaceSec: number }).startingPaceSec,
+          )
+        : "",
+    );
+    setGoalEndingPace(
+      typeof (cfg as { goalEndingPaceSec?: number | null })
+        .goalEndingPaceSec === "number"
+        ? formatPaceSec(
+            (cfg as { goalEndingPaceSec: number }).goalEndingPaceSec,
           )
         : "",
     );
@@ -2026,6 +2039,7 @@ export default function Planner() {
       blocks: [headBlock],
       entries: null,
       startingPaceSec: parseOptionalPaceSec(startingPace),
+      goalEndingPaceSec: parseOptionalPaceSec(goalEndingPace),
       dailyBudget: buildDailyBudgetPayload(),
     };
     try {
@@ -2060,6 +2074,7 @@ export default function Planner() {
           startWeight: parseOptionalWeight(startWeight),
           goalWeight: parseOptionalWeight(goalWeight),
           startingPaceSec: parseOptionalPaceSec(startingPace),
+          goalEndingPaceSec: parseOptionalPaceSec(goalEndingPace),
           dailyBudget: buildDailyBudgetPayload(),
         },
       },
@@ -2108,6 +2123,7 @@ export default function Planner() {
           startWeight: parseOptionalWeight(startWeight),
           goalWeight: parseOptionalWeight(goalWeight),
           startingPaceSec: parseOptionalPaceSec(startingPace),
+          goalEndingPaceSec: parseOptionalPaceSec(goalEndingPace),
           dailyBudget: buildDailyBudgetPayload(),
         },
       },
@@ -2776,6 +2792,30 @@ export default function Planner() {
               Anchors the campaign's pace ramp. Slower than 14:00 starts
               with Peloton walk-run intervals for ~2 weeks. Leave blank
               to use the default 14:30/mi.
+            </p>
+          </div>
+          {/* Task #373. Optional goal ending pace anchor. When BOTH
+              start and goal parse, the generator linearly interpolates
+              across the campaign instead of using the fixed-rate
+              ~3.75 sec/mi/week ramp. */}
+          <div className="space-y-2">
+            <Label htmlFor="planner-goal-ending-pace">
+              Goal ending pace (mm:ss / mi, optional)
+            </Label>
+            <Input
+              id="planner-goal-ending-pace"
+              data-testid="planner-goal-ending-pace"
+              type="text"
+              inputMode="numeric"
+              value={goalEndingPace}
+              onChange={(e) => setGoalEndingPace(e.target.value)}
+              placeholder="e.g. 11:00"
+            />
+            <p className="text-[11px] text-muted-foreground leading-snug">
+              When set alongside the starting pace, easy pace
+              interpolates linearly from start (week 1) to this value
+              (final week). Leave blank to use the default ~3.75
+              sec/mi/week ramp.
             </p>
           </div>
           {/* Task #338. Optional per-runner override of the daily

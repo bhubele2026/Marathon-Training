@@ -21,6 +21,7 @@ const baseRow: AppliedConfigRow = {
   appliedBlocks: [],
   appliedEntries: [{ templateId: "couch_to_5k", weeks: 9 }],
   appliedStartingPaceSec: null,
+  appliedGoalEndingPaceSec: null,
   appliedDailyBudget: null,
 };
 

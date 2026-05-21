@@ -118,6 +118,9 @@ export interface AppliedPlannerConfigSnapshot {
   // Task #335. Captured starting easy pace (sec/mi) so undo restores
   // the exact campaign ramp anchor that was in effect before reset.
   appliedStartingPaceSec: number | null;
+  // Task #373. Captured goal ending pace (sec/mi) so undo restores
+  // the linear-interp ramp end anchor too.
+  appliedGoalEndingPaceSec: number | null;
 }
 
 export interface DetachedWorkoutSnapshot {

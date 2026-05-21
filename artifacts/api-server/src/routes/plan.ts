@@ -285,6 +285,12 @@ router.get("/plan/overview", async (_req, res) => {
     lastAppliedConfigId,
     coachUpgradeAvailable,
     startingPaceSec: appliedConfig?.startingPaceSec ?? null,
+    // Task #373. Currently-applied goal ending easy pace surfaced for
+    // the /plan header "Update Starting Pace" dialog so the form can
+    // pre-fill BOTH the start and the goal in one round-trip. Null when
+    // no config has been applied OR the runner hasn't set a goal anchor
+    // (the generator then keeps the legacy fixed-rate ramp).
+    goalEndingPaceSec: appliedConfig?.goalEndingPaceSec ?? null,
   });
 });
 
@@ -1702,7 +1708,7 @@ router.post("/plan/reset", async (req, res): Promise<void> => {
       // pointing at plan tables that no longer exist. No snapshot
       // needed (and no undo offered) since there's nothing to put back.
       await tx.execute(
-        sql`UPDATE planner_configs SET last_applied_at = NULL, applied_start_date = NULL, applied_marathon_date = NULL, applied_blocks = NULL, applied_entries = NULL, applied_start_weight = NULL, applied_goal_weight = NULL, applied_starting_pace_sec = NULL WHERE last_applied_at IS NOT NULL`,
+        sql`UPDATE planner_configs SET last_applied_at = NULL, applied_start_date = NULL, applied_marathon_date = NULL, applied_blocks = NULL, applied_entries = NULL, applied_start_weight = NULL, applied_goal_weight = NULL, applied_starting_pace_sec = NULL, applied_goal_ending_pace_sec = NULL WHERE last_applied_at IS NOT NULL`,
       );
       return {
         weeksReset: 0,
@@ -1731,7 +1737,7 @@ router.post("/plan/reset", async (req, res): Promise<void> => {
     // themselves — name, blocks, entries, isActive — are preserved
     // so re-applying from /planner is a one-click trip.
     await tx.execute(
-      sql`UPDATE planner_configs SET last_applied_at = NULL, applied_start_date = NULL, applied_marathon_date = NULL, applied_blocks = NULL, applied_entries = NULL, applied_start_weight = NULL, applied_goal_weight = NULL, applied_starting_pace_sec = NULL`,
+      sql`UPDATE planner_configs SET last_applied_at = NULL, applied_start_date = NULL, applied_marathon_date = NULL, applied_blocks = NULL, applied_entries = NULL, applied_start_weight = NULL, applied_goal_weight = NULL, applied_starting_pace_sec = NULL, applied_goal_ending_pace_sec = NULL`,
     );
 
     const appliedConfigs: AppliedPlannerConfigSnapshot[] = appliedConfigRows
@@ -1749,6 +1755,7 @@ router.post("/plan/reset", async (req, res): Promise<void> => {
         appliedStartWeight: row.appliedStartWeight,
         appliedGoalWeight: row.appliedGoalWeight,
         appliedStartingPaceSec: row.appliedStartingPaceSec,
+        appliedGoalEndingPaceSec: row.appliedGoalEndingPaceSec,
       }));
     const detachedWorkouts: DetachedWorkoutSnapshot[] = detachedWorkoutRows
       .filter((row): row is { id: number; planDayId: number } => row.planDayId != null)
@@ -1872,7 +1879,7 @@ router.post("/plan/full-reset", async (req, res): Promise<void> => {
     // already in draft state (lastAppliedAt = null, applied_* = null)
     // are unaffected by the writes.
     await tx.execute(
-      sql`UPDATE planner_configs SET last_applied_at = NULL, applied_start_date = NULL, applied_marathon_date = NULL, applied_blocks = NULL, applied_entries = NULL, applied_start_weight = NULL, applied_goal_weight = NULL, applied_starting_pace_sec = NULL`,
+      sql`UPDATE planner_configs SET last_applied_at = NULL, applied_start_date = NULL, applied_marathon_date = NULL, applied_blocks = NULL, applied_entries = NULL, applied_start_weight = NULL, applied_goal_weight = NULL, applied_starting_pace_sec = NULL, applied_goal_ending_pace_sec = NULL`,
     );
 
     // Plan tables stay EMPTY. The UI surfaces an "Open Phase Planner"
@@ -2025,6 +2032,7 @@ router.post("/plan/reset/undo", async (req, res): Promise<void> => {
               appliedStartWeight: c.appliedStartWeight,
               appliedGoalWeight: c.appliedGoalWeight,
               appliedStartingPaceSec: c.appliedStartingPaceSec,
+              appliedGoalEndingPaceSec: c.appliedGoalEndingPaceSec,
             })
             .where(eq(plannerConfigsTable.id, c.id));
         }

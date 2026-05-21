@@ -129,6 +129,10 @@ export interface AppliedConfigRow {
   appliedBlocks: unknown;
   appliedEntries: unknown;
   appliedStartingPaceSec: number | null;
+  // Task #373. Goal ending easy pace anchor — when paired with
+  // appliedStartingPaceSec, the generator linearly interpolates
+  // across the campaign instead of using the fixed-rate ramp.
+  appliedGoalEndingPaceSec: number | null;
   appliedDailyBudget: unknown;
 }
 
@@ -149,6 +153,7 @@ export function buildConfigFromApplied(
     blocks: cfg.appliedBlocks as PhaseBlock[],
     entries: (cfg.appliedEntries as TemplateEntry[] | null) ?? null,
     startingPaceSec: cfg.appliedStartingPaceSec ?? null,
+    goalEndingPaceSec: cfg.appliedGoalEndingPaceSec ?? null,
     dailyBudget:
       (cfg.appliedDailyBudget as DailyBudgetOverride | null) ?? null,
   };

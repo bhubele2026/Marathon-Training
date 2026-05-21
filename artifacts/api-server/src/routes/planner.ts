@@ -46,6 +46,11 @@ type ApiPlannerConfig = {
   // Runner-prescribed starting easy pace (sec/mi); null falls back
   // to DEFAULT_STARTING_PACE_SEC.
   startingPaceSec: number | null;
+  // Task #373. Optional goal ending easy pace (sec/mi). When BOTH
+  // this and `startingPaceSec` are set, the generator linearly
+  // interpolates easy pace across the campaign instead of using the
+  // fixed-rate RAMP_SEC_PER_WEEK ramp.
+  goalEndingPaceSec: number | null;
   // Task #338. Optional per-runner override of the daily time-budget
   // contract. NULL means no override (defaults apply).
   dailyBudget: {
@@ -70,6 +75,7 @@ function toPlannerConfig(row: PlannerConfigRow): ApiPlannerConfig {
     startWeight: row.startWeight ?? null,
     goalWeight: row.goalWeight ?? null,
     startingPaceSec: row.startingPaceSec ?? null,
+    goalEndingPaceSec: row.goalEndingPaceSec ?? null,
     dailyBudget: row.dailyBudget ?? null,
     updatedAt: row.updatedAt.toISOString(),
     lastAppliedAt: row.lastAppliedAt ? row.lastAppliedAt.toISOString() : null,
@@ -151,6 +157,10 @@ export async function readLastAppliedPlannerConfig(): Promise<PlannerConfig | nu
     // and the in-place re-pace endpoint reads the current applied
     // value (not the source row's draft startingPaceSec).
     startingPaceSec: row.appliedStartingPaceSec ?? null,
+    // Task #373. Surface the snapshotted goal-ending pace so the
+    // generator's linear-interp ramp re-runs on full reset / repace
+    // with the same anchors the runner originally applied.
+    goalEndingPaceSec: row.appliedGoalEndingPaceSec ?? null,
   };
 }
 
@@ -448,6 +458,7 @@ router.post("/planner/configs", async (req, res): Promise<void> => {
       startWeight: parsed.data.startWeight ?? null,
       goalWeight: parsed.data.goalWeight ?? null,
       startingPaceSec: parsed.data.startingPaceSec ?? null,
+      goalEndingPaceSec: parsed.data.goalEndingPaceSec ?? null,
       dailyBudget: parsed.data.dailyBudget ?? null,
       createdAt: now,
       updatedAt: now,
@@ -522,6 +533,7 @@ router.put("/planner/configs/:id", async (req, res): Promise<void> => {
       startWeight: parsed.data.startWeight ?? null,
       goalWeight: parsed.data.goalWeight ?? null,
       startingPaceSec: parsed.data.startingPaceSec ?? null,
+      goalEndingPaceSec: parsed.data.goalEndingPaceSec ?? null,
       dailyBudget: parsed.data.dailyBudget ?? null,
       updatedAt: new Date(),
     })
@@ -626,6 +638,7 @@ router.post("/planner/configs/:id/duplicate", async (req, res): Promise<void> =>
       startWeight: src.startWeight,
       goalWeight: src.goalWeight,
       startingPaceSec: src.startingPaceSec,
+      goalEndingPaceSec: src.goalEndingPaceSec,
       dailyBudget: src.dailyBudget,
       createdAt: now,
       updatedAt: now,
@@ -703,8 +716,11 @@ router.post("/planner/configs/:id/activate", async (req, res): Promise<void> => 
 // measurements, race results, race-week checklist, and ANY /plan-
 // edited day cards are preserved.
 router.post("/planner/applied/starting-pace", async (req, res): Promise<void> => {
-  const body = req.body as { startingPaceSec?: unknown } | undefined;
-  const raw = body?.startingPaceSec;
+  const body = (req.body ?? {}) as {
+    startingPaceSec?: unknown;
+    goalEndingPaceSec?: unknown;
+  };
+  const raw = body.startingPaceSec;
   let startingPaceSec: number | null;
   if (raw === null || raw === undefined) {
     startingPaceSec = null;
@@ -723,6 +739,35 @@ router.post("/planner/applied/starting-pace", async (req, res): Promise<void> =>
     return;
   }
 
+  // Task #373. Optional goal ending pace anchor. Absent key → leave the
+  // applied row's existing value alone (legacy single-field callers).
+  // Present key with null → clear the override. Present key with number
+  // → validate + write.
+  const goalProvided = Object.prototype.hasOwnProperty.call(
+    body,
+    "goalEndingPaceSec",
+  );
+  const rawGoal = body.goalEndingPaceSec;
+  let goalEndingPaceSec: number | null | undefined;
+  if (!goalProvided) {
+    goalEndingPaceSec = undefined;
+  } else if (rawGoal === null || rawGoal === undefined) {
+    goalEndingPaceSec = null;
+  } else if (
+    typeof rawGoal === "number" &&
+    Number.isInteger(rawGoal) &&
+    rawGoal >= 360 &&
+    rawGoal <= 1500
+  ) {
+    goalEndingPaceSec = rawGoal;
+  } else {
+    res.status(400).json({
+      error:
+        "goalEndingPaceSec must be an integer between 360 and 1500 seconds/mi, or null.",
+    });
+    return;
+  }
+
   const cfgRows = await db
     .select()
     .from(plannerConfigsTable)
@@ -737,27 +782,41 @@ router.post("/planner/applied/starting-pace", async (req, res): Promise<void> =>
     return;
   }
 
+  const updateSet: Record<string, number | null> = {
+    startingPaceSec,
+    appliedStartingPaceSec: startingPaceSec,
+  };
+  if (goalEndingPaceSec !== undefined) {
+    updateSet.goalEndingPaceSec = goalEndingPaceSec;
+    updateSet.appliedGoalEndingPaceSec = goalEndingPaceSec;
+  }
   await db
     .update(plannerConfigsTable)
-    .set({
-      startingPaceSec,
-      appliedStartingPaceSec: startingPaceSec,
-    })
+    .set(updateSet)
     .where(eq(plannerConfigsTable.id, cfg.id));
 
   const result = await backfillPaceTargetCards();
+
+  // Echo the effective goal in the response: the newly-written value
+  // when the runner sent it, otherwise the existing applied snapshot
+  // so the client always sees the current truth in one round-trip.
+  const effectiveGoal =
+    goalEndingPaceSec !== undefined
+      ? goalEndingPaceSec
+      : cfg.appliedGoalEndingPaceSec ?? null;
 
   req.log.warn(
     {
       configId: cfg.id,
       configName: cfg.name,
       startingPaceSec,
+      goalEndingPaceSec: effectiveGoal,
       ...result,
     },
     "planner starting pace updated in place — pace-target backfill applied",
   );
 
-  res.json({ startingPaceSec, ...result });
+  res.json({ startingPaceSec, goalEndingPaceSec: effectiveGoal, ...result });
 });
 
 // Apply the active Planner config: regenerate plan_weeks/plan_days,
@@ -788,6 +847,7 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
     blocks: row.blocks as PhaseBlock[],
     entries: (row.entries as TemplateEntry[] | null) ?? null,
     startingPaceSec: row.startingPaceSec ?? null,
+    goalEndingPaceSec: row.goalEndingPaceSec ?? null,
     // Task #338: thread the runner's daily-budget override through so
     // every builder path inside the generator widens / tightens
     // accordingly.
@@ -927,6 +987,10 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
         appliedStartWeight: row.startWeight ?? null,
         appliedGoalWeight: row.goalWeight ?? null,
         appliedStartingPaceSec: row.startingPaceSec ?? null,
+        // Task #373. Snapshot the goal ending pace alongside the
+        // starting pace so the linear-interp ramp anchors are
+        // preserved across full reset / undo.
+        appliedGoalEndingPaceSec: row.goalEndingPaceSec ?? null,
         // Task #338. Snapshot the daily-budget override so a later
         // /plan/full-reset re-runs the generator with the SAME override
         // the runner applied here.

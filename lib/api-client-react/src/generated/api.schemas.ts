@@ -650,6 +650,17 @@ Drives the /plan header's "Update Starting Pace" dialog
 so the form can pre-fill with the current value.
  */
   startingPaceSec: number | null;
+  /** Task #373. Currently-applied goal ending easy pace (sec/mi),
+sourced from `planner_configs.appliedGoalEndingPaceSec` on
+the most-recently-applied row. NULL when no config has been
+applied OR the runner hasn't set a goal anchor (the
+generator then keeps the legacy fixed-rate ~3.75 sec/mi/wk
+ramp). When BOTH this and `startingPaceSec` are non-null,
+the generator linearly interpolates from start (week 1) to
+goal (final week). Drives the /plan header's "Update
+Starting Pace" dialog so the form can pre-fill both anchors.
+ */
+  goalEndingPaceSec?: number | null;
 }
 
 /**
@@ -1475,6 +1486,15 @@ hardcoded 281.6 constant.
   startWeight: number | null;
   /** Optional runner-prescribed starting easy pace (sec/mi). NULL falls back to the default 870 sec/mi (14:30/mi). Ramps ~30 sec/mi per 8 weeks toward the recipe floor; paces slower than 840 sec/mi (14:00/mi) trigger a Peloton walk-run prescription for the first ~2 entry-local weeks. */
   startingPaceSec: number | null;
+  /** Task #373. Optional goal ending easy pace (sec/mi). When BOTH
+startingPaceSec and goalEndingPaceSec are set, the generator
+linearly interpolates easy pace from start (campaign week 1)
+to goal (final week) instead of using the fixed-rate
+~3.75 sec/mi/week ramp. NULL preserves the legacy fixed-rate
+ramp behavior. Recipe floors and race-kind offsets still
+layer on top of the interpolated value.
+ */
+  goalEndingPaceSec: number | null;
   /** Task #338. Optional per-runner override of the daily
 time-budget contract (Task #336). When non-null, fields set
 here replace WEEKDAY_MIN_TOTAL_MIN / WEEKDAY_MAX_TOTAL_MIN /
@@ -1630,6 +1650,8 @@ export interface CreatePlannerConfigBody {
   /** Optional runner-prescribed starting easy pace (sec/mi). NULL falls back to the default 870 sec/mi (14:30/mi). */
   startingPaceSec?: number | null;
   /** Task */
+  goalEndingPaceSec?: number | null;
+  /** Task */
   dailyBudget?: CreatePlannerConfigBodyDailyBudget;
   /** When true, mark the new config active immediately. Defaults to true if no configs exist yet, false otherwise. */
   setActive?: boolean | null;
@@ -1671,6 +1693,8 @@ export interface UpdatePlannerConfigBody {
   goalWeight?: number | null;
   /** Optional runner-prescribed starting easy pace (sec/mi). NULL falls back to the default 870 sec/mi (14:30/mi). */
   startingPaceSec?: number | null;
+  /** Task */
+  goalEndingPaceSec?: number | null;
   /** Task */
   dailyBudget?: UpdatePlannerConfigBodyDailyBudget;
 }
@@ -1910,11 +1934,31 @@ recipe easy pace (Task #367 default).
    * @maximum 1500
    */
   startingPaceSec: number | null;
+  /**
+   * Task #373. Optional goal ending easy pace (sec/mi). When this
+key is OMITTED, the applied row's existing goal value is left
+untouched (legacy single-field callers stay valid). When
+present and non-null, the generator linearly interpolates
+from start (week 1) to goal (final week) on the next
+backfill. When present and null, the goal anchor is cleared
+and the generator reverts to the fixed-rate ramp.
+
+   * @minimum 360
+   * @maximum 1500
+   */
+  goalEndingPaceSec?: number | null;
 }
 
 export interface UpdateAppliedStartingPaceResponse {
   /** The newly-applied starting pace (echoes the request value). */
   startingPaceSec: number | null;
+  /** Task #373. The currently-applied goal ending pace after the
+update. Echoes the request value when the client sent
+`goalEndingPaceSec`; otherwise echoes the unchanged
+applied-snapshot value so the client always sees the truth
+in one round-trip.
+ */
+  goalEndingPaceSec: number | null;
   /** Run-card plan_days inspected by the backfill. */
   scanned: number;
   /** Run-card rows whose seed_* columns were patched. */

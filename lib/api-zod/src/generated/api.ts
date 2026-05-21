@@ -141,6 +141,12 @@ export const GetPlanOverviewResponse = zod.object({
     .describe(
       'Task #370. Currently-applied starting easy pace (sec\/mi),\nsourced from `planner_configs.appliedStartingPaceSec` on\nthe most-recently-applied row. NULL when no config has\nbeen applied OR the runner cleared the override (the\ngenerator then falls back to the recipe-default easy pace).\nDrives the \/plan header\'s \"Update Starting Pace\" dialog\nso the form can pre-fill with the current value.\n',
     ),
+  goalEndingPaceSec: zod
+    .number()
+    .nullish()
+    .describe(
+      "Task #373. Currently-applied goal ending easy pace (sec\/mi),\nsourced from `planner_configs.appliedGoalEndingPaceSec` on\nthe most-recently-applied row. NULL when no config has been\napplied OR the runner hasn't set a goal anchor (the\ngenerator then keeps the legacy fixed-rate ~3.75 sec\/mi\/wk\nramp). When BOTH this and `startingPaceSec` are non-null,\nthe generator linearly interpolates from start (week 1) to\ngoal (final week). Drives the \/plan header's \"Update\nStarting Pace\" dialog so the form can pre-fill both anchors.\n",
+    ),
 });
 
 export const ListPlanWeeksResponseItem = zod.object({
@@ -3074,6 +3080,7 @@ export const CreatePlannerConfigBody = zod.object({
     .describe(
       "Optional runner-prescribed starting easy pace (sec\/mi). NULL falls back to the default 870 sec\/mi (14:30\/mi).",
     ),
+  goalEndingPaceSec: zod.number().nullish().describe("Task"),
   dailyBudget: zod
     .object({
       weekdayMin: zod
@@ -3223,6 +3230,12 @@ export const GetPlannerConfigResponse = zod.object({
     .describe(
       "Optional runner-prescribed starting easy pace (sec\/mi). NULL falls back to the default 870 sec\/mi (14:30\/mi). Ramps ~30 sec\/mi per 8 weeks toward the recipe floor; paces slower than 840 sec\/mi (14:00\/mi) trigger a Peloton walk-run prescription for the first ~2 entry-local weeks.",
     ),
+  goalEndingPaceSec: zod
+    .number()
+    .nullable()
+    .describe(
+      "Task #373. Optional goal ending easy pace (sec\/mi). When BOTH\nstartingPaceSec and goalEndingPaceSec are set, the generator\nlinearly interpolates easy pace from start (campaign week 1)\nto goal (final week) instead of using the fixed-rate\n~3.75 sec\/mi\/week ramp. NULL preserves the legacy fixed-rate\nramp behavior. Recipe floors and race-kind offsets still\nlayer on top of the interpolated value.\n",
+    ),
   dailyBudget: zod
     .object({
       weekdayMin: zod
@@ -3369,6 +3382,7 @@ export const UpdatePlannerConfigBody = zod.object({
     .describe(
       "Optional runner-prescribed starting easy pace (sec\/mi). NULL falls back to the default 870 sec\/mi (14:30\/mi).",
     ),
+  goalEndingPaceSec: zod.number().nullish().describe("Task"),
   dailyBudget: zod
     .object({
       weekdayMin: zod
@@ -3507,6 +3521,12 @@ export const UpdatePlannerConfigResponse = zod.object({
     .nullable()
     .describe(
       "Optional runner-prescribed starting easy pace (sec\/mi). NULL falls back to the default 870 sec\/mi (14:30\/mi). Ramps ~30 sec\/mi per 8 weeks toward the recipe floor; paces slower than 840 sec\/mi (14:00\/mi) trigger a Peloton walk-run prescription for the first ~2 entry-local weeks.",
+    ),
+  goalEndingPaceSec: zod
+    .number()
+    .nullable()
+    .describe(
+      "Task #373. Optional goal ending easy pace (sec\/mi). When BOTH\nstartingPaceSec and goalEndingPaceSec are set, the generator\nlinearly interpolates easy pace from start (campaign week 1)\nto goal (final week) instead of using the fixed-rate\n~3.75 sec\/mi\/week ramp. NULL preserves the legacy fixed-rate\nramp behavior. Recipe floors and race-kind offsets still\nlayer on top of the interpolated value.\n",
     ),
   dailyBudget: zod
     .object({
@@ -3720,6 +3740,12 @@ export const ActivatePlannerConfigResponse = zod.object({
     .describe(
       "Optional runner-prescribed starting easy pace (sec\/mi). NULL falls back to the default 870 sec\/mi (14:30\/mi). Ramps ~30 sec\/mi per 8 weeks toward the recipe floor; paces slower than 840 sec\/mi (14:00\/mi) trigger a Peloton walk-run prescription for the first ~2 entry-local weeks.",
     ),
+  goalEndingPaceSec: zod
+    .number()
+    .nullable()
+    .describe(
+      "Task #373. Optional goal ending easy pace (sec\/mi). When BOTH\nstartingPaceSec and goalEndingPaceSec are set, the generator\nlinearly interpolates easy pace from start (campaign week 1)\nto goal (final week) instead of using the fixed-rate\n~3.75 sec\/mi\/week ramp. NULL preserves the legacy fixed-rate\nramp behavior. Recipe floors and race-kind offsets still\nlayer on top of the interpolated value.\n",
+    ),
   dailyBudget: zod
     .object({
       weekdayMin: zod
@@ -3804,6 +3830,9 @@ TRUNCATEs plan_days and loses every per-day customization.
 export const updateAppliedStartingPaceBodyStartingPaceSecMin = 360;
 export const updateAppliedStartingPaceBodyStartingPaceSecMax = 1500;
 
+export const updateAppliedStartingPaceBodyGoalEndingPaceSecMin = 360;
+export const updateAppliedStartingPaceBodyGoalEndingPaceSecMax = 1500;
+
 export const UpdateAppliedStartingPaceBody = zod.object({
   startingPaceSec: zod
     .number()
@@ -3813,6 +3842,14 @@ export const UpdateAppliedStartingPaceBody = zod.object({
     .describe(
       "Runner's starting easy pace in seconds\/mile. Null clears the\noverride, so the generator falls back to the first block's\nrecipe easy pace (Task #367 default).\n",
     ),
+  goalEndingPaceSec: zod
+    .number()
+    .min(updateAppliedStartingPaceBodyGoalEndingPaceSecMin)
+    .max(updateAppliedStartingPaceBodyGoalEndingPaceSecMax)
+    .nullish()
+    .describe(
+      "Task #373. Optional goal ending easy pace (sec\/mi). When this\nkey is OMITTED, the applied row's existing goal value is left\nuntouched (legacy single-field callers stay valid). When\npresent and non-null, the generator linearly interpolates\nfrom start (week 1) to goal (final week) on the next\nbackfill. When present and null, the goal anchor is cleared\nand the generator reverts to the fixed-rate ramp.\n",
+    ),
 });
 
 export const UpdateAppliedStartingPaceResponse = zod.object({
@@ -3820,6 +3857,12 @@ export const UpdateAppliedStartingPaceResponse = zod.object({
     .number()
     .nullable()
     .describe("The newly-applied starting pace (echoes the request value)."),
+  goalEndingPaceSec: zod
+    .number()
+    .nullable()
+    .describe(
+      "Task #373. The currently-applied goal ending pace after the\nupdate. Echoes the request value when the client sent\n`goalEndingPaceSec`; otherwise echoes the unchanged\napplied-snapshot value so the client always sees the truth\nin one round-trip.\n",
+    ),
   scanned: zod
     .number()
     .describe("Run-card plan_days inspected by the backfill."),

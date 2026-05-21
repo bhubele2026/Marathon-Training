@@ -356,7 +356,7 @@ export const TOTAL_WEEKS = 52;
 // Bump this (move the date forward) any time the generator output
 // changes meaningfully for an already-applied plan. The most recent
 // bump landed alongside Task #353 (research-aligned long-run peaks).
-export const PLAN_SCIENCE_VERSION = "2026-05-17";
+export const PLAN_SCIENCE_VERSION = "2026-05-21";
 
 const longRuns: (number | null)[] = [
   null,
@@ -892,9 +892,26 @@ export function computeEffectivePace(
   recipeEasyFloorSec: number,
   recipeLongFloorSec: number,
   recipeTempoFloorSec: number,
+  opts?: {
+    // Task #373. When BOTH are set, the ramp linearly interpolates
+    // startingPaceSec (campaignWeek = 1) → goalEndingPaceSec
+    // (campaignWeek = totalCampaignWeeks) instead of using the legacy
+    // fixed RAMP_SEC_PER_WEEK slope. Either being null falls back to
+    // the legacy fixed-rate ramp. Floor still clamps in both modes.
+    goalEndingPaceSec?: number | null;
+    totalCampaignWeeks?: number | null;
+  },
 ): { easySec: number; longSec: number; tempoSec: number } {
-  const elapsedWeeks = Math.max(0, campaignWeek - 1);
-  const rampedEasyExact = startingPaceSec - elapsedWeeks * RAMP_SEC_PER_WEEK;
+  const goal = opts?.goalEndingPaceSec ?? null;
+  const total = opts?.totalCampaignWeeks ?? null;
+  let rampedEasyExact: number;
+  if (goal !== null && total !== null && total > 1) {
+    const t = Math.max(0, Math.min(1, (campaignWeek - 1) / (total - 1)));
+    rampedEasyExact = startingPaceSec + (goal - startingPaceSec) * t;
+  } else {
+    const elapsedWeeks = Math.max(0, campaignWeek - 1);
+    rampedEasyExact = startingPaceSec - elapsedWeeks * RAMP_SEC_PER_WEEK;
+  }
   const rampedEasy = Math.max(
     recipeEasyFloorSec,
     Math.round(rampedEasyExact),
@@ -1156,6 +1173,12 @@ export interface PlannerConfig {
   entries?: TemplateEntry[] | null;
   // Optional week-1 easy pace (sec/mi). Null → DEFAULT_STARTING_PACE_SEC.
   startingPaceSec?: number | null;
+  // Task #373. Optional goal ending easy pace (sec/mi). When BOTH this
+  // and `startingPaceSec` are set, the generator linearly interpolates
+  // the easy pace from start → goal across the campaign instead of
+  // using the fixed-rate RAMP_SEC_PER_WEEK ramp. NULL preserves the
+  // legacy fixed-rate ramp behavior.
+  goalEndingPaceSec?: number | null;
   // Task #338. Optional per-runner override of the daily time-budget
   // contract (Task #336). Any field set here replaces the matching
   // global constant (WEEKDAY_MIN_TOTAL_MIN / WEEKDAY_MAX_TOTAL_MIN /
@@ -1872,6 +1895,10 @@ function buildPaceOverride(
   campaignWeek: number,
   entryLocalWeek: number,
   recipe: FocusRecipe,
+  rampOpts?: {
+    goalEndingPaceSec?: number | null;
+    totalCampaignWeeks?: number | null;
+  },
 ): PaceOverride {
   const easyFloor = parseMmSsPace(recipe.easyPace) ?? 0;
   const longFloor = parseMmSsPace(recipe.longPace) ?? 0;
@@ -1882,6 +1909,7 @@ function buildPaceOverride(
     easyFloor,
     longFloor,
     tempoFloor,
+    rampOpts,
   );
   const entryStartCampaignWeek = Math.max(1, campaignWeek - entryLocalWeek + 1);
   const entryStartEff = computeEffectivePace(
@@ -1890,6 +1918,7 @@ function buildPaceOverride(
     easyFloor,
     longFloor,
     tempoFloor,
+    rampOpts,
   );
   return {
     easyPace: formatMmSsPace(eff.easySec),
@@ -4124,6 +4153,13 @@ export interface GeneratePlanOptions {
   // weeks. Defaults to 0.
   paceWeekOffset?: number;
   startingPaceSecOverride?: number | null;
+  // Task #373. Per-entry pipeline overrides so each synthetic single-
+  // entry config sees the CAMPAIGN-wide goal pace and total weeks
+  // (instead of its own truncated entry-local span). Either undefined
+  // falls back to `config.goalEndingPaceSec` / `totalWeeksFromDates`
+  // respectively.
+  goalEndingPaceSecOverride?: number | null;
+  totalCampaignWeeksOverride?: number | null;
 }
 
 export function generatePlanFromConfig(
@@ -4219,6 +4255,23 @@ export function generatePlanFromConfig(
     DEFAULT_STARTING_PACE_SEC;
   const startingPaceSec = rawStartingPaceSec ?? firstRecipeEasySec;
   const paceWeekOffset = opts.paceWeekOffset ?? 0;
+  // Task #373. Goal ending pace + total-campaign-weeks plumbing for
+  // linear interpolation. Override path lets the per-entry pipeline
+  // pass the OVERALL campaign weeks (not the entry's own span) so
+  // every entry's ramp lines up on the same start→goal trajectory.
+  const goalEndingPaceSec =
+    opts.goalEndingPaceSecOverride !== undefined
+      ? opts.goalEndingPaceSecOverride
+      : config.goalEndingPaceSec ?? null;
+  const totalCampaignWeeks =
+    opts.totalCampaignWeeksOverride !== undefined &&
+    opts.totalCampaignWeeksOverride !== null
+      ? opts.totalCampaignWeeksOverride
+      : totalWeeks;
+  const rampOpts = {
+    goalEndingPaceSec,
+    totalCampaignWeeks,
+  };
 
   let weekNumber = 0;
   for (const block of expandedBlocks) {
@@ -4235,6 +4288,7 @@ export function generatePlanFromConfig(
         campaignWeek,
         entryLocalWeek,
         recipe,
+        rampOpts,
       );
       const days = buildWeekDays({
         weekNumber,
@@ -4408,6 +4462,14 @@ export function generatePlanFromConfigPerEntry(
       endsOnMarathonRaceDayOverride: isLastEntry ? undefined : false,
       paceWeekOffset: weekOffset,
       startingPaceSecOverride: config.startingPaceSec ?? null,
+      // Task #373. Goal pace + overall campaign weeks are shared
+      // across every entry so the synthetic single-entry sub-plans
+      // ramp on the same start→goal trajectory as the parent.
+      goalEndingPaceSecOverride: config.goalEndingPaceSec ?? null,
+      totalCampaignWeeksOverride: totalWeeksFromDates(
+        config.startDate,
+        config.marathonDate,
+      ),
     });
     // Remap week numbers from entry-local (1..N) to campaign-relative
     // so plan_days.week matches the position of the date in the

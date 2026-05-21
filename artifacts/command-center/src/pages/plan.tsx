@@ -182,8 +182,19 @@ export default function Plan() {
   const [resetPlanConfirmText, setResetPlanConfirmText] = useState("");
   const [fullResetOpen, setFullResetOpen] = useState(false);
   const [repaceOpen, setRepaceOpen] = useState(false);
-  const [repaceInput, setRepaceInput] = useState("");
+  // Task #373. Dialog now captures both anchors at once. Start =
+  // campaign week 1, goal = final week. Both blank ⇒ generator falls
+  // back to the recipe-default easy pace + fixed-rate ramp.
+  const [repaceInput, setRepaceInput] = useState<{
+    start: string;
+    goal: string;
+  }>({ start: "", goal: "" });
   const updateStartingPace = useUpdateAppliedStartingPace();
+
+  function formatPaceMmss(sec: number | null | undefined): string {
+    if (sec == null) return "";
+    return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+  }
 
   // Task #370: /today's "Adjust Pace" button deep-links here with
   // ?repace=1 to auto-open the dialog (and then strip the param so a
@@ -192,13 +203,10 @@ export default function Plan() {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("repace") === "1" && overview?.hasPlan) {
-      setRepaceInput(
-        overview.startingPaceSec != null
-          ? `${Math.floor(overview.startingPaceSec / 60)}:${String(
-              overview.startingPaceSec % 60,
-            ).padStart(2, "0")}`
-          : "",
-      );
+      setRepaceInput({
+        start: formatPaceMmss(overview.startingPaceSec),
+        goal: formatPaceMmss(overview.goalEndingPaceSec),
+      });
       setRepaceOpen(true);
       params.delete("repace");
       const next = params.toString();
@@ -208,7 +216,11 @@ export default function Plan() {
         window.location.pathname + (next ? `?${next}` : ""),
       );
     }
-  }, [overview?.hasPlan, overview?.startingPaceSec]);
+  }, [
+    overview?.hasPlan,
+    overview?.startingPaceSec,
+    overview?.goalEndingPaceSec,
+  ]);
   const [dismissedVersion, setDismissedVersion] = useState<string | null>(
     () => {
       if (typeof window === "undefined") return null;
@@ -556,13 +568,10 @@ export default function Plan() {
           size="sm"
           className="text-xs uppercase font-bold tracking-wider"
           onClick={() => {
-            setRepaceInput(
-              overview.startingPaceSec != null
-                ? `${Math.floor(overview.startingPaceSec / 60)}:${String(
-                    overview.startingPaceSec % 60,
-                  ).padStart(2, "0")}`
-                : "",
-            );
+            setRepaceInput({
+              start: formatPaceMmss(overview.startingPaceSec),
+              goal: formatPaceMmss(overview.goalEndingPaceSec),
+            });
             setRepaceOpen(true);
           }}
           disabled={!overview.hasPlan}
@@ -1148,25 +1157,58 @@ export default function Plan() {
               clear the override and fall back to the recipe default.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2 py-2">
-            <Label
-              htmlFor="repace-input"
-              className="text-xs uppercase tracking-wider"
-            >
-              Starting easy pace (mm:ss per mile)
-            </Label>
-            <Input
-              id="repace-input"
-              autoFocus
-              value={repaceInput}
-              onChange={(e) => setRepaceInput(e.target.value)}
-              placeholder="14:30"
-              disabled={updateStartingPace.isPending}
-              data-testid="input-starting-pace"
-            />
-            <p className="text-xs text-muted-foreground">
-              Must be between 6:00 and 25:00 per mile.
-            </p>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label
+                htmlFor="repace-input"
+                className="text-xs uppercase tracking-wider"
+              >
+                Starting easy pace (mm:ss per mile)
+              </Label>
+              <Input
+                id="repace-input"
+                autoFocus
+                value={repaceInput.start}
+                onChange={(e) =>
+                  setRepaceInput((prev) => ({ ...prev, start: e.target.value }))
+                }
+                placeholder="14:30"
+                disabled={updateStartingPace.isPending}
+                data-testid="input-starting-pace"
+              />
+              <p className="text-xs text-muted-foreground">
+                Must be between 6:00 and 25:00 per mile. Blank clears
+                the starting-pace override.
+              </p>
+            </div>
+            {/* Task #373. Optional goal ending pace anchor. When both
+                fields parse, the backfill uses a linear interpolation
+                from start (week 1) to goal (final week) instead of the
+                fixed ~3.75 sec/mi/week ramp. */}
+            <div className="space-y-2">
+              <Label
+                htmlFor="repace-goal-input"
+                className="text-xs uppercase tracking-wider"
+              >
+                Goal ending pace (mm:ss per mile, optional)
+              </Label>
+              <Input
+                id="repace-goal-input"
+                value={repaceInput.goal}
+                onChange={(e) =>
+                  setRepaceInput((prev) => ({ ...prev, goal: e.target.value }))
+                }
+                placeholder="11:00"
+                disabled={updateStartingPace.isPending}
+                data-testid="input-goal-ending-pace"
+              />
+              <p className="text-xs text-muted-foreground">
+                When set alongside the starting pace, easy pace
+                interpolates linearly from start to this value across
+                the campaign. Blank clears the goal anchor and reverts
+                to the default ramp.
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button
@@ -1181,44 +1223,58 @@ export default function Plan() {
               size="sm"
               disabled={updateStartingPace.isPending}
               onClick={() => {
-                const trimmed = repaceInput.trim();
-                let startingPaceSec: number | null;
-                if (trimmed === "") {
-                  startingPaceSec = null;
-                } else {
+                function parsePaceField(
+                  raw: string,
+                  label: string,
+                ): { ok: true; value: number | null } | { ok: false } {
+                  const trimmed = raw.trim();
+                  if (trimmed === "") return { ok: true, value: null };
                   const m = trimmed.match(/^(\d{1,2}):(\d{2})$/);
                   if (!m) {
                     toast({
-                      title: "Couldn't parse pace",
+                      title: `Couldn't parse ${label}`,
                       description:
                         "Use mm:ss format, e.g. 14:30. Leave blank to clear the override.",
                       variant: "destructive",
                     });
-                    return;
+                    return { ok: false };
                   }
                   const min = Number(m[1]);
                   const sec = Number(m[2]);
                   if (sec >= 60) {
                     toast({
-                      title: "Couldn't parse pace",
+                      title: `Couldn't parse ${label}`,
                       description: "Seconds must be 0-59.",
                       variant: "destructive",
                     });
-                    return;
+                    return { ok: false };
                   }
-                  startingPaceSec = min * 60 + sec;
-                  if (startingPaceSec < 360 || startingPaceSec > 1500) {
+                  const total = min * 60 + sec;
+                  if (total < 360 || total > 1500) {
                     toast({
-                      title: "Pace out of range",
-                      description:
-                        "Starting pace must be between 6:00 and 25:00 per mile.",
+                      title: `${label} out of range`,
+                      description: `${label} must be between 6:00 and 25:00 per mile.`,
                       variant: "destructive",
                     });
-                    return;
+                    return { ok: false };
                   }
+                  return { ok: true, value: total };
                 }
+
+                const startParsed = parsePaceField(
+                  repaceInput.start,
+                  "starting pace",
+                );
+                if (!startParsed.ok) return;
+                const goalParsed = parsePaceField(
+                  repaceInput.goal,
+                  "goal ending pace",
+                );
+                if (!goalParsed.ok) return;
+                const startingPaceSec = startParsed.value;
+                const goalEndingPaceSec = goalParsed.value;
                 updateStartingPace.mutate(
-                  { data: { startingPaceSec } },
+                  { data: { startingPaceSec, goalEndingPaceSec } },
                   {
                     onSuccess: (data) => {
                       toast({

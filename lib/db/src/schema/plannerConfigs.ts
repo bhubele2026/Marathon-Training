@@ -90,6 +90,13 @@ export const plannerConfigsTable = pgTable("planner_configs", {
   // Optional starting easy pace (sec/mi). Generator ramps from here
   // across the campaign; NULL falls back to DEFAULT_STARTING_PACE_SEC.
   startingPaceSec: integer("starting_pace_sec"),
+  // Task #373. Optional goal ending easy pace (sec/mi) — the pace the
+  // runner wants to be at by the campaign's final non-taper week. When
+  // BOTH starting and goal are set, the generator linearly interpolates
+  // the easy pace from start → goal across the campaign instead of using
+  // the fixed RAMP_SEC_PER_WEEK slope. NULL keeps the legacy fixed-rate
+  // ramp behavior.
+  goalEndingPaceSec: integer("goal_ending_pace_sec"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   // Set by POST /api/planner/apply when the runner regenerates plan_weeks /
@@ -133,6 +140,8 @@ export const plannerConfigsTable = pgTable("planner_configs", {
   appliedGoalWeight: doublePrecision("applied_goal_weight"),
   // Apply-time snapshot of starting_pace_sec (mirrors applied_*).
   appliedStartingPaceSec: integer("applied_starting_pace_sec"),
+  // Task #373. Apply-time snapshot of goal_ending_pace_sec.
+  appliedGoalEndingPaceSec: integer("applied_goal_ending_pace_sec"),
   // Task #338. Optional per-runner override of the daily time-budget
   // contract (Task #336). Any of weekdayMin / weekdayMax / weekendMin
   // set here replaces the matching global default in
