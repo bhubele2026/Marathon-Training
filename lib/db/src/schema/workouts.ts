@@ -70,6 +70,12 @@ export const workoutsTable = pgTable("workouts", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   dateIdx: index("workouts_date_idx").on(t.date),
+  // Task #382: every adherence + per-week aggregation joins workouts
+  // back to plan_days on plan_day_id, and the inner EXISTS subqueries
+  // in /plan/weeks and /dashboard/summary scan it heavily. Without
+  // this index Postgres falls back to a seq-scan on workouts for the
+  // correlated lookups, which dominates the /plan list query.
+  planDayIdIdx: index("workouts_plan_day_id_idx").on(t.planDayId),
   sessionEquipmentRecentIdx: index("workouts_session_equipment_recent_idx").on(
     t.sessionType,
     t.equipment,

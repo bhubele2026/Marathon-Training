@@ -50,6 +50,23 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    // Task #382: split vendor chunks so deploy-cache hits survive
+    // small app changes and heavyweight libs (recharts) only download
+    // when a page that uses them is opened. Pairs with the React.lazy
+    // route splits in App.tsx — lazy pages already pull recharts on
+    // demand, the manual chunk just keeps the long-cache filename
+    // stable across unrelated app edits.
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "react-vendor": ["react", "react-dom", "react/jsx-runtime"],
+          recharts: ["recharts"],
+          "query-vendor": ["@tanstack/react-query"],
+          "router-vendor": ["wouter"],
+          "date-vendor": ["date-fns"],
+        },
+      },
+    },
   },
   server: {
     port,

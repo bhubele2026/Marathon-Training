@@ -89,6 +89,15 @@ export const planDaysTable = pgTable("plan_days", {
     t.sourceEntryIndex,
   ),
   sourceEntryIdx: index("plan_days_source_entry_idx").on(t.sourceEntryIndex),
+  // Task #382: hot-path indexes. /plan/weeks + /dashboard/summary both
+  // run COUNT(*) WHERE week = ? AND is_rest = false; (week, is_rest)
+  // collapses that to an index-only scan. /dashboard/summary's
+  // adherence query filters on date + is_rest, so (date, is_rest)
+  // covers the campaign-to-date counts. (equipment) supports the
+  // dominant-cardio-equipment aggregation.
+  weekRestIdx: index("plan_days_week_rest_idx").on(t.week, t.isRest),
+  dateRestIdx: index("plan_days_date_rest_idx").on(t.date, t.isRest),
+  equipmentIdx: index("plan_days_equipment_idx").on(t.equipment),
 }));
 
 export type PlanDayRow = typeof planDaysTable.$inferSelect;

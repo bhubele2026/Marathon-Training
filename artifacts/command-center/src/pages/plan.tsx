@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   getGetPlanOverviewQueryKey,
   getGetPlanWeekQueryKey,
@@ -452,11 +452,20 @@ export default function Plan() {
     );
   }
 
-  const groupedWeeks = weeks.reduce((acc, week) => {
-    if (!acc[week.phase]) acc[week.phase] = [];
-    acc[week.phase].push(week);
-    return acc;
-  }, {} as Record<string, typeof weeks>);
+  // Task #382: memoize the per-render derivations over a 52-week
+  // payload so dialog state toggles (Reset/Repace/Full Reset/coach
+  // banner dismiss) don't re-walk + re-group the entire weeks array
+  // on every keystroke. Aggregates are pure functions of `weeks`, so
+  // a single dependency is enough.
+  const groupedWeeks = useMemo(
+    () =>
+      weeks.reduce((acc, week) => {
+        if (!acc[week.phase]) acc[week.phase] = [];
+        acc[week.phase].push(week);
+        return acc;
+      }, {} as Record<string, typeof weeks>),
+    [weeks],
+  );
 
   // Task #204: a "race" plan is any campaign whose trailing plan_day
   // Sunday is a recognised race row — surfaced server-side as
@@ -478,9 +487,17 @@ export default function Plan() {
   // gates the subtitle ("Weeks to Race Day" vs "Weeks Remaining") so
   // race-anchored campaigns keep their countdown framing.
   const headerTitle = overview.activeConfigName?.trim() || "Workout Plan";
-  const totalMissed = weeks.reduce((sum, w) => sum + (w.missedSessions ?? 0), 0);
-  const totalCustomized = weeks.reduce((sum, w) => sum + (w.customizedDays ?? 0), 0);
-  const nextMissedWeek = weeks.find((w) => (w.missedSessions ?? 0) > 0);
+  const { totalMissed, totalCustomized, nextMissedWeek } = useMemo(() => {
+    let missed = 0;
+    let customized = 0;
+    let next: typeof weeks[number] | undefined;
+    for (const w of weeks) {
+      missed += w.missedSessions ?? 0;
+      customized += w.customizedDays ?? 0;
+      if (!next && (w.missedSessions ?? 0) > 0) next = w;
+    }
+    return { totalMissed: missed, totalCustomized: customized, nextMissedWeek: next };
+  }, [weeks]);
   // Task #33: server-resolved earliest missed plan_day. We prefer this
   // over deriving from `nextMissedWeek` so the deep link jumps straight
   // to the specific day card to back-fill, not just the week. We pass

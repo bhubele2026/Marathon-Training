@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
@@ -5,37 +6,76 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "@/components/layout";
 import { VisualThemeProvider } from "@/lib/visual-theme";
+import { Skeleton } from "@/components/ui/skeleton";
 
-import Dashboard from "@/pages/dashboard";
-import Today from "@/pages/today";
-import Plan from "@/pages/plan";
-import WeekDetail from "@/pages/week-detail";
-import Log from "@/pages/log";
-import Measurements from "@/pages/measurements";
-import Races from "@/pages/races";
-import Equipment from "@/pages/equipment";
-import Planner from "@/pages/planner";
-import Settings from "@/pages/settings";
-import NotFound from "@/pages/not-found";
+// Task #382: route-level code splitting. Each page becomes its own
+// async chunk so the initial entry bundle only carries the layout +
+// router shell. Heavyweight per-page dependencies (notably recharts on
+// dashboard / measurements, and the plan generator + zod recipes on
+// planner) load on demand when the runner navigates there.
+const Dashboard = lazy(() => import("@/pages/dashboard"));
+const Today = lazy(() => import("@/pages/today"));
+const Plan = lazy(() => import("@/pages/plan"));
+const WeekDetail = lazy(() => import("@/pages/week-detail"));
+const Log = lazy(() => import("@/pages/log"));
+const Measurements = lazy(() => import("@/pages/measurements"));
+const Races = lazy(() => import("@/pages/races"));
+const Equipment = lazy(() => import("@/pages/equipment"));
+const Planner = lazy(() => import("@/pages/planner"));
+const Settings = lazy(() => import("@/pages/settings"));
+const NotFound = lazy(() => import("@/pages/not-found"));
 
-const queryClient = new QueryClient();
+// Task #382: cache-friendly React Query defaults. Pre-task #382 every
+// query refetched on every mount / window-focus, which made cross-page
+// navigation flash skeletons even when the cached payload was < 1s old.
+// 30s staleTime covers the typical "navigate dashboard → /plan → back"
+// loop; mutations explicitly invalidate so writes still propagate
+// immediately. 5min gcTime keeps payloads warm across longer detours.
+// refetchOnWindowFocus disabled because Replit's preview iframe loses
+// focus on every chat interaction. retry: 1 caps retry storms when the
+// API server is briefly unavailable.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      gcTime: 5 * 60_000,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+    mutations: {
+      retry: 0,
+    },
+  },
+});
+
+function RouteFallback() {
+  return (
+    <div className="space-y-4 p-4">
+      <Skeleton className="h-8 w-48" />
+      <Skeleton className="h-32 w-full" />
+      <Skeleton className="h-32 w-full" />
+    </div>
+  );
+}
 
 function Router() {
   return (
     <Layout>
-      <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/today" component={Today} />
-        <Route path="/plan" component={Plan} />
-        <Route path="/plan/:week" component={WeekDetail} />
-        <Route path="/log" component={Log} />
-        <Route path="/measurements" component={Measurements} />
-        <Route path="/races" component={Races} />
-        <Route path="/equipment" component={Equipment} />
-        <Route path="/planner" component={Planner} />
-        <Route path="/settings" component={Settings} />
-        <Route component={NotFound} />
-      </Switch>
+      <Suspense fallback={<RouteFallback />}>
+        <Switch>
+          <Route path="/" component={Dashboard} />
+          <Route path="/today" component={Today} />
+          <Route path="/plan" component={Plan} />
+          <Route path="/plan/:week" component={WeekDetail} />
+          <Route path="/log" component={Log} />
+          <Route path="/measurements" component={Measurements} />
+          <Route path="/races" component={Races} />
+          <Route path="/equipment" component={Equipment} />
+          <Route path="/planner" component={Planner} />
+          <Route path="/settings" component={Settings} />
+          <Route component={NotFound} />
+        </Switch>
+      </Suspense>
     </Layout>
   );
 }

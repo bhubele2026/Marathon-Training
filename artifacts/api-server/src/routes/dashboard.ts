@@ -36,12 +36,19 @@ router.get("/dashboard/summary", async (_req, res) => {
   const startDate = weekRow?.startDate ?? today;
   const endDate = weekRow?.endDate ?? today;
 
-  const weekActuals = await db.execute<{ miles: number; load: number; sessions: number }>(
-    sql`SELECT COALESCE(SUM(distance_mi), 0)::float AS miles, COALESCE(SUM(total_load), 0)::float AS load, COUNT(*)::int AS sessions FROM workouts WHERE date BETWEEN ${startDate} AND ${endDate} AND equipment <> ${LIFESTYLE_EQUIPMENT}`,
-  );
-  const weekLifestyle = await db.execute<{ minutes: number }>(
-    sql`SELECT COALESCE(SUM(duration_min), 0)::float AS minutes FROM workouts WHERE date BETWEEN ${startDate} AND ${endDate} AND equipment = ${LIFESTYLE_EQUIPMENT}`,
-  );
+  // Task #382: run the independent per-tile queries concurrently. Each
+  // execute() round-trips its own pool checkout, so awaiting them
+  // serially adds N * RTT to /dashboard/summary's wall time even
+  // though every query is independent. Promise.all collapses them to
+  // one RTT (bounded by the slowest query).
+  const [weekActuals, weekLifestyle] = await Promise.all([
+    db.execute<{ miles: number; load: number; sessions: number }>(
+      sql`SELECT COALESCE(SUM(distance_mi), 0)::float AS miles, COALESCE(SUM(total_load), 0)::float AS load, COUNT(*)::int AS sessions FROM workouts WHERE date BETWEEN ${startDate} AND ${endDate} AND equipment <> ${LIFESTYLE_EQUIPMENT}`,
+    ),
+    db.execute<{ minutes: number }>(
+      sql`SELECT COALESCE(SUM(duration_min), 0)::float AS minutes FROM workouts WHERE date BETWEEN ${startDate} AND ${endDate} AND equipment = ${LIFESTYLE_EQUIPMENT}`,
+    ),
+  ]);
   // Task #34: rolling 4-week average of lifestyle minutes across the
   // plan_weeks immediately preceding the active week. The dashboard's
   // Lifestyle Minutes row uses this baseline to show whether the runner
@@ -64,9 +71,81 @@ router.get("/dashboard/summary", async (_req, res) => {
     priorWeeksLifestyle && priorWeeksLifestyle.rows.length === 4
       ? priorWeeksLifestyle.rows.reduce((sum, r) => sum + (r.minutes ?? 0), 0) / 4
       : null;
-  const weekPlanned = await db.execute<{ planned_sessions: number }>(
-    sql`SELECT COUNT(*)::int AS planned_sessions FROM plan_days WHERE week = ${weekRow?.week ?? 0} AND is_rest = false`,
-  );
+  // Task #382: weekPlanned + the campaign-wide aggregates below
+  // (allTime, longestRunActual, lastMeas, bodyTargets, adherence,
+  // adherenceByProgram, activeRaceDate, lastDayRows) are mutually
+  // independent — they all consume already-resolved scalars
+  // (weekRow.week, today). Fan them out concurrently so /dashboard/
+  // summary's wall time is bounded by the slowest, not the sum.
+  const [
+    weekPlanned,
+    allTime,
+    longestRunActual,
+    lastMeas,
+    bodyTargets,
+    adherence,
+    adherenceByProgram,
+    activeRaceDate,
+    lastDayRows,
+  ] = await Promise.all([
+    db.execute<{ planned_sessions: number }>(
+      sql`SELECT COUNT(*)::int AS planned_sessions FROM plan_days WHERE week = ${weekRow?.week ?? 0} AND is_rest = false`,
+    ),
+    db.execute<{ total_miles: number }>(
+      sql`SELECT COALESCE(SUM(distance_mi), 0)::float AS total_miles FROM workouts`,
+    ),
+    db.execute<{ longest: number }>(
+      sql`SELECT COALESCE(MAX(distance_mi), 0)::float AS longest FROM workouts WHERE session_type IN ('Long Run', 'Race')`,
+    ),
+    db.execute<{ weight: number | null }>(
+      sql`SELECT weight FROM measurements WHERE weight IS NOT NULL ORDER BY date DESC LIMIT 1`,
+    ),
+    readActiveBodyTargets(),
+    db.execute<{ planned: number; completed: number }>(
+      sql`SELECT
+        (SELECT COUNT(*)::int FROM plan_days WHERE date <= ${today} AND is_rest = false) AS planned,
+        (SELECT COUNT(*)::int FROM plan_days pd
+          WHERE pd.date <= ${today} AND pd.is_rest = false
+            AND EXISTS (
+              SELECT 1 FROM workouts w
+              WHERE w.session_type <> 'Skipped'
+                AND w.plan_day_id = pd.id
+            )
+        ) AS completed`,
+    ),
+    db.execute<{
+      source_entry_index: number;
+      planned: number;
+      completed: number;
+    }>(
+      sql`
+        SELECT pd.source_entry_index,
+          COUNT(*) FILTER (WHERE pd.is_rest = false AND pd.date <= ${today})::int AS planned,
+          COUNT(*) FILTER (
+            WHERE pd.is_rest = false
+              AND pd.date <= ${today}
+              AND EXISTS (
+                SELECT 1 FROM workouts w
+                WHERE w.session_type <> 'Skipped'
+                  AND w.plan_day_id = pd.id
+              )
+          )::int AS completed
+        FROM plan_days pd
+        GROUP BY pd.source_entry_index
+      `,
+    ),
+    readActiveRaceDate(),
+    db.execute<{
+      distance_mi: number | null;
+      description: string | null;
+      session_type: string | null;
+    }>(
+      sql`SELECT distance_mi, description, session_type
+          FROM plan_days
+          ORDER BY date DESC, source_entry_index ASC
+          LIMIT 1`,
+    ),
+  ]);
 
   // Task #144: per-program breakdown of THIS week's planned and actual
   // training load. We aggregate planned values from plan_days grouped by
@@ -170,23 +249,12 @@ router.get("/dashboard/summary", async (_req, res) => {
     return Math.max(0, Math.min(1, (now - start) / (end - start))) * 100;
   })();
 
-  const allTime = await db.execute<{ total_miles: number }>(
-    sql`SELECT COALESCE(SUM(distance_mi), 0)::float AS total_miles FROM workouts`,
-  );
-  const longestRunActual = await db.execute<{ longest: number }>(
-    sql`SELECT COALESCE(MAX(distance_mi), 0)::float AS longest FROM workouts WHERE session_type IN ('Long Run', 'Race')`,
-  );
-
-  const lastMeas = await db.execute<{ weight: number | null }>(
-    sql`SELECT weight FROM measurements WHERE weight IS NOT NULL ORDER BY date DESC LIMIT 1`,
-  );
   const currentWeight = lastMeas.rows[0]?.weight ?? null;
 
   // Task #330. Body-mass targets — applied snapshot wins, then
   // earliest measurement (start only), then null sentinels. The
   // dashboard Body Mass tile and the /plan header read from the same
   // helpers so they can never disagree on the resolved values.
-  const bodyTargets = await readActiveBodyTargets();
   const weightStart =
     bodyTargets.startWeight ?? (await readEarliestMeasurementWeight());
   const weightGoal = bodyTargets.goalWeight;
@@ -198,18 +266,6 @@ router.get("/dashboard/summary", async (_req, res) => {
   // plan_day_id. Task #295 retired the legacy `plan_day_id IS NULL`
   // date-only fallback once every workout carried a real plan_day_id
   // (backfill + post-merge orphan check).
-  const adherence = await db.execute<{ planned: number; completed: number }>(
-    sql`SELECT
-      (SELECT COUNT(*)::int FROM plan_days WHERE date <= ${today} AND is_rest = false) AS planned,
-      (SELECT COUNT(*)::int FROM plan_days pd
-        WHERE pd.date <= ${today} AND pd.is_rest = false
-          AND EXISTS (
-            SELECT 1 FROM workouts w
-            WHERE w.session_type <> 'Skipped'
-              AND w.plan_day_id = pd.id
-          )
-      ) AS completed`,
-  );
   const planned = adherence.rows[0]?.planned ?? 0;
   const completed = adherence.rows[0]?.completed ?? 0;
   const adherencePct = planned > 0 ? Math.min(100, (completed / planned) * 100) : 0;
@@ -218,27 +274,6 @@ router.get("/dashboard/summary", async (_req, res) => {
   // can surface which program is dragging the combined `adherencePct`
   // down. Same plan_day-level attribution rules as the combined query
   // above but grouped by `source_entry_index`.
-  const adherenceByProgram = await db.execute<{
-    source_entry_index: number;
-    planned: number;
-    completed: number;
-  }>(
-    sql`
-      SELECT pd.source_entry_index,
-        COUNT(*) FILTER (WHERE pd.is_rest = false AND pd.date <= ${today})::int AS planned,
-        COUNT(*) FILTER (
-          WHERE pd.is_rest = false
-            AND pd.date <= ${today}
-            AND EXISTS (
-              SELECT 1 FROM workouts w
-              WHERE w.session_type <> 'Skipped'
-                AND w.plan_day_id = pd.id
-            )
-        )::int AS completed
-      FROM plan_days pd
-      GROUP BY pd.source_entry_index
-    `,
-  );
   const adherenceByIndex = new Map(
     adherenceByProgram.rows.map((r) => [
       r.source_entry_index,
@@ -263,7 +298,6 @@ router.get("/dashboard/summary", async (_req, res) => {
   // the dashboard race-only surfaces (countdown, "Race Campaign" framing)
   // fall back to the generic "Workout Plan" header copy that already
   // gates on `raceKind`.
-  const activeRaceDate = await readActiveRaceDate();
   const daysToRace = activeRaceDate
     ? Math.max(0, Math.ceil((new Date(activeRaceDate).getTime() - Date.now()) / (24 * 3600 * 1000)))
     : 0;
@@ -277,16 +311,6 @@ router.get("/dashboard/summary", async (_req, res) => {
   // marathon framing. Tonal-first / ad-hoc Custom blocks produce no
   // recognised race row, so this stays null and the dashboard keeps
   // its generic header copy.
-  const lastDayRows = await db.execute<{
-    distance_mi: number | null;
-    description: string | null;
-    session_type: string | null;
-  }>(
-    sql`SELECT distance_mi, description, session_type
-        FROM plan_days
-        ORDER BY date DESC, source_entry_index ASC
-        LIMIT 1`,
-  );
   const lastDay = lastDayRows.rows[0];
   const raceKind = lastDay
     ? detectRaceKind(lastDay.distance_mi, lastDay.description, lastDay.session_type)
