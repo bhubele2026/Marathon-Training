@@ -274,9 +274,21 @@ async function main() {
   process.exit(0);
 }
 
-const invokedDirectly =
-  import.meta.url === `file://${process.argv[1]}` ||
-  process.argv[1]?.endsWith("backfill-pace-target-cards.ts");
+// IMPORTANT: do NOT use `import.meta.url === file://${process.argv[1]}`
+// as a "ran directly" guard here. When this module is imported into
+// the api-server (`POST /api/planner/applied/starting-pace` calls
+// `backfillPaceTargetCards()`), esbuild bundles this whole file into
+// `artifacts/api-server/dist/index.mjs` — and the bundled chunk's
+// `import.meta.url` then resolves to the same `dist/index.mjs` that
+// `process.argv[1]` points at, so the guard would fire on every
+// api-server boot, run `main()`, and then `process.exit(0)` would
+// kill the server right after `app.listen` — silent crash, deploy
+// Promote stage 502s. (Task #370 regression — caught locally before
+// the next deploy.) The `endsWith(".ts")` check is the only safe
+// signal because the bundled entry never carries a `.ts` extension.
+const invokedDirectly = process.argv[1]?.endsWith(
+  "backfill-pace-target-cards.ts",
+);
 if (invokedDirectly) {
   main().catch((e) => {
     console.error(e);
