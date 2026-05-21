@@ -284,6 +284,7 @@ router.get("/plan/overview", async (_req, res) => {
     lastAppliedAt,
     lastAppliedConfigId,
     coachUpgradeAvailable,
+    startingPaceSec: appliedConfig?.startingPaceSec ?? null,
   });
 });
 

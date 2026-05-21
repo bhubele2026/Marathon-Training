@@ -803,6 +803,43 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
 
+  /planner/applied/starting-pace:
+    post:
+      operationId: updateAppliedStartingPace
+      tags: [planner]
+      description: |
+        Task #370. In-place re-pace of the already-applied campaign.
+        Updates `applied_starting_pace_sec` on the most-recently-applied
+        planner_configs row AND mirrors the new value back into the source
+        `starting_pace_sec` column, then runs the pace-target backfill to
+        regenerate uncustomized run cards in place. Workouts, body
+        measurements, race results, race-week checklist, and ANY /plan-
+        edited day cards (where runtime values diverge from prior seed)
+        are preserved. Use this instead of /planner/apply when the only
+        thing that needs to change is the starting easy pace — apply
+        TRUNCATEs plan_days and loses every per-day customization.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateAppliedStartingPaceBody" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UpdateAppliedStartingPaceResponse" }
+        "400":
+          description: Invalid startingPaceSec value
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: No applied planner config
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
   /preferences:
     get:
       operationId: getUserPreferences
@@ -1726,6 +1763,7 @@ components:
           lastAppliedAt,
           lastAppliedConfigId,
           coachUpgradeAvailable,
+          startingPaceSec,
         ]
       properties:
         hasPlan:
@@ -1907,6 +1945,17 @@ components:
             numbers are out of date. Drives the /plan page's
             dismissable nudge banner. Always false when nothing has
             been applied yet (the EmptyPlanState CTA covers that case).
+        startingPaceSec:
+          type: integer
+          nullable: true
+          description: |
+            Task #370. Currently-applied starting easy pace (sec/mi),
+            sourced from `planner_configs.appliedStartingPaceSec` on
+            the most-recently-applied row. NULL when no config has
+            been applied OR the runner cleared the override (the
+            generator then falls back to the recipe-default easy pace).
+            Drives the /plan header's "Update Starting Pace" dialog
+            so the form can pre-fill with the current value.
 
     TodayPlan:
       type: object
@@ -3358,3 +3407,49 @@ components:
         measurementsPreserved: { type: integer }
         undoSnapshotsWiped: { type: integer }
         totalWeeks: { type: integer }
+
+    UpdateAppliedStartingPaceBody:
+      type: object
+      required: [startingPaceSec]
+      properties:
+        startingPaceSec:
+          type: integer
+          nullable: true
+          minimum: 360
+          maximum: 1500
+          description: |
+            Runner's starting easy pace in seconds/mile. Null clears the
+            override, so the generator falls back to the first block's
+            recipe easy pace (Task #367 default).
+
+    UpdateAppliedStartingPaceResponse:
+      type: object
+      required:
+        [
+          startingPaceSec,
+          scanned,
+          seedUpdated,
+          runtimeUpdated,
+          customizedSkipped,
+          outOfScopeSkipped,
+        ]
+      properties:
+        startingPaceSec:
+          type: integer
+          nullable: true
+          description: The newly-applied starting pace (echoes the request value).
+        scanned:
+          type: integer
+          description: Run-card plan_days inspected by the backfill.
+        seedUpdated:
+          type: integer
+          description: Run-card rows whose seed_* columns were patched.
+        runtimeUpdated:
+          type: integer
+          description: Subset of seedUpdated whose runtime columns were also patched (rows the runner had NOT customized through /plan).
+        customizedSkipped:
+          type: integer
+          description: Rows the runner had customized through /plan — seed patched but runtime preserved.
+        outOfScopeSkipped:
+          type: integer
+          description: Non-run rows skipped by the backfill scope guard.

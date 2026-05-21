@@ -1,6 +1,8 @@
 import { useState } from "react";
 import {
+  getGetPlanOverviewQueryKey,
   getGetPlanWeekQueryKey,
+  getListPlanWeeksQueryKey,
   useActivatePlannerConfig,
   useApplyPlannerConfig,
   useFullResetPlan,
@@ -9,6 +11,7 @@ import {
   useListPlanWeeks,
   useResetPlan,
   useUndoPlanReset,
+  useUpdateAppliedStartingPace,
 } from "@workspace/api-client-react";
 import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
 import { useQueryClient } from "@tanstack/react-query";
@@ -29,6 +32,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { FullResetDialog } from "@/components/full-reset-dialog";
 import { EmptyPlanState } from "@/components/empty-plan-state";
@@ -170,6 +181,9 @@ export default function Plan() {
   const [resetPlanOpen, setResetPlanOpen] = useState(false);
   const [resetPlanConfirmText, setResetPlanConfirmText] = useState("");
   const [fullResetOpen, setFullResetOpen] = useState(false);
+  const [repaceOpen, setRepaceOpen] = useState(false);
+  const [repaceInput, setRepaceInput] = useState("");
+  const updateStartingPace = useUpdateAppliedStartingPace();
   const [dismissedVersion, setDismissedVersion] = useState<string | null>(
     () => {
       if (typeof window === "undefined") return null;
@@ -511,15 +525,36 @@ export default function Plan() {
             )}
           </div>
         </div>
+        <div className="flex items-center gap-2 self-start md:self-auto">
         <Button
           variant="outline"
           size="sm"
-          className="text-xs uppercase font-bold tracking-wider text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive self-start md:self-auto"
+          className="text-xs uppercase font-bold tracking-wider"
+          onClick={() => {
+            setRepaceInput(
+              overview.startingPaceSec != null
+                ? `${Math.floor(overview.startingPaceSec / 60)}:${String(
+                    overview.startingPaceSec % 60,
+                  ).padStart(2, "0")}`
+                : "",
+            );
+            setRepaceOpen(true);
+          }}
+          disabled={!overview.hasPlan}
+          data-testid="button-update-starting-pace"
+        >
+          Update Starting Pace
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs uppercase font-bold tracking-wider text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
           onClick={() => setResetPlanOpen(true)}
           data-testid="button-reset-plan"
         >
           <RotateCcw className="h-3 w-3 mr-1.5" /> Reset Entire Plan
         </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1068,6 +1103,139 @@ export default function Plan() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog
+        open={repaceOpen}
+        onOpenChange={(open) => {
+          if (updateStartingPace.isPending) return;
+          setRepaceOpen(open);
+        }}
+      >
+        <DialogContent data-testid="dialog-update-starting-pace">
+          <DialogHeader>
+            <DialogTitle>Update starting pace</DialogTitle>
+            <DialogDescription>
+              Re-paces every future easy/long run in your applied plan
+              from this starting point. The new pace ramps from here as
+              the campaign progresses. Your logged workouts, body
+              measurements, race results, and any day cards you've
+              edited on /plan are preserved. Leave the field blank to
+              clear the override and fall back to the recipe default.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label
+              htmlFor="repace-input"
+              className="text-xs uppercase tracking-wider"
+            >
+              Starting easy pace (mm:ss per mile)
+            </Label>
+            <Input
+              id="repace-input"
+              autoFocus
+              value={repaceInput}
+              onChange={(e) => setRepaceInput(e.target.value)}
+              placeholder="14:30"
+              disabled={updateStartingPace.isPending}
+              data-testid="input-starting-pace"
+            />
+            <p className="text-xs text-muted-foreground">
+              Must be between 6:00 and 25:00 per mile.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRepaceOpen(false)}
+              disabled={updateStartingPace.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={updateStartingPace.isPending}
+              onClick={() => {
+                const trimmed = repaceInput.trim();
+                let startingPaceSec: number | null;
+                if (trimmed === "") {
+                  startingPaceSec = null;
+                } else {
+                  const m = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+                  if (!m) {
+                    toast({
+                      title: "Couldn't parse pace",
+                      description:
+                        "Use mm:ss format, e.g. 14:30. Leave blank to clear the override.",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  const min = Number(m[1]);
+                  const sec = Number(m[2]);
+                  if (sec >= 60) {
+                    toast({
+                      title: "Couldn't parse pace",
+                      description: "Seconds must be 0-59.",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  startingPaceSec = min * 60 + sec;
+                  if (startingPaceSec < 360 || startingPaceSec > 1500) {
+                    toast({
+                      title: "Pace out of range",
+                      description:
+                        "Starting pace must be between 6:00 and 25:00 per mile.",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                }
+                updateStartingPace.mutate(
+                  { data: { startingPaceSec } },
+                  {
+                    onSuccess: (data) => {
+                      toast({
+                        title: "Starting pace updated",
+                        description:
+                          data.runtimeUpdated > 0
+                            ? `Re-paced ${data.runtimeUpdated} run card${
+                                data.runtimeUpdated === 1 ? "" : "s"
+                              }${
+                                data.customizedSkipped > 0
+                                  ? ` · ${data.customizedSkipped} customized day${data.customizedSkipped === 1 ? "" : "s"} preserved`
+                                  : ""
+                              }.`
+                            : "No run cards needed updating.",
+                      });
+                      setRepaceOpen(false);
+                      queryClient.invalidateQueries({
+                        queryKey: getGetPlanOverviewQueryKey(),
+                      });
+                      queryClient.invalidateQueries({
+                        queryKey: getListPlanWeeksQueryKey(),
+                      });
+                      invalidateMissionRelatedQueries(queryClient);
+                    },
+                    onError: () => {
+                      toast({
+                        title: "Couldn't update starting pace",
+                        description:
+                          "Apply a Phase Planner config first, then try again.",
+                        variant: "destructive",
+                      });
+                    },
+                  },
+                );
+              }}
+              data-testid="button-confirm-update-starting-pace"
+            >
+              {updateStartingPace.isPending ? "Updating…" : "Update"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <FullResetDialog
         open={fullResetOpen}

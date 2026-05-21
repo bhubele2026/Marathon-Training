@@ -135,6 +135,12 @@ export const GetPlanOverviewResponse = zod.object({
     .describe(
       "Task #354. True when there is an applied planner config AND\nits `lastAppliedAt` predates the server's current\n`scienceVersion` — i.e. the generator has been upgraded\nsince the runner last applied their plan and the visible\nnumbers are out of date. Drives the \/plan page's\ndismissable nudge banner. Always false when nothing has\nbeen applied yet (the EmptyPlanState CTA covers that case).\n",
     ),
+  startingPaceSec: zod
+    .number()
+    .nullable()
+    .describe(
+      'Task #370. Currently-applied starting easy pace (sec\/mi),\nsourced from `planner_configs.appliedStartingPaceSec` on\nthe most-recently-applied row. NULL when no config has\nbeen applied OR the runner cleared the override (the\ngenerator then falls back to the recipe-default easy pace).\nDrives the \/plan header\'s \"Update Starting Pace\" dialog\nso the form can pre-fill with the current value.\n',
+    ),
 });
 
 export const ListPlanWeeksResponseItem = zod.object({
@@ -3781,6 +3787,59 @@ export const ApplyPlannerConfigResponse = zod
   .describe(
     "Result of regenerating plan_weeks and plan_days from the saved Planner config. Workouts and measurements are preserved (not wiped); reset undo snapshots are dropped because their plan_day ids no longer match.",
   );
+
+/**
+ * Task #370. In-place re-pace of the already-applied campaign.
+Updates `applied_starting_pace_sec` on the most-recently-applied
+planner_configs row AND mirrors the new value back into the source
+`starting_pace_sec` column, then runs the pace-target backfill to
+regenerate uncustomized run cards in place. Workouts, body
+measurements, race results, race-week checklist, and ANY /plan-
+edited day cards (where runtime values diverge from prior seed)
+are preserved. Use this instead of /planner/apply when the only
+thing that needs to change is the starting easy pace — apply
+TRUNCATEs plan_days and loses every per-day customization.
+
+ */
+export const updateAppliedStartingPaceBodyStartingPaceSecMin = 360;
+export const updateAppliedStartingPaceBodyStartingPaceSecMax = 1500;
+
+export const UpdateAppliedStartingPaceBody = zod.object({
+  startingPaceSec: zod
+    .number()
+    .min(updateAppliedStartingPaceBodyStartingPaceSecMin)
+    .max(updateAppliedStartingPaceBodyStartingPaceSecMax)
+    .nullable()
+    .describe(
+      "Runner's starting easy pace in seconds\/mile. Null clears the\noverride, so the generator falls back to the first block's\nrecipe easy pace (Task #367 default).\n",
+    ),
+});
+
+export const UpdateAppliedStartingPaceResponse = zod.object({
+  startingPaceSec: zod
+    .number()
+    .nullable()
+    .describe("The newly-applied starting pace (echoes the request value)."),
+  scanned: zod
+    .number()
+    .describe("Run-card plan_days inspected by the backfill."),
+  seedUpdated: zod
+    .number()
+    .describe("Run-card rows whose seed_\* columns were patched."),
+  runtimeUpdated: zod
+    .number()
+    .describe(
+      "Subset of seedUpdated whose runtime columns were also patched (rows the runner had NOT customized through \/plan).",
+    ),
+  customizedSkipped: zod
+    .number()
+    .describe(
+      "Rows the runner had customized through \/plan — seed patched but runtime preserved.",
+    ),
+  outOfScopeSkipped: zod
+    .number()
+    .describe("Non-run rows skipped by the backfill scope guard."),
+});
 
 /**
  * Read the singleton user preferences row. Lazily seeded with defaults on first read so the client never has to handle a missing-prefs case.

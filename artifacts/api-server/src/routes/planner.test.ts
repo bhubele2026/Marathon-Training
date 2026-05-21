@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import {
   db,
   measurementsTable,
+  planDaysTable,
   planWeeksTable,
   plannerConfigsTable,
   resetUndoSnapshotsTable,
@@ -14,6 +15,7 @@ import {
   ListPlannerConfigsResponse,
   ApplyPlannerConfigResponse,
   DeletePlannerConfigResponse,
+  UpdateAppliedStartingPaceResponse,
 } from "@workspace/api-zod";
 import {
   MARATHON_TAIL_WEEKS,
@@ -614,6 +616,121 @@ describe("POST /api/planner/apply", () => {
 
     // Cleanup: re-activate A so subsequent suites have a sane state.
     await request(app).post(`/api/planner/configs/${a.id}/activate`);
+  });
+});
+
+// Task #370. In-place re-pace of an already-applied campaign without
+// TRUNCATEing plan_days (which would lose per-day customizations).
+describe("POST /api/planner/applied/starting-pace", () => {
+  it("404s when no planner config has ever been applied", async () => {
+    await db.delete(plannerConfigsTable);
+    const res = await request(app)
+      .post("/api/planner/applied/starting-pace")
+      .send({ startingPaceSec: 720 });
+    expect(res.status).toBe(404);
+  });
+
+  it("400s on out-of-range startingPaceSec", async () => {
+    await createCanonicalConfig("Re-pace target");
+    await request(app).post("/api/planner/apply").expect(200);
+    const tooLow = await request(app)
+      .post("/api/planner/applied/starting-pace")
+      .send({ startingPaceSec: 100 });
+    expect(tooLow.status).toBe(400);
+    const tooHigh = await request(app)
+      .post("/api/planner/applied/starting-pace")
+      .send({ startingPaceSec: 9999 });
+    expect(tooHigh.status).toBe(400);
+    const notInt = await request(app)
+      .post("/api/planner/applied/starting-pace")
+      .send({ startingPaceSec: 12.5 });
+    expect(notInt.status).toBe(400);
+  });
+
+  it("updates both starting_pace_sec and applied_starting_pace_sec on the most-recently-applied row, and patches uncustomized run seeds", async () => {
+    await createCanonicalConfig("Re-pace target");
+    await request(app).post("/api/planner/apply").expect(200);
+
+    // Pick a run-card row and customize ONE of them so we can prove
+    // customized rows are preserved.
+    const runRows = await db
+      .select()
+      .from(planDaysTable)
+      .where(sql`${planDaysTable.runMin} > 0`);
+    expect(runRows.length).toBeGreaterThan(0);
+    const customized = runRows[0]!;
+    await db
+      .update(planDaysTable)
+      .set({ description: "RUNNER CUSTOMIZED — do not overwrite" })
+      .where(sql`${planDaysTable.id} = ${customized.id}`);
+
+    const NEW_PACE = 900; // 15:00/mi — much slower than the default
+    const res = await request(app)
+      .post("/api/planner/applied/starting-pace")
+      .send({ startingPaceSec: NEW_PACE });
+    expect(res.status).toBe(200);
+    expectMatchesSchema(UpdateAppliedStartingPaceResponse, res.body);
+    expect(res.body.startingPaceSec).toBe(NEW_PACE);
+    expect(res.body.runtimeUpdated).toBeGreaterThan(0);
+
+    // Source + applied snapshot both moved.
+    const cfgs = await db.select().from(plannerConfigsTable);
+    expect(cfgs[0]!.startingPaceSec).toBe(NEW_PACE);
+    expect(cfgs[0]!.appliedStartingPaceSec).toBe(NEW_PACE);
+
+    // Customized row preserved.
+    const after = await db
+      .select()
+      .from(planDaysTable)
+      .where(sql`${planDaysTable.id} = ${customized.id}`);
+    expect(after[0]!.description).toBe("RUNNER CUSTOMIZED — do not overwrite");
+  });
+
+  it("idempotent — second call patches nothing", async () => {
+    await createCanonicalConfig("Re-pace idempotent");
+    await request(app).post("/api/planner/apply").expect(200);
+    await request(app)
+      .post("/api/planner/applied/starting-pace")
+      .send({ startingPaceSec: 900 })
+      .expect(200);
+    const second = await request(app)
+      .post("/api/planner/applied/starting-pace")
+      .send({ startingPaceSec: 900 });
+    expect(second.status).toBe(200);
+    expect(second.body.runtimeUpdated).toBe(0);
+  });
+
+  it("flows through to /api/plan/overview.startingPaceSec", async () => {
+    await createCanonicalConfig("Re-pace overview");
+    await request(app).post("/api/planner/apply").expect(200);
+
+    await request(app)
+      .post("/api/planner/applied/starting-pace")
+      .send({ startingPaceSec: 900 })
+      .expect(200);
+    const ov1 = await request(app).get("/api/plan/overview");
+    expect(ov1.status).toBe(200);
+    expect(ov1.body.startingPaceSec).toBe(900);
+
+    await request(app)
+      .post("/api/planner/applied/starting-pace")
+      .send({ startingPaceSec: null })
+      .expect(200);
+    const ov2 = await request(app).get("/api/plan/overview");
+    expect(ov2.body.startingPaceSec).toBeNull();
+  });
+
+  it("accepts null to clear the override", async () => {
+    await createCanonicalConfig("Re-pace null");
+    await request(app).post("/api/planner/apply").expect(200);
+    const res = await request(app)
+      .post("/api/planner/applied/starting-pace")
+      .send({ startingPaceSec: null });
+    expect(res.status).toBe(200);
+    expect(res.body.startingPaceSec).toBeNull();
+    const cfgs = await db.select().from(plannerConfigsTable);
+    expect(cfgs[0]!.startingPaceSec).toBeNull();
+    expect(cfgs[0]!.appliedStartingPaceSec).toBeNull();
   });
 });
 

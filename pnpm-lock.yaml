@@ -175,6 +175,9 @@ importers:
       '@workspace/plan-generator':
         specifier: workspace:*
         version: link:../../lib/plan-generator
+      '@workspace/scripts':
+        specifier: workspace:*
+        version: link:../../scripts
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7

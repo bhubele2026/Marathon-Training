@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./backfill-pace-target-cards": "./src/backfill-pace-target-cards.ts"
+  },
   "scripts": {
     "hello": "tsx ./src/hello.ts",
     "generate-plan": "tsx ./src/generate-plan.ts",

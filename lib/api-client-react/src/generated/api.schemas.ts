@@ -641,6 +641,15 @@ dismissable nudge banner. Always false when nothing has
 been applied yet (the EmptyPlanState CTA covers that case).
  */
   coachUpgradeAvailable: boolean;
+  /** Task #370. Currently-applied starting easy pace (sec/mi),
+sourced from `planner_configs.appliedStartingPaceSec` on
+the most-recently-applied row. NULL when no config has
+been applied OR the runner cleared the override (the
+generator then falls back to the recipe-default easy pace).
+Drives the /plan header's "Update Starting Pace" dialog
+so the form can pre-fill with the current value.
+ */
+  startingPaceSec: number | null;
 }
 
 /**
@@ -1889,6 +1898,33 @@ export interface ApplyPlannerConfigResponse {
   measurementsPreserved: number;
   undoSnapshotsWiped: number;
   totalWeeks: number;
+}
+
+export interface UpdateAppliedStartingPaceBody {
+  /**
+   * Runner's starting easy pace in seconds/mile. Null clears the
+override, so the generator falls back to the first block's
+recipe easy pace (Task #367 default).
+
+   * @minimum 360
+   * @maximum 1500
+   */
+  startingPaceSec: number | null;
+}
+
+export interface UpdateAppliedStartingPaceResponse {
+  /** The newly-applied starting pace (echoes the request value). */
+  startingPaceSec: number | null;
+  /** Run-card plan_days inspected by the backfill. */
+  scanned: number;
+  /** Run-card rows whose seed_* columns were patched. */
+  seedUpdated: number;
+  /** Subset of seedUpdated whose runtime columns were also patched (rows the runner had NOT customized through /plan). */
+  runtimeUpdated: number;
+  /** Rows the runner had customized through /plan — seed patched but runtime preserved. */
+  customizedSkipped: number;
+  /** Non-run rows skipped by the backfill scope guard. */
+  outOfScopeSkipped: number;
 }
 
 export type ListWorkoutsParams = {

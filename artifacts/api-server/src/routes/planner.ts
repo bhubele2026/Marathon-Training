@@ -25,6 +25,7 @@ import {
   type FocusType,
   type TemplateEntry,
 } from "@workspace/plan-generator";
+import { backfillPaceTargetCards } from "@workspace/scripts/backfill-pace-target-cards";
 
 const router: IRouter = Router();
 
@@ -145,6 +146,11 @@ export async function readLastAppliedPlannerConfig(): Promise<PlannerConfig | nu
     // /plan/full-reset re-runs the generator with the SAME budget the
     // runner originally applied.
     dailyBudget: row.appliedDailyBudget ?? null,
+    // Task #370. Surface the snapshotted starting-pace override so
+    // `/plan/overview` can pre-fill the Update Starting Pace dialog
+    // and the in-place re-pace endpoint reads the current applied
+    // value (not the source row's draft startingPaceSec).
+    startingPaceSec: row.appliedStartingPaceSec ?? null,
   };
 }
 
@@ -686,6 +692,72 @@ router.post("/planner/configs/:id/activate", async (req, res): Promise<void> => 
   }
   req.log.info({ id, name: updated.name }, "planner config activated");
   res.json(toPlannerConfig(updated));
+});
+
+// Task #370: in-place re-pace of the already-applied campaign.
+// Updates `applied_starting_pace_sec` on the most-recently-applied
+// planner_configs row AND mirrors the new value back into the source
+// `starting_pace_sec` column so the next /planner/apply (or a Full
+// Reset + re-apply) re-uses it. Then runs the pace-target backfill
+// to regenerate uncustomized run cards in place. Workouts,
+// measurements, race results, race-week checklist, and ANY /plan-
+// edited day cards are preserved.
+router.post("/planner/applied/starting-pace", async (req, res): Promise<void> => {
+  const body = req.body as { startingPaceSec?: unknown } | undefined;
+  const raw = body?.startingPaceSec;
+  let startingPaceSec: number | null;
+  if (raw === null || raw === undefined) {
+    startingPaceSec = null;
+  } else if (
+    typeof raw === "number" &&
+    Number.isInteger(raw) &&
+    raw >= 360 &&
+    raw <= 1500
+  ) {
+    startingPaceSec = raw;
+  } else {
+    res.status(400).json({
+      error:
+        "startingPaceSec must be an integer between 360 and 1500 seconds/mi, or null.",
+    });
+    return;
+  }
+
+  const cfgRows = await db
+    .select()
+    .from(plannerConfigsTable)
+    .where(sql`${plannerConfigsTable.lastAppliedAt} IS NOT NULL`)
+    .orderBy(desc(plannerConfigsTable.lastAppliedAt))
+    .limit(1);
+  const cfg = cfgRows[0];
+  if (!cfg) {
+    res.status(404).json({
+      error: "No applied planner config to re-pace. Apply a config first.",
+    });
+    return;
+  }
+
+  await db
+    .update(plannerConfigsTable)
+    .set({
+      startingPaceSec,
+      appliedStartingPaceSec: startingPaceSec,
+    })
+    .where(eq(plannerConfigsTable.id, cfg.id));
+
+  const result = await backfillPaceTargetCards();
+
+  req.log.warn(
+    {
+      configId: cfg.id,
+      configName: cfg.name,
+      startingPaceSec,
+      ...result,
+    },
+    "planner starting pace updated in place — pace-target backfill applied",
+  );
+
+  res.json({ startingPaceSec, ...result });
 });
 
 // Apply the active Planner config: regenerate plan_weeks/plan_days,

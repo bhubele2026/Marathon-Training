@@ -58,6 +58,8 @@ import type {
   UndoPlanResetBody,
   UndoPlanResetResponse,
   UnlinkedWorkoutsCount,
+  UpdateAppliedStartingPaceBody,
+  UpdateAppliedStartingPaceResponse,
   UpdateMeasurementBody,
   UpdatePlanDayBody,
   UpdatePlannerConfigBody,
@@ -3020,6 +3022,103 @@ export const useApplyPlannerConfig = <
   TContext
 > => {
   return useMutation(getApplyPlannerConfigMutationOptions(options));
+};
+
+/**
+ * Task #370. In-place re-pace of the already-applied campaign.
+Updates `applied_starting_pace_sec` on the most-recently-applied
+planner_configs row AND mirrors the new value back into the source
+`starting_pace_sec` column, then runs the pace-target backfill to
+regenerate uncustomized run cards in place. Workouts, body
+measurements, race results, race-week checklist, and ANY /plan-
+edited day cards (where runtime values diverge from prior seed)
+are preserved. Use this instead of /planner/apply when the only
+thing that needs to change is the starting easy pace — apply
+TRUNCATEs plan_days and loses every per-day customization.
+
+ */
+export const getUpdateAppliedStartingPaceUrl = () => {
+  return `/api/planner/applied/starting-pace`;
+};
+
+export const updateAppliedStartingPace = async (
+  updateAppliedStartingPaceBody: UpdateAppliedStartingPaceBody,
+  options?: RequestInit,
+): Promise<UpdateAppliedStartingPaceResponse> => {
+  return customFetch<UpdateAppliedStartingPaceResponse>(
+    getUpdateAppliedStartingPaceUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(updateAppliedStartingPaceBody),
+    },
+  );
+};
+
+export const getUpdateAppliedStartingPaceMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAppliedStartingPace>>,
+    TError,
+    { data: BodyType<UpdateAppliedStartingPaceBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateAppliedStartingPace>>,
+  TError,
+  { data: BodyType<UpdateAppliedStartingPaceBody> },
+  TContext
+> => {
+  const mutationKey = ["updateAppliedStartingPace"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateAppliedStartingPace>>,
+    { data: BodyType<UpdateAppliedStartingPaceBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateAppliedStartingPace(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateAppliedStartingPaceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateAppliedStartingPace>>
+>;
+export type UpdateAppliedStartingPaceMutationBody =
+  BodyType<UpdateAppliedStartingPaceBody>;
+export type UpdateAppliedStartingPaceMutationError = ErrorType<Error>;
+
+export const useUpdateAppliedStartingPace = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAppliedStartingPace>>,
+    TError,
+    { data: BodyType<UpdateAppliedStartingPaceBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateAppliedStartingPace>>,
+  TError,
+  { data: BodyType<UpdateAppliedStartingPaceBody> },
+  TContext
+> => {
+  return useMutation(getUpdateAppliedStartingPaceMutationOptions(options));
 };
 
 /**
