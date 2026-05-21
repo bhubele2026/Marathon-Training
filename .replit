@@ -5,7 +5,13 @@ router = "application"
 deploymentTarget = "autoscale"
 
 [deployment.postBuild]
-args = ["pnpm", "store", "prune"]
+# Task #363: run the shared schema-push + idempotent backfill sequence
+# (scripts/run-backfills.sh) against the production database on every
+# publish so data migrations land without requiring a Full Reset, then
+# prune the pnpm store to keep the deployed image small. Autoscale
+# runs postBuild ONCE per deploy in the build container before traffic
+# cuts over to the new revision; a non-zero exit fails the deploy.
+args = ["bash", "scripts/deploy-post-build.sh"]
 env = { "CI" = "true" }
 
 [workflows]
