@@ -1313,11 +1313,6 @@ export default function Planner() {
   }, [pendingApplyTemplate, pendingApplyStartDate, entries, startDate, marathonDate]);
 
   // ---- Derived timeline math (mirrors the server validator) -----------
-  const totalWeeks = totalWeeksBetween(startDate, marathonDate);
-  const expectedUserWeeks = Math.max(
-    0,
-    totalWeeks - (isMarathonMode ? MARATHON_TAIL_WEEKS : 0),
-  );
   const userWeeksSum = draft.reduce((s, b) => s + (b.weeks || 0), 0);
   const entriesWeeksSum = isEntriesMode
     ? entries!.reduce((s, e) => s + (e.weeks || 0), 0)
@@ -1337,6 +1332,25 @@ export default function Planner() {
   // This is what the server's totalWeeks invariant compares against in
   // entries-mode (each gap is filled with a Recovery block).
   const entriesProjectedWeeks = entriesWeeksSum + entriesGapWeeksSum;
+  // Task #379. When marathonDate is null (workout-planner mode), derive
+  // totalWeeks from the composition itself so the "Total weeks" stat
+  // and the validator's equality checks have meaningful values instead
+  // of collapsing to 0. Entries-mode uses the projected span (entry
+  // weeks + leading gaps); blocks-mode uses the raw block sum plus the
+  // 16-week MARATHON_TAIL when the "Training for a marathon?" toggle
+  // is on (mirrors the generator's expandPlannerBlocks gate). When
+  // marathonDate IS set, we keep the date-driven math so a runner who
+  // explicitly pinned race day still sees mismatch errors.
+  const compositionWeeks = isEntriesMode
+    ? entriesProjectedWeeks
+    : userWeeksSum + (isMarathonMode ? MARATHON_TAIL_WEEKS : 0);
+  const totalWeeks = marathonDate
+    ? totalWeeksBetween(startDate, marathonDate)
+    : compositionWeeks;
+  const expectedUserWeeks = Math.max(
+    0,
+    totalWeeks - (isMarathonMode ? MARATHON_TAIL_WEEKS : 0),
+  );
   const startDow = dayOfWeekUTC(startDate);
   const raceDow = dayOfWeekUTC(marathonDate);
 
