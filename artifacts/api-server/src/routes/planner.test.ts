@@ -732,6 +732,93 @@ describe("POST /api/planner/applied/starting-pace", () => {
     expect(cfgs[0]!.startingPaceSec).toBeNull();
     expect(cfgs[0]!.appliedStartingPaceSec).toBeNull();
   });
+
+  // Task #375. Lock down the three goalEndingPaceSec body modes on the
+  // applied/starting-pace endpoint:
+  //   - absent key   → leave the applied snapshot untouched
+  //   - explicit null → clear the override
+  //   - number       → validate + write to source + applied snapshot
+  describe("goalEndingPaceSec body modes (Task #373)", () => {
+    it("absent goalEndingPaceSec key leaves the applied snapshot untouched", async () => {
+      await createCanonicalConfig("Goal absent");
+      await request(app).post("/api/planner/apply").expect(200);
+
+      // Seed an existing goal so we can prove it survives a request that
+      // patches ONLY startingPaceSec.
+      await request(app)
+        .post("/api/planner/applied/starting-pace")
+        .send({ startingPaceSec: 900, goalEndingPaceSec: 600 })
+        .expect(200);
+
+      const res = await request(app)
+        .post("/api/planner/applied/starting-pace")
+        .send({ startingPaceSec: 870 });
+      expect(res.status).toBe(200);
+      // Response echoes the unchanged existing goal.
+      expect(res.body.goalEndingPaceSec).toBe(600);
+
+      const cfgs = await db.select().from(plannerConfigsTable);
+      expect(cfgs[0]!.goalEndingPaceSec).toBe(600);
+      expect(cfgs[0]!.appliedGoalEndingPaceSec).toBe(600);
+      expect(cfgs[0]!.startingPaceSec).toBe(870);
+      expect(cfgs[0]!.appliedStartingPaceSec).toBe(870);
+    });
+
+    it("explicit null clears the goal override on both source + applied snapshot", async () => {
+      await createCanonicalConfig("Goal null");
+      await request(app).post("/api/planner/apply").expect(200);
+      await request(app)
+        .post("/api/planner/applied/starting-pace")
+        .send({ startingPaceSec: 900, goalEndingPaceSec: 600 })
+        .expect(200);
+
+      const res = await request(app)
+        .post("/api/planner/applied/starting-pace")
+        .send({ goalEndingPaceSec: null });
+      expect(res.status).toBe(200);
+      expect(res.body.goalEndingPaceSec).toBeNull();
+
+      const cfgs = await db.select().from(plannerConfigsTable);
+      expect(cfgs[0]!.goalEndingPaceSec).toBeNull();
+      expect(cfgs[0]!.appliedGoalEndingPaceSec).toBeNull();
+      // startingPaceSec was absent on this call → must be left alone.
+      expect(cfgs[0]!.startingPaceSec).toBe(900);
+      expect(cfgs[0]!.appliedStartingPaceSec).toBe(900);
+    });
+
+    it("integer goalEndingPaceSec writes to both source + applied snapshot", async () => {
+      await createCanonicalConfig("Goal number");
+      await request(app).post("/api/planner/apply").expect(200);
+
+      const res = await request(app)
+        .post("/api/planner/applied/starting-pace")
+        .send({ startingPaceSec: 900, goalEndingPaceSec: 600 });
+      expect(res.status).toBe(200);
+      expect(res.body.startingPaceSec).toBe(900);
+      expect(res.body.goalEndingPaceSec).toBe(600);
+
+      const cfgs = await db.select().from(plannerConfigsTable);
+      expect(cfgs[0]!.goalEndingPaceSec).toBe(600);
+      expect(cfgs[0]!.appliedGoalEndingPaceSec).toBe(600);
+    });
+
+    it("400s on out-of-range or non-integer goalEndingPaceSec", async () => {
+      await createCanonicalConfig("Goal validation");
+      await request(app).post("/api/planner/apply").expect(200);
+      const tooLow = await request(app)
+        .post("/api/planner/applied/starting-pace")
+        .send({ goalEndingPaceSec: 100 });
+      expect(tooLow.status).toBe(400);
+      const tooHigh = await request(app)
+        .post("/api/planner/applied/starting-pace")
+        .send({ goalEndingPaceSec: 9999 });
+      expect(tooHigh.status).toBe(400);
+      const notInt = await request(app)
+        .post("/api/planner/applied/starting-pace")
+        .send({ goalEndingPaceSec: 600.5 });
+      expect(notInt.status).toBe(400);
+    });
+  });
 });
 
 // Task #244. /plan/overview and /dashboard/summary surface the active
