@@ -217,7 +217,22 @@ export default function Today() {
           <h2 className="text-3xl font-black uppercase tracking-tight text-primary">Today's Mission</h2>
           <p className="text-muted-foreground uppercase font-medium tracking-widest">{today.date}</p>
         </div>
-        <ChecklistNudge testId="today-checklist-reminder" />
+        <div className="flex items-center gap-2">
+          {campaignHasPlan && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs uppercase font-bold tracking-wider"
+              onClick={() => {
+                window.location.assign("/plan?repace=1");
+              }}
+              data-testid="button-today-adjust-pace"
+            >
+              Adjust Pace
+            </Button>
+          )}
+          <ChecklistNudge testId="today-checklist-reminder" />
+        </div>
       </div>
 
       {today.nextScheduledRace &&

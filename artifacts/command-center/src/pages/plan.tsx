@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   getGetPlanOverviewQueryKey,
   getGetPlanWeekQueryKey,
@@ -184,6 +184,31 @@ export default function Plan() {
   const [repaceOpen, setRepaceOpen] = useState(false);
   const [repaceInput, setRepaceInput] = useState("");
   const updateStartingPace = useUpdateAppliedStartingPace();
+
+  // Task #370: /today's "Adjust Pace" button deep-links here with
+  // ?repace=1 to auto-open the dialog (and then strip the param so a
+  // back/refresh doesn't keep reopening it).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("repace") === "1" && overview?.hasPlan) {
+      setRepaceInput(
+        overview.startingPaceSec != null
+          ? `${Math.floor(overview.startingPaceSec / 60)}:${String(
+              overview.startingPaceSec % 60,
+            ).padStart(2, "0")}`
+          : "",
+      );
+      setRepaceOpen(true);
+      params.delete("repace");
+      const next = params.toString();
+      window.history.replaceState(
+        null,
+        "",
+        window.location.pathname + (next ? `?${next}` : ""),
+      );
+    }
+  }, [overview?.hasPlan, overview?.startingPaceSec]);
   const [dismissedVersion, setDismissedVersion] = useState<string | null>(
     () => {
       if (typeof window === "undefined") return null;
