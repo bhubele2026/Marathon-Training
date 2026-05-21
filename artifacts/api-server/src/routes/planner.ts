@@ -720,9 +720,20 @@ router.post("/planner/applied/starting-pace", async (req, res): Promise<void> =>
     startingPaceSec?: unknown;
     goalEndingPaceSec?: unknown;
   };
+  // Task #373 (review fix). Both anchors are independently optional:
+  // absent key leaves the applied value untouched (so a runner can
+  // patch ONLY the goal without clobbering their starting pace, and
+  // vice versa); explicit null clears the override; a valid integer
+  // writes it.
+  const startProvided = Object.prototype.hasOwnProperty.call(
+    body,
+    "startingPaceSec",
+  );
   const raw = body.startingPaceSec;
-  let startingPaceSec: number | null;
-  if (raw === null || raw === undefined) {
+  let startingPaceSec: number | null | undefined;
+  if (!startProvided) {
+    startingPaceSec = undefined;
+  } else if (raw === null || raw === undefined) {
     startingPaceSec = null;
   } else if (
     typeof raw === "number" &&
@@ -782,24 +793,34 @@ router.post("/planner/applied/starting-pace", async (req, res): Promise<void> =>
     return;
   }
 
-  const updateSet: Record<string, number | null> = {
-    startingPaceSec,
-    appliedStartingPaceSec: startingPaceSec,
-  };
+  // Short-circuit when the caller sent neither key — nothing to write,
+  // but still safe to run the backfill (it's idempotent and helps when
+  // an upstream config change needs the run cards re-paced).
+  const updateSet: Record<string, number | null> = {};
+  if (startingPaceSec !== undefined) {
+    updateSet.startingPaceSec = startingPaceSec;
+    updateSet.appliedStartingPaceSec = startingPaceSec;
+  }
   if (goalEndingPaceSec !== undefined) {
     updateSet.goalEndingPaceSec = goalEndingPaceSec;
     updateSet.appliedGoalEndingPaceSec = goalEndingPaceSec;
   }
-  await db
-    .update(plannerConfigsTable)
-    .set(updateSet)
-    .where(eq(plannerConfigsTable.id, cfg.id));
+  if (Object.keys(updateSet).length > 0) {
+    await db
+      .update(plannerConfigsTable)
+      .set(updateSet)
+      .where(eq(plannerConfigsTable.id, cfg.id));
+  }
 
   const result = await backfillPaceTargetCards();
 
-  // Echo the effective goal in the response: the newly-written value
+  // Echo the effective values in the response: the newly-written value
   // when the runner sent it, otherwise the existing applied snapshot
   // so the client always sees the current truth in one round-trip.
+  const effectiveStart =
+    startingPaceSec !== undefined
+      ? startingPaceSec
+      : cfg.appliedStartingPaceSec ?? null;
   const effectiveGoal =
     goalEndingPaceSec !== undefined
       ? goalEndingPaceSec
@@ -809,14 +830,18 @@ router.post("/planner/applied/starting-pace", async (req, res): Promise<void> =>
     {
       configId: cfg.id,
       configName: cfg.name,
-      startingPaceSec,
+      startingPaceSec: effectiveStart,
       goalEndingPaceSec: effectiveGoal,
       ...result,
     },
     "planner starting pace updated in place — pace-target backfill applied",
   );
 
-  res.json({ startingPaceSec, goalEndingPaceSec: effectiveGoal, ...result });
+  res.json({
+    startingPaceSec: effectiveStart,
+    goalEndingPaceSec: effectiveGoal,
+    ...result,
+  });
 });
 
 // Apply the active Planner config: regenerate plan_weeks/plan_days,

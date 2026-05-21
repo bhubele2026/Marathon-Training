@@ -3838,9 +3838,9 @@ export const UpdateAppliedStartingPaceBody = zod.object({
     .number()
     .min(updateAppliedStartingPaceBodyStartingPaceSecMin)
     .max(updateAppliedStartingPaceBodyStartingPaceSecMax)
-    .nullable()
+    .nullish()
     .describe(
-      "Runner's starting easy pace in seconds\/mile. Null clears the\noverride, so the generator falls back to the first block's\nrecipe easy pace (Task #367 default).\n",
+      "Runner's starting easy pace in seconds\/mile. When this key is\nOMITTED, the applied row's existing starting pace is left\nuntouched (so a runner can patch only the goal anchor\nwithout clobbering their start, and vice versa). Present\nwith null clears the override, so the generator falls back\nto the first block's recipe easy pace (Task #367) — or to\nthe fixed DEFAULT_STARTING_PACE_SEC when a goal anchor is\nset (Task #373). Present with an integer writes it.\n",
     ),
   goalEndingPaceSec: zod
     .number()

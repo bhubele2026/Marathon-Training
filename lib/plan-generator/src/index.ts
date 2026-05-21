@@ -8,8 +8,10 @@
 import {
   entriesEndOnMarathonRace,
   entriesRaceKind,
+  expandCustomHybrid,
   expandEntriesToBlocksWithGaps,
   getTemplateById,
+  hybridTaperWeeks,
   hybridMixSpec,
   hybridPhase,
   HYBRID_RACE_WEEK_TAPER,
@@ -4253,8 +4255,6 @@ export function generatePlanFromConfig(
   const firstRecipeEasySec =
     parseMmSsPace(RECIPES[expandedBlocks[0].focusType].easyPace) ??
     DEFAULT_STARTING_PACE_SEC;
-  const startingPaceSec = rawStartingPaceSec ?? firstRecipeEasySec;
-  const paceWeekOffset = opts.paceWeekOffset ?? 0;
   // Task #373. Goal ending pace + total-campaign-weeks plumbing for
   // linear interpolation. Override path lets the per-entry pipeline
   // pass the OVERALL campaign weeks (not the entry's own span) so
@@ -4263,11 +4263,54 @@ export function generatePlanFromConfig(
     opts.goalEndingPaceSecOverride !== undefined
       ? opts.goalEndingPaceSecOverride
       : config.goalEndingPaceSec ?? null;
+  // Task #373. When the runner sets a goal anchor but leaves starting
+  // pace blank, fall back to the predictable DEFAULT_STARTING_PACE_SEC
+  // (14:30/mi) rather than the template's natural easy pace — the
+  // goal anchor is the user-facing contract for "where I'll land", so
+  // the start of the interpolation must be a fixed, predictable value
+  // they can reason about. Otherwise (no goal anchor) keep Task #367's
+  // template-aware default so the legacy fixed-rate ramp tracks the
+  // template the runner picked.
+  const startingPaceSec =
+    rawStartingPaceSec ??
+    (goalEndingPaceSec !== null
+      ? DEFAULT_STARTING_PACE_SEC
+      : firstRecipeEasySec);
+  const paceWeekOffset = opts.paceWeekOffset ?? 0;
+  // Task #373 (review fix). The interpolation should land the goal
+  // pace on the final NON-TAPER week, not the campaign-final week —
+  // taper weeks are intentional recovery / freshness, not a new
+  // training stimulus, so the runner's "ending pace" target is what
+  // they should sustain right before taper kicks in. Compute the
+  // non-taper span by subtracting trailing taper-recipe weeks from
+  // total. Falls back to total when no taper block exists or the
+  // per-entry pipeline supplies an explicit override (which itself
+  // already encodes the campaign-wide non-taper span when applicable).
+  function isTaperBlock(b: (typeof expandedBlocks)[number]) {
+    const r = RECIPES[b.focusType];
+    if (r?.isTaper) return true;
+    // Hybrid templates emit Custom-focus blocks tagged via customNotes
+    // with [hybrid-phase:taper]; the Custom recipe itself isn't marked
+    // isTaper because it also covers Base/Build phases, so detect the
+    // taper phase here so hybrid plans don't ramp goal pace into their
+    // taper weeks.
+    if (b.focusType === "Custom" && hybridPhase(b.customNotes ?? null) === "taper") return true;
+    return false;
+  }
+  function lastNonTaperWeek(blocks: typeof expandedBlocks, total: number) {
+    let trailingTaper = 0;
+    for (let i = blocks.length - 1; i >= 0; i--) {
+      if (isTaperBlock(blocks[i])) trailingTaper += blocks[i].weeks;
+      else break;
+    }
+    const span = total - trailingTaper;
+    return span >= 1 ? span : total;
+  }
   const totalCampaignWeeks =
     opts.totalCampaignWeeksOverride !== undefined &&
     opts.totalCampaignWeeksOverride !== null
       ? opts.totalCampaignWeeksOverride
-      : totalWeeks;
+      : lastNonTaperWeek(expandedBlocks, totalWeeks);
   const rampOpts = {
     goalEndingPaceSec,
     totalCampaignWeeks,
@@ -4416,6 +4459,45 @@ export function generatePlanFromConfigPerEntry(
   const projections = projectEntries(config.entries, config.startDate);
   const out: PerEntryPlan[] = [];
   const startMs = Date.parse(`${config.startDate}T00:00:00Z`);
+  // Task #373 (review fix). Compute the campaign-wide non-taper span
+  // ONCE up front so every synthetic single-entry sub-plan ramps onto
+  // the same start→goal trajectory and lands at goal pace on the
+  // campaign-final non-taper week (not the last week of taper).
+  // The trailing entry owns the campaign's taper; count its trailing
+  // taper blocks and subtract from total.
+  const totalCampaignWeeks = totalWeeksFromDates(
+    config.startDate,
+    config.marathonDate,
+  );
+  let campaignNonTaperWeeks = totalCampaignWeeks;
+  {
+    const lastEntry = config.entries[config.entries.length - 1];
+    if (lastEntry) {
+      const lastTpl = getTemplateById(lastEntry.templateId);
+      if (lastTpl) {
+        const note = lastEntry.customNotes?.trim() || null;
+        const blocks =
+          lastEntry.templateId === "custom_hybrid"
+            ? expandCustomHybrid(
+                Math.max(0, Math.floor(lastEntry.weeks)),
+                hybridTaperWeeks(note),
+              )
+            : lastTpl.expand(Math.max(0, Math.floor(lastEntry.weeks)));
+        let trailingTaper = 0;
+        for (let bi = blocks.length - 1; bi >= 0; bi--) {
+          const b = blocks[bi]!;
+          const r = RECIPES[b.focusType];
+          const hybridTaper =
+            b.focusType === "Custom" &&
+            hybridPhase(b.customNotes ?? null) === "taper";
+          if (r?.isTaper || hybridTaper) trailingTaper += b.weeks;
+          else break;
+        }
+        const span = totalCampaignWeeks - trailingTaper;
+        if (span >= 1) campaignNonTaperWeeks = span;
+      }
+    }
+  }
   for (let i = 0; i < config.entries.length; i++) {
     const e = config.entries[i]!;
     const proj = projections.find((p) => p.entryIndex === i);
@@ -4466,10 +4548,7 @@ export function generatePlanFromConfigPerEntry(
       // across every entry so the synthetic single-entry sub-plans
       // ramp on the same start→goal trajectory as the parent.
       goalEndingPaceSecOverride: config.goalEndingPaceSec ?? null,
-      totalCampaignWeeksOverride: totalWeeksFromDates(
-        config.startDate,
-        config.marathonDate,
-      ),
+      totalCampaignWeeksOverride: campaignNonTaperWeeks,
     });
     // Remap week numbers from entry-local (1..N) to campaign-relative
     // so plan_days.week matches the position of the date in the

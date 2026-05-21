@@ -1926,14 +1926,19 @@ export interface ApplyPlannerConfigResponse {
 
 export interface UpdateAppliedStartingPaceBody {
   /**
-   * Runner's starting easy pace in seconds/mile. Null clears the
-override, so the generator falls back to the first block's
-recipe easy pace (Task #367 default).
+   * Runner's starting easy pace in seconds/mile. When this key is
+OMITTED, the applied row's existing starting pace is left
+untouched (so a runner can patch only the goal anchor
+without clobbering their start, and vice versa). Present
+with null clears the override, so the generator falls back
+to the first block's recipe easy pace (Task #367) — or to
+the fixed DEFAULT_STARTING_PACE_SEC when a goal anchor is
+set (Task #373). Present with an integer writes it.
 
    * @minimum 360
    * @maximum 1500
    */
-  startingPaceSec: number | null;
+  startingPaceSec?: number | null;
   /**
    * Task #373. Optional goal ending easy pace (sec/mi). When this
 key is OMITTED, the applied row's existing goal value is left
