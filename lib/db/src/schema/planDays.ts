@@ -79,8 +79,6 @@ export const planDaysTable = pgTable("plan_days", {
   seedTotalLoad: doublePrecision("seed_total_load"),
   seedIsRest: boolean("seed_is_rest"),
 }, (t) => ({
-  weekIdx: index("plan_days_week_idx").on(t.week),
-  dateIdx: index("plan_days_date_idx").on(t.date),
   // Task #135: composite unique replaces the old UNIQUE(date) so
   // overlapping concurrent programs can each emit a row on the same
   // calendar date (one per entry).
@@ -89,12 +87,15 @@ export const planDaysTable = pgTable("plan_days", {
     t.sourceEntryIndex,
   ),
   sourceEntryIdx: index("plan_days_source_entry_idx").on(t.sourceEntryIndex),
-  // Task #382: hot-path indexes. /plan/weeks + /dashboard/summary both
-  // run COUNT(*) WHERE week = ? AND is_rest = false; (week, is_rest)
-  // collapses that to an index-only scan. /dashboard/summary's
-  // adherence query filters on date + is_rest, so (date, is_rest)
-  // covers the campaign-to-date counts. (equipment) supports the
-  // dominant-cardio-equipment aggregation.
+  // Task #382 + #384: composite hot-path indexes. /plan/weeks +
+  // /dashboard/summary both run COUNT(*) WHERE week = ? AND is_rest = false;
+  // (week, is_rest) collapses that to an index-only scan AND serves
+  // single-column `week = ?` lookups via the left-prefix, so the legacy
+  // plan_days_week_idx was redundant and removed in #384. Likewise
+  // (date, is_rest) covers /dashboard/summary's campaign-to-date adherence
+  // counts and replaces the legacy plan_days_date_idx for single-column
+  // date lookups. (equipment) supports the dominant-cardio-equipment
+  // aggregation.
   weekRestIdx: index("plan_days_week_rest_idx").on(t.week, t.isRest),
   dateRestIdx: index("plan_days_date_rest_idx").on(t.date, t.isRest),
   equipmentIdx: index("plan_days_equipment_idx").on(t.equipment),
