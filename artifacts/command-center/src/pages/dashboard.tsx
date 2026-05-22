@@ -1,13 +1,4 @@
-import { 
-  useGetDashboardSummary, 
-  useGetWeightTrend, 
-  useGetWeeklyMileage, 
-  useGetEquipmentUsage, 
-  useGetLongRunProgression, 
-  useGetRecentActivity,
-  useGetTodayPlan,
-  useGetPlanOverview
-} from "@workspace/api-client-react";
+import { useGetDashboardBootstrap } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -154,14 +145,29 @@ export function MileageTooltipContent({
 }
 
 export default function Dashboard() {
-  const { data: summary, isLoading: loadingSummary } = useGetDashboardSummary();
-  const { data: weightTrend, isLoading: loadingWeight } = useGetWeightTrend();
-  const { data: mileage, isLoading: loadingMileage } = useGetWeeklyMileage();
-  const { data: equipment, isLoading: loadingEq } = useGetEquipmentUsage();
-  const { data: longRun, isLoading: loadingLongRun } = useGetLongRunProgression();
-  const { data: activity, isLoading: loadingActivity } = useGetRecentActivity();
-  const { data: today, isLoading: loadingToday } = useGetTodayPlan();
-  const { data: overview } = useGetPlanOverview();
+  // Task #383. Single consolidated bootstrap call for the dashboard's
+  // first paint. The 8 per-tile endpoints stay intact (mutations and
+  // other pages still invalidate / re-fetch individual slices), but the
+  // cold load that used to fire 8 parallel HTTP round-trips now pays
+  // exactly one. Per-tile `isLoading` flags collapse to the shared
+  // `loadingBootstrap` because every slice lands in the same response.
+  const { data: bootstrap, isLoading: loadingBootstrap } =
+    useGetDashboardBootstrap();
+  const summary = bootstrap?.summary;
+  const weightTrend = bootstrap?.weightTrend;
+  const mileage = bootstrap?.weeklyMileage;
+  const equipment = bootstrap?.equipmentUsage;
+  const longRun = bootstrap?.longRunProgression;
+  const activity = bootstrap?.recentActivity;
+  const today = bootstrap?.today;
+  const overview = bootstrap?.overview;
+  const loadingSummary = loadingBootstrap;
+  const loadingWeight = loadingBootstrap;
+  const loadingMileage = loadingBootstrap;
+  const loadingEq = loadingBootstrap;
+  const loadingLongRun = loadingBootstrap;
+  const loadingActivity = loadingBootstrap;
+  const loadingToday = loadingBootstrap;
   const { openLog, openEdit, requestDelete, requestSkip, crushIt, isDeleting, isCrushing, dialogs } =
     useMissionActions();
   const todayBaseCtx = today

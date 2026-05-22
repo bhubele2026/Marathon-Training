@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import request from "supertest";
 import {
+  GetDashboardBootstrapResponse,
   GetDashboardSummaryResponse,
   GetEquipmentPhaseSummaryResponse,
   GetEquipmentUsageResponse,
@@ -1789,5 +1790,71 @@ describe("GET /api/dashboard/recent-activity", () => {
       pace: "10:00",
     });
     expect(unbound?.prescribedRunTarget).toBeNull();
+  });
+});
+
+describe("GET /api/dashboard/bootstrap (Task #383)", () => {
+  it("returns the union of every per-tile dashboard payload in one round-trip", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-07-04T12:00:00.000Z"));
+
+    const week = 8401;
+    const phase = "Bootstrap Phase";
+    await insertWeek(week, {
+      startDate: "2099-06-29",
+      endDate: "2099-07-05",
+      phase,
+      plannedMiles: 25,
+      longRunMi: 10,
+      plannedTotalLoad: 1800,
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-06-29",
+      day: "Mon",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      distanceMi: 5,
+    });
+    await insertPlanDay(week, phase, {
+      date: "2099-07-04",
+      day: "Sat",
+      sessionType: "Long Run",
+      equipment: E_TREADMILL,
+      distanceMi: 10,
+    });
+    await insertWorkout({
+      date: "2099-06-29",
+      sessionType: T_RUN,
+      equipment: E_OUTDOOR,
+      distanceMi: 5,
+      totalLoad: 250,
+    });
+    await insertMeasurement({ date: "2099-06-30", weight: 220.0 });
+
+    const res = await request(app).get("/api/dashboard/bootstrap");
+    expect(res.status).toBe(200);
+    expectMatchesSchema(GetDashboardBootstrapResponse, res.body);
+
+    // Each slice must match its dedicated per-tile endpoint exactly so
+    // the bootstrap is a true union (not a re-implementation).
+    const [summary, weightTrend, weeklyMileage, equipmentUsage, longRun, recentActivity, today, overview] =
+      await Promise.all([
+        request(app).get("/api/dashboard/summary"),
+        request(app).get("/api/dashboard/weight-trend"),
+        request(app).get("/api/dashboard/weekly-mileage"),
+        request(app).get("/api/dashboard/equipment-usage"),
+        request(app).get("/api/dashboard/long-run-progression"),
+        request(app).get("/api/dashboard/recent-activity"),
+        request(app).get("/api/plan/today"),
+        request(app).get("/api/plan/overview"),
+      ]);
+    expect(res.body.summary).toEqual(summary.body);
+    expect(res.body.weightTrend).toEqual(weightTrend.body);
+    expect(res.body.weeklyMileage).toEqual(weeklyMileage.body);
+    expect(res.body.equipmentUsage).toEqual(equipmentUsage.body);
+    expect(res.body.longRunProgression).toEqual(longRun.body);
+    expect(res.body.recentActivity).toEqual(recentActivity.body);
+    expect(res.body.today).toEqual(today.body);
+    expect(res.body.overview).toEqual(overview.body);
   });
 });

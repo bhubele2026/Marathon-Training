@@ -23,6 +23,7 @@ import type {
   CreateRaceWeekChecklistItemBody,
   CreateScheduledRaceBody,
   CreateWorkoutBody,
+  DashboardBootstrap,
   DashboardSummary,
   DeletePlannerConfigResponse,
   DeleteRaceWeekChecklistItemResponse,
@@ -1723,6 +1724,87 @@ export const useDeleteMeasurement = <
 > => {
   return useMutation(getDeleteMeasurementMutationOptions(options));
 };
+
+/**
+ * Task #383. Consolidated first-paint bootstrap for the dashboard.
+Returns the union of the 8 per-tile payloads the page needs on
+cold load. Server fans the underlying queries out with
+Promise.all so the runner pays one HTTP round-trip instead of
+eight. The per-tile endpoints (`/dashboard/summary`,
+`/dashboard/weight-trend`, `/dashboard/weekly-mileage`,
+`/dashboard/equipment-usage`, `/dashboard/long-run-progression`,
+`/dashboard/recent-activity`, `/plan/today`, `/plan/overview`)
+stay intact for mutations and other pages — only the dashboard
+first paint uses this consolidated endpoint.
+
+ */
+export const getGetDashboardBootstrapUrl = () => {
+  return `/api/dashboard/bootstrap`;
+};
+
+export const getDashboardBootstrap = async (
+  options?: RequestInit,
+): Promise<DashboardBootstrap> => {
+  return customFetch<DashboardBootstrap>(getGetDashboardBootstrapUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetDashboardBootstrapQueryKey = () => {
+  return [`/api/dashboard/bootstrap`] as const;
+};
+
+export const getGetDashboardBootstrapQueryOptions = <
+  TData = Awaited<ReturnType<typeof getDashboardBootstrap>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getDashboardBootstrap>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetDashboardBootstrapQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getDashboardBootstrap>>
+  > = ({ signal }) => getDashboardBootstrap({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getDashboardBootstrap>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetDashboardBootstrapQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getDashboardBootstrap>>
+>;
+export type GetDashboardBootstrapQueryError = ErrorType<unknown>;
+
+export function useGetDashboardBootstrap<
+  TData = Awaited<ReturnType<typeof getDashboardBootstrap>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getDashboardBootstrap>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetDashboardBootstrapQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 export const getGetDashboardSummaryUrl = () => {
   return `/api/dashboard/summary`;

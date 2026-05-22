@@ -18,19 +18,11 @@ vi.mock("wouter", () => ({
 }));
 
 vi.mock("@workspace/api-client-react", () => ({
-  useGetDashboardSummary: vi.fn(),
-  useGetWeightTrend: vi.fn(),
-  useGetWeeklyMileage: vi.fn(),
-  useGetEquipmentUsage: vi.fn(),
-  useGetLongRunProgression: vi.fn(),
-  useGetRecentActivity: vi.fn(),
-  useGetTodayPlan: vi.fn(),
-  // Task #348: dashboard surfaces overview.nextScheduledRace as a chip
-  // near the Race Day countdown. Stub with an empty payload so existing
-  // scenarios behave the same as before this task.
-  useGetPlanOverview: () => ({
-    data: { nextScheduledRace: null },
-  }),
+  // Task #383: dashboard consolidated its 8 per-tile reads into a
+  // single `useGetDashboardBootstrap` call so the cold first paint
+  // pays one HTTP round-trip instead of eight. Tests now mock the
+  // bootstrap hook with the same union shape the server emits.
+  useGetDashboardBootstrap: vi.fn(),
   // Task #308: dashboard auto-redirects to /planner on first visit when
   // hasPlan=false AND no saved drafts exist. Stub with a non-empty
   // configs list so existing scenarios never trigger the redirect.
@@ -89,24 +81,102 @@ vi.mock("recharts", async () => {
   };
 });
 
-import {
-  useGetDashboardSummary,
-  useGetWeightTrend,
-  useGetWeeklyMileage,
-  useGetEquipmentUsage,
-  useGetLongRunProgression,
-  useGetRecentActivity,
-  useGetTodayPlan,
-} from "@workspace/api-client-react";
+import { useGetDashboardBootstrap } from "@workspace/api-client-react";
 import Dashboard, { MileageTooltipContent } from "./dashboard";
 
-const mockSummary = vi.mocked(useGetDashboardSummary);
-const mockWeight = vi.mocked(useGetWeightTrend);
-const mockMileage = vi.mocked(useGetWeeklyMileage);
-const mockEquipment = vi.mocked(useGetEquipmentUsage);
-const mockLongRun = vi.mocked(useGetLongRunProgression);
-const mockActivity = vi.mocked(useGetRecentActivity);
-const mockToday = vi.mocked(useGetTodayPlan);
+const mockBootstrap = vi.mocked(useGetDashboardBootstrap);
+
+// Task #383. Per-tile state lives on a single record so the existing
+// per-test override helpers (`mockToday.mockReturnValue({...})`,
+// `mockActivity.mockReturnValue({...})`) can keep their shape while
+// the consolidated bootstrap hook is the only call the dashboard
+// actually makes. `applyBootstrap()` reassembles the union payload
+// from whatever was last set.
+interface BootstrapState {
+  summary: unknown;
+  weightTrend: unknown;
+  weeklyMileage: unknown;
+  equipmentUsage: unknown;
+  longRunProgression: unknown;
+  recentActivity: unknown;
+  today: unknown;
+  overview: unknown;
+  isLoading: boolean;
+}
+const bootstrapState: BootstrapState = {
+  summary: undefined,
+  weightTrend: undefined,
+  weeklyMileage: undefined,
+  equipmentUsage: undefined,
+  longRunProgression: undefined,
+  recentActivity: undefined,
+  today: undefined,
+  overview: { nextScheduledRace: null },
+  isLoading: false,
+};
+function applyBootstrap() {
+  mockBootstrap.mockReturnValue({
+    data: {
+      summary: bootstrapState.summary,
+      weightTrend: bootstrapState.weightTrend,
+      weeklyMileage: bootstrapState.weeklyMileage,
+      equipmentUsage: bootstrapState.equipmentUsage,
+      longRunProgression: bootstrapState.longRunProgression,
+      recentActivity: bootstrapState.recentActivity,
+      today: bootstrapState.today,
+      overview: bootstrapState.overview,
+    },
+    isLoading: bootstrapState.isLoading,
+  } as unknown as ReturnType<typeof useGetDashboardBootstrap>);
+}
+
+// Per-tile shims that preserve the old mock API used by per-test
+// overrides further down. Each one updates `bootstrapState` and
+// re-applies the consolidated mock.
+type Setter = { mockReturnValue: (r: { data: unknown; isLoading?: boolean }) => void };
+const mockSummary: Setter = {
+  mockReturnValue: (r) => {
+    bootstrapState.summary = r.data;
+    if (typeof r.isLoading === "boolean") bootstrapState.isLoading = r.isLoading;
+    applyBootstrap();
+  },
+};
+const mockWeight: Setter = {
+  mockReturnValue: (r) => {
+    bootstrapState.weightTrend = r.data;
+    applyBootstrap();
+  },
+};
+const mockMileage: Setter = {
+  mockReturnValue: (r) => {
+    bootstrapState.weeklyMileage = r.data;
+    applyBootstrap();
+  },
+};
+const mockEquipment: Setter = {
+  mockReturnValue: (r) => {
+    bootstrapState.equipmentUsage = r.data;
+    applyBootstrap();
+  },
+};
+const mockLongRun: Setter = {
+  mockReturnValue: (r) => {
+    bootstrapState.longRunProgression = r.data;
+    applyBootstrap();
+  },
+};
+const mockActivity: Setter = {
+  mockReturnValue: (r) => {
+    bootstrapState.recentActivity = r.data;
+    applyBootstrap();
+  },
+};
+const mockToday: Setter = {
+  mockReturnValue: (r) => {
+    bootstrapState.today = r.data;
+    applyBootstrap();
+  },
+};
 
 // `raceKind` is widened explicitly so per-test overrides can pin it to
 // any of the four canonical race kinds (or null) without the inferred
@@ -176,31 +246,31 @@ function setupHooks(
   mockSummary.mockReturnValue({
     data: { ...SUMMARY, ...summaryOverrides },
     isLoading: false,
-  } as unknown as ReturnType<typeof useGetDashboardSummary>);
+  });
   mockWeight.mockReturnValue({
     data: [],
     isLoading: false,
-  } as unknown as ReturnType<typeof useGetWeightTrend>);
+  });
   mockMileage.mockReturnValue({
     data: mileage,
     isLoading: false,
-  } as unknown as ReturnType<typeof useGetWeeklyMileage>);
+  });
   mockEquipment.mockReturnValue({
     data: [],
     isLoading: false,
-  } as unknown as ReturnType<typeof useGetEquipmentUsage>);
+  });
   mockLongRun.mockReturnValue({
     data: [],
     isLoading: false,
-  } as unknown as ReturnType<typeof useGetLongRunProgression>);
+  });
   mockActivity.mockReturnValue({
     data: [],
     isLoading: false,
-  } as unknown as ReturnType<typeof useGetRecentActivity>);
+  });
   mockToday.mockReturnValue({
     data: { hasPlan: false, date: "2026-05-04", loggedWorkouts: [] },
     isLoading: false,
-  } as unknown as ReturnType<typeof useGetTodayPlan>);
+  });
 }
 
 describe("Dashboard mileage chart — Steady Wed marker (Task #183)", () => {
@@ -522,7 +592,7 @@ describe("Dashboard — primary metric rendering on Today's Mission card (task #
     mockToday.mockReturnValue({
       data: payload,
       isLoading: false,
-    } as unknown as ReturnType<typeof useGetTodayPlan>);
+    });
   }
 
   const planBase = {
@@ -757,7 +827,7 @@ describe("Dashboard — prescribed run target on Recent Logs (task #147)", () =>
     mockActivity.mockReturnValue({
       data: rows,
       isLoading: false,
-    } as unknown as ReturnType<typeof useGetRecentActivity>);
+    });
   }
 
   it("renders a compact RunTargetLine on a run-shaped row that carries a prescribed target snapshot", () => {

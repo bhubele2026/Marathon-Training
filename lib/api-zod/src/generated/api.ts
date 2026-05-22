@@ -2502,6 +2502,1183 @@ export const DeleteMeasurementParams = zod.object({
   id: zod.coerce.number(),
 });
 
+/**
+ * Task #383. Consolidated first-paint bootstrap for the dashboard.
+Returns the union of the 8 per-tile payloads the page needs on
+cold load. Server fans the underlying queries out with
+Promise.all so the runner pays one HTTP round-trip instead of
+eight. The per-tile endpoints (`/dashboard/summary`,
+`/dashboard/weight-trend`, `/dashboard/weekly-mileage`,
+`/dashboard/equipment-usage`, `/dashboard/long-run-progression`,
+`/dashboard/recent-activity`, `/plan/today`, `/plan/overview`)
+stay intact for mutations and other pages — only the dashboard
+first paint uses this consolidated endpoint.
+
+ */
+export const GetDashboardBootstrapResponse = zod
+  .object({
+    summary: zod.object({
+      hasPlan: zod
+        .boolean()
+        .describe(
+          'Task #307. False when no Phase Planner config has ever been\napplied (fresh installs \/ after a Full Reset against an empty\n`planner_configs`). Drives the dashboard\'s \"Open Phase\nPlanner\" empty state for plan-driven tiles. Body Mass \/\nRecent Logs \/ Equipment tiles remain visible even when false.\n',
+        ),
+      currentWeek: zod.number(),
+      currentPhase: zod.string(),
+      weekProgressPct: zod.number(),
+      weeklyMilesActual: zod.number(),
+      weeklyMilesPlanned: zod.number(),
+      weeklyLoadActual: zod.number(),
+      weeklyLoadPlanned: zod.number(),
+      weeklySessionsCompleted: zod.number(),
+      weeklySessionsPlanned: zod.number(),
+      weeklyLifestyleMinutes: zod.number(),
+      prevFourWeekAvgLifestyleMinutes: zod
+        .number()
+        .nullable()
+        .describe(
+          "Task #34. Average lifestyle minutes per plan_week across the 4 weeks immediately preceding the active plan_week. Null when fewer than 4 prior plan_weeks exist (early-campaign \/ pre-launch), so the dashboard hides the trend indicator until there is enough history. Used by the Week Snapshot card to show whether the current week's lifestyle minutes are trending up, down, or flat against the runner's recent baseline.\n",
+        ),
+      totalMilesAllTime: zod.number(),
+      longestRunMi: zod.number(),
+      weightStart: zod
+        .number()
+        .nullable()
+        .describe(
+          "Task #330. Body-mass start target (lbs). Mirrors\n`PlanOverview.startWeight` — sourced from the\nmost-recently-applied planner config's `appliedStartWeight`,\nfalling back to the runner's earliest measurement weight,\nthen to null. The Body Mass tile renders an em-dash when\nboth this and `weightCurrent` are null.\n",
+        ),
+      weightCurrent: zod.number().nullable(),
+      weightGoal: zod
+        .number()
+        .nullable()
+        .describe(
+          "Task #330. Body-mass goal target (lbs). Mirrors\n`PlanOverview.goalWeight` — sourced from the\nmost-recently-applied planner config's `appliedGoalWeight`.\nNULL when the runner hasn't set a goal; the Body Mass\ntile renders an em-dash sentinel in that case.\n",
+        ),
+      weightLost: zod
+        .number()
+        .describe(
+          "(weightStart - weightCurrent), clamped to >= 0. Zero when\neither side is null.\n",
+        ),
+      weightToGoal: zod
+        .number()
+        .describe(
+          "(weightCurrent - weightGoal), clamped to >= 0. Zero when\neither side is null.\n",
+        ),
+      adherencePct: zod.number(),
+      daysToRace: zod.number(),
+      activeConfigName: zod
+        .string()
+        .describe(
+          'Task #244. Display name of the currently-active planner\nconfig (mirrors `PlanOverview.activeConfigName`). Drives\nthe dashboard header title so the runner sees their own\nplan name instead of a hardcoded \"Half Marathon Campaign\".\nFalls back to \"Workout Plan\" when no config has ever been\napplied.\n',
+        ),
+      programs: zod
+        .array(
+          zod.object({
+            sourceEntryIndex: zod
+              .number()
+              .describe(
+                "Stable identifier for this program within the active planner config (0..N-1).",
+              ),
+            label: zod
+              .string()
+              .describe(
+                'Human-readable program name (entry.customName or template name); falls back to \"Marathon Plan\" for legacy single-program campaigns.',
+              ),
+            endDate: zod
+              .string()
+              .describe(
+                'ISO yyyy-mm-dd. Last calendar date this program contributes a plan_day on. Programs in an entries-mode config can finish before the campaign marathonDate (e.g. a 5K Improver block that ends 12 weeks before race day) — this field surfaces that explicitly so the dashboard can show \"Tonal Lift ends 2027-01-15\" alongside the campaign marathon date.\n',
+              ),
+            weeklyMilesPlanned: zod.number(),
+            weeklyMilesActual: zod
+              .number()
+              .describe(
+                "Sum of `distance_mi` from logged workouts whose plan_day_id links back to one of this program's plan_days in the current week. Workouts that were never linked to a specific plan_day (e.g. unplanned cross-train) only contribute to the combined headline number.\n",
+              ),
+            weeklyLoadPlanned: zod.number(),
+            weeklyLoadActual: zod.number(),
+            weeklySessionsPlanned: zod.number(),
+            weeklySessionsCompleted: zod.number(),
+            adherencePlanned: zod
+              .number()
+              .describe(
+                "Task #162. Non-rest plan_days for this program from campaign start through today (inclusive). Drives the per-program adherence slice on the dashboard so a runner stacking a Tonal lift program alongside a 5K running program can spot which program is dragging the combined `adherencePct` down.\n",
+              ),
+            adherenceCompleted: zod
+              .number()
+              .describe(
+                "Task #162. Subset of `adherencePlanned` for this program that has at least one logged (non-Skipped) workout attributed to it via plan_day_id (or, for legacy workouts with no plan_day_id, a same-date match).\n",
+              ),
+            adherencePct: zod
+              .number()
+              .describe(
+                "Task #162. `adherenceCompleted \/ adherencePlanned \* 100`, clamped to [0, 100]. Returns 0 when `adherencePlanned` is 0 (program hasn't started yet).\n",
+              ),
+          }),
+        )
+        .describe(
+          'Task #144. Per-program breakdown of the current week\'s planned and actual training load for runners stacking concurrent programs (e.g. a Tonal lift program alongside a 5K running program). Each program corresponds to one TemplateEntry currently contributing rows to plan_days. Headline weekly\* fields above are the COMBINED totals across all programs; this array lets the dashboard drill in to per-program totals. Always present — for legacy single-program campaigns it contains exactly one element labelled \"Marathon Plan\". Task #159: programs are ordered by `endDate` ascending (closest race date first), with `sourceEntryIndex` ascending as the tiebreaker, so the most-imminent program surfaces at the top of the Week Snapshot.\n',
+        ),
+      raceKind: zod
+        .enum(["marathon", "half", "10k", "5k"])
+        .nullish()
+        .describe(
+          'Task #209. Kind of race the campaign is anchored on, derived\nfrom the trailing plan_day Sunday — same detection logic as\n`PlanOverview.raceKind` (Task #204) so the dashboard header\nand race-week banner stay in lock-step with \/plan. Populated\nwhen that final row is a recognised race day (sessionType\n`Race` or the generator\'s \"RACE DAY — <Marathon|Half|10K|5K>\"\ndescription prefix); resolved from the description first so\na runner who edits the distance still gets the right kind,\nthen falls back to `distance_mi`. Null on tonal-first \/\nnon-race plans (lift_primary blocks, ad-hoc Custom blocks)\nand on legacy \/ freshly seeded campaigns with no plan_days\nyet — the dashboard header keeps generic copy in those cases\nso we don\'t presuppose a race. Drives the \"Race Campaign\" \/\nper-kind (\"5K Campaign\", \"10K Campaign\", \"Half Marathon\nCampaign\") framing on the dashboard header and the\nRaceWeekBanner countdown \/ post-race copy.\n',
+        ),
+    }),
+    weightTrend: zod.array(
+      zod.object({
+        date: zod.string(),
+        weight: zod.number(),
+      }),
+    ),
+    weeklyMileage: zod.array(
+      zod.object({
+        week: zod.number(),
+        startDate: zod.string().optional(),
+        phase: zod.string().optional(),
+        plannedMiles: zod.number(),
+        actualMiles: zod.number(),
+        plannedCardioMin: zod
+          .number()
+          .describe(
+            "Total planned cross-train cardio minutes for the week (bike \/ row \/ spin etc., not running). Lets the dashboard chart show non-zero bars for bike-only or row-only weeks whose `plannedMiles` is 0.\n",
+          ),
+        actualCardioMin: zod
+          .number()
+          .describe(
+            "Sum of `cardio_min` across logged workouts dated within the week.\n",
+          ),
+        dominantCardioEquipment: zod
+          .string()
+          .nullish()
+          .describe(
+            'Equipment with the most planned cardio minutes for the week, used to label cardio-only weeks in the chart tooltip (e.g. \"Peloton Bike\"). Null when the week has no planned cross-train cardio.\n',
+          ),
+        programs: zod
+          .array(
+            zod.object({
+              sourceEntryIndex: zod.number(),
+              label: zod
+                .string()
+                .describe(
+                  'Human-readable program name; falls back to \"Marathon Plan\" for legacy single-program campaigns.',
+                ),
+              plannedMiles: zod.number(),
+              plannedCardioMin: zod.number(),
+            }),
+          )
+          .describe(
+            "Task #144. Per-program breakdown of this week's planned miles and cardio minutes. The headline `plannedMiles` \/ `plannedCardioMin` above are the COMBINED totals across overlapping programs (a Tonal lift program stacked with a 5K running program for example); this array lets the chart tooltip drill in to per- program contributions. Empty for weeks where no program contributes plan_days (e.g. interior recovery gaps that only carry synthetic filler rows). Task #159: programs are ordered by their campaign-wide end date ascending (closest race date first), with `sourceEntryIndex` ascending as the tiebreaker, so the chart tooltip surfaces the most-imminent program at the top.\n",
+          ),
+        wedSteady: zod
+          .boolean()
+          .nullish()
+          .describe(
+            'Task #183. True when this week\'s Wednesday plan day is a\nSteady (Z3) Run + Accessory session — i.e. the same gating\nthe Plan Calendar week strip and the Plan Preview\nMileageCurve already use (sourced from\n`plan_days.session_type`, so customizations that swap Wed\naway from steady drop the flag immediately). Drives the\namber-400 \"Steady Wed\" marker on the dashboard mileage\nchart so a runner sees at a glance which weeks earn the\nZ3 stimulus. Null on weeks with no Wed plan day yet\n(freshly seeded \/ legacy data).\n',
+          ),
+      }),
+    ),
+    equipmentUsage: zod.array(
+      zod.object({
+        equipment: zod.string(),
+        sessions: zod.number(),
+        totalMinutes: zod.number(),
+        totalLoad: zod.number(),
+        totalDistance: zod.number(),
+        plannedSessions: zod.number(),
+        plannedMinutes: zod.number(),
+        plannedLoad: zod.number(),
+        plannedDistance: zod.number(),
+        plannedToDateSessions: zod
+          .number()
+          .describe(
+            "Planned non-rest sessions for this machine on or before today. Use to compare actuals against the share of the plan that should have happened so far rather than the full campaign.",
+          ),
+        plannedToDateMinutes: zod
+          .number()
+          .describe(
+            "Planned cardio minutes for this machine on or before today.",
+          ),
+        plannedToDateLoad: zod
+          .number()
+          .describe("Planned total load for this machine on or before today."),
+        plannedToDateDistance: zod
+          .number()
+          .describe(
+            "Planned distance (mi) for this machine on or before today.",
+          ),
+        byProgram: zod
+          .array(
+            zod.object({
+              sourceEntryIndex: zod.number(),
+              label: zod
+                .string()
+                .describe(
+                  'Human-readable program name; falls back to \"Marathon Plan\" for legacy single-program campaigns.',
+                ),
+              plannedSessions: zod.number(),
+              plannedMinutes: zod.number(),
+              plannedLoad: zod.number(),
+              plannedDistance: zod.number(),
+            }),
+          )
+          .describe(
+            "Task #144. Per-program attribution of this machine's planned workload. Lets the \/equipment page (and the dashboard Arsenal tile) split a machine's planned minutes between concurrent programs — e.g. Tonal might be 80% Tonal Lift program and 20% 5K Improver cross-train. The headline `plannedSessions` \/ `plannedMinutes` \/ `plannedLoad` \/ `plannedDistance` above are the COMBINED totals across all programs that schedule this machine; this array sums to those totals. Empty when no program schedules the machine (i.e. unplanned actuals only). Programs are ordered by sourceEntryIndex ascending.\n",
+          ),
+      }),
+    ),
+    longRunProgression: zod.array(
+      zod.object({
+        week: zod.number(),
+        date: zod.string().optional(),
+        phase: zod.string().optional(),
+        plannedMi: zod.number(),
+        actualMi: zod.number(),
+        cardioMin: zod
+          .number()
+          .nullish()
+          .describe(
+            "Total actual cardio minutes logged across the whole plan week (sum of `workouts.cardio_min`). Null when no cardio was logged that week. Kept for back-compat — prefer `actualCardioMin` for new code.",
+          ),
+        plannedCardioMin: zod
+          .number()
+          .optional()
+          .describe(
+            "Total planned cross-train cardio minutes for the whole plan week (sum of `plan_days.cardio_min`). Drives the secondary-axis bar on the Long Run Build chart so cross-train-only weeks (no Long Run \/ Race) still render a visible bar.",
+          ),
+        actualCardioMin: zod
+          .number()
+          .optional()
+          .describe(
+            "Total actual cardio minutes logged across the whole plan week. Same value as `cardioMin` but always a number (0 instead of null).",
+          ),
+      }),
+    ),
+    recentActivity: zod.array(
+      zod.object({
+        id: zod.number(),
+        planDayId: zod.number().nullish(),
+        date: zod.string(),
+        equipment: zod.string(),
+        equipmentList: zod
+          .array(zod.string())
+          .nullish()
+          .describe(
+            "Ordered chip rail of every machine used in the logged session. The scalar `equipment` always equals `equipmentList[0]`. Nullable for legacy rows; clients should tolerate `null` (e.g. `equipmentList ?? [equipment]`).\n",
+          ),
+        sessionType: zod.string(),
+        durationMin: zod.number().nullish(),
+        strengthMin: zod
+          .number()
+          .nullish()
+          .describe(
+            "Actual lift \/ strength minutes for this logged session. Mirrors the prescribed `strengthMin` on the matching plan day so \/today and \/plan\/:week can render plan-vs-actual per bucket. Null when the user hasn't supplied a breakdown yet (legacy rows fall back to `durationMin`).",
+          ),
+        cardioMin: zod
+          .number()
+          .nullish()
+          .describe(
+            "Actual non-running cross-train minutes (bike, row, spin). Does NOT include treadmill or outdoor running minutes — those live in `runMin`. Null when the user hasn't supplied a breakdown yet.",
+          ),
+        runMin: zod
+          .number()
+          .nullish()
+          .describe(
+            "Actual running minutes (treadmill or outdoor). Null when the user hasn't supplied a breakdown yet.",
+          ),
+        totalMin: zod
+          .number()
+          .nullish()
+          .describe(
+            "Sum of strengthMin, cardioMin, and runMin. Null when ALL three buckets are null (legacy row with only `durationMin` populated); otherwise nulls in individual buckets are treated as 0. Server-computed so the UI's TOTAL · LIFT · CARDIO · RUN tile is consistent with the same field on plan days.",
+          ),
+        distanceMi: zod.number().nullish(),
+        pace: zod.string().nullish(),
+        avgHr: zod.number().nullish(),
+        rpe: zod.number().nullish(),
+        strengthLoad: zod.number().nullish(),
+        totalLoad: zod.number().nullish(),
+        notes: zod.string().nullish(),
+        timeOfDay: zod
+          .enum(["AM", "PM", "Other"])
+          .nullish()
+          .describe(
+            "Optional tag used to order and label same-day sessions. AM sorts before PM, PM before Other; rows with no tag fall back to createdAt order.",
+          ),
+        modality: zod
+          .enum(["Cardio", "Strength", "Mixed"])
+          .nullish()
+          .describe(
+            "High-level modality of the session. Lets the user explicitly mark a workout as cardio, strength, or mixed independent of the more granular sessionType. Nullable for rows logged before this field existed.",
+          ),
+        isCustomized: zod.boolean().describe("Task"),
+        customizedFields: zod.array(zod.string()).describe("Task"),
+        customizedDiff: zod
+          .array(
+            zod.object({
+              field: zod.string(),
+              before: zod.string().nullable(),
+              after: zod.string().nullable(),
+            }),
+          )
+          .describe("Task"),
+        prescribedRunTarget: zod
+          .object({
+            sessionType: zod
+              .string()
+              .describe(
+                'sessionType of the prescribed plan day (e.g. \"Long Run\", \"Tempo\"). Drives the intensity bucket the run target line falls into.',
+              ),
+            week: zod
+              .number()
+              .describe(
+                "1-indexed campaign week of the prescribed plan day. Drives the walk\/run interval recipe ramp in intervals mode.",
+              ),
+            runMin: zod.number().nullable(),
+            distanceMi: zod.number().nullable(),
+            pace: zod.string().nullable(),
+          })
+          .nullish()
+          .describe(
+            "Snapshot of the matched plan day's prescribed run target, populated by joining `planDayId` against `plan_days`. Lets the Training Log table render the user's chosen run-target line (effort \/ intervals \/ HR zone \/ pace) next to the actual results without the client having to fetch each plan day separately. Null when the workout has no `planDayId` (quick-logged Lifestyle activity, off-plan run) or when the referenced plan day no longer exists.\n",
+          ),
+        createdAt: zod.coerce.date(),
+      }),
+    ),
+    today: zod.object({
+      date: zod.string(),
+      hasPlan: zod.boolean(),
+      plan: zod
+        .object({
+          id: zod.number(),
+          week: zod.number(),
+          phase: zod.string(),
+          date: zod.string(),
+          day: zod.string(),
+          strengthLoad: zod.number().nullish(),
+          equipment: zod.string(),
+          equipmentList: zod
+            .array(zod.string())
+            .nullish()
+            .describe(
+              'Ordered chip rail of every machine the runner will use that day. The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". Per the task #77 contract the scalar `equipment` field above always equals `equipmentList[0]` (the \*primary\* machine for the day) so any back-compat code path that still reads the scalar — dashboard equipment usage, suggestions pairKey, `\/equipment` page — agrees with the chip rail\'s lead chip. Nullable to match the underlying DB column on legacy rows that predate the task #77 backfill, but in practice the server normalizes both NULL and empty arrays to `[equipment]` before responding so this field is always present and non-empty in API responses; clients should still tolerate `null` defensively (e.g. `equipmentList ?? [equipment]`).\n',
+            ),
+          description: zod.string(),
+          strengthMin: zod
+            .number()
+            .nullish()
+            .describe(
+              "Prescribed Tonal \/ lift minutes for this day (heavy block plus accessory work). Null on rows that pre-date the breakdown columns and have not yet been backfilled.",
+            ),
+          cardioMin: zod
+            .number()
+            .nullish()
+            .describe(
+              "Prescribed non-running cross-train minutes (bike, row, spin). Does NOT include treadmill or outdoor running minutes — those live in `runMin`.",
+            ),
+          runMin: zod
+            .number()
+            .nullish()
+            .describe(
+              "Prescribed treadmill or outdoor running minutes for this day. Null on rows that pre-date the breakdown columns and have not yet been backfilled.",
+            ),
+          totalMin: zod
+            .number()
+            .nullish()
+            .describe(
+              "Sum of strengthMin, cardioMin, and runMin. Null when ALL three buckets are null (ambiguous legacy row that backfill couldn't classify); otherwise nulls in individual buckets are treated as 0. Server-computed so the UI's TOTAL · LIFT · CARDIO · RUN tile is consistent across pages.",
+            ),
+          distanceMi: zod.number().nullish(),
+          pace: zod.string().nullish(),
+          sessionType: zod.string(),
+          isRest: zod.boolean(),
+          totalLoad: zod.number(),
+          isCustomized: zod
+            .boolean()
+            .describe(
+              "True when this day's prescription differs from the originally-seeded snapshot (i.e. it has been edited or swapped).",
+            ),
+          customizedFields: zod
+            .array(zod.string())
+            .describe(
+              "camelCase field names whose current value differs from the seeded snapshot. Empty when isCustomized is false.",
+            ),
+          customizedDiff: zod
+            .array(
+              zod.object({
+                field: zod.string(),
+                before: zod.string().nullable(),
+                after: zod.string().nullable(),
+              }),
+            )
+            .describe(
+              'Per-field before\/after diff for the \"Edited\" badge popover. One entry per item in customizedFields (same order). Empty when isCustomized is false. Values are stringified — the UI applies field-specific formatting (e.g. distanceMi gets a \"mi\" suffix). null values mean the field had no seeded value or has been cleared.',
+            ),
+          sourceEntryIndex: zod
+            .number()
+            .describe(
+              "Task #135. Identifies which TemplateEntry within the active planner config produced this row. 0 for legacy single-program campaigns and for blocks-mode configs; 0..N-1 for entries-mode configs (one row per entry that overlaps the date). The composite UNIQUE(date, sourceEntryIndex) on plan_days lets two concurrent overlapping programs each emit a row on the same calendar date.\n",
+            ),
+          sourceEntryLabel: zod
+            .string()
+            .nullish()
+            .describe(
+              "Task #135. Human-readable program name (entry.customName or template name) shown as a badge in \/today and \/plan when concurrent programs are running. Null on legacy blocks-mode rows.\n",
+            ),
+          personalizedRacePace: zod
+            .object({
+              pace: zod
+                .string()
+                .describe(
+                  'Final race-day pace string the chip should render (e.g. \"10:55\"). Either personalized from history or pulled from the catalog.',
+                ),
+              source: zod
+                .enum(["personalized", "catalog"])
+                .describe(
+                  'Where the pace came from. \"personalized\" means at least 3 parseable quality paces fed the average; \"catalog\" means we fell back to `RACE_DAY_SPECS[raceKind].pace`.',
+                ),
+              sampleSize: zod
+                .number()
+                .describe(
+                  'Number of quality workouts that fed the average. 0 when source is \"catalog\".',
+                ),
+              lookbackWeeks: zod
+                .number()
+                .describe(
+                  'Lookback window in whole weeks the quality sample was drawn from. Mirrors the input so the UI tooltip can render \"last N weeks of training\" without re-deriving it.',
+                ),
+              basisPaceSeconds: zod
+                .number()
+                .nullable()
+                .describe(
+                  'Average pace seconds\/mile of the quality sample BEFORE the per-kind race-day offset is applied. Null when source is \"catalog\". Surfaced so the tooltip can show the raw training pace alongside the personalized race-day target (\"10:30 tempo avg → 11:00 race target\").',
+                ),
+            })
+            .nullable()
+            .describe(
+              "Task #228. Race-day Sun pace target overlay computed at READ time from the runner's recent quality workouts (tempo, threshold, interval, sharpener, VO2, race-pace, logged Race), with the per-kind `RACE_DAY_SPECS[raceKind].pace` catalog value as the fallback when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on race-day Sun rows that the server recognised as a real race (sessionType `Race` or the generator's \"RACE DAY — <Marathon|Half|10K|5K>\" description prefix); null on every other day so the UI can render the personalized chip \/ explainer tooltip exclusively on the race-day card. The pace string here may differ from the row-level `pace` field — that field is the seeded plan value (or any user customization), while this overlay reflects the live recommendation derived from training history.\n",
+            ),
+          personalizedPace: zod
+            .object({
+              pace: zod
+                .string()
+                .describe(
+                  'Final prescribed pace string the chip should render (e.g. \"10:30\"). Either personalized from history or echoed from the row\'s catalog `pace`.',
+                ),
+              source: zod
+                .enum(["personalized", "catalog"])
+                .describe(
+                  'Where the pace came from. \"personalized\" means at least 3 parseable quality paces fed the average; \"catalog\" means we fell back to the row\'s seeded `pace`.',
+                ),
+              sampleSize: zod
+                .number()
+                .describe(
+                  'Number of quality workouts that fed the average. 0 when source is \"catalog\".',
+                ),
+              lookbackWeeks: zod
+                .number()
+                .describe(
+                  'Lookback window in whole weeks the quality sample was drawn from. Mirrors the input so the UI tooltip can render \"last N weeks of training\" without re-deriving it.',
+                ),
+              basisPaceSeconds: zod
+                .number()
+                .nullable()
+                .describe(
+                  'Average pace seconds\/mile of the quality sample. For Wed\/Fri quality rows this equals the personalized pace\'s seconds value (no per-kind offset is applied — these slots ARE the tempo-pace rung). Null when source is \"catalog\".',
+                ),
+            })
+            .nullable()
+            .describe(
+              "Task #236. Personalized prescribed pace overlay for the Wed steady (Z3) and Fri tempo \/ threshold \/ race-pace slots — the other quality run rows the generator seeds from the same per-recipe `tempoPace` catalog value. Computed at READ time from the same recent quality-workout history that drives `personalizedRacePace`, but with NO per-kind offset (the runner's tempo average IS the prescribed Wed\/Fri target). Falls back to the row's own seeded `pace` when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on rows the server recognised as one of those quality slots (matched by day-of-week + sessionType in `isPersonalizableQualityPlanDay`); the W51 taper Sharpener and W52 Race Shakeout are intentionally excluded because they're seeded with `easyPace`, not `tempoPace`. Null on every other day so the UI can render the chip exclusively on the matching session card. Mirrors the `personalizedRacePace` shape so the chip + tooltip rendering can be shared.\n",
+            ),
+          personalizedLongRunPace: zod
+            .object({
+              pace: zod
+                .string()
+                .describe(
+                  'Final prescribed long-run pace string the chip should render (e.g. \"13:00\"). Either personalized from history or echoed from the row\'s catalog `pace`.',
+                ),
+              source: zod
+                .enum(["personalized", "catalog"])
+                .describe(
+                  'Where the pace came from. \"personalized\" means at least 3 parseable easy-aerobic paces fed the average; \"catalog\" means we fell back to the row\'s seeded `pace`.',
+                ),
+              sampleSize: zod
+                .number()
+                .describe(
+                  'Number of easy-aerobic workouts (Long Run \/ Aerobic Base \/ Recovery) that fed the average. 0 when source is \"catalog\".',
+                ),
+              lookbackWeeks: zod
+                .number()
+                .describe(
+                  'Lookback window in whole weeks the easy-aerobic sample was drawn from. Mirrors the input so the UI tooltip can render \"last N weeks of training\" without re-deriving it.',
+                ),
+              basisPaceSeconds: zod
+                .number()
+                .nullable()
+                .describe(
+                  'Average pace seconds\/mile of the easy-aerobic sample. Equals the personalized pace\'s seconds value (no per-kind offset is applied — Sun long run IS the easy-aerobic rung). Null when source is \"catalog\".',
+                ),
+            })
+            .nullable()
+            .describe(
+              "Task #239. Personalized prescribed pace overlay for the Sun long-run row — the other seeded pace on every recipe (`recipe.longPace`, the catalog value the generator stamps on every non-race-week Sun \"Long Run\" row at lib\/plan-generator\/src\/index.ts:484, :2227, :2647). Computed at READ time from the runner's recent EASY AEROBIC workouts (Long Run \/ Aerobic Base \/ Recovery sessions matched by `isLongRunSession`) — a separate sample pool from the quality pool that drives `personalizedRacePace` \/ `personalizedPace`, so quality work doesn't drag the long-run pace toward tempo speed. No per-kind offset (the runner's easy-aerobic average IS the prescribed long-run pace). Falls back to the row's own seeded `pace` when fewer than 3 parseable easy-aerobic paces exist in the lookback window. Populated ONLY on rows that `isPersonalizableLongRunPlanDay` matches (Sun + sessionType \"Long Run\"); race-day Sun is intentionally excluded — that row is owned by `personalizedRacePace` instead, so the two overlays are mutually exclusive on any given Sun. Null on every other day so the UI can render the chip exclusively on the Sun long-run card. Mirrors the `personalizedPace` shape so the chip + tooltip rendering can be shared.\n",
+            ),
+        })
+        .nullish()
+        .describe(
+          "Back-compat single-plan field — the lowest-sourceEntryIndex plan_day for today, or null if there is none. New clients should iterate `plans[]` to render concurrent program sessions side-by-side; this field stays populated so legacy clients still work when only one program is active.\n",
+        ),
+      plans: zod
+        .array(
+          zod.object({
+            id: zod.number(),
+            week: zod.number(),
+            phase: zod.string(),
+            date: zod.string(),
+            day: zod.string(),
+            strengthLoad: zod.number().nullish(),
+            equipment: zod.string(),
+            equipmentList: zod
+              .array(zod.string())
+              .nullish()
+              .describe(
+                'Ordered chip rail of every machine the runner will use that day. The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". Per the task #77 contract the scalar `equipment` field above always equals `equipmentList[0]` (the \*primary\* machine for the day) so any back-compat code path that still reads the scalar — dashboard equipment usage, suggestions pairKey, `\/equipment` page — agrees with the chip rail\'s lead chip. Nullable to match the underlying DB column on legacy rows that predate the task #77 backfill, but in practice the server normalizes both NULL and empty arrays to `[equipment]` before responding so this field is always present and non-empty in API responses; clients should still tolerate `null` defensively (e.g. `equipmentList ?? [equipment]`).\n',
+              ),
+            description: zod.string(),
+            strengthMin: zod
+              .number()
+              .nullish()
+              .describe(
+                "Prescribed Tonal \/ lift minutes for this day (heavy block plus accessory work). Null on rows that pre-date the breakdown columns and have not yet been backfilled.",
+              ),
+            cardioMin: zod
+              .number()
+              .nullish()
+              .describe(
+                "Prescribed non-running cross-train minutes (bike, row, spin). Does NOT include treadmill or outdoor running minutes — those live in `runMin`.",
+              ),
+            runMin: zod
+              .number()
+              .nullish()
+              .describe(
+                "Prescribed treadmill or outdoor running minutes for this day. Null on rows that pre-date the breakdown columns and have not yet been backfilled.",
+              ),
+            totalMin: zod
+              .number()
+              .nullish()
+              .describe(
+                "Sum of strengthMin, cardioMin, and runMin. Null when ALL three buckets are null (ambiguous legacy row that backfill couldn't classify); otherwise nulls in individual buckets are treated as 0. Server-computed so the UI's TOTAL · LIFT · CARDIO · RUN tile is consistent across pages.",
+              ),
+            distanceMi: zod.number().nullish(),
+            pace: zod.string().nullish(),
+            sessionType: zod.string(),
+            isRest: zod.boolean(),
+            totalLoad: zod.number(),
+            isCustomized: zod
+              .boolean()
+              .describe(
+                "True when this day's prescription differs from the originally-seeded snapshot (i.e. it has been edited or swapped).",
+              ),
+            customizedFields: zod
+              .array(zod.string())
+              .describe(
+                "camelCase field names whose current value differs from the seeded snapshot. Empty when isCustomized is false.",
+              ),
+            customizedDiff: zod
+              .array(
+                zod.object({
+                  field: zod.string(),
+                  before: zod.string().nullable(),
+                  after: zod.string().nullable(),
+                }),
+              )
+              .describe(
+                'Per-field before\/after diff for the \"Edited\" badge popover. One entry per item in customizedFields (same order). Empty when isCustomized is false. Values are stringified — the UI applies field-specific formatting (e.g. distanceMi gets a \"mi\" suffix). null values mean the field had no seeded value or has been cleared.',
+              ),
+            sourceEntryIndex: zod
+              .number()
+              .describe(
+                "Task #135. Identifies which TemplateEntry within the active planner config produced this row. 0 for legacy single-program campaigns and for blocks-mode configs; 0..N-1 for entries-mode configs (one row per entry that overlaps the date). The composite UNIQUE(date, sourceEntryIndex) on plan_days lets two concurrent overlapping programs each emit a row on the same calendar date.\n",
+              ),
+            sourceEntryLabel: zod
+              .string()
+              .nullish()
+              .describe(
+                "Task #135. Human-readable program name (entry.customName or template name) shown as a badge in \/today and \/plan when concurrent programs are running. Null on legacy blocks-mode rows.\n",
+              ),
+            personalizedRacePace: zod
+              .object({
+                pace: zod
+                  .string()
+                  .describe(
+                    'Final race-day pace string the chip should render (e.g. \"10:55\"). Either personalized from history or pulled from the catalog.',
+                  ),
+                source: zod
+                  .enum(["personalized", "catalog"])
+                  .describe(
+                    'Where the pace came from. \"personalized\" means at least 3 parseable quality paces fed the average; \"catalog\" means we fell back to `RACE_DAY_SPECS[raceKind].pace`.',
+                  ),
+                sampleSize: zod
+                  .number()
+                  .describe(
+                    'Number of quality workouts that fed the average. 0 when source is \"catalog\".',
+                  ),
+                lookbackWeeks: zod
+                  .number()
+                  .describe(
+                    'Lookback window in whole weeks the quality sample was drawn from. Mirrors the input so the UI tooltip can render \"last N weeks of training\" without re-deriving it.',
+                  ),
+                basisPaceSeconds: zod
+                  .number()
+                  .nullable()
+                  .describe(
+                    'Average pace seconds\/mile of the quality sample BEFORE the per-kind race-day offset is applied. Null when source is \"catalog\". Surfaced so the tooltip can show the raw training pace alongside the personalized race-day target (\"10:30 tempo avg → 11:00 race target\").',
+                  ),
+              })
+              .nullable()
+              .describe(
+                "Task #228. Race-day Sun pace target overlay computed at READ time from the runner's recent quality workouts (tempo, threshold, interval, sharpener, VO2, race-pace, logged Race), with the per-kind `RACE_DAY_SPECS[raceKind].pace` catalog value as the fallback when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on race-day Sun rows that the server recognised as a real race (sessionType `Race` or the generator's \"RACE DAY — <Marathon|Half|10K|5K>\" description prefix); null on every other day so the UI can render the personalized chip \/ explainer tooltip exclusively on the race-day card. The pace string here may differ from the row-level `pace` field — that field is the seeded plan value (or any user customization), while this overlay reflects the live recommendation derived from training history.\n",
+              ),
+            personalizedPace: zod
+              .object({
+                pace: zod
+                  .string()
+                  .describe(
+                    'Final prescribed pace string the chip should render (e.g. \"10:30\"). Either personalized from history or echoed from the row\'s catalog `pace`.',
+                  ),
+                source: zod
+                  .enum(["personalized", "catalog"])
+                  .describe(
+                    'Where the pace came from. \"personalized\" means at least 3 parseable quality paces fed the average; \"catalog\" means we fell back to the row\'s seeded `pace`.',
+                  ),
+                sampleSize: zod
+                  .number()
+                  .describe(
+                    'Number of quality workouts that fed the average. 0 when source is \"catalog\".',
+                  ),
+                lookbackWeeks: zod
+                  .number()
+                  .describe(
+                    'Lookback window in whole weeks the quality sample was drawn from. Mirrors the input so the UI tooltip can render \"last N weeks of training\" without re-deriving it.',
+                  ),
+                basisPaceSeconds: zod
+                  .number()
+                  .nullable()
+                  .describe(
+                    'Average pace seconds\/mile of the quality sample. For Wed\/Fri quality rows this equals the personalized pace\'s seconds value (no per-kind offset is applied — these slots ARE the tempo-pace rung). Null when source is \"catalog\".',
+                  ),
+              })
+              .nullable()
+              .describe(
+                "Task #236. Personalized prescribed pace overlay for the Wed steady (Z3) and Fri tempo \/ threshold \/ race-pace slots — the other quality run rows the generator seeds from the same per-recipe `tempoPace` catalog value. Computed at READ time from the same recent quality-workout history that drives `personalizedRacePace`, but with NO per-kind offset (the runner's tempo average IS the prescribed Wed\/Fri target). Falls back to the row's own seeded `pace` when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on rows the server recognised as one of those quality slots (matched by day-of-week + sessionType in `isPersonalizableQualityPlanDay`); the W51 taper Sharpener and W52 Race Shakeout are intentionally excluded because they're seeded with `easyPace`, not `tempoPace`. Null on every other day so the UI can render the chip exclusively on the matching session card. Mirrors the `personalizedRacePace` shape so the chip + tooltip rendering can be shared.\n",
+              ),
+            personalizedLongRunPace: zod
+              .object({
+                pace: zod
+                  .string()
+                  .describe(
+                    'Final prescribed long-run pace string the chip should render (e.g. \"13:00\"). Either personalized from history or echoed from the row\'s catalog `pace`.',
+                  ),
+                source: zod
+                  .enum(["personalized", "catalog"])
+                  .describe(
+                    'Where the pace came from. \"personalized\" means at least 3 parseable easy-aerobic paces fed the average; \"catalog\" means we fell back to the row\'s seeded `pace`.',
+                  ),
+                sampleSize: zod
+                  .number()
+                  .describe(
+                    'Number of easy-aerobic workouts (Long Run \/ Aerobic Base \/ Recovery) that fed the average. 0 when source is \"catalog\".',
+                  ),
+                lookbackWeeks: zod
+                  .number()
+                  .describe(
+                    'Lookback window in whole weeks the easy-aerobic sample was drawn from. Mirrors the input so the UI tooltip can render \"last N weeks of training\" without re-deriving it.',
+                  ),
+                basisPaceSeconds: zod
+                  .number()
+                  .nullable()
+                  .describe(
+                    'Average pace seconds\/mile of the easy-aerobic sample. Equals the personalized pace\'s seconds value (no per-kind offset is applied — Sun long run IS the easy-aerobic rung). Null when source is \"catalog\".',
+                  ),
+              })
+              .nullable()
+              .describe(
+                "Task #239. Personalized prescribed pace overlay for the Sun long-run row — the other seeded pace on every recipe (`recipe.longPace`, the catalog value the generator stamps on every non-race-week Sun \"Long Run\" row at lib\/plan-generator\/src\/index.ts:484, :2227, :2647). Computed at READ time from the runner's recent EASY AEROBIC workouts (Long Run \/ Aerobic Base \/ Recovery sessions matched by `isLongRunSession`) — a separate sample pool from the quality pool that drives `personalizedRacePace` \/ `personalizedPace`, so quality work doesn't drag the long-run pace toward tempo speed. No per-kind offset (the runner's easy-aerobic average IS the prescribed long-run pace). Falls back to the row's own seeded `pace` when fewer than 3 parseable easy-aerobic paces exist in the lookback window. Populated ONLY on rows that `isPersonalizableLongRunPlanDay` matches (Sun + sessionType \"Long Run\"); race-day Sun is intentionally excluded — that row is owned by `personalizedRacePace` instead, so the two overlays are mutually exclusive on any given Sun. Null on every other day so the UI can render the chip exclusively on the Sun long-run card. Mirrors the `personalizedPace` shape so the chip + tooltip rendering can be shared.\n",
+              ),
+          }),
+        )
+        .describe(
+          "Task #135. Every plan_day on today's date, ordered by sourceEntryIndex ascending. Concurrent overlapping programs each contribute one row so the UI can render program-attributed cards (lift program + run program) side-by-side. Empty when no plan day exists for today (pre-launch or post-marathon).\n",
+        ),
+      loggedWorkouts: zod
+        .array(
+          zod.object({
+            id: zod.number(),
+            planDayId: zod.number().nullish(),
+            date: zod.string(),
+            equipment: zod.string(),
+            equipmentList: zod
+              .array(zod.string())
+              .nullish()
+              .describe(
+                "Ordered chip rail of every machine used in the logged session. The scalar `equipment` always equals `equipmentList[0]`. Nullable for legacy rows; clients should tolerate `null` (e.g. `equipmentList ?? [equipment]`).\n",
+              ),
+            sessionType: zod.string(),
+            durationMin: zod.number().nullish(),
+            strengthMin: zod
+              .number()
+              .nullish()
+              .describe(
+                "Actual lift \/ strength minutes for this logged session. Mirrors the prescribed `strengthMin` on the matching plan day so \/today and \/plan\/:week can render plan-vs-actual per bucket. Null when the user hasn't supplied a breakdown yet (legacy rows fall back to `durationMin`).",
+              ),
+            cardioMin: zod
+              .number()
+              .nullish()
+              .describe(
+                "Actual non-running cross-train minutes (bike, row, spin). Does NOT include treadmill or outdoor running minutes — those live in `runMin`. Null when the user hasn't supplied a breakdown yet.",
+              ),
+            runMin: zod
+              .number()
+              .nullish()
+              .describe(
+                "Actual running minutes (treadmill or outdoor). Null when the user hasn't supplied a breakdown yet.",
+              ),
+            totalMin: zod
+              .number()
+              .nullish()
+              .describe(
+                "Sum of strengthMin, cardioMin, and runMin. Null when ALL three buckets are null (legacy row with only `durationMin` populated); otherwise nulls in individual buckets are treated as 0. Server-computed so the UI's TOTAL · LIFT · CARDIO · RUN tile is consistent with the same field on plan days.",
+              ),
+            distanceMi: zod.number().nullish(),
+            pace: zod.string().nullish(),
+            avgHr: zod.number().nullish(),
+            rpe: zod.number().nullish(),
+            strengthLoad: zod.number().nullish(),
+            totalLoad: zod.number().nullish(),
+            notes: zod.string().nullish(),
+            timeOfDay: zod
+              .enum(["AM", "PM", "Other"])
+              .nullish()
+              .describe(
+                "Optional tag used to order and label same-day sessions. AM sorts before PM, PM before Other; rows with no tag fall back to createdAt order.",
+              ),
+            modality: zod
+              .enum(["Cardio", "Strength", "Mixed"])
+              .nullish()
+              .describe(
+                "High-level modality of the session. Lets the user explicitly mark a workout as cardio, strength, or mixed independent of the more granular sessionType. Nullable for rows logged before this field existed.",
+              ),
+            isCustomized: zod.boolean().describe("Task"),
+            customizedFields: zod.array(zod.string()).describe("Task"),
+            customizedDiff: zod
+              .array(
+                zod.object({
+                  field: zod.string(),
+                  before: zod.string().nullable(),
+                  after: zod.string().nullable(),
+                }),
+              )
+              .describe("Task"),
+            prescribedRunTarget: zod
+              .object({
+                sessionType: zod
+                  .string()
+                  .describe(
+                    'sessionType of the prescribed plan day (e.g. \"Long Run\", \"Tempo\"). Drives the intensity bucket the run target line falls into.',
+                  ),
+                week: zod
+                  .number()
+                  .describe(
+                    "1-indexed campaign week of the prescribed plan day. Drives the walk\/run interval recipe ramp in intervals mode.",
+                  ),
+                runMin: zod.number().nullable(),
+                distanceMi: zod.number().nullable(),
+                pace: zod.string().nullable(),
+              })
+              .nullish()
+              .describe(
+                "Snapshot of the matched plan day's prescribed run target, populated by joining `planDayId` against `plan_days`. Lets the Training Log table render the user's chosen run-target line (effort \/ intervals \/ HR zone \/ pace) next to the actual results without the client having to fetch each plan day separately. Null when the workout has no `planDayId` (quick-logged Lifestyle activity, off-plan run) or when the referenced plan day no longer exists.\n",
+              ),
+            createdAt: zod.coerce.date(),
+          }),
+        )
+        .describe(
+          "All workouts logged for today, ordered by timeOfDay (AM, PM, Other, then untagged) and then createdAt ascending. Empty when nothing has been logged yet.",
+        ),
+      suggestions: zod
+        .object({
+          rpe: zod.number().nullish(),
+          avgHr: zod.number().nullish(),
+          pace: zod.string().nullish(),
+          paceSource: zod
+            .enum(["plan", "history"])
+            .nullish()
+            .describe(
+              'Where the suggested pace came from. \"plan\" if it was prescribed by the plan day, \"history\" if it was averaged from recent comparable sessions. Null when no pace suggestion is available.',
+            ),
+          sampleSize: zod.number(),
+        })
+        .nullish(),
+      daysUntilStart: zod
+        .number()
+        .nullish()
+        .describe(
+          'Number of days from today until the first scheduled (non-rest) plan day. Populated only when today is before that first session; null once the campaign has started. Lets the UI render a \"campaign starts in N days\" countdown during the pre-launch window.',
+        ),
+      firstSession: zod
+        .object({
+          id: zod.number(),
+          week: zod.number(),
+          phase: zod.string(),
+          date: zod.string(),
+          day: zod.string(),
+          strengthLoad: zod.number().nullish(),
+          equipment: zod.string(),
+          equipmentList: zod
+            .array(zod.string())
+            .nullish()
+            .describe(
+              'Ordered chip rail of every machine the runner will use that day. The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". Per the task #77 contract the scalar `equipment` field above always equals `equipmentList[0]` (the \*primary\* machine for the day) so any back-compat code path that still reads the scalar — dashboard equipment usage, suggestions pairKey, `\/equipment` page — agrees with the chip rail\'s lead chip. Nullable to match the underlying DB column on legacy rows that predate the task #77 backfill, but in practice the server normalizes both NULL and empty arrays to `[equipment]` before responding so this field is always present and non-empty in API responses; clients should still tolerate `null` defensively (e.g. `equipmentList ?? [equipment]`).\n',
+            ),
+          description: zod.string(),
+          strengthMin: zod
+            .number()
+            .nullish()
+            .describe(
+              "Prescribed Tonal \/ lift minutes for this day (heavy block plus accessory work). Null on rows that pre-date the breakdown columns and have not yet been backfilled.",
+            ),
+          cardioMin: zod
+            .number()
+            .nullish()
+            .describe(
+              "Prescribed non-running cross-train minutes (bike, row, spin). Does NOT include treadmill or outdoor running minutes — those live in `runMin`.",
+            ),
+          runMin: zod
+            .number()
+            .nullish()
+            .describe(
+              "Prescribed treadmill or outdoor running minutes for this day. Null on rows that pre-date the breakdown columns and have not yet been backfilled.",
+            ),
+          totalMin: zod
+            .number()
+            .nullish()
+            .describe(
+              "Sum of strengthMin, cardioMin, and runMin. Null when ALL three buckets are null (ambiguous legacy row that backfill couldn't classify); otherwise nulls in individual buckets are treated as 0. Server-computed so the UI's TOTAL · LIFT · CARDIO · RUN tile is consistent across pages.",
+            ),
+          distanceMi: zod.number().nullish(),
+          pace: zod.string().nullish(),
+          sessionType: zod.string(),
+          isRest: zod.boolean(),
+          totalLoad: zod.number(),
+          isCustomized: zod
+            .boolean()
+            .describe(
+              "True when this day's prescription differs from the originally-seeded snapshot (i.e. it has been edited or swapped).",
+            ),
+          customizedFields: zod
+            .array(zod.string())
+            .describe(
+              "camelCase field names whose current value differs from the seeded snapshot. Empty when isCustomized is false.",
+            ),
+          customizedDiff: zod
+            .array(
+              zod.object({
+                field: zod.string(),
+                before: zod.string().nullable(),
+                after: zod.string().nullable(),
+              }),
+            )
+            .describe(
+              'Per-field before\/after diff for the \"Edited\" badge popover. One entry per item in customizedFields (same order). Empty when isCustomized is false. Values are stringified — the UI applies field-specific formatting (e.g. distanceMi gets a \"mi\" suffix). null values mean the field had no seeded value or has been cleared.',
+            ),
+          sourceEntryIndex: zod
+            .number()
+            .describe(
+              "Task #135. Identifies which TemplateEntry within the active planner config produced this row. 0 for legacy single-program campaigns and for blocks-mode configs; 0..N-1 for entries-mode configs (one row per entry that overlaps the date). The composite UNIQUE(date, sourceEntryIndex) on plan_days lets two concurrent overlapping programs each emit a row on the same calendar date.\n",
+            ),
+          sourceEntryLabel: zod
+            .string()
+            .nullish()
+            .describe(
+              "Task #135. Human-readable program name (entry.customName or template name) shown as a badge in \/today and \/plan when concurrent programs are running. Null on legacy blocks-mode rows.\n",
+            ),
+          personalizedRacePace: zod
+            .object({
+              pace: zod
+                .string()
+                .describe(
+                  'Final race-day pace string the chip should render (e.g. \"10:55\"). Either personalized from history or pulled from the catalog.',
+                ),
+              source: zod
+                .enum(["personalized", "catalog"])
+                .describe(
+                  'Where the pace came from. \"personalized\" means at least 3 parseable quality paces fed the average; \"catalog\" means we fell back to `RACE_DAY_SPECS[raceKind].pace`.',
+                ),
+              sampleSize: zod
+                .number()
+                .describe(
+                  'Number of quality workouts that fed the average. 0 when source is \"catalog\".',
+                ),
+              lookbackWeeks: zod
+                .number()
+                .describe(
+                  'Lookback window in whole weeks the quality sample was drawn from. Mirrors the input so the UI tooltip can render \"last N weeks of training\" without re-deriving it.',
+                ),
+              basisPaceSeconds: zod
+                .number()
+                .nullable()
+                .describe(
+                  'Average pace seconds\/mile of the quality sample BEFORE the per-kind race-day offset is applied. Null when source is \"catalog\". Surfaced so the tooltip can show the raw training pace alongside the personalized race-day target (\"10:30 tempo avg → 11:00 race target\").',
+                ),
+            })
+            .nullable()
+            .describe(
+              "Task #228. Race-day Sun pace target overlay computed at READ time from the runner's recent quality workouts (tempo, threshold, interval, sharpener, VO2, race-pace, logged Race), with the per-kind `RACE_DAY_SPECS[raceKind].pace` catalog value as the fallback when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on race-day Sun rows that the server recognised as a real race (sessionType `Race` or the generator's \"RACE DAY — <Marathon|Half|10K|5K>\" description prefix); null on every other day so the UI can render the personalized chip \/ explainer tooltip exclusively on the race-day card. The pace string here may differ from the row-level `pace` field — that field is the seeded plan value (or any user customization), while this overlay reflects the live recommendation derived from training history.\n",
+            ),
+          personalizedPace: zod
+            .object({
+              pace: zod
+                .string()
+                .describe(
+                  'Final prescribed pace string the chip should render (e.g. \"10:30\"). Either personalized from history or echoed from the row\'s catalog `pace`.',
+                ),
+              source: zod
+                .enum(["personalized", "catalog"])
+                .describe(
+                  'Where the pace came from. \"personalized\" means at least 3 parseable quality paces fed the average; \"catalog\" means we fell back to the row\'s seeded `pace`.',
+                ),
+              sampleSize: zod
+                .number()
+                .describe(
+                  'Number of quality workouts that fed the average. 0 when source is \"catalog\".',
+                ),
+              lookbackWeeks: zod
+                .number()
+                .describe(
+                  'Lookback window in whole weeks the quality sample was drawn from. Mirrors the input so the UI tooltip can render \"last N weeks of training\" without re-deriving it.',
+                ),
+              basisPaceSeconds: zod
+                .number()
+                .nullable()
+                .describe(
+                  'Average pace seconds\/mile of the quality sample. For Wed\/Fri quality rows this equals the personalized pace\'s seconds value (no per-kind offset is applied — these slots ARE the tempo-pace rung). Null when source is \"catalog\".',
+                ),
+            })
+            .nullable()
+            .describe(
+              "Task #236. Personalized prescribed pace overlay for the Wed steady (Z3) and Fri tempo \/ threshold \/ race-pace slots — the other quality run rows the generator seeds from the same per-recipe `tempoPace` catalog value. Computed at READ time from the same recent quality-workout history that drives `personalizedRacePace`, but with NO per-kind offset (the runner's tempo average IS the prescribed Wed\/Fri target). Falls back to the row's own seeded `pace` when fewer than 3 parseable quality paces exist in the lookback window. Populated ONLY on rows the server recognised as one of those quality slots (matched by day-of-week + sessionType in `isPersonalizableQualityPlanDay`); the W51 taper Sharpener and W52 Race Shakeout are intentionally excluded because they're seeded with `easyPace`, not `tempoPace`. Null on every other day so the UI can render the chip exclusively on the matching session card. Mirrors the `personalizedRacePace` shape so the chip + tooltip rendering can be shared.\n",
+            ),
+          personalizedLongRunPace: zod
+            .object({
+              pace: zod
+                .string()
+                .describe(
+                  'Final prescribed long-run pace string the chip should render (e.g. \"13:00\"). Either personalized from history or echoed from the row\'s catalog `pace`.',
+                ),
+              source: zod
+                .enum(["personalized", "catalog"])
+                .describe(
+                  'Where the pace came from. \"personalized\" means at least 3 parseable easy-aerobic paces fed the average; \"catalog\" means we fell back to the row\'s seeded `pace`.',
+                ),
+              sampleSize: zod
+                .number()
+                .describe(
+                  'Number of easy-aerobic workouts (Long Run \/ Aerobic Base \/ Recovery) that fed the average. 0 when source is \"catalog\".',
+                ),
+              lookbackWeeks: zod
+                .number()
+                .describe(
+                  'Lookback window in whole weeks the easy-aerobic sample was drawn from. Mirrors the input so the UI tooltip can render \"last N weeks of training\" without re-deriving it.',
+                ),
+              basisPaceSeconds: zod
+                .number()
+                .nullable()
+                .describe(
+                  'Average pace seconds\/mile of the easy-aerobic sample. Equals the personalized pace\'s seconds value (no per-kind offset is applied — Sun long run IS the easy-aerobic rung). Null when source is \"catalog\".',
+                ),
+            })
+            .nullable()
+            .describe(
+              "Task #239. Personalized prescribed pace overlay for the Sun long-run row — the other seeded pace on every recipe (`recipe.longPace`, the catalog value the generator stamps on every non-race-week Sun \"Long Run\" row at lib\/plan-generator\/src\/index.ts:484, :2227, :2647). Computed at READ time from the runner's recent EASY AEROBIC workouts (Long Run \/ Aerobic Base \/ Recovery sessions matched by `isLongRunSession`) — a separate sample pool from the quality pool that drives `personalizedRacePace` \/ `personalizedPace`, so quality work doesn't drag the long-run pace toward tempo speed. No per-kind offset (the runner's easy-aerobic average IS the prescribed long-run pace). Falls back to the row's own seeded `pace` when fewer than 3 parseable easy-aerobic paces exist in the lookback window. Populated ONLY on rows that `isPersonalizableLongRunPlanDay` matches (Sun + sessionType \"Long Run\"); race-day Sun is intentionally excluded — that row is owned by `personalizedRacePace` instead, so the two overlays are mutually exclusive on any given Sun. Null on every other day so the UI can render the chip exclusively on the Sun long-run card. Mirrors the `personalizedPace` shape so the chip + tooltip rendering can be shared.\n",
+            ),
+        })
+        .nullish()
+        .describe(
+          "Preview of the first scheduled (non-rest) plan day. Populated alongside daysUntilStart only when today is before that session; null once the campaign has started.",
+        ),
+      nextScheduledRace: zod
+        .object({
+          raceDate: zod.string(),
+          raceKind: zod.enum(["marathon", "half", "10k", "5k"]),
+          name: zod.string().nullish(),
+          notes: zod.string().nullish(),
+          hasResult: zod.boolean().optional(),
+          recordedAt: zod.coerce.date(),
+          updatedAt: zod.coerce.date(),
+          daysUntil: zod
+            .number()
+            .describe(
+              "Whole days from the server's UTC `today` to `raceDate`.\n0 on the race day itself; never negative because the\npicker only returns races with `raceDate >= today`.\n",
+            ),
+        })
+        .describe(
+          "Task #345. Embedded shape for the closest upcoming scheduled\nrace surfaced on \/plan\/overview and \/plan\/today. Same wire\nshape as `ScheduledRace` plus a server-computed `daysUntil`\ndelta from the API server's UTC `today` (0 on race day) so\nclients don't have to recompute it from `raceDate`.\n",
+        )
+        .nullish()
+        .describe(
+          'Task #345. Closest upcoming supplemental scheduled race\n(raceDate >= today), or null when none are on the\ncalendar. Carries `daysUntil` (server-computed, 0 on\nrace day) so \/today can render a \"Next race · 5K · in N\ndays\" chip without a second round-trip. On the race day\nitself the row is still surfaced so the UI can swap the\nchip for a \"Log result\" CTA.\n',
+        ),
+      raceKind: zod
+        .enum(["marathon", "half", "10k", "5k"])
+        .nullish()
+        .describe(
+          'Task #306. Kind of race the campaign is anchored on, mirrored\non \/plan\/today so the Today page eyebrow can switch to the\nper-kind framing (\"5K Campaign\" \/ \"10K Campaign\" \/ \"Half\nMarathon Campaign\" \/ \"Race Campaign\") without forcing the\npage to also fetch \/plan\/overview. Same detection as\n`PlanOverview.raceKind` (Task #204) and `PlanWeek.raceKind`\n(Task #242) — derived from the trailing plan_day Sunday with\nan explicit race signal. Null on tonal-first \/ non-race\nplans (lift_primary blocks, ad-hoc Custom blocks) and on\nfreshly seeded campaigns with no plan_days yet so the Today\npage renders no eyebrow in those cases.\n',
+        ),
+    }),
+    overview: zod.object({
+      hasPlan: zod
+        .boolean()
+        .describe(
+          'Task #307. False when no Phase Planner config has ever been\napplied (fresh installs and after a Full Reset that was run\nagainst an empty `planner_configs`). Drives the \/plan page\'s\n\"Open Phase Planner\" empty state. All other plan-driven\nfields on this payload still carry sentinel values\n(`currentWeek=0`, empty `currentPhase`, etc) when false so\nthe schema stays simple, but clients should NOT render them.\n',
+        ),
+      currentWeek: zod.number(),
+      currentPhase: zod.string(),
+      totalWeeks: zod.number(),
+      weeksRemaining: zod.number(),
+      raceDate: zod
+        .string()
+        .nullable()
+        .describe(
+          "Task #329. ISO yyyy-mm-dd of the campaign's race \/ final day,\nsourced from the most-recently-applied planner config's\n`appliedMarathonDate`. Falls back to the trailing\n`plan_weeks.endDate` when the applied snapshot is missing,\nand to null on fresh installs \/ post Full Reset (where\n`hasPlan === false` and the EmptyPlanState CTA renders).\n",
+        ),
+      startDate: zod
+        .string()
+        .nullable()
+        .describe(
+          "Task #329. ISO yyyy-mm-dd of the campaign's first day,\nsourced from the most-recently-applied planner config's\n`appliedStartDate`. Falls back to the leading\n`plan_weeks.startDate` when the applied snapshot is missing,\nand to null on fresh installs \/ post Full Reset.\n",
+        ),
+      startWeight: zod
+        .number()
+        .nullable()
+        .describe(
+          "Task #330. Body-mass start target (lbs). Sourced from the\nmost-recently-applied planner config's `appliedStartWeight`,\nfalling back to the runner's earliest measurement weight.\nNULL on fresh installs with no measurements and no applied\nconfig — the dashboard \/ plan header omits the goal-line\ntext in that case.\n",
+        ),
+      currentWeight: zod.number().nullable(),
+      goalWeight: zod
+        .number()
+        .nullable()
+        .describe(
+          "Task #330. Body-mass goal target (lbs). Sourced from the\nmost-recently-applied planner config's `appliedGoalWeight`.\nNULL when the runner hasn't set a goal on their applied\nconfig — the dashboard \/ plan header renders an em-dash\nsentinel in that case rather than the legacy hardcoded 210.\n",
+        ),
+      weeklyMilesTarget: zod.number().optional(),
+      longRunTarget: zod.number().optional(),
+      activeConfigName: zod
+        .string()
+        .describe(
+          'Task #244. Display name of the currently-active planner\nconfig (the row in `planner_configs` with the most recent\n`last_applied_at`). Drives the \/plan page header title and\nthe sidebar nav label so the UI follows whatever the runner\nnamed their plan instead of hardcoding \"Half Marathon\nCampaign\". Falls back to \"Workout Plan\" when no config has\never been applied.\n',
+        ),
+      programs: zod
+        .array(
+          zod.object({
+            sourceEntryIndex: zod.number(),
+            label: zod.string(),
+            startDate: zod.string(),
+            endDate: zod.string(),
+            weeks: zod.number(),
+          }),
+        )
+        .optional()
+        .describe(
+          'Task #135. Every program (TemplateEntry) currently contributing rows to plan_days, ordered by sourceEntryIndex. The \/plan overview renders this as a parallel-tracks panel so a runner can see at a glance which concurrent programs are stacked. Aggregated from plan_days so the panel always reflects the applied state. For legacy single-program campaigns this is a one-element array labelled \"Marathon Plan\".\n',
+        ),
+      raceKind: zod
+        .enum(["marathon", "half", "10k", "5k"])
+        .nullish()
+        .describe(
+          'Task #204. Kind of race the campaign is anchored on, derived\nfrom the trailing plan_day Sunday. Populated when that final\nrow is a recognised race day (sessionType `Race` or the\ngenerator\'s \"RACE DAY — <Marathon|Half|10K|5K>\" description\nprefix); resolved from the description first so a runner who\nedits the distance still gets the right kind, then falls\nback to `distance_mi`. Null on tonal-first \/ non-race plans\n(lift_primary blocks, ad-hoc Custom blocks) and on legacy \/\nfreshly seeded campaigns with no plan_days yet. Drives the\n\"Race Campaign\" \/ per-kind (\"5K Campaign\", \"10K Campaign\",\n\"Half Marathon Campaign\", \"Marathon Campaign\") framing on\nthe \/plan header so half \/ 10K \/ 5K entries-mode plans get\nthe same \"Weeks to Race Day\" copy marathon plans do, instead\nof falling back to a generic \"Workout Plan · Weeks Remaining\".\n',
+        ),
+      nextMissedDate: zod
+        .string()
+        .nullish()
+        .describe(
+          'Task #33. ISO yyyy-mm-dd of the earliest non-rest plan_day\nin the past that has no logged workout attributed to it\n(workouts.plan_day_id == plan_days.id, or a legacy\nplan_day_id IS NULL match on the same date). Lets the \/plan\nheader surface a \"Next Missed\" shortcut that jumps the\nrunner straight to the day they need to back-fill instead\nof forcing them to scrub week by week. Null when no missed\nsessions exist (everything caught up, or pre-launch with\nno past plan_days yet).\n',
+        ),
+      nextMissedWeek: zod
+        .number()
+        .nullish()
+        .describe(
+          "Task #33. Week number containing `nextMissedDate`, surfaced\nso the client can navigate to \/plan\/:week without a second\nlookup. Null whenever `nextMissedDate` is null.\n",
+        ),
+      nextScheduledRace: zod
+        .object({
+          raceDate: zod.string(),
+          raceKind: zod.enum(["marathon", "half", "10k", "5k"]),
+          name: zod.string().nullish(),
+          notes: zod.string().nullish(),
+          hasResult: zod.boolean().optional(),
+          recordedAt: zod.coerce.date(),
+          updatedAt: zod.coerce.date(),
+          daysUntil: zod
+            .number()
+            .describe(
+              "Whole days from the server's UTC `today` to `raceDate`.\n0 on the race day itself; never negative because the\npicker only returns races with `raceDate >= today`.\n",
+            ),
+        })
+        .describe(
+          "Task #345. Embedded shape for the closest upcoming scheduled\nrace surfaced on \/plan\/overview and \/plan\/today. Same wire\nshape as `ScheduledRace` plus a server-computed `daysUntil`\ndelta from the API server's UTC `today` (0 on race day) so\nclients don't have to recompute it from `raceDate`.\n",
+        )
+        .nullish()
+        .describe(
+          'Task #345. Closest upcoming supplemental scheduled race\n(raceDate >= today), or null when none are on the calendar.\nCarries `daysUntil` (server-computed delta from today, 0 on\nrace day) so the \/plan header can render a \"Next race · 5K\n· in N days\" chip without a second round-trip.\n',
+        ),
+      nextMissedPlanDayId: zod
+        .number()
+        .nullish()
+        .describe(
+          "Task #33. plan_day.id of the earliest missed session.\nSurfaced so the client can highlight the EXACT card after\nnavigation, even when concurrent overlapping programs share\na calendar date and the missed row isn't the primary\n(lowest-source-entry-index) card. Null whenever\n`nextMissedDate` is null.\n",
+        ),
+      scienceVersion: zod
+        .string()
+        .describe(
+          'Task #354. Stamp identifying the current version of the\nunderlying training science (long-run progression curves,\nrace-distance ceilings, per-zone targeting, etc.). Bumped\nwhenever the generator output changes meaningfully for a\npreviously-applied plan. The \/plan page compares this\nagainst `lastAppliedAt`; when the applied snapshot predates\nthis stamp the page surfaces a dismissable \"Coach upgrades\navailable — re-Apply your config\" banner. Format is the\nyyyy-mm-dd of the upgrade so banner-dismissal can be keyed\nby stamp in localStorage and re-arm at the next bump.\n',
+        ),
+      lastAppliedAt: zod
+        .string()
+        .nullable()
+        .describe(
+          "Task #354. ISO timestamp of the most recent `\/planner\/apply`\nagainst the runner's currently-applied config. Null on\nfresh installs \/ after Full Reset (no config has ever been\napplied — `hasPlan === false`). Surfaced alongside\n`scienceVersion` so the \/plan coach-upgrade banner can\ndecide whether the applied snapshot is stale.\n",
+        ),
+      lastAppliedConfigId: zod
+        .number()
+        .nullable()
+        .describe(
+          "Task #354. planner_configs.id of the most-recently-applied\nconfig. The \/plan coach-upgrade banner's \"Re-Apply\" button\nactivates this row and re-runs Apply so the runner doesn't\nhave to round-trip through the Phase Planner. Null whenever\n`lastAppliedAt` is null.\n",
+        ),
+      coachUpgradeAvailable: zod
+        .boolean()
+        .describe(
+          "Task #354. True when there is an applied planner config AND\nits `lastAppliedAt` predates the server's current\n`scienceVersion` — i.e. the generator has been upgraded\nsince the runner last applied their plan and the visible\nnumbers are out of date. Drives the \/plan page's\ndismissable nudge banner. Always false when nothing has\nbeen applied yet (the EmptyPlanState CTA covers that case).\n",
+        ),
+      startingPaceSec: zod
+        .number()
+        .nullable()
+        .describe(
+          'Task #370. Currently-applied starting easy pace (sec\/mi),\nsourced from `planner_configs.appliedStartingPaceSec` on\nthe most-recently-applied row. NULL when no config has\nbeen applied OR the runner cleared the override (the\ngenerator then falls back to the recipe-default easy pace).\nDrives the \/plan header\'s \"Update Starting Pace\" dialog\nso the form can pre-fill with the current value.\n',
+        ),
+      goalEndingPaceSec: zod
+        .number()
+        .nullish()
+        .describe(
+          "Task #373. Currently-applied goal ending easy pace (sec\/mi),\nsourced from `planner_configs.appliedGoalEndingPaceSec` on\nthe most-recently-applied row. NULL when no config has been\napplied OR the runner hasn't set a goal anchor (the\ngenerator then keeps the legacy fixed-rate ~3.75 sec\/mi\/wk\nramp). When BOTH this and `startingPaceSec` are non-null,\nthe generator linearly interpolates from start (week 1) to\ngoal (final week). Drives the \/plan header's \"Update\nStarting Pace\" dialog so the form can pre-fill both anchors.\n",
+        ),
+    }),
+  })
+  .describe(
+    "Task #383. Consolidated dashboard bootstrap payload — the\nserver-side union of the 8 per-tile responses the dashboard\nfirst paint needs. Each field carries the exact same shape as\nits underlying single-endpoint response so the dashboard hook\ncan hand each slice straight to the existing render code.\n",
+  );
+
 export const GetDashboardSummaryResponse = zod.object({
   hasPlan: zod
     .boolean()

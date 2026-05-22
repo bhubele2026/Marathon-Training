@@ -482,6 +482,28 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
 
+  /dashboard/bootstrap:
+    get:
+      operationId: getDashboardBootstrap
+      tags: [dashboard]
+      description: |
+        Task #383. Consolidated first-paint bootstrap for the dashboard.
+        Returns the union of the 8 per-tile payloads the page needs on
+        cold load. Server fans the underlying queries out with
+        Promise.all so the runner pays one HTTP round-trip instead of
+        eight. The per-tile endpoints (`/dashboard/summary`,
+        `/dashboard/weight-trend`, `/dashboard/weekly-mileage`,
+        `/dashboard/equipment-usage`, `/dashboard/long-run-progression`,
+        `/dashboard/recent-activity`, `/plan/today`, `/plan/overview`)
+        stay intact for mutations and other pages — only the dashboard
+        first paint uses this consolidated endpoint.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DashboardBootstrap" }
+
   /dashboard/summary:
     get:
       operationId: getDashboardSummary
@@ -2247,6 +2269,45 @@ components:
         belly: { type: number, nullable: true }
         chest: { type: number, nullable: true }
         notes: { type: string, nullable: true }
+
+    DashboardBootstrap:
+      type: object
+      description: |
+        Task #383. Consolidated dashboard bootstrap payload — the
+        server-side union of the 8 per-tile responses the dashboard
+        first paint needs. Each field carries the exact same shape as
+        its underlying single-endpoint response so the dashboard hook
+        can hand each slice straight to the existing render code.
+      required:
+        [
+          summary,
+          weightTrend,
+          weeklyMileage,
+          equipmentUsage,
+          longRunProgression,
+          recentActivity,
+          today,
+          overview,
+        ]
+      properties:
+        summary: { $ref: "#/components/schemas/DashboardSummary" }
+        weightTrend:
+          type: array
+          items: { $ref: "#/components/schemas/WeightPoint" }
+        weeklyMileage:
+          type: array
+          items: { $ref: "#/components/schemas/WeeklyMileagePoint" }
+        equipmentUsage:
+          type: array
+          items: { $ref: "#/components/schemas/EquipmentUsage" }
+        longRunProgression:
+          type: array
+          items: { $ref: "#/components/schemas/LongRunPoint" }
+        recentActivity:
+          type: array
+          items: { $ref: "#/components/schemas/Workout" }
+        today: { $ref: "#/components/schemas/TodayPlan" }
+        overview: { $ref: "#/components/schemas/PlanOverview" }
 
     DashboardSummary:
       type: object

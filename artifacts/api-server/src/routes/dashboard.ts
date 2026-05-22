@@ -4,6 +4,7 @@ import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { LIFESTYLE_EQUIPMENT, detectRaceKind } from "@workspace/plan-generator";
 import { toWorkout } from "../lib/transforms";
 import { readActiveBodyTargets, readActiveConfigName, readActiveRaceDate } from "./planner";
+import { computePlanOverview, computeTodayPlan } from "./plan";
 
 const router: IRouter = Router();
 
@@ -27,7 +28,14 @@ function todayISO(): string {
 // runner sees the same program name everywhere.
 const FALLBACK_PROGRAM_LABEL = "Marathon Plan";
 
-router.get("/dashboard/summary", async (_req, res) => {
+// Task #383. Each dashboard handler is implemented as an exported
+// `compute*()` function returning the JSON payload. The route handler
+// is a thin wrapper that calls the compute function and `res.json`s
+// the result. This lets `/dashboard/bootstrap` (Task #383) fan all 8
+// dashboard reads out concurrently via `Promise.all` so the first
+// cold dashboard paint pays one round-trip instead of eight.
+
+export async function computeDashboardSummary() {
   const today = todayISO();
   const weekRow = (await db.select().from(planWeeksTable)
     .where(and(lte(planWeeksTable.startDate, today), gte(planWeeksTable.endDate, today))).limit(1))[0]
@@ -316,7 +324,7 @@ router.get("/dashboard/summary", async (_req, res) => {
     ? detectRaceKind(lastDay.distance_mi, lastDay.description, lastDay.session_type)
     : null;
 
-  res.json({
+  return {
     hasPlan: !!weekRow,
     currentWeek: weekRow?.week ?? 1,
     currentPhase: weekRow?.phase ?? "Foundation Build",
@@ -350,17 +358,25 @@ router.get("/dashboard/summary", async (_req, res) => {
     programs: programsWithAdherence,
     raceKind,
     activeConfigName: await readActiveConfigName(),
-  });
+  };
+}
+
+router.get("/dashboard/summary", async (_req, res) => {
+  res.json(await computeDashboardSummary());
 });
 
-router.get("/dashboard/weight-trend", async (_req, res) => {
+export async function computeWeightTrend() {
   const rows = await db.execute<{ date: string; weight: number }>(
     sql`SELECT TO_CHAR(date, 'YYYY-MM-DD') AS date, weight FROM measurements WHERE weight IS NOT NULL ORDER BY date ASC`,
   );
-  res.json(rows.rows);
+  return rows.rows;
+}
+
+router.get("/dashboard/weight-trend", async (_req, res) => {
+  res.json(await computeWeightTrend());
 });
 
-router.get("/dashboard/weekly-mileage", async (_req, res) => {
+export async function computeWeeklyMileage() {
   // Mileage and cardio-minutes per plan_week. Bike-only / row-only weeks
   // have plannedMiles == 0, so the chart also surfaces planned/actual
   // cross-train cardio minutes (and the dominant cardio machine for the
@@ -486,7 +502,7 @@ router.get("/dashboard/weekly-mileage", async (_req, res) => {
     wedSteadyRows.rows.map((r) => [r.week, r.wed_steady]),
   );
 
-  res.json(rows.rows.map((r) => ({
+  return rows.rows.map((r) => ({
     week: r.week,
     startDate: r.start_date,
     phase: r.phase,
@@ -497,7 +513,11 @@ router.get("/dashboard/weekly-mileage", async (_req, res) => {
     dominantCardioEquipment: dominantByWeek.get(r.week) ?? null,
     programs: programsByWeek.get(r.week) ?? [],
     wedSteady: wedSteadyByWeek.get(r.week) ?? null,
-  })));
+  }));
+}
+
+router.get("/dashboard/weekly-mileage", async (_req, res) => {
+  res.json(await computeWeeklyMileage());
 });
 
 const ARSENAL = ["Tonal", "Peloton Tread", "Peloton Bike", "Peloton Row"] as const;
@@ -518,7 +538,7 @@ interface EquipmentRow extends Record<string, unknown> {
   planned_to_date_distance: number;
 }
 
-router.get("/dashboard/equipment-usage", async (_req, res) => {
+export async function computeEquipmentUsage() {
   const today = todayISO();
   // Join planned aggregates from plan_days (excluding rest) with the existing
   // actual aggregates from workouts. FULL OUTER JOIN so machines that only
@@ -651,7 +671,11 @@ router.get("/dashboard/equipment-usage", async (_req, res) => {
   const extras = Array.from(byName.values())
     .map((r) => toItem(r.equipment, r))
     .sort((a, b) => (b.sessions + b.plannedSessions) - (a.sessions + a.plannedSessions));
-  res.json([...arsenal, ...extras]);
+  return [...arsenal, ...extras];
+}
+
+router.get("/dashboard/equipment-usage", async (_req, res) => {
+  res.json(await computeEquipmentUsage());
 });
 
 router.get("/dashboard/equipment-phase-summary", async (_req, res) => {
@@ -756,7 +780,7 @@ router.get("/dashboard/equipment-phase-summary", async (_req, res) => {
   res.json({ phases, rows: [...arsenalRows, ...extraRows] });
 });
 
-router.get("/dashboard/long-run-progression", async (_req, res) => {
+export async function computeLongRunProgression() {
   // Task #113: aggregate per plan_week so weeks with no Long Run / Race
   // (cross-train-only weeks, taper weeks, lift-priority blocks) still
   // appear on the chart — previously they were skipped entirely because
@@ -795,7 +819,7 @@ router.get("/dashboard/long-run-progression", async (_req, res) => {
       ORDER BY pw.week ASC
     `,
   );
-  res.json(rows.rows.map((r) => ({
+  return rows.rows.map((r) => ({
     week: r.week,
     date: r.long_run_date ?? r.start_date,
     phase: r.phase,
@@ -804,10 +828,14 @@ router.get("/dashboard/long-run-progression", async (_req, res) => {
     cardioMin: r.actual_cardio_min > 0 ? r.actual_cardio_min : null,
     plannedCardioMin: r.planned_cardio_min,
     actualCardioMin: r.actual_cardio_min,
-  })));
+  }));
+}
+
+router.get("/dashboard/long-run-progression", async (_req, res) => {
+  res.json(await computeLongRunProgression());
 });
 
-router.get("/dashboard/recent-activity", async (_req, res) => {
+export async function computeRecentActivity() {
   // Left join the matched plan day so each Workout row carries the
   // prescribed run-target snapshot (Task #140 / #148). Mirrors the
   // join shape used by GET /api/workouts.
@@ -826,14 +854,16 @@ router.get("/dashboard/recent-activity", async (_req, res) => {
     .leftJoin(planDaysTable, eq(workoutsTable.planDayId, planDaysTable.id))
     .orderBy(desc(workoutsTable.date), desc(workoutsTable.createdAt))
     .limit(10);
-  res.json(
-    rows.map((r) =>
-      toWorkout(
-        r.workout,
-        r.planDay && r.planDay.sessionType != null ? r.planDay : null,
-      ),
+  return rows.map((r) =>
+    toWorkout(
+      r.workout,
+      r.planDay && r.planDay.sessionType != null ? r.planDay : null,
     ),
   );
+}
+
+router.get("/dashboard/recent-activity", async (_req, res) => {
+  res.json(await computeRecentActivity());
 });
 
 // Task #42: Distinct lifestyle session types ordered by recency. Drives
@@ -860,6 +890,44 @@ router.get("/dashboard/recent-lifestyle-activities", async (_req, res) => {
     sessionType: r.session_type,
     lastLoggedAt: r.last_logged_at,
   })));
+});
+
+// Task #383. Consolidated dashboard bootstrap. Returns the union of the
+// 8 per-tile payloads the dashboard's first paint needs. All reads are
+// independent so we Promise.all them: cold load drops from 8 HTTP
+// round-trips to 1 (bounded by the slowest underlying compute*()).
+// The per-tile endpoints stay intact so mutations / other pages can
+// still invalidate individual slices without re-fetching everything.
+router.get("/dashboard/bootstrap", async (_req, res) => {
+  const [
+    summary,
+    weightTrend,
+    weeklyMileage,
+    equipmentUsage,
+    longRunProgression,
+    recentActivity,
+    today,
+    overview,
+  ] = await Promise.all([
+    computeDashboardSummary(),
+    computeWeightTrend(),
+    computeWeeklyMileage(),
+    computeEquipmentUsage(),
+    computeLongRunProgression(),
+    computeRecentActivity(),
+    computeTodayPlan(),
+    computePlanOverview(),
+  ]);
+  res.json({
+    summary,
+    weightTrend,
+    weeklyMileage,
+    equipmentUsage,
+    longRunProgression,
+    recentActivity,
+    today,
+    overview,
+  });
 });
 
 export default router;

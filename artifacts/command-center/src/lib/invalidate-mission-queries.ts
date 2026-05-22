@@ -1,6 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import {
   getGetDashboardSummaryQueryKey,
+  getGetDashboardBootstrapQueryKey,
   getGetTodayPlanQueryKey,
   getListWorkoutsQueryKey,
   getGetWeeklyMileageQueryKey,
@@ -14,6 +15,12 @@ import {
 
 export function invalidateMissionRelatedQueries(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+  // Task #383: the dashboard cold-paint reads from a single
+  // `/api/dashboard/bootstrap` query that fans out all 8 tile slices
+  // server-side. Mutations must invalidate it alongside the per-tile
+  // keys or Crushed It / skip / log-workout flows leave the dashboard
+  // stale until natural refetch.
+  queryClient.invalidateQueries({ queryKey: getGetDashboardBootstrapQueryKey() });
   queryClient.invalidateQueries({ queryKey: getGetTodayPlanQueryKey() });
   queryClient.invalidateQueries({ queryKey: getListWorkoutsQueryKey() });
   queryClient.invalidateQueries({ queryKey: getGetWeeklyMileageQueryKey() });

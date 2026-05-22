@@ -943,6 +943,33 @@ export interface UpdateMeasurementBody {
   notes?: string | null;
 }
 
+export interface DashboardSummaryProgram {
+  /** Stable identifier for this program within the active planner config (0..N-1). */
+  sourceEntryIndex: number;
+  /** Human-readable program name (entry.customName or template name); falls back to "Marathon Plan" for legacy single-program campaigns. */
+  label: string;
+  /** ISO yyyy-mm-dd. Last calendar date this program contributes a plan_day on. Programs in an entries-mode config can finish before the campaign marathonDate (e.g. a 5K Improver block that ends 12 weeks before race day) — this field surfaces that explicitly so the dashboard can show "Tonal Lift ends 2027-01-15" alongside the campaign marathon date.
+   */
+  endDate: string;
+  weeklyMilesPlanned: number;
+  /** Sum of `distance_mi` from logged workouts whose plan_day_id links back to one of this program's plan_days in the current week. Workouts that were never linked to a specific plan_day (e.g. unplanned cross-train) only contribute to the combined headline number.
+   */
+  weeklyMilesActual: number;
+  weeklyLoadPlanned: number;
+  weeklyLoadActual: number;
+  weeklySessionsPlanned: number;
+  weeklySessionsCompleted: number;
+  /** Task #162. Non-rest plan_days for this program from campaign start through today (inclusive). Drives the per-program adherence slice on the dashboard so a runner stacking a Tonal lift program alongside a 5K running program can spot which program is dragging the combined `adherencePct` down.
+   */
+  adherencePlanned: number;
+  /** Task #162. Subset of `adherencePlanned` for this program that has at least one logged (non-Skipped) workout attributed to it via plan_day_id (or, for legacy workouts with no plan_day_id, a same-date match).
+   */
+  adherenceCompleted: number;
+  /** Task #162. `adherenceCompleted / adherencePlanned * 100`, clamped to [0, 100]. Returns 0 when `adherencePlanned` is 0 (program hasn't started yet).
+   */
+  adherencePct: number;
+}
+
 /**
  * Task #209. Kind of race the campaign is anchored on, derived
 from the trailing plan_day Sunday — same detection logic as
@@ -972,33 +999,6 @@ export const DashboardSummaryRaceKind = {
   "10k": "10k",
   "5k": "5k",
 } as const;
-
-export interface DashboardSummaryProgram {
-  /** Stable identifier for this program within the active planner config (0..N-1). */
-  sourceEntryIndex: number;
-  /** Human-readable program name (entry.customName or template name); falls back to "Marathon Plan" for legacy single-program campaigns. */
-  label: string;
-  /** ISO yyyy-mm-dd. Last calendar date this program contributes a plan_day on. Programs in an entries-mode config can finish before the campaign marathonDate (e.g. a 5K Improver block that ends 12 weeks before race day) — this field surfaces that explicitly so the dashboard can show "Tonal Lift ends 2027-01-15" alongside the campaign marathon date.
-   */
-  endDate: string;
-  weeklyMilesPlanned: number;
-  /** Sum of `distance_mi` from logged workouts whose plan_day_id links back to one of this program's plan_days in the current week. Workouts that were never linked to a specific plan_day (e.g. unplanned cross-train) only contribute to the combined headline number.
-   */
-  weeklyMilesActual: number;
-  weeklyLoadPlanned: number;
-  weeklyLoadActual: number;
-  weeklySessionsPlanned: number;
-  weeklySessionsCompleted: number;
-  /** Task #162. Non-rest plan_days for this program from campaign start through today (inclusive). Drives the per-program adherence slice on the dashboard so a runner stacking a Tonal lift program alongside a 5K running program can spot which program is dragging the combined `adherencePct` down.
-   */
-  adherencePlanned: number;
-  /** Task #162. Subset of `adherencePlanned` for this program that has at least one logged (non-Skipped) workout attributed to it via plan_day_id (or, for legacy workouts with no plan_day_id, a same-date match).
-   */
-  adherenceCompleted: number;
-  /** Task #162. `adherenceCompleted / adherencePlanned * 100`, clamped to [0, 100]. Returns 0 when `adherencePlanned` is 0 (program hasn't started yet).
-   */
-  adherencePct: number;
-}
 
 export interface DashboardSummary {
   /** Task #307. False when no Phase Planner config has ever been
@@ -1158,6 +1158,39 @@ export interface EquipmentUsage {
   byProgram: EquipmentUsageProgram[];
 }
 
+export interface LongRunPoint {
+  week: number;
+  date?: string;
+  phase?: string;
+  plannedMi: number;
+  actualMi: number;
+  /** Total actual cardio minutes logged across the whole plan week (sum of `workouts.cardio_min`). Null when no cardio was logged that week. Kept for back-compat — prefer `actualCardioMin` for new code. */
+  cardioMin?: number | null;
+  /** Total planned cross-train cardio minutes for the whole plan week (sum of `plan_days.cardio_min`). Drives the secondary-axis bar on the Long Run Build chart so cross-train-only weeks (no Long Run / Race) still render a visible bar. */
+  plannedCardioMin?: number;
+  /** Total actual cardio minutes logged across the whole plan week. Same value as `cardioMin` but always a number (0 instead of null). */
+  actualCardioMin?: number;
+}
+
+/**
+ * Task #383. Consolidated dashboard bootstrap payload — the
+server-side union of the 8 per-tile responses the dashboard
+first paint needs. Each field carries the exact same shape as
+its underlying single-endpoint response so the dashboard hook
+can hand each slice straight to the existing render code.
+
+ */
+export interface DashboardBootstrap {
+  summary: DashboardSummary;
+  weightTrend: WeightPoint[];
+  weeklyMileage: WeeklyMileagePoint[];
+  equipmentUsage: EquipmentUsage[];
+  longRunProgression: LongRunPoint[];
+  recentActivity: Workout[];
+  today: TodayPlan;
+  overview: PlanOverview;
+}
+
 export interface EquipmentPhaseRow {
   equipment: string;
   /** Planned non-rest sessions per phase, in the same order as `phases`. */
@@ -1177,20 +1210,6 @@ export interface EquipmentPhaseRow {
 export interface EquipmentPhaseSummary {
   phases: string[];
   rows: EquipmentPhaseRow[];
-}
-
-export interface LongRunPoint {
-  week: number;
-  date?: string;
-  phase?: string;
-  plannedMi: number;
-  actualMi: number;
-  /** Total actual cardio minutes logged across the whole plan week (sum of `workouts.cardio_min`). Null when no cardio was logged that week. Kept for back-compat — prefer `actualCardioMin` for new code. */
-  cardioMin?: number | null;
-  /** Total planned cross-train cardio minutes for the whole plan week (sum of `plan_days.cardio_min`). Drives the secondary-axis bar on the Long Run Build chart so cross-train-only weeks (no Long Run / Race) still render a visible bar. */
-  plannedCardioMin?: number;
-  /** Total actual cardio minutes logged across the whole plan week. Same value as `cardioMin` but always a number (0 instead of null). */
-  actualCardioMin?: number;
 }
 
 export interface RaceWeekChecklistItem {

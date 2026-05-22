@@ -102,7 +102,7 @@ async function currentWeek(): Promise<{ week: number; phase: string }> {
   return { week: 1, phase: "Foundation Build" };
 }
 
-router.get("/plan/overview", async (_req, res) => {
+export async function computePlanOverview() {
   const { week, phase } = await currentWeek();
   const allWeeks = await db.select().from(planWeeksTable).orderBy(asc(planWeeksTable.week));
   const totalWeeks = allWeeks.length;
@@ -255,7 +255,7 @@ router.get("/plan/overview", async (_req, res) => {
     bodyTargets.startWeight ?? (await readEarliestMeasurementWeight());
   const goalWeight = bodyTargets.goalWeight;
 
-  res.json({
+  return {
     hasPlan: allWeeks.length > 0,
     currentWeek: week,
     currentPhase: phase,
@@ -291,7 +291,11 @@ router.get("/plan/overview", async (_req, res) => {
     // no config has been applied OR the runner hasn't set a goal anchor
     // (the generator then keeps the legacy fixed-rate ramp).
     goalEndingPaceSec: appliedConfig?.goalEndingPaceSec ?? null,
-  });
+  };
+}
+
+router.get("/plan/overview", async (_req, res) => {
+  res.json(await computePlanOverview());
 });
 
 // Task #204 / #210: server-side race-kind detection for /plan/overview
@@ -1143,7 +1147,7 @@ async function fetchFirstSessionDay(): Promise<PlanDayRow | null> {
   return rows[0] ?? null;
 }
 
-router.get("/plan/today", async (_req, res) => {
+export async function computeTodayPlan() {
   const today = todayISO();
   // Task #306: campaign-level race kind detected from the trailing
   // plan_day Sunday — same query / resolution as /plan/overview
@@ -1235,7 +1239,7 @@ router.get("/plan/today", async (_req, res) => {
 
   const nextScheduledRace = await fetchNextScheduledRace(today);
 
-  res.json({
+  return {
     date: today,
     hasPlan: planRows.length > 0,
     plan: planRow ? todayPlanDay(planRow) : null,
@@ -1257,7 +1261,11 @@ router.get("/plan/today", async (_req, res) => {
         }
       : null,
     raceKind,
-  });
+  };
+}
+
+router.get("/plan/today", async (_req, res) => {
+  res.json(await computeTodayPlan());
 });
 
 // --- Plan editing ---------------------------------------------------------
