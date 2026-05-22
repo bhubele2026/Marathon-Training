@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+// The planner harness is heavy (full PLAN_TEMPLATES + Planner page render).
+// Under full-suite load on shared CPU the first render in this file can push
+// past the default 5s timeout and flake. Bump the per-test timeout for every
+// test in this file so the cold-start cost never trips it.
+vi.setConfig({ testTimeout: 15000 });
+
 // jsdom doesn't ship ResizeObserver, but cmdk (used by the quick-add
 // popover) constructs one on mount. Stub it so the popover content
 // renders in tests.
