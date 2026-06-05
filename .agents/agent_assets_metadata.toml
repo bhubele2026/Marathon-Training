@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "eKiR2AKiqfNl5lUeNztvU"
+uri = "file://.local/exports/marathon-command-center-source.tar.gz"
+type = "unspecified"
+title = "Marathon Command Center — full source code"
