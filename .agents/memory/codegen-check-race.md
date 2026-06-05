@@ -35,8 +35,13 @@ to a temp location. Never delete-and-restore committed files that a running
 process imports.
 
 ## Note on the deployed app
-A separate earlier hypothesis was that the *published* app went blank. Verified
-the live deployment is healthy three ways (screenshot, headless Chromium load
-with 0 console/page errors and a single navigation, healthy API logs). The
-recurring blank was the **dev/workspace preview**, caused by the codegen race
-above — not the production build (generated files are committed, built once).
+CAUTION: an earlier check of only the *root* URL (`/`) concluded "production is
+healthy" — that was incomplete. The published app DID blank, but on the `/plan`
+route specifically, due to a separate React #310 hooks bug (see
+[plan-route-hooks-310.md](plan-route-hooks-310.md)). Lesson: when debugging a
+"goes blank" report, load the **exact route the user named**, not just the home
+page — per-route lazy chunks can crash independently.
+
+The codegen race documented above is a real, distinct issue affecting the
+**dev/workspace preview** (generated files are committed, so it does not affect
+the production build).

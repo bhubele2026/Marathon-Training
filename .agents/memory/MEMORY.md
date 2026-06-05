@@ -1,1 +1,2 @@
+- [/plan blanked by React #310](plan-route-hooks-310.md) — hooks (useMemo) placed after early returns crash the whole SPA on the loaded route; keep all hooks above every conditional return.
 - [Codegen drift-check race blanks the preview](codegen-check-race.md) — orval `clean:true` regen in-place deletes committed generated files mid-run; a concurrent vite dev server 500s. Drift checks must generate to a temp dir.

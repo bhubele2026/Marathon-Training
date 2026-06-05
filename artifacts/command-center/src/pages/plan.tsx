@@ -372,6 +372,37 @@ export default function Plan() {
     });
   };
 
+  // Task #382: memoize the per-render derivations over a 52-week
+  // payload so dialog state toggles (Reset/Repace/Full Reset/coach
+  // banner dismiss) don't re-walk + re-group the entire weeks array
+  // on every keystroke. Aggregates are pure functions of `weeks`, so
+  // a single dependency is enough.
+  //
+  // Rules of Hooks: these `useMemo` calls MUST run on every render,
+  // BEFORE the loading / null / empty-plan early returns below. `weeks`
+  // is undefined until the query resolves, so guard with `?? []`. (A
+  // prior version placed these after the early returns, so the loading
+  // render ran fewer hooks than the loaded render — React error #310,
+  // which blanked the whole /plan route.)
+  const groupedWeeks = useMemo(() => {
+    const acc: Record<string, NonNullable<typeof weeks>[number][]> = {};
+    for (const week of weeks ?? []) {
+      (acc[week.phase] ??= []).push(week);
+    }
+    return acc;
+  }, [weeks]);
+  const { totalMissed, totalCustomized, nextMissedWeek } = useMemo(() => {
+    let missed = 0;
+    let customized = 0;
+    let next: NonNullable<typeof weeks>[number] | undefined;
+    for (const w of weeks ?? []) {
+      missed += w.missedSessions ?? 0;
+      customized += w.customizedDays ?? 0;
+      if (!next && (w.missedSessions ?? 0) > 0) next = w;
+    }
+    return { totalMissed: missed, totalCustomized: customized, nextMissedWeek: next };
+  }, [weeks]);
+
   if (loadingOverview || loadingWeeks) {
     return (
       <div className="space-y-6">
@@ -452,21 +483,6 @@ export default function Plan() {
     );
   }
 
-  // Task #382: memoize the per-render derivations over a 52-week
-  // payload so dialog state toggles (Reset/Repace/Full Reset/coach
-  // banner dismiss) don't re-walk + re-group the entire weeks array
-  // on every keystroke. Aggregates are pure functions of `weeks`, so
-  // a single dependency is enough.
-  const groupedWeeks = useMemo(
-    () =>
-      weeks.reduce((acc, week) => {
-        if (!acc[week.phase]) acc[week.phase] = [];
-        acc[week.phase].push(week);
-        return acc;
-      }, {} as Record<string, typeof weeks>),
-    [weeks],
-  );
-
   // Task #204: a "race" plan is any campaign whose trailing plan_day
   // Sunday is a recognised race row — surfaced server-side as
   // overview.raceKind ("marathon" | "half" | "10k" | "5k") so half /
@@ -487,17 +503,6 @@ export default function Plan() {
   // gates the subtitle ("Weeks to Race Day" vs "Weeks Remaining") so
   // race-anchored campaigns keep their countdown framing.
   const headerTitle = overview.activeConfigName?.trim() || "Workout Plan";
-  const { totalMissed, totalCustomized, nextMissedWeek } = useMemo(() => {
-    let missed = 0;
-    let customized = 0;
-    let next: typeof weeks[number] | undefined;
-    for (const w of weeks) {
-      missed += w.missedSessions ?? 0;
-      customized += w.customizedDays ?? 0;
-      if (!next && (w.missedSessions ?? 0) > 0) next = w;
-    }
-    return { totalMissed: missed, totalCustomized: customized, nextMissedWeek: next };
-  }, [weeks]);
   // Task #33: server-resolved earliest missed plan_day. We prefer this
   // over deriving from `nextMissedWeek` so the deep link jumps straight
   // to the specific day card to back-fill, not just the week. We pass
