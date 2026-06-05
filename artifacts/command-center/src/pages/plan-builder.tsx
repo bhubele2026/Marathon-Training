@@ -375,9 +375,15 @@ export default function PlanBuilder() {
                 )}
 
                 <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
+                  <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <span className="w-10 shrink-0">Week</span>
+                    <span className="w-28 shrink-0">Phase</span>
+                    <span className="flex-1">Running volume (all runs, per week)</span>
+                    <span className="w-24 shrink-0 text-right">wk / longest</span>
+                  </div>
                   {weekly.map((w) => (
                     <div key={w.week} className="flex items-center gap-2 text-xs">
-                      <span className="w-14 shrink-0 text-muted-foreground">W{w.week}</span>
+                      <span className="w-10 shrink-0 text-muted-foreground">W{w.week}</span>
                       <span className="w-28 shrink-0 truncate">{w.phase}</span>
                       <div className="h-2 flex-1 rounded bg-muted">
                         <div
@@ -385,8 +391,8 @@ export default function PlanBuilder() {
                           style={{ width: `${(w.plannedMiles / maxMiles) * 100}%` }}
                         />
                       </div>
-                      <span className="w-16 shrink-0 text-right font-mono">
-                        {w.plannedMiles.toFixed(1)} mi
+                      <span className="w-24 shrink-0 text-right font-mono">
+                        {w.plannedMiles.toFixed(1)}/{w.longRunMi.toFixed(0)} mi
                       </span>
                     </div>
                   ))}
