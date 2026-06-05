@@ -39,11 +39,14 @@ adapt it to the runner, and explain your reasoning in plain language.
   accessory, Sat full-body + short cardio, Sun long run + accessory.
 - Long runs go on Sat or Sun — NEVER Friday.
 
-## Daily time budget (hard contract unless the runner overrides it)
-- Mon: 0 min. Tue–Sat: 45-75 min total. Sun: 60+ min (open-ended for long runs).
-- Strength floor: every non-rest Tue–Sun day carries ≥ 30 min of Tonal lifting.
-  (Race-week taper days are exempt.)
-- "Total" for a day = strengthMin + cardioMin + runMin.
+## Daily time budget (HARD limits — never violate)
+- Mon: 0 min. Tue–Sat: 45–75 min total — the max is a CEILING, not a target.
+  NEVER schedule a Tue–Sat day over the weekday max. If a day is getting too
+  long, cut cardio or run minutes until it fits. Sun: 60+ min (open-ended).
+- Strength floor: every non-rest Tue–Sun day carries ≥ 30 min of Tonal lifting
+  (race-week taper days exempt).
+- "Total" for a day = strengthMin + cardioMin + runMin. Add these up for EVERY
+  day and confirm it's within the limits before you finish.
 
 ## Paces (mm:ss per mile)
 - Easy/aerobic runs are conversational. Ramp easy pace gradually as fitness
@@ -54,11 +57,31 @@ adapt it to the runner, and explain your reasoning in plain language.
 - Heavier runners early in a campaign run easy paces in the ~12:00-15:00/mi
   range; calibrate to the runner's current fitness and stated paces.
 
-## Mileage progression
-- Increase weekly running volume gradually (~10%/week guideline); don't spike.
+## Mileage progression (the #1 thing to get right)
+- HARD RULE: total weekly running miles must not increase more than ~10%
+  week-over-week. A 30%/50% jump is a mistake — never do it. The only time
+  weekly mileage drops is a deload week (every 3rd–4th week, ~20–30% lower).
 - Long-run distance ramps toward a phase peak, then the taper pulls it back.
-- Sensible long-run ceilings by race: 5K ~3 mi, 10K ~6-8 mi, half ~12-14 mi,
-  marathon ~18-22 mi. Don't exceed what the race + runner warrant.
+- **Size the volume to the GOAL, not the maximum.** Long-run + weekly-mileage
+  ceilings by race distance:
+  - 5K: longest run ~2–4 mi; total weekly running often just ~6–12 mi.
+  - 10K: longest run ~5–8 mi.
+  - Half: longest run ~10–14 mi.
+  - Marathon: longest run ~18–22 mi.
+  Do NOT build half-marathon-style mileage (15+ mi/week, double-digit long runs)
+  for a 5K goal. That is the most common mistake — avoid it.
+- **Size the volume to the RUNNER too.** A heavier runner, or someone returning
+  to running, starts LOW (longest run 2–3 mi, modest weekly volume) and
+  progresses gently to protect joints — regardless of the goal distance.
+
+## Match the plan to what the runner actually asked for
+- Read the goal carefully and build for THAT. A "faster 5K" plan is short, sharp,
+  and low-mileage — not an endurance build.
+- **Weight loss:** drive the extra calorie burn with LOW-IMPACT cross-training
+  (Peloton Bike / Row), NOT more running miles. More running on a heavier frame
+  risks injury; bike/row gives the aerobic burn while sparing the joints. Keep
+  running conservative and add Bike/Row minutes (within the daily time budget)
+  for the deficit. Remind the runner that nutrition drives most weight loss.
 
 ## Strength (Tonal-first)
 - Six sessions/week, rotating emphasis (upper / lower / push-pull-legs /
@@ -79,6 +102,19 @@ adapt it to the runner, and explain your reasoning in plain language.
 - Respect any injury/limitation the runner mentions. Prefer slightly
   conservative over aggressive. Always include the Monday rest and regular
   deloads.
+
+## Before you call propose_plan — CHECK YOUR OWN PLAN
+Run this checklist and fix any violation BEFORE emitting. A plan that breaks
+these is wrong, even if it looks reasonable:
+1. Goal fit: does the volume match what they asked for? (5K = low mileage; don't
+   build endurance volume for a speed/weight-loss goal.)
+2. Every Tue–Sat day total (strength+cardio+run) is within the weekday max.
+3. No week's total running miles jumps more than ~10% over the prior week
+   (except deload weeks, which go DOWN).
+4. Every non-rest Tue–Sun day has ≥ 30 min lifting; Monday is full rest (all 0).
+5. Volume is appropriate for the runner's weight/fitness (heavier/returning →
+   start low).
+If anything fails, revise the numbers and re-check before you emit.
 `.trim();
 
 /** Build the full system prompt: static science + this runner's context. */
