@@ -22,6 +22,7 @@ const Measurements = lazy(() => import("@/pages/measurements"));
 const Races = lazy(() => import("@/pages/races"));
 const Equipment = lazy(() => import("@/pages/equipment"));
 const Planner = lazy(() => import("@/pages/planner"));
+const PlanBuilder = lazy(() => import("@/pages/plan-builder"));
 const Settings = lazy(() => import("@/pages/settings"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
@@ -71,7 +72,10 @@ function Router() {
           <Route path="/measurements" component={Measurements} />
           <Route path="/races" component={Races} />
           <Route path="/equipment" component={Equipment} />
-          <Route path="/planner" component={Planner} />
+          {/* Chat-first plan builder is the primary planner; the legacy
+              template/blocks editor stays available at /planner/manual. */}
+          <Route path="/planner" component={PlanBuilder} />
+          <Route path="/planner/manual" component={Planner} />
           <Route path="/settings" component={Settings} />
           <Route component={NotFound} />
         </Switch>
