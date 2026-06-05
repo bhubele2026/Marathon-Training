@@ -13,7 +13,9 @@
   "dependencies": {
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
+    "@workspace/integrations-anthropic": "workspace:*",
     "@workspace/plan-generator": "workspace:*",
+    "@workspace/plan-knowledge": "workspace:*",
     "@workspace/scripts": "workspace:*",
     "cookie-parser": "^1.4.7",
     "cors": "^2",

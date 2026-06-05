@@ -25,6 +25,32 @@ import {
 //    lookup pivot off the row with the most recent last_applied_at, so
 //    activating-but-not-applying a different draft can NOT silently
 //    re-anchor those consumers.
+// Structural copy of @workspace/plan-knowledge's AiPlan, inlined so this
+// package stays dependency-free (db depends only on drizzle/pg/zod). Kept in
+// sync with lib/plan-knowledge/src/types.ts.
+type AiPlanJson = {
+  summary: string;
+  name: string;
+  raceKind: "marathon" | "half" | "10k" | "5k" | "none";
+  startDate: string;
+  weeks: Array<{
+    week: number;
+    phase: string;
+    days: Array<{
+      day: string;
+      isRest: boolean;
+      sessionType: string;
+      strengthMin: number;
+      cardioMin: number;
+      runMin: number;
+      distanceMi?: number | null;
+      pace?: string | null;
+      equipmentList: string[];
+      description: string;
+    }>;
+  }>;
+};
+
 export const plannerConfigsTable = pgTable("planner_configs", {
   // Manually assigned by the API (POST endpoint computes MAX(id)+1) so
   // we don't have to migrate the existing single-row id=1 to a serial /
@@ -162,6 +188,17 @@ export const plannerConfigsTable = pgTable("planner_configs", {
     weekdayMax?: number | null;
     weekendMin?: number | null;
   } | null>(),
+  // Plan authoring source. "engine" = the deterministic recipe generator
+  // expands blocks/entries (legacy default). "ai" = Claude authored the plan
+  // directly and it lives in ai_plan; Apply materializes ai_plan straight into
+  // plan_weeks/plan_days instead of running the generator. Defaulted so every
+  // pre-existing row reads as "engine".
+  source: text("source").notNull().default("engine"),
+  // The full Claude-authored plan (AiPlan). NULL for engine-sourced configs.
+  aiPlan: jsonb("ai_plan").$type<AiPlanJson | null>(),
+  // Apply-time snapshot of ai_plan (mirrors the applied_* convention) so Full
+  // Reset / re-apply can re-materialize the exact plan that was applied.
+  appliedAiPlan: jsonb("applied_ai_plan").$type<AiPlanJson | null>(),
 });
 
 export type PlannerConfigRow = typeof plannerConfigsTable.$inferSelect;
