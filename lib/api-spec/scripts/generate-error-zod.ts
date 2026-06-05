@@ -28,7 +28,13 @@ type OpenApiDoc = {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..", "..", "..");
 const specPath = path.resolve(repoRoot, "lib", "api-spec", "openapi.yaml");
-const outputPath = path.resolve(repoRoot, "lib", "api-zod", "src", "errors.ts");
+// Honor CODEGEN_OUTPUT_ROOT (set by codegen:check) so the drift check can
+// write to a throwaway dir instead of the committed working tree. The spec is
+// always read from the real repo root.
+const outputRoot = process.env.CODEGEN_OUTPUT_ROOT
+  ? path.resolve(process.env.CODEGEN_OUTPUT_ROOT)
+  : repoRoot;
+const outputPath = path.resolve(outputRoot, "lib", "api-zod", "src", "errors.ts");
 
 const COMPONENT_TO_EXPORT: Record<string, string> = {
   Error: "ErrorResponse",

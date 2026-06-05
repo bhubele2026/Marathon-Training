@@ -1,0 +1,1 @@
+- [Codegen drift-check race blanks the preview](codegen-check-race.md) — orval `clean:true` regen in-place deletes committed generated files mid-run; a concurrent vite dev server 500s. Drift checks must generate to a temp dir.

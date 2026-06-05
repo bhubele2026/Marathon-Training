@@ -1,15 +1,37 @@
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const apiSpecDir = path.resolve(__dirname, "..");
 const repoRoot = path.resolve(__dirname, "..", "..", "..");
 
-const TARGETS = [
-  path.resolve(repoRoot, "lib", "api-client-react", "src", "generated"),
-  path.resolve(repoRoot, "lib", "api-zod", "src", "generated"),
-  path.resolve(repoRoot, "lib", "api-zod", "src", "errors.ts"),
+const apiClientReactSrc = path.resolve(
+  repoRoot,
+  "lib",
+  "api-client-react",
+  "src",
+);
+const apiZodSrc = path.resolve(repoRoot, "lib", "api-zod", "src");
+
+// Each entry compares a committed path against the freshly generated copy in
+// the throwaway temp tree. `rel` is the path relative to the output root, used
+// to locate the generated counterpart and for human-readable diff labels.
+const COMPARISONS: { real: string; rel: string }[] = [
+  {
+    real: path.join(apiClientReactSrc, "generated"),
+    rel: "lib/api-client-react/src/generated",
+  },
+  {
+    real: path.join(apiZodSrc, "generated"),
+    rel: "lib/api-zod/src/generated",
+  },
+  {
+    real: path.join(apiZodSrc, "errors.ts"),
+    rel: "lib/api-zod/src/errors.ts",
+  },
 ];
 
 type Tree = Map<string, Buffer>;
@@ -39,33 +61,13 @@ function readTree(target: string): Tree {
   return tree;
 }
 
-function restoreTree(target: string, tree: Tree): void {
-  if (fs.existsSync(target)) {
-    fs.rmSync(target, { recursive: true, force: true });
-  }
-  if (tree.size === 0) {
-    return;
-  }
-  if (tree.size === 1 && tree.has(SINGLE_FILE_KEY)) {
-    fs.mkdirSync(path.dirname(target), { recursive: true });
-    fs.writeFileSync(target, tree.get(SINGLE_FILE_KEY)!);
-    return;
-  }
-  fs.mkdirSync(target, { recursive: true });
-  for (const [rel, content] of tree) {
-    const dest = path.join(target, rel);
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    fs.writeFileSync(dest, content);
-  }
-}
-
-function diffTrees(before: Tree, after: Tree): string[] {
+function diffTrees(committed: Tree, generated: Tree): string[] {
   const diffs: string[] = [];
-  const keys = new Set<string>([...before.keys(), ...after.keys()]);
+  const keys = new Set<string>([...committed.keys(), ...generated.keys()]);
   const sorted = [...keys].sort();
   for (const key of sorted) {
-    const a = before.get(key);
-    const b = after.get(key);
+    const a = committed.get(key);
+    const b = generated.get(key);
     const label = key === SINGLE_FILE_KEY ? "(file)" : key;
     if (!a && b) {
       diffs.push(`  + ${label} (missing on disk, codegen would create it)`);
@@ -78,38 +80,63 @@ function diffTrees(before: Tree, after: Tree): string[] {
   return diffs;
 }
 
+function run(
+  command: string,
+  args: string[],
+  env: NodeJS.ProcessEnv,
+): boolean {
+  const result = spawnSync(command, args, {
+    cwd: apiSpecDir,
+    stdio: "inherit",
+    env,
+  });
+  return result.status === 0;
+}
+
 function main(): void {
-  const snapshots = TARGETS.map((target) => ({
-    target,
-    tree: readTree(target),
-  }));
+  // Generate into a throwaway directory so the drift check never deletes or
+  // rewrites the committed generated files. orval's `clean: true` would
+  // otherwise wipe the output dir mid-run and break any concurrently running
+  // dev server importing it (the workspace preview goes blank). We seed the
+  // temp tree with a copy of the real source so orval has the mutator
+  // (custom-fetch.ts) and surrounding files it needs.
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codegen-check-"));
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    CODEGEN_OUTPUT_ROOT: tmpRoot,
+  };
 
   let codegenFailed = false;
   let driftDetected = false;
-  let restoreFailed = false;
 
   try {
-    const result = spawnSync(
-      "pnpm",
-      ["--filter", "@workspace/api-spec", "run", "codegen:generate"],
-      {
-        cwd: repoRoot,
-        stdio: "inherit",
-      },
-    );
-    if (result.status !== 0) {
+    fs.cpSync(apiClientReactSrc, path.join(tmpRoot, "lib", "api-client-react", "src"), {
+      recursive: true,
+    });
+    fs.cpSync(apiZodSrc, path.join(tmpRoot, "lib", "api-zod", "src"), {
+      recursive: true,
+    });
+
+    const tmpErrors = path.join(tmpRoot, "lib", "api-zod", "src", "errors.ts");
+    const ok =
+      run("pnpm", ["exec", "orval", "--config", "./orval.config.ts"], env) &&
+      run("pnpm", ["exec", "tsx", "./scripts/generate-error-zod.ts"], env) &&
+      run("pnpm", ["exec", "prettier", "--write", tmpErrors], env);
+
+    if (!ok) {
       codegenFailed = true;
       // eslint-disable-next-line no-console
       console.error(
         "\ncodegen:check: codegen failed. See output above for details.",
       );
     } else {
-      const drifted: { target: string; diffs: string[] }[] = [];
-      for (const { target, tree } of snapshots) {
-        const after = readTree(target);
-        const diffs = diffTrees(tree, after);
+      const drifted: { rel: string; diffs: string[] }[] = [];
+      for (const { real, rel } of COMPARISONS) {
+        const committed = readTree(real);
+        const generated = readTree(path.join(tmpRoot, rel));
+        const diffs = diffTrees(committed, generated);
         if (diffs.length > 0) {
-          drifted.push({ target, diffs });
+          drifted.push({ rel, diffs });
         }
       }
       if (drifted.length > 0) {
@@ -126,9 +153,9 @@ function main(): void {
         console.error("  pnpm --filter @workspace/api-spec run codegen\n");
         // eslint-disable-next-line no-console
         console.error("Differences detected:");
-        for (const { target, diffs } of drifted) {
+        for (const { rel, diffs } of drifted) {
           // eslint-disable-next-line no-console
-          console.error(`\n${path.relative(repoRoot, target)}:`);
+          console.error(`\n${rel}:`);
           for (const d of diffs) {
             // eslint-disable-next-line no-console
             console.error(d);
@@ -142,31 +169,10 @@ function main(): void {
       }
     }
   } finally {
-    for (const { target, tree } of snapshots) {
-      try {
-        restoreTree(target, tree);
-      } catch (err) {
-        restoreFailed = true;
-        // eslint-disable-next-line no-console
-        console.error(
-          `codegen:check: failed to restore snapshot for ${path.relative(
-            repoRoot,
-            target,
-          )}: ${(err as Error).message}`,
-        );
-      }
-    }
-    if (restoreFailed) {
-      // eslint-disable-next-line no-console
-      console.error(
-        "\ncodegen:check: working tree may be in an inconsistent state. " +
-          "Run `pnpm --filter @workspace/api-spec run codegen` to regenerate, " +
-          "then verify with `git status`.",
-      );
-    }
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
   }
 
-  process.exit(codegenFailed || driftDetected || restoreFailed ? 1 : 0);
+  process.exit(codegenFailed || driftDetected ? 1 : 0);
 }
 
 main();
