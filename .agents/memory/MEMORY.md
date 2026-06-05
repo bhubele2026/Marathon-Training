@@ -1,0 +1,1 @@
+- [SPA lazy-loading deploy blank page](spa-deploy-blank-page.md) — React.lazy routes need lazyWithReload + error boundary or a redeploy 404s old chunks and blanks the app.
