@@ -16,6 +16,12 @@
       "path": "./lib/plan-generator"
     },
     {
+      "path": "./lib/plan-knowledge"
+    },
+    {
+      "path": "./lib/integrations/anthropic"
+    },
+    {
       "path": "./lib/visual-themes"
     }
   ]

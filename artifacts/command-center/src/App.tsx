@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { Suspense } from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
@@ -7,23 +7,26 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "@/components/layout";
 import { VisualThemeProvider } from "@/lib/visual-theme";
 import { Skeleton } from "@/components/ui/skeleton";
+import { lazyWithReload } from "@/lib/lazy-with-reload";
+import { RouteErrorBoundary } from "@/components/route-error-boundary";
 
 // Task #382: route-level code splitting. Each page becomes its own
 // async chunk so the initial entry bundle only carries the layout +
 // router shell. Heavyweight per-page dependencies (notably recharts on
 // dashboard / measurements, and the plan generator + zod recipes on
 // planner) load on demand when the runner navigates there.
-const Dashboard = lazy(() => import("@/pages/dashboard"));
-const Today = lazy(() => import("@/pages/today"));
-const Plan = lazy(() => import("@/pages/plan"));
-const WeekDetail = lazy(() => import("@/pages/week-detail"));
-const Log = lazy(() => import("@/pages/log"));
-const Measurements = lazy(() => import("@/pages/measurements"));
-const Races = lazy(() => import("@/pages/races"));
-const Equipment = lazy(() => import("@/pages/equipment"));
-const Planner = lazy(() => import("@/pages/planner"));
-const Settings = lazy(() => import("@/pages/settings"));
-const NotFound = lazy(() => import("@/pages/not-found"));
+const Dashboard = lazyWithReload(() => import("@/pages/dashboard"));
+const Today = lazyWithReload(() => import("@/pages/today"));
+const Plan = lazyWithReload(() => import("@/pages/plan"));
+const WeekDetail = lazyWithReload(() => import("@/pages/week-detail"));
+const Log = lazyWithReload(() => import("@/pages/log"));
+const Measurements = lazyWithReload(() => import("@/pages/measurements"));
+const Races = lazyWithReload(() => import("@/pages/races"));
+const Equipment = lazyWithReload(() => import("@/pages/equipment"));
+const Planner = lazyWithReload(() => import("@/pages/planner"));
+const PlanBuilder = lazyWithReload(() => import("@/pages/plan-builder"));
+const Settings = lazyWithReload(() => import("@/pages/settings"));
+const NotFound = lazyWithReload(() => import("@/pages/not-found"));
 
 // Task #382: cache-friendly React Query defaults. Pre-task #382 every
 // query refetched on every mount / window-focus, which made cross-page
@@ -61,7 +64,8 @@ function RouteFallback() {
 function Router() {
   return (
     <Layout>
-      <Suspense fallback={<RouteFallback />}>
+      <RouteErrorBoundary>
+        <Suspense fallback={<RouteFallback />}>
         <Switch>
           <Route path="/" component={Dashboard} />
           <Route path="/today" component={Today} />
@@ -71,11 +75,15 @@ function Router() {
           <Route path="/measurements" component={Measurements} />
           <Route path="/races" component={Races} />
           <Route path="/equipment" component={Equipment} />
-          <Route path="/planner" component={Planner} />
+          {/* Chat-first plan builder is the primary planner; the legacy
+              template/blocks editor stays available at /planner/manual. */}
+          <Route path="/planner" component={PlanBuilder} />
+          <Route path="/planner/manual" component={Planner} />
           <Route path="/settings" component={Settings} />
           <Route component={NotFound} />
         </Switch>
-      </Suspense>
+        </Suspense>
+      </RouteErrorBoundary>
     </Layout>
   );
 }
