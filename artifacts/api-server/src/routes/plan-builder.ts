@@ -24,6 +24,7 @@ import {
   type PersonalContext,
   type DailyBudget,
 } from "@workspace/plan-knowledge";
+import { computeProgress } from "../lib/progress";
 
 const router: IRouter = Router();
 
@@ -56,34 +57,13 @@ async function gatherContext(): Promise<PersonalContext> {
     .from(measurementsTable)
     .orderBy(desc(measurementsTable.date))
     .limit(1);
-  const earliestMeas = await db
-    .select()
-    .from(measurementsTable)
-    .orderBy(measurementsTable.date)
-    .limit(1);
 
   const currentWeightLbs = latestMeas[0]?.weight ?? null;
 
-  // Recent-activity rollup: workout count over the last 30 days + weight trend.
-  const [{ count: workouts30 } = { count: 0 }] = (
-    await db.execute<{ count: number }>(
-      sql`SELECT COUNT(*)::int AS count FROM workouts WHERE date >= (CURRENT_DATE - INTERVAL '30 days')`,
-    )
-  ).rows;
-
-  const summaryParts: string[] = [];
-  if (workouts30 > 0) {
-    summaryParts.push(`${workouts30} workouts logged in the last 30 days.`);
-  }
-  if (
-    earliestMeas[0]?.weight != null &&
-    latestMeas[0]?.weight != null &&
-    earliestMeas[0].date !== latestMeas[0].date
-  ) {
-    summaryParts.push(
-      `Weight ${earliestMeas[0].weight}→${latestMeas[0].weight} lb between ${earliestMeas[0].date} and ${latestMeas[0].date}.`,
-    );
-  }
+  // Full progress picture (weight/pace/strength/adherence, start → now) so the
+  // plan adapts to where the client actually is — push when they're improving,
+  // ease off when they stall or skip.
+  const progress = await computeProgress();
 
   const budget: DailyBudget = active?.dailyBudget ?? {};
 
@@ -93,7 +73,7 @@ async function gatherContext(): Promise<PersonalContext> {
     goalWeightLbs: active?.goalWeight ?? null,
     equipment: DEFAULT_EQUIPMENT,
     budget,
-    recentActivitySummary: summaryParts.length ? summaryParts.join(" ") : null,
+    recentActivitySummary: progress.summary,
     notes: active?.notes ?? null,
   };
 }
@@ -365,6 +345,13 @@ router.post("/plan-builder/accept", async (req, res): Promise<void> => {
     "claude-authored plan accepted — plan_weeks/plan_days seeded",
   );
   res.json(result);
+});
+
+// GET /api/plan-builder/progress — the client's progress snapshot for the coach
+// check-in UI (the same data fed into Claude's briefing).
+router.get("/plan-builder/progress", async (_req, res): Promise<void> => {
+  const progress = await computeProgress();
+  res.json(progress);
 });
 
 export default router;
