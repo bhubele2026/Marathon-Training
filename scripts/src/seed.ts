@@ -36,6 +36,9 @@ async function loadActivePlan(): Promise<{
   const row = rows[0];
   if (
     row &&
+    // AI-authored plans are pre-materialized and can't be re-expanded by
+    // the engine generator (empty blocks). Skip the regenerate path for them.
+    row.source !== "ai" &&
     row.appliedStartDate &&
     row.appliedMarathonDate &&
     row.appliedBlocks

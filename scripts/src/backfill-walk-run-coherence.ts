@@ -87,6 +87,10 @@ export async function backfillWalkRunCoherence(): Promise<{
   const cfg = cfgRows[0];
   if (
     !cfg ||
+    // AI-authored plans are pre-materialized — the engine's walk-run
+    // retrofit doesn't apply, and the engine validator can't expand an
+    // ai config (empty blocks + non-marathon date). Skip them.
+    cfg.source === "ai" ||
     !cfg.appliedStartDate ||
     !cfg.appliedMarathonDate ||
     !cfg.appliedBlocks
