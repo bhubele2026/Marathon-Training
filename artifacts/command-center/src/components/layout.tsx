@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import {
   Activity,
+  Beef,
   CalendarDays,
   Dumbbell,
   Home,
@@ -36,6 +37,7 @@ export function Layout({ children }: LayoutProps) {
     { href: "/plan", label: planLabel, icon: CalendarDays },
     { href: "/log", label: "Training Log", icon: ListOrdered },
     { href: "/measurements", label: "Body Metrics", icon: Scale },
+    { href: "/nutrition", label: "Nutrition", icon: Beef },
     { href: "/races", label: "Race History", icon: Trophy },
     { href: "/equipment", label: "Equipment", icon: Dumbbell },
     { href: "/planner", label: "Phase Planner", icon: SlidersHorizontal },

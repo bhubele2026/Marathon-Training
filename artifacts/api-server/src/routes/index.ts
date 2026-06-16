@@ -9,6 +9,7 @@ import plannerRouter from "./planner";
 import planBuilderRouter from "./plan-builder";
 import preferencesRouter from "./preferences";
 import scheduledRacesRouter from "./scheduled-races";
+import nutritionRouter from "./nutrition";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(plannerRouter);
 router.use(planBuilderRouter);
 router.use(preferencesRouter);
 router.use(scheduledRacesRouter);
+router.use(nutritionRouter);
 
 export default router;

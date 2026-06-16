@@ -21,6 +21,7 @@ const Plan = lazyWithReload(() => import("@/pages/plan"));
 const WeekDetail = lazyWithReload(() => import("@/pages/week-detail"));
 const Log = lazyWithReload(() => import("@/pages/log"));
 const Measurements = lazyWithReload(() => import("@/pages/measurements"));
+const Nutrition = lazyWithReload(() => import("@/pages/nutrition"));
 const Races = lazyWithReload(() => import("@/pages/races"));
 const Equipment = lazyWithReload(() => import("@/pages/equipment"));
 const Planner = lazyWithReload(() => import("@/pages/planner"));
@@ -73,6 +74,7 @@ function Router() {
           <Route path="/plan/:week" component={WeekDetail} />
           <Route path="/log" component={Log} />
           <Route path="/measurements" component={Measurements} />
+          <Route path="/nutrition" component={Nutrition} />
           <Route path="/races" component={Races} />
           <Route path="/equipment" component={Equipment} />
           {/* Chat-first plan builder is the primary planner; the legacy

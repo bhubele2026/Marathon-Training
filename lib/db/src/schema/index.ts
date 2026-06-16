@@ -8,3 +8,4 @@ export * from "./scheduledRaces";
 export * from "./resetUndoSnapshots";
 export * from "./plannerConfigs";
 export * from "./userPreferences";
+export * from "./nutritionDays";
