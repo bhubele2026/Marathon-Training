@@ -4,7 +4,14 @@
 
 Studio is a strength + recomposition trainer, with running and races as an optional layer. Originally a 1-year half-marathon campaign (281.6 lbs → 210 lbs, race day **2027-05-02** Sun, plan starts **2026-05-04** Mon, 52 weeks across Foundation Build / Aerobic Build / Tempo-Threshold / Race-Specific / Taper & Race). The planner also supports Tonal-first / non-running programs: 4 lift-priority templates (`tonal_strength_upper`, `tonal_strength_lower`, `push_pull_legs`, `tonal_conditioning`), an 8-week Tonal upper-body default for new configs, and a "Training for a marathon?" toggle that gates the legacy 16-week MARATHON_TAIL auto-pin. Race-only UI surfaces fall back to a generic "Workout Plan" framing when the active plan has no Marathon-Specific phase. Each week runs Mon → Sun.
 
-UI is an orange-on-dark studio theme. No emojis anywhere.
+UI: a calm, professional "Studio" theme — neutral charcoals + a single muted-teal accent (charts included; no rainbow), **dark by default**, sentence case, airy spacing. Navigation is a slim sticky **top bar** (no sidebar) with four primary destinations — Today, Plan, Body (`/measurements`), Nutrition — plus a **Cmd-K command palette** and a single "More" menu for everything else. No emojis anywhere.
+
+## How it works now (post-overhaul)
+
+- **Cadence (hard invariant):** Monday is always full rest (0 min); Tue–Thu are short days (30–50 min); Fri–Sun are long days (60–90 min). Enforced in `briefing.ts`, the generator (`lib/plan-generator`), and `guardrails.ts`; editable in the planner. `DailyBudget` carries `shortDayMin/Max` + `longDayMin/Max` (legacy `weekday*/weekend*` kept for back-compat).
+- **Recomp dashboard:** the home dashboard leads with **inches lost** (sum of circumference reductions across belly/chest/arms/legs, baseline→latest) + a muscle/strength **proxy** (Tonal Strength Score current→goal and arm/leg growth). Weight is secondary. Computed server-side in `routes/dashboard.ts` (`computeRecompSummary`).
+- **Full macros:** `nutrition_days` tracks calories + protein + **carbs + fat**; `user_preferences` holds AI-computed targets for all four. The Nutrition page shows four rings vs target. AI targets come from `POST /api/goals/compute-targets` (Claude + web search).
+- **AI plan builder** accepts a target date or program length, reasons about recomp + the cadence + current macro goals, outputs nutrition guidance alongside training, and is reachable via "Ask AI to adjust" from Today and each day card (seeded via a `?seed=` message).
 
 ## Plan generator (`lib/plan-generator/src/index.ts`)
 
