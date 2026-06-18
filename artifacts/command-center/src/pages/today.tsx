@@ -214,7 +214,7 @@ export default function Today() {
               />
             </div>
           )}
-          <h2 className="text-3xl font-black uppercase tracking-tight text-primary">Today's Mission</h2>
+          <h2 className="text-3xl font-black uppercase tracking-tight text-primary">Today</h2>
           <p className="text-muted-foreground uppercase font-medium tracking-widest">{today.date}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -543,7 +543,7 @@ export default function Today() {
             >
               <CardHeader>
                 <CardTitle className="text-lg uppercase tracking-wider text-primary flex items-center gap-3 flex-wrap">
-                  <span>Mission Brief</span>
+                  <span>Today's session</span>
                   {plan.sourceEntryLabel && (today.plans?.length ?? 0) > 1 && (
                     <span
                       className="px-2 py-0.5 text-xs bg-primary/15 text-primary rounded font-bold tracking-wider"
@@ -891,7 +891,7 @@ export default function Today() {
                         }
                       >
                         <Zap className="mr-2 h-5 w-5 group-hover:scale-110 transition-transform" />
-                        {hasSessions ? "Crushed Another" : "Crushed It"}
+                        {hasSessions ? "Done again" : "Done"}
                       </Button>
                       <Button
                         variant="secondary"
@@ -905,7 +905,7 @@ export default function Today() {
                         }
                       >
                         <Pencil className="mr-2 h-4 w-4" />
-                        {hasSessions ? "Log Another" : "Log Mission"}
+                        {hasSessions ? "Log Another" : "Log session"}
                       </Button>
                       {!hasSessions && (
                         <Button
@@ -950,7 +950,7 @@ export default function Today() {
               <CardHeader className="bg-muted/30 border-b border-border pb-4 flex flex-row items-center justify-between space-y-0">
                 <CardTitle className="text-lg uppercase tracking-wider flex items-center gap-2">
                   <CheckCircle2 className="h-5 w-5 text-primary" />
-                  Mission Accomplished
+                  Done
                   <TimeOfDayBadge
                     value={session.timeOfDay}
                     className="ml-2"

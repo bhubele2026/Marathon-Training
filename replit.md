@@ -1,10 +1,10 @@
-# Marathon Command Center
+# Studio — a strength + recomposition trainer
 
 ## Overview
 
-Personal training tracker reframed as a general workout planner. Originally a 1-year half-marathon campaign (281.6 lbs → 210 lbs, race day **2027-05-02** Sun, plan starts **2026-05-04** Mon, 52 weeks across Foundation Build / Aerobic Build / Tempo-Threshold / Race-Specific / Taper & Race). The planner also supports Tonal-first / non-running programs: 4 lift-priority templates (`tonal_strength_upper`, `tonal_strength_lower`, `push_pull_legs`, `tonal_conditioning`), an 8-week Tonal upper-body default for new configs, and a "Training for a marathon?" toggle that gates the legacy 16-week MARATHON_TAIL auto-pin. Race-only UI surfaces fall back to a generic "Workout Plan" framing when the active plan has no Marathon-Specific phase. Each week runs Mon → Sun.
+Studio is a strength + recomposition trainer, with running and races as an optional layer. Originally a 1-year half-marathon campaign (281.6 lbs → 210 lbs, race day **2027-05-02** Sun, plan starts **2026-05-04** Mon, 52 weeks across Foundation Build / Aerobic Build / Tempo-Threshold / Race-Specific / Taper & Race). The planner also supports Tonal-first / non-running programs: 4 lift-priority templates (`tonal_strength_upper`, `tonal_strength_lower`, `push_pull_legs`, `tonal_conditioning`), an 8-week Tonal upper-body default for new configs, and a "Training for a marathon?" toggle that gates the legacy 16-week MARATHON_TAIL auto-pin. Race-only UI surfaces fall back to a generic "Workout Plan" framing when the active plan has no Marathon-Specific phase. Each week runs Mon → Sun.
 
-UI is an orange-on-dark "mission control" theme. No emojis anywhere.
+UI is an orange-on-dark studio theme. No emojis anywhere.
 
 ## Plan generator (`lib/plan-generator/src/index.ts`)
 

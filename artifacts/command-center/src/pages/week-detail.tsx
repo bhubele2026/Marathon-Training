@@ -1397,7 +1397,7 @@ export default function WeekDetail() {
                         data-testid={`button-crush-${chipTestIdSuffix}`}
                       >
                         <Zap className="h-3 w-3 mr-2" />
-                        {hasSessions ? "Crushed Another" : "Crushed It"}
+                        {hasSessions ? "Done again" : "Done"}
                       </Button>
                       <Button
                         variant="secondary"

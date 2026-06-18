@@ -194,8 +194,8 @@ describe("Today page — pre-launch countdown", () => {
     expect(screen.getByTestId("text-first-session-date").textContent).toContain(
       "Tue May 5",
     );
-    // The regular Mission Brief must NOT render alongside the countdown.
-    expect(screen.queryByText("Mission Brief")).toBeNull();
+    // The regular session card must NOT render alongside the countdown.
+    expect(screen.queryByText("Today's session")).toBeNull();
     // The generic Rest Day empty state must also be suppressed.
     expect(screen.queryByText("Rest Day")).toBeNull();
   });
@@ -228,7 +228,7 @@ describe("Today page — pre-launch countdown", () => {
     });
 
     expect(screen.queryByTestId("card-campaign-countdown")).toBeNull();
-    expect(screen.getByText("Mission Brief")).toBeTruthy();
+    expect(screen.getByText("Today's session")).toBeTruthy();
   });
 
   // Plan-day chip rail (chip-equipment-{date}-{idx}). Mission Brief and
@@ -489,17 +489,17 @@ describe("Today page — pre-launch countdown", () => {
       firstSession: null,
     });
 
-    // Tonal card (untouched) keeps Crushed It / Log Mission / Skipped.
+    // Tonal card (untouched) keeps Done / Log session / Skipped.
     expect(screen.getByTestId("button-crush-today").textContent).toContain(
-      "Crushed It",
+      "Done",
     );
     expect(screen.getByTestId("button-log-today").textContent).toContain(
-      "Log Mission",
+      "Log session",
     );
     expect(screen.getByTestId("button-skip-today")).toBeTruthy();
-    // Run card (logged) flips to Crushed Another / Log Another and hides Skip.
+    // Run card (logged) flips to Done again / Log Another and hides Skip.
     expect(screen.getByTestId("button-crush-today-1").textContent).toContain(
-      "Crushed Another",
+      "Done again",
     );
     expect(screen.getByTestId("button-log-today-1").textContent).toContain(
       "Log Another",

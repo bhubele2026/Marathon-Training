@@ -213,10 +213,10 @@ export default function Dashboard() {
   const headerTitle = summary.activeConfigName?.trim() || "Workout Plan";
 
   // Task #307: when no Phase Planner config has ever been applied, hide
-  // every plan-driven tile (Mission Status, Days to Race, Total Volume,
-  // Today's Mission, Week Snapshot, Mileage chart, Long Run Build) and
-  // surface the shared "Open Phase Planner" CTA. Body Mass / Mass Trend
-  // / Recent Logs / Arsenal Usage stay visible because they remain
+  // every plan-driven tile (This Week, Days to Race, Total Volume,
+  // Today, Week Snapshot, Mileage chart, Long Run Build) and
+  // surface the shared "Open Phase Planner" CTA. Body Mass / Body trend
+  // / Recent Logs / Equipment stay visible because they remain
   // useful even before a plan exists.
   if (!summary.hasPlan) {
     return (
@@ -364,7 +364,7 @@ export default function Dashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between space-x-2">
               <div>
-                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Mission Status</p>
+                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">This Week</p>
                 <div className="text-3xl font-black mt-1">Week {summary.currentWeek}</div>
                 <p
                   className="text-sm font-semibold uppercase mt-1 flex items-center gap-2"
@@ -385,18 +385,24 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between space-x-2">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Days to Race</p>
-                <div className="text-3xl font-black mt-1">{summary.daysToRace}</div>
-                <p className="text-sm text-muted-foreground mt-1">Adherence: <span className="text-foreground font-semibold">{summary.adherencePct.toFixed(0)}%</span></p>
+        {/* Phase 1: race countdown is gated on an actual race campaign.
+            `raceKind` is null in workout-planner / recomp mode (no pinned
+            race day), so this "Days to Race" tile only renders when a race
+            is scheduled. Phase 4 will add a recomp metric in its place. */}
+        {raceKind !== null && (
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between space-x-2">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Days to Race</p>
+                  <div className="text-3xl font-black mt-1">{summary.daysToRace}</div>
+                  <p className="text-sm text-muted-foreground mt-1">Adherence: <span className="text-foreground font-semibold">{summary.adherencePct.toFixed(0)}%</span></p>
+                </div>
+                <Target className="h-8 w-8 text-muted-foreground opacity-50" />
               </div>
-              <Target className="h-8 w-8 text-muted-foreground opacity-50" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardContent className="p-6">
@@ -432,10 +438,10 @@ export default function Dashboard() {
         {/* Main Content Column */}
         <div className="lg:col-span-2 space-y-6">
           
-          {/* Today's Mission */}
+          {/* Today */}
           <Card className="border-primary/20 bg-primary/5">
             <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-lg uppercase tracking-wider text-primary">Today's Mission</CardTitle>
+              <CardTitle className="text-lg uppercase tracking-wider text-primary">Today</CardTitle>
               <Link href="/today">
                 <Button variant="ghost" size="sm" className="text-xs uppercase tracking-wider text-muted-foreground hover:text-primary">
                   Open Today <ExternalLink className="ml-1 h-3 w-3" />
@@ -627,7 +633,7 @@ export default function Dashboard() {
                       {hasTodaySessions && (
                         <div className="flex items-center gap-2 text-primary font-bold bg-primary/10 px-4 py-2 rounded-md justify-center">
                           <CheckCircle2 className="h-5 w-5" />
-                          MISSION COMPLETE
+                          Done
                         </div>
                       )}
                       <div className="flex flex-col gap-2 w-full md:w-44">
@@ -638,7 +644,7 @@ export default function Dashboard() {
                           data-testid="button-crush-dashboard"
                         >
                           <Zap className="mr-2 h-4 w-4" />
-                          {hasTodaySessions ? "Crushed Another" : "Crushed It"}
+                          {hasTodaySessions ? "Done again" : "Done"}
                         </Button>
                         <Button
                           variant="secondary"
@@ -649,7 +655,7 @@ export default function Dashboard() {
                           data-testid="button-log-dashboard"
                         >
                           <Pencil className="mr-2 h-3.5 w-3.5" />
-                          {hasTodaySessions ? "Log Another" : "Log Mission"}
+                          {hasTodaySessions ? "Log Another" : "Log session"}
                         </Button>
                         {!hasTodaySessions && (
                           <Button
@@ -1179,7 +1185,7 @@ export default function Dashboard() {
           {/* Weight Trend */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg uppercase tracking-wider">Mass Trend</CardTitle>
+              <CardTitle className="text-lg uppercase tracking-wider">Body trend</CardTitle>
             </CardHeader>
             <CardContent>
               {loadingWeight ? <Skeleton className="h-48" /> : (
@@ -1204,10 +1210,10 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* Equipment Arsenal */}
+          {/* Equipment */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg uppercase tracking-wider">Arsenal Usage</CardTitle>
+              <CardTitle className="text-lg uppercase tracking-wider">Equipment</CardTitle>
             </CardHeader>
             <CardContent>
               {loadingEq ? <Skeleton className="h-64" /> : (

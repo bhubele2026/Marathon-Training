@@ -31,7 +31,7 @@ export function sortWorkoutsByTimeOfDay<T extends Pick<Workout, "timeOfDay" | "c
   });
 }
 
-// Default tag to apply to a "Crushed it" / quick-log workout so it lands
+// Default tag to apply to a "Done" / quick-log workout so it lands
 // in a sensible AM/PM bucket without the user having to pick. Returns null
 // before noon so AM remains the implicit untagged default for morning logs;
 // otherwise tag as PM. The user can always override in the form.

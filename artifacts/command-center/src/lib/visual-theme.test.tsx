@@ -87,9 +87,9 @@ describe("VisualThemeProvider", () => {
     document.getElementById(STYLE_ELEMENT_ID)?.remove();
   });
 
-  it("defaults to arctic-performance when no preference is stored", () => {
+  it("defaults to blacksmith when no preference is stored", () => {
     renderWithProviders(<PickerHarness />);
-    expect(screen.getByTestId("active").textContent).toBe("arctic-performance");
+    expect(screen.getByTestId("active").textContent).toBe("blacksmith");
   });
 
   it("hydrates from localStorage on mount", () => {
@@ -101,7 +101,7 @@ describe("VisualThemeProvider", () => {
   it("ignores unknown stored values and falls back to default", () => {
     window.localStorage.setItem(STORAGE_KEY, "not-a-real-theme");
     renderWithProviders(<PickerHarness />);
-    expect(screen.getByTestId("active").textContent).toBe("arctic-performance");
+    expect(screen.getByTestId("active").textContent).toBe("blacksmith");
   });
 
   it("persists the new theme to localStorage when changed", () => {
@@ -117,17 +117,17 @@ describe("VisualThemeProvider", () => {
     renderWithProviders(<PickerHarness />);
     const styleEl = document.getElementById(STYLE_ELEMENT_ID);
     expect(styleEl).not.toBeNull();
-    const arctic = THEMES["arctic-performance"];
+    const active = THEMES["blacksmith"];
     // light tokens land under `:root`
     expect(styleEl!.textContent).toContain(":root");
-    expect(styleEl!.textContent).toContain(`--primary: ${arctic.light.primary};`);
-    expect(styleEl!.textContent).toContain(`--background: ${arctic.light.background};`);
+    expect(styleEl!.textContent).toContain(`--primary: ${active.light.primary};`);
+    expect(styleEl!.textContent).toContain(`--background: ${active.light.background};`);
     // dark tokens land under `.dark`
     expect(styleEl!.textContent).toContain(".dark");
-    expect(styleEl!.textContent).toContain(`--primary: ${arctic.dark.primary};`);
+    expect(styleEl!.textContent).toContain(`--primary: ${active.dark.primary};`);
     // phase colors land under `:root`
     expect(styleEl!.textContent).toContain(
-      `--phase-foundation: ${arctic.phaseColors.foundation};`,
+      `--phase-foundation: ${active.phaseColors.foundation};`,
     );
   });
 

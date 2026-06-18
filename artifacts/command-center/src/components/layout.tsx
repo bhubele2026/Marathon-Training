@@ -33,8 +33,8 @@ export function Layout({ children }: LayoutProps) {
   const planLabel = overview?.activeConfigName?.trim() || "Workout Plan";
 
   const navItems = [
-    { href: "/", label: "Command Center", icon: Home },
-    { href: "/today", label: "Today's Mission", icon: Activity },
+    { href: "/", label: "Studio", icon: Home },
+    { href: "/today", label: "Today", icon: Activity },
     { href: "/goals", label: "Goals", icon: Target },
     { href: "/nutrition", label: "Nutrition", icon: Beef },
     { href: "/plan", label: planLabel, icon: CalendarDays },
@@ -53,11 +53,11 @@ export function Layout({ children }: LayoutProps) {
           <div className="flex items-center gap-2.5">
             <span className="h-6 w-1.5 rounded-sm bg-primary shrink-0" />
             <h1 className="font-extrabold text-2xl tracking-tight text-foreground uppercase leading-none">
-              Command<span className="text-primary">Center</span>
+              Studio
             </h1>
           </div>
           <p className="text-[10px] text-muted-foreground uppercase font-semibold tracking-[0.28em] mt-2 pl-4">
-            Strength · Cardio
+            Strength studio
           </p>
         </div>
         <nav className="flex-1 py-4 flex flex-col gap-1 px-3">
@@ -88,7 +88,7 @@ export function Layout({ children }: LayoutProps) {
         <div className="flex items-center gap-2">
           <span className="h-5 w-1.5 rounded-sm bg-primary shrink-0" />
           <h1 className="font-extrabold text-lg tracking-tight text-foreground uppercase">
-            Command<span className="text-primary">Center</span>
+            Studio
           </h1>
         </div>
       </header>
