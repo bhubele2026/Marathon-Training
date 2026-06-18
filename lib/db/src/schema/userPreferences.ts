@@ -1,4 +1,10 @@
-import { pgTable, integer, text, timestamp } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  integer,
+  text,
+  timestamp,
+  doublePrecision,
+} from "drizzle-orm/pg-core";
 
 // Single-row user preferences (Task #134). This is a single-user app so the
 // table is keyed at id=1 and the API exposes singleton GET/PUT semantics
@@ -48,10 +54,68 @@ export const userPreferencesTable = pgTable("user_preferences", {
   // Stored as text; the lookup table of valid theme keys lives in the
   // frontend (`artifacts/command-center/src/lib/visual-themes.ts`).
   visualTheme: text("visual_theme"),
+
+  // --- Goals & body stats (strength + cardio re-orientation) -------------
+  // Inputs the runner enters on the Goals page; they feed the AI nutrition
+  // target calculation and surface their current weight from the latest
+  // body_measurements row (not stored here, to avoid duplicating it).
+  // Height in whole inches. Null until the runner fills the Goals form.
+  heightIn: integer("height_in"),
+  // Age in years. Null until set.
+  age: integer("age"),
+  // "male" | "female" — drives the Mifflin-St Jeor BMR sex constant.
+  sex: text("sex"),
+  // Activity level bucket: sedentary | light | moderate | active | very_active.
+  activityLevel: text("activity_level"),
+  // Primary body goal driving the calorie strategy. Default "recomp" (lose
+  // fat + build muscle near maintenance) per the app's strength-first focus.
+  bodyGoal: text("body_goal").notNull().default("recomp"),
+  // Target bodyweight in lb. Current weight comes from measurements; this is
+  // the goal the AI and progress views aim at.
+  goalWeightLb: doublePrecision("goal_weight_lb"),
+
+  // --- AI-computed nutrition targets -------------------------------------
+  // Written by POST /api/goals/compute-targets, which uses Claude + live web
+  // search to research evidence-based daily intake for the runner's stats and
+  // goal. Null until the runner first computes them. These drive the
+  // Nutrition page's protein/calorie progress bars (replacing the old
+  // hardcoded 200 g default).
+  calorieTarget: integer("calorie_target"),
+  proteinTargetG: integer("protein_target_g"),
+  // Short human-readable rationale the AI returned (what it found + why).
+  targetsRationale: text("targets_rationale"),
+  targetsComputedAt: timestamp("targets_computed_at", { withTimezone: true }),
+
+  // --- Tonal Strength Score goal -----------------------------------------
+  // The Tonal Strength Score is app-only (not exposed via Apple Health or any
+  // API), so both the current value and the goal are entered manually on the
+  // Goals page and tracked toward the target with a progress bar.
+  strengthScoreCurrent: integer("strength_score_current"),
+  strengthScoreGoal: integer("strength_score_goal"),
+
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 });
+
+// Body goal options (drives the AI calorie strategy). "recomp" = lose fat +
+// build muscle near maintenance (the default); "cut" = fat loss in a deficit;
+// "lean_bulk" = muscle gain in a slight surplus.
+export const BODY_GOALS = ["recomp", "cut", "lean_bulk"] as const;
+export type BodyGoal = (typeof BODY_GOALS)[number];
+
+// Activity-level buckets mapped to standard TDEE multipliers by the AI prompt.
+export const ACTIVITY_LEVELS = [
+  "sedentary",
+  "light",
+  "moderate",
+  "active",
+  "very_active",
+] as const;
+export type ActivityLevel = (typeof ACTIVITY_LEVELS)[number];
+
+export const SEXES = ["male", "female"] as const;
+export type Sex = (typeof SEXES)[number];
 
 export type UserPreferencesRow = typeof userPreferencesTable.$inferSelect;
 

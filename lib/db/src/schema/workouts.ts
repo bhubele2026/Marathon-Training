@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, date, doublePrecision, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, date, doublePrecision, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 
 export const workoutsTable = pgTable("workouts", {
   id: serial("id").primaryKey(),
@@ -42,6 +42,13 @@ export const workoutsTable = pgTable("workouts", {
   // "Mixed". Nullable so existing rows logged before this column existed
   // remain valid; the UI can fall back to inferring modality from equipment.
   modality: text("modality"),
+  // Idempotency key for workouts imported from Apple Health (Tonal, Peloton
+  // Bike/Row/Tread, treadmill runs) via the Shortcut → POST /api/workouts/import
+  // bridge. Set to a stable hash of (start time + activity type) so re-running
+  // the daily Shortcut upserts instead of duplicating, and so Health/Strava
+  // double-exports of the same session collapse to one row. NULL for
+  // hand-logged sessions (the import is the only writer).
+  sourceKey: text("source_key"),
   // Task #270: snapshot of the originally-logged values, written lazily the
   // first time a workout is edited via PATCH /api/workouts/:id. Mirrors the
   // same `seed_*` mechanism `plan_days` uses for the "Edited" badge so the
@@ -82,6 +89,10 @@ export const workoutsTable = pgTable("workouts", {
     t.date.desc(),
     t.createdAt.desc(),
   ),
+  // Unique on source_key so Apple Health imports upsert idempotently. NULLs
+  // are distinct in Postgres, so the many hand-logged rows (source_key NULL)
+  // are unconstrained; only imported rows must be unique by source key.
+  sourceKeyIdx: uniqueIndex("workouts_source_key_idx").on(t.sourceKey),
 }));
 
 export type WorkoutRow = typeof workoutsTable.$inferSelect;

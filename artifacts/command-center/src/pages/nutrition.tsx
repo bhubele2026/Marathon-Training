@@ -4,12 +4,9 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Beef, Flame, RefreshCw } from "lucide-react";
 
-// Daily protein target in grams. The runner is cutting from 281 lb → 210 lb,
-// where ~1 g per lb of GOAL bodyweight is the usual high-protein anchor, so
-// 200 g is the default. Tweak to taste — it only drives the progress bar.
-const PROTEIN_GOAL_G = 200;
-// Soft calorie context line. Null hides the "of N" suffix entirely.
-const CALORIE_TARGET: number | null = null;
+// Fallback protein target (g) used only until the AI-calculated target on the
+// Goals page is set. Once /api/goals returns a proteinTargetG it wins.
+const PROTEIN_GOAL_FALLBACK = 200;
 
 // These routes are intentionally hand-fetched rather than going through the
 // generated api-client: the nutrition slice isn't in openapi.yaml, so we hit
@@ -22,6 +19,7 @@ type NutritionDay = {
   updatedAt: string | null;
 };
 type RecentResponse = { days: number; entries: NutritionDay[] };
+type GoalsTargets = { proteinTargetG: number | null; calorieTarget: number | null };
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url, { headers: { accept: "application/json" } });
@@ -55,18 +53,27 @@ export default function Nutrition() {
     queryKey: ["/api/nutrition/recent", 14],
     queryFn: () => getJson<RecentResponse>("/api/nutrition/recent?days=14"),
   });
+  // AI-calculated targets from the Goals page drive the bars; fall back to the
+  // constant until the runner computes them.
+  const goalsQuery = useQuery({
+    queryKey: ["/api/goals"],
+    queryFn: () => getJson<GoalsTargets>("/api/goals"),
+  });
+
+  const proteinGoal = goalsQuery.data?.proteinTargetG ?? PROTEIN_GOAL_FALLBACK;
+  const calorieTarget = goalsQuery.data?.calorieTarget ?? null;
 
   const today = todayQuery.data;
   const protein = today?.proteinG ?? null;
   const calories = today?.calories ?? null;
   const proteinPct =
-    protein != null ? Math.min(100, (protein / PROTEIN_GOAL_G) * 100) : 0;
+    protein != null ? Math.min(100, (protein / proteinGoal) * 100) : 0;
   const proteinLeft =
-    protein != null ? Math.max(0, PROTEIN_GOAL_G - protein) : PROTEIN_GOAL_G;
+    protein != null ? Math.max(0, proteinGoal - protein) : proteinGoal;
 
   const entries = recentQuery.data?.entries ?? [];
   const peakProtein = Math.max(
-    PROTEIN_GOAL_G,
+    proteinGoal,
     ...entries.map((e) => e.proteinG ?? 0),
   );
 
@@ -100,7 +107,7 @@ export default function Nutrition() {
                     {protein ?? "—"}
                   </span>
                   <span className="text-lg text-muted-foreground">
-                    / {PROTEIN_GOAL_G} g
+                    / {proteinGoal} g
                   </span>
                 </div>
                 <Progress value={proteinPct} className="mt-3 h-2" />
@@ -133,7 +140,7 @@ export default function Nutrition() {
                     {calories ?? "—"}
                   </span>
                   <span className="text-lg text-muted-foreground">
-                    {CALORIE_TARGET != null ? `/ ${CALORIE_TARGET}` : "kcal"}
+                    {calorieTarget != null ? `/ ${calorieTarget}` : "kcal"}
                   </span>
                 </div>
                 <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -166,7 +173,7 @@ export default function Nutrition() {
               {entries.map((e) => {
                 const g = e.proteinG ?? 0;
                 const pct = peakProtein > 0 ? (g / peakProtein) * 100 : 0;
-                const hitGoal = g >= PROTEIN_GOAL_G;
+                const hitGoal = g >= proteinGoal;
                 return (
                   <div key={e.date} className="flex items-center gap-3">
                     <span className="w-16 shrink-0 text-xs text-muted-foreground tabular-nums">

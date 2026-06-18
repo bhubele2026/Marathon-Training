@@ -22,6 +22,7 @@ const WeekDetail = lazyWithReload(() => import("@/pages/week-detail"));
 const Log = lazyWithReload(() => import("@/pages/log"));
 const Measurements = lazyWithReload(() => import("@/pages/measurements"));
 const Nutrition = lazyWithReload(() => import("@/pages/nutrition"));
+const Goals = lazyWithReload(() => import("@/pages/goals"));
 const Races = lazyWithReload(() => import("@/pages/races"));
 const Equipment = lazyWithReload(() => import("@/pages/equipment"));
 const Planner = lazyWithReload(() => import("@/pages/planner"));
@@ -75,6 +76,7 @@ function Router() {
           <Route path="/log" component={Log} />
           <Route path="/measurements" component={Measurements} />
           <Route path="/nutrition" component={Nutrition} />
+          <Route path="/goals" component={Goals} />
           <Route path="/races" component={Races} />
           <Route path="/equipment" component={Equipment} />
           {/* Chat-first plan builder is the primary planner; the legacy
@@ -92,7 +94,7 @@ function Router() {
 
 function App() {
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
       <QueryClientProvider client={queryClient}>
         {/* VisualThemeProvider lives inside the QueryClientProvider so
             it can hydrate from the server-side user-preferences row

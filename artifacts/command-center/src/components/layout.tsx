@@ -11,6 +11,7 @@ import {
   Scale,
   Settings as SettingsIcon,
   SlidersHorizontal,
+  Target,
   Trophy,
 } from "lucide-react";
 import { useGetPlanOverview } from "@workspace/api-client-react";
@@ -38,6 +39,7 @@ export function Layout({ children }: LayoutProps) {
     { href: "/log", label: "Training Log", icon: ListOrdered },
     { href: "/measurements", label: "Body Metrics", icon: Scale },
     { href: "/nutrition", label: "Nutrition", icon: Beef },
+    { href: "/goals", label: "Goals", icon: Target },
     { href: "/races", label: "Race History", icon: Trophy },
     { href: "/equipment", label: "Equipment", icon: Dumbbell },
     { href: "/planner", label: "Phase Planner", icon: SlidersHorizontal },
@@ -47,18 +49,16 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div className="flex min-h-screen bg-background text-foreground flex-col md:flex-row">
       <aside className="w-full md:w-64 border-r border-border bg-card flex flex-col hidden md:flex shrink-0">
-        <div className="p-6 border-b border-border flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img
-              src="/h2-logo.png"
-              alt="H2 logo"
-              className="h-12 w-12 object-contain shrink-0"
-            />
-            <div>
-              <h1 className="font-bold text-xl tracking-tight text-primary uppercase leading-none">Marathon</h1>
-              <p className="text-xs text-muted-foreground uppercase font-medium tracking-widest mt-1">Command Center</p>
-            </div>
+        <div className="p-6 border-b border-sidebar-border">
+          <div className="flex items-center gap-2.5">
+            <span className="h-6 w-1.5 rounded-sm bg-primary shrink-0" />
+            <h1 className="font-extrabold text-2xl tracking-tight text-foreground uppercase leading-none">
+              Command<span className="text-primary">Center</span>
+            </h1>
           </div>
+          <p className="text-[10px] text-muted-foreground uppercase font-semibold tracking-[0.28em] mt-2 pl-4">
+            Strength · Cardio
+          </p>
         </div>
         <nav className="flex-1 py-4 flex flex-col gap-1 px-3">
           {navItems.map((item) => {
@@ -86,12 +86,10 @@ export function Layout({ children }: LayoutProps) {
       {/* Mobile nav header */}
       <header className="md:hidden border-b border-border bg-card p-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <img
-            src="/h2-logo.png"
-            alt="H2 logo"
-            className="h-8 w-8 object-contain shrink-0"
-          />
-          <h1 className="font-bold text-lg tracking-tight text-primary uppercase">Marathon</h1>
+          <span className="h-5 w-1.5 rounded-sm bg-primary shrink-0" />
+          <h1 className="font-extrabold text-lg tracking-tight text-foreground uppercase">
+            Command<span className="text-primary">Center</span>
+          </h1>
         </div>
       </header>
 

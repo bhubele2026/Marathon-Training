@@ -73,67 +73,65 @@
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
 
-  --background: 210 22% 97%;
-  --foreground: 215 30% 14%;
-  --border: 210 18% 86%;
+  --background: 30 9% 95%;
+  --foreground: 220 14% 12%;
+  --border: 30 8% 84%;
   --card: 0 0% 100%;
-  --card-foreground: 215 30% 14%;
-  --card-border: 210 18% 88%;
-  
-  --sidebar: 215 25% 96%;
-  --sidebar-foreground: 215 30% 18%;
-  --sidebar-border: 210 18% 86%;
-  --sidebar-primary: 178 65% 36%;
+  --card-foreground: 220 14% 12%;
+  --card-border: 30 8% 87%;
+
+  --sidebar: 220 14% 12%;
+  --sidebar-foreground: 30 12% 88%;
+  --sidebar-border: 220 12% 22%;
+  --sidebar-primary: 28 88% 50%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 210 22% 91%;
-  --sidebar-accent-foreground: 215 30% 18%;
-  --sidebar-ring: 178 65% 36%;
-  
+  --sidebar-accent: 220 12% 22%;
+  --sidebar-accent-foreground: 30 12% 92%;
+  --sidebar-ring: 28 88% 50%;
+
   --popover: 0 0% 100%;
-  --popover-foreground: 215 30% 14%;
-  --popover-border: 210 18% 88%;
+  --popover-foreground: 220 14% 12%;
+  --popover-border: 30 8% 87%;
 
-  --primary: 178 65% 36%;
+  --primary: 24 82% 46%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 210 22% 90%;
-  --secondary-foreground: 215 30% 18%;
-  --muted: 210 22% 92%;
-  --muted-foreground: 215 14% 42%;
-  --accent: 160 50% 48%;
+  --secondary: 30 8% 88%;
+  --secondary-foreground: 220 14% 14%;
+  --muted: 30 8% 90%;
+  --muted-foreground: 220 8% 40%;
+  --accent: 205 70% 42%;
   --accent-foreground: 0 0% 100%;
-  --destructive: 0 70% 52%;
+  --destructive: 0 72% 48%;
   --destructive-foreground: 0 0% 100%;
-  --input: 210 18% 86%;
-  --ring: 178 65% 36%;
+  --input: 30 8% 84%;
+  --ring: 24 82% 46%;
 
-  /* Arctic Performance brand palette: slate + teal primary + soft mint
-     accent. The legacy `brand-orange` / `brand-purple` token NAMES are
-     preserved so downstream components keep working without rewrites,
-     but their VALUES now map to the Arctic teal/mint pair. chart-2
-     stays the spot-accent (mint) so dual-series charts read as the
-     theme instead of slate-on-slate. */
-  --brand-orange: 178 65% 36%;
-  --brand-purple: 160 50% 48%;
-  --chart-1: 178 65% 38%;
-  --chart-2: 160 55% 50%;
-  --chart-3: 215 50% 50%;
-  --chart-4: 260 35% 55%;
-  --chart-5: 30 60% 55%;
+  /* Blacksmith brand palette: forged amber primary + steel-blue accent.
+     The legacy `brand-orange` / `brand-purple` token NAMES are preserved
+     so downstream components keep working; their VALUES now map to the
+     amber/steel pair. */
+  --brand-orange: 24 82% 46%;
+  --brand-purple: 205 70% 42%;
+  --chart-1: 24 82% 48%;
+  --chart-2: 205 70% 45%;
+  --chart-3: 150 42% 38%;
+  --chart-4: 220 14% 45%;
+  --chart-5: 42 80% 50%;
 
   /* Phase colors are exposed as CSS custom properties so the active
      visual theme (task #188) can re-skin them without forcing every
      consumer to re-render. Defaults here match the Arctic Performance
      palette so static markup looks right before the provider mounts. */
-  --phase-foundation: hsl(215 50% 52%);
-  --phase-aerobic: hsl(178 65% 42%);
-  --phase-tempo: hsl(160 55% 48%);
-  --phase-race-specific: hsl(260 40% 58%);
-  --phase-taper: hsl(30 65% 55%);
+  --phase-foundation: hsl(205 62% 50%);
+  --phase-aerobic: hsl(28 86% 52%);
+  --phase-tempo: hsl(150 45% 44%);
+  --phase-race-specific: hsl(42 82% 52%);
+  --phase-taper: hsl(220 12% 52%);
 
   --app-font-sans: 'Inter', sans-serif;
   --app-font-serif: Georgia, serif;
   --app-font-mono: Menlo, monospace;
-  --radius: 0.3rem;
+  --radius: 0.2rem;
   
   --tracking-normal: 0em;
   --spacing: 0.25rem;
@@ -154,47 +152,48 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
 
-  --background: 215 28% 9%;
-  --foreground: 210 20% 92%;
-  --border: 215 20% 18%;
-  
-  --card: 215 25% 13%;
-  --card-foreground: 210 20% 92%;
-  --card-border: 215 20% 18%;
-  
-  --sidebar: 215 30% 7%;
-  --sidebar-foreground: 210 20% 88%;
-  --sidebar-border: 215 22% 14%;
-  --sidebar-primary: 178 65% 50%;
-  --sidebar-primary-foreground: 215 30% 8%;
-  --sidebar-accent: 215 22% 16%;
-  --sidebar-accent-foreground: 210 20% 92%;
-  --sidebar-ring: 178 65% 50%;
+  /* Blacksmith — matte black + forged amber + steel blue (default dark). */
+  --background: 220 9% 7%;
+  --foreground: 210 14% 92%;
+  --border: 220 8% 18%;
 
-  --popover: 215 25% 13%;
-  --popover-foreground: 210 20% 92%;
-  --popover-border: 215 20% 18%;
+  --card: 220 9% 11%;
+  --card-foreground: 210 14% 92%;
+  --card-border: 220 8% 18%;
 
-  --primary: 178 65% 50%;
-  --primary-foreground: 215 30% 8%;
-  --secondary: 215 20% 18%;
-  --secondary-foreground: 210 20% 92%;
-  --muted: 215 18% 16%;
-  --muted-foreground: 210 14% 62%;
-  --accent: 160 55% 58%;
-  --accent-foreground: 215 30% 8%;
-  --destructive: 0 65% 58%;
+  --sidebar: 220 11% 5%;
+  --sidebar-foreground: 210 12% 84%;
+  --sidebar-border: 220 9% 13%;
+  --sidebar-primary: 28 90% 55%;
+  --sidebar-primary-foreground: 24 40% 8%;
+  --sidebar-accent: 220 9% 14%;
+  --sidebar-accent-foreground: 210 14% 92%;
+  --sidebar-ring: 28 90% 55%;
+
+  --popover: 220 9% 11%;
+  --popover-foreground: 210 14% 92%;
+  --popover-border: 220 8% 18%;
+
+  --primary: 28 90% 55%;
+  --primary-foreground: 24 40% 8%;
+  --secondary: 220 8% 16%;
+  --secondary-foreground: 210 14% 92%;
+  --muted: 220 8% 14%;
+  --muted-foreground: 215 10% 60%;
+  --accent: 205 72% 56%;
+  --accent-foreground: 210 35% 10%;
+  --destructive: 0 70% 55%;
   --destructive-foreground: 0 0% 100%;
-  --input: 215 20% 18%;
-  --ring: 178 65% 50%;
-  
-  --brand-orange: 178 65% 50%;
-  --brand-purple: 160 55% 58%;
-  --chart-1: 178 65% 55%;
-  --chart-2: 160 55% 60%;
-  --chart-3: 215 60% 65%;
-  --chart-4: 260 45% 65%;
-  --chart-5: 30 70% 62%;
+  --input: 220 8% 16%;
+  --ring: 28 90% 55%;
+
+  --brand-orange: 28 90% 55%;
+  --brand-purple: 205 72% 56%;
+  --chart-1: 28 90% 58%;
+  --chart-2: 205 72% 58%;
+  --chart-3: 150 45% 52%;
+  --chart-4: 220 12% 60%;
+  --chart-5: 42 82% 58%;
 }
 
 @layer base {

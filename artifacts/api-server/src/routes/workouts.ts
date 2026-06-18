@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request } from "express";
 import { db, planDaysTable, workoutsTable, type WorkoutRow } from "@workspace/db";
 import { and, asc, desc, eq, gte, isNull, lte, sql } from "drizzle-orm";
 import { CreateWorkoutBody, UpdateWorkoutBody, ListWorkoutsQueryParams } from "@workspace/api-zod";
@@ -276,6 +276,209 @@ router.patch("/workouts/:id", async (req, res): Promise<void> => {
   }
   const prescribed = await fetchPrescribedRunTarget(updated.planDayId);
   res.json(toWorkout(updated, prescribed));
+});
+
+// ---------------------------------------------------------------------------
+// Apple Health import (Tonal + Peloton Bike/Row/Tread + treadmill runs)
+// ---------------------------------------------------------------------------
+//
+// An Apple Shortcut reads each day's HealthKit Workouts and POSTs them here, so
+// machine actuals land in the same workouts log + planned-vs-actual views as
+// hand-logged sessions. Gated by the shared NUTRITION_TOKEN ingest secret
+// (same one the nutrition sync uses). Idempotent on `source_key` so re-running
+// the daily Shortcut — and Health/Strava double-exports of the same session —
+// collapse to one row.
+
+type ImportItem = {
+  type?: unknown;
+  start?: unknown;
+  durationMin?: unknown;
+  calories?: unknown;
+  distanceMi?: unknown;
+  avgHr?: unknown;
+  indoor?: unknown;
+  equipment?: unknown;
+  sourceKey?: unknown;
+};
+
+// Map a HealthKit workout activity-type string to the app's fixed equipment
+// vocabulary + modality + the minute-bucket the duration belongs in. Running
+// defaults to the treadmill (the runner's 5Ks are Tonal-stack tread runs);
+// an explicit `indoor: false` routes it to Outdoor.
+function mapActivity(
+  rawType: string,
+  indoor: boolean | null,
+): { equipment: string; modality: string; sessionType: string; bucket: "strength" | "cardio" | "run" } {
+  const t = rawType.toLowerCase();
+  if (/strength|functional|traditional|tonal|lifting|weight/.test(t)) {
+    return { equipment: "Tonal", modality: "Strength", sessionType: "Strength", bucket: "strength" };
+  }
+  if (/cycl|bike|spin/.test(t)) {
+    return { equipment: "Peloton Bike", modality: "Cardio", sessionType: "Ride", bucket: "cardio" };
+  }
+  if (/row/.test(t)) {
+    return { equipment: "Peloton Row", modality: "Cardio", sessionType: "Row", bucket: "cardio" };
+  }
+  if (/run|jog/.test(t)) {
+    return indoor === false
+      ? { equipment: "Outdoor", modality: "Cardio", sessionType: "Run", bucket: "run" }
+      : { equipment: "Peloton Tread", modality: "Cardio", sessionType: "Run", bucket: "run" };
+  }
+  if (/walk|hik/.test(t)) {
+    return { equipment: LIFESTYLE_EQUIPMENT, modality: "Cardio", sessionType: "Walk", bucket: "cardio" };
+  }
+  return { equipment: LIFESTYLE_EQUIPMENT, modality: "Cardio", sessionType: "Cardio", bucket: "cardio" };
+}
+
+// Best-effort link an imported workout to a plan day on the same date, mirroring
+// the backfill scoring (sessionType match +2, equipment present +1; ties → lowest
+// id) so planned-vs-actual lights up immediately without waiting for the
+// post-merge backfill script.
+async function linkPlanDay(
+  date: string,
+  sessionType: string,
+  equipment: string,
+): Promise<number | null> {
+  const days = await db
+    .select({
+      id: planDaysTable.id,
+      sessionType: planDaysTable.sessionType,
+      equipment: planDaysTable.equipment,
+      equipmentList: planDaysTable.equipmentList,
+    })
+    .from(planDaysTable)
+    .where(eq(planDaysTable.date, date));
+  let bestId: number | null = null;
+  let bestScore = -1;
+  for (const d of days) {
+    let score = 0;
+    if (d.sessionType === sessionType) score += 2;
+    const list = d.equipmentList ?? [d.equipment];
+    if (list.includes(equipment)) score += 1;
+    if (score > bestScore || (score === bestScore && bestId != null && d.id < bestId)) {
+      bestScore = score;
+      bestId = d.id;
+    }
+  }
+  return bestId;
+}
+
+function presentedToken(req: Request): string | null {
+  const auth = req.header("authorization");
+  if (auth && /^Bearer\s+/i.test(auth)) return auth.replace(/^Bearer\s+/i, "").trim();
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const fromBody = body.token ?? body.secret;
+  return typeof fromBody === "string" ? fromBody.trim() : null;
+}
+
+function num(value: unknown): number | null {
+  if (value === undefined || value === null || value === "") return null;
+  const n = typeof value === "string" ? Number(value) : value;
+  return typeof n === "number" && Number.isFinite(n) ? n : null;
+}
+
+// POST /api/workouts/import — body: { token, workouts: ImportItem[] }
+router.post("/workouts/import", async (req, res): Promise<void> => {
+  const required = process.env.NUTRITION_TOKEN;
+  if (!required) {
+    res.status(503).json({
+      error:
+        "Import is not configured. Set the NUTRITION_TOKEN secret on the server.",
+    });
+    return;
+  }
+  if (presentedToken(req) !== required) {
+    res.status(401).json({ error: "Invalid or missing import token." });
+    return;
+  }
+
+  const body = (req.body ?? {}) as { workouts?: unknown };
+  const items = Array.isArray(body.workouts) ? (body.workouts as ImportItem[]) : null;
+  if (!items) {
+    res.status(400).json({ error: "Send a workouts[] array." });
+    return;
+  }
+
+  let imported = 0;
+  let skipped = 0;
+  for (const item of items) {
+    const rawType = typeof item.type === "string" ? item.type : "";
+    const startRaw = typeof item.start === "string" ? item.start : "";
+    const startMs = Date.parse(startRaw);
+    if (!rawType || Number.isNaN(startMs)) {
+      skipped++;
+      continue;
+    }
+    const date = new Date(startMs).toISOString().slice(0, 10);
+    const indoor =
+      item.indoor === true ? true : item.indoor === false ? false : null;
+    const mapped = mapActivity(rawType, indoor);
+    // Allow the payload to override the inferred equipment with an explicit
+    // canonical name (e.g. distinguishing an iFit tread from Peloton).
+    const equipment =
+      typeof item.equipment === "string" &&
+      EQUIPMENT_RANK.has(item.equipment)
+        ? item.equipment
+        : mapped.equipment;
+
+    const durationMin = num(item.durationMin);
+    const distanceMi = num(item.distanceMi);
+    const avgHrRaw = num(item.avgHr);
+    const avgHr = avgHrRaw != null ? Math.round(avgHrRaw) : null;
+    const calories = num(item.calories);
+
+    const sourceKey =
+      (typeof item.sourceKey === "string" && item.sourceKey.trim()) ||
+      `${new Date(startMs).toISOString()}::${mapped.sessionType}`;
+
+    const planDayId = await linkPlanDay(date, mapped.sessionType, equipment);
+
+    const notes =
+      `Imported from Apple Health` +
+      (calories != null ? ` · ${Math.round(calories)} kcal` : "");
+
+    const buckets = {
+      strengthMin: mapped.bucket === "strength" ? durationMin : null,
+      cardioMin: mapped.bucket === "cardio" ? durationMin : null,
+      runMin: mapped.bucket === "run" ? durationMin : null,
+    };
+
+    await db
+      .insert(workoutsTable)
+      .values({
+        planDayId,
+        date,
+        equipment,
+        equipmentList: [equipment],
+        sessionType: mapped.sessionType,
+        durationMin,
+        ...buckets,
+        distanceMi,
+        avgHr,
+        notes,
+        modality: mapped.modality,
+        sourceKey,
+      })
+      .onConflictDoUpdate({
+        target: workoutsTable.sourceKey,
+        set: {
+          planDayId,
+          date,
+          equipment,
+          equipmentList: [equipment],
+          sessionType: mapped.sessionType,
+          durationMin,
+          ...buckets,
+          distanceMi,
+          avgHr,
+          notes,
+          modality: mapped.modality,
+        },
+      });
+    imported++;
+  }
+
+  res.json({ imported, skipped });
 });
 
 router.delete("/workouts/:id", async (req, res): Promise<void> => {
