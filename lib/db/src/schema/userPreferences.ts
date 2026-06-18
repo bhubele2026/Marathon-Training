@@ -82,6 +82,12 @@ export const userPreferencesTable = pgTable("user_preferences", {
   // hardcoded 200 g default).
   calorieTarget: integer("calorie_target"),
   proteinTargetG: integer("protein_target_g"),
+  // AI-computed daily carbohydrate + fat targets (grams), written alongside
+  // calorie/protein by compute-targets. Null until the runner first computes
+  // them (or for rows predating full-macro targets) — the Nutrition page
+  // falls back to showing the tracked value without a goal ring when null.
+  carbsTargetG: integer("carbs_target_g"),
+  fatTargetG: integer("fat_target_g"),
   // Short human-readable rationale the AI returned (what it found + why).
   targetsRationale: text("targets_rationale"),
   targetsComputedAt: timestamp("targets_computed_at", { withTimezone: true }),

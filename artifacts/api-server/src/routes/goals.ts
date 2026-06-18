@@ -35,6 +35,12 @@ const MIN_CALORIES = 800;
 const MAX_CALORIES = 6000;
 const MIN_PROTEIN_G = 30;
 const MAX_PROTEIN_G = 400;
+// Carbs/fat have no sensible lower bound (a strict cut can run very low), so
+// only the upper clamp guards against a units/hallucination error.
+const MIN_CARBS_G = 0;
+const MAX_CARBS_G = 700;
+const MIN_FAT_G = 0;
+const MAX_FAT_G = 300;
 
 type ApiGoals = {
   heightIn: number | null;
@@ -45,6 +51,8 @@ type ApiGoals = {
   goalWeightLb: number | null;
   calorieTarget: number | null;
   proteinTargetG: number | null;
+  carbsTargetG: number | null;
+  fatTargetG: number | null;
   targetsRationale: string | null;
   targetsComputedAt: string | null;
   strengthScoreCurrent: number | null;
@@ -64,6 +72,8 @@ function toApi(row: UserPreferencesRow, currentWeightLb: number | null): ApiGoal
     goalWeightLb: row.goalWeightLb,
     calorieTarget: row.calorieTarget,
     proteinTargetG: row.proteinTargetG,
+    carbsTargetG: row.carbsTargetG,
+    fatTargetG: row.fatTargetG,
     targetsRationale: row.targetsRationale,
     targetsComputedAt: row.targetsComputedAt
       ? row.targetsComputedAt.toISOString()
@@ -194,20 +204,37 @@ router.put("/goals", async (req, res) => {
 // AI target computation
 // ---------------------------------------------------------------------------
 
-type ComputedTargets = { calorieTarget: number; proteinTargetG: number; rationale: string };
+type ComputedTargets = {
+  calorieTarget: number;
+  proteinTargetG: number;
+  carbsTargetG: number;
+  fatTargetG: number;
+  rationale: string;
+};
 
 // Pull the recommended targets out of the model's free text. Prefers a fenced
 // ```json block; falls back to the first object literal that carries the keys.
+// All four macros are required — calories, protein, carbs and fat.
 function parseTargets(text: string): ComputedTargets | null {
   const tryObj = (raw: string): ComputedTargets | null => {
     try {
       const o = JSON.parse(raw) as Record<string, unknown>;
       const cal = Number(o.calorieTarget);
       const pro = Number(o.proteinTargetG);
-      if (!Number.isFinite(cal) || !Number.isFinite(pro)) return null;
+      const carb = Number(o.carbsTargetG);
+      const fat = Number(o.fatTargetG);
+      if (
+        !Number.isFinite(cal) ||
+        !Number.isFinite(pro) ||
+        !Number.isFinite(carb) ||
+        !Number.isFinite(fat)
+      )
+        return null;
       return {
         calorieTarget: Math.round(cal),
         proteinTargetG: Math.round(pro),
+        carbsTargetG: Math.round(carb),
+        fatTargetG: Math.round(fat),
         rationale: typeof o.rationale === "string" ? o.rationale : "",
       };
     } catch {
@@ -278,7 +305,7 @@ async function extractTargets(text: string): Promise<ComputedTargets | null> {
       {
         role: "user",
         content:
-          'From the text below, return ONLY this JSON object (no prose, no code fence): {"calorieTarget": <integer kcal>, "proteinTargetG": <integer grams>, "rationale": "<one or two sentences>"}\n\nText:\n' +
+          'From the text below, return ONLY this JSON object (no prose, no code fence): {"calorieTarget": <integer kcal>, "proteinTargetG": <integer grams>, "carbsTargetG": <integer grams>, "fatTargetG": <integer grams>, "rationale": "<one or two sentences>"}\n\nText:\n' +
           text,
       },
     ],
@@ -334,16 +361,22 @@ router.post("/goals/compute-targets", async (req, res) => {
     "activity TDEE multipliers, protein intake for muscle retention/gain ~0.7–1.0 g",
     "per lb of bodyweight, and the calorie strategy appropriate to the stated goal).",
     "Search for recent reputable sources before answering. Then give ONE daily",
-    "calorie target and ONE daily protein target (grams) for THIS person.",
+    "calorie target plus a full macro split — protein, carbohydrate and fat targets",
+    "(all in grams) — for THIS person. The macro grams should be roughly consistent",
+    "with the calorie target (protein 4 kcal/g, carbs 4 kcal/g, fat 9 kcal/g), with",
+    "protein prioritized for muscle retention and the remaining calories split between",
+    "carbs and fat per the goal.",
     "",
     "After your reasoning, end your reply with a single fenced ```json code block",
     'containing exactly: {"calorieTarget": <integer kcal>, "proteinTargetG": <integer grams>,',
+    '"carbsTargetG": <integer grams>, "fatTargetG": <integer grams>,',
     '"rationale": "<2-4 sentences: the TDEE estimate, the adjustment for the goal, the',
-    'protein basis, and any caveat>"}. No other text after the code block.',
+    'protein basis, the carb/fat split rationale, and any caveat>"}. No other text after',
+    "the code block.",
   ].join(" ");
 
   const userText = [
-    `Calculate my daily calorie and protein targets. Goal: ${goalLabel}.`,
+    `Calculate my daily calorie target and full macro split (protein, carbs, fat). Goal: ${goalLabel}.`,
     `Stats: ${row.sex}, age ${row.age}, height ${ft}'${inch}" (${row.heightIn} in),`,
     `current weight ${weight} lb${row.goalWeightLb ? `, goal weight ${row.goalWeightLb} lb` : ""},`,
     `activity level: ${row.activityLevel}.`,
@@ -365,7 +398,11 @@ router.post("/goals/compute-targets", async (req, res) => {
     targets.calorieTarget < MIN_CALORIES ||
     targets.calorieTarget > MAX_CALORIES ||
     targets.proteinTargetG < MIN_PROTEIN_G ||
-    targets.proteinTargetG > MAX_PROTEIN_G
+    targets.proteinTargetG > MAX_PROTEIN_G ||
+    targets.carbsTargetG < MIN_CARBS_G ||
+    targets.carbsTargetG > MAX_CARBS_G ||
+    targets.fatTargetG < MIN_FAT_G ||
+    targets.fatTargetG > MAX_FAT_G
   ) {
     res.status(502).json({
       error: "The AI returned an unreadable or implausible result. Try again.",
@@ -378,6 +415,8 @@ router.post("/goals/compute-targets", async (req, res) => {
     .set({
       calorieTarget: targets.calorieTarget,
       proteinTargetG: targets.proteinTargetG,
+      carbsTargetG: targets.carbsTargetG,
+      fatTargetG: targets.fatTargetG,
       targetsRationale: targets.rationale || null,
       targetsComputedAt: new Date(),
       updatedAt: new Date(),

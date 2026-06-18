@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Beef, Dumbbell, Flame, Sparkles, User } from "lucide-react";
+import { Beef, Droplet, Dumbbell, Flame, Sparkles, User, Wheat } from "lucide-react";
 
 // Goals page. Hand-fetched against /api/goals (not in openapi.yaml, same
 // approach as nutrition.tsx) — keeps the feature self-contained, no codegen.
@@ -26,6 +26,8 @@ type Goals = {
   goalWeightLb: number | null;
   calorieTarget: number | null;
   proteinTargetG: number | null;
+  carbsTargetG: number | null;
+  fatTargetG: number | null;
   targetsRationale: string | null;
   targetsComputedAt: string | null;
   strengthScoreCurrent: number | null;
@@ -150,6 +152,8 @@ export default function Goals() {
 
   const protein = data?.proteinTargetG ?? null;
   const calories = data?.calorieTarget ?? null;
+  const carbs = data?.carbsTargetG ?? null;
+  const fat = data?.fatTargetG ?? null;
   const scoreCur = data?.strengthScoreCurrent ?? null;
   const scoreTgt = data?.strengthScoreGoal ?? null;
   const scorePct =
@@ -298,12 +302,23 @@ export default function Goals() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-md border border-border p-4">
+              <div className="flex items-center gap-2 text-xs tracking-wider text-muted-foreground">
+                <Flame className="h-3.5 w-3.5 text-primary" /> Calories / day
+              </div>
+              <div className="mt-1 text-4xl font-bold text-primary tabular-nums">
+                {calories ?? "—"}
+                {calories != null && (
+                  <span className="ml-1 text-lg text-muted-foreground">kcal</span>
+                )}
+              </div>
+            </div>
             <div className="rounded-md border border-border p-4">
               <div className="flex items-center gap-2 text-xs tracking-wider text-muted-foreground">
                 <Beef className="h-3.5 w-3.5 text-primary" /> Protein / day
               </div>
-              <div className="mt-1 text-4xl font-bold text-primary tabular-nums">
+              <div className="mt-1 text-4xl font-bold tabular-nums">
                 {protein ?? "—"}
                 {protein != null && (
                   <span className="ml-1 text-lg text-muted-foreground">g</span>
@@ -312,12 +327,23 @@ export default function Goals() {
             </div>
             <div className="rounded-md border border-border p-4">
               <div className="flex items-center gap-2 text-xs tracking-wider text-muted-foreground">
-                <Flame className="h-3.5 w-3.5 text-primary" /> Calories / day
+                <Wheat className="h-3.5 w-3.5 text-primary" /> Carbs / day
               </div>
               <div className="mt-1 text-4xl font-bold tabular-nums">
-                {calories ?? "—"}
-                {calories != null && (
-                  <span className="ml-1 text-lg text-muted-foreground">kcal</span>
+                {carbs ?? "—"}
+                {carbs != null && (
+                  <span className="ml-1 text-lg text-muted-foreground">g</span>
+                )}
+              </div>
+            </div>
+            <div className="rounded-md border border-border p-4">
+              <div className="flex items-center gap-2 text-xs tracking-wider text-muted-foreground">
+                <Droplet className="h-3.5 w-3.5 text-primary" /> Fat / day
+              </div>
+              <div className="mt-1 text-4xl font-bold tabular-nums">
+                {fat ?? "—"}
+                {fat != null && (
+                  <span className="ml-1 text-lg text-muted-foreground">g</span>
                 )}
               </div>
             </div>

@@ -14,6 +14,12 @@ export const nutritionDaysTable = pgTable("nutrition_days", {
   // Total dietary protein for the day in grams — the headline metric the
   // runner cares about most while cutting from 281 lb → 210 lb.
   proteinG: integer("protein_g"),
+  // Total dietary carbohydrate for the day in grams. Null until a push
+  // carries it — older protein-only/calorie-only pushes leave it null, and
+  // historical rows predating macro tracking stay null (= not tracked).
+  carbsG: integer("carbs_g"),
+  // Total dietary fat for the day in grams. Same null semantics as carbsG.
+  fatG: integer("fat_g"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

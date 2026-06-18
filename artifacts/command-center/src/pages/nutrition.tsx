@@ -1,12 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Beef, Flame, RefreshCw } from "lucide-react";
-
-// Fallback protein target (g) used only until the AI-calculated target on the
-// Goals page is set. Once /api/goals returns a proteinTargetG it wins.
-const PROTEIN_GOAL_FALLBACK = 200;
+import { Beef, Droplet, Flame, RefreshCw, Wheat } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 // These routes are intentionally hand-fetched rather than going through the
 // generated api-client: the nutrition slice isn't in openapi.yaml, so we hit
@@ -16,10 +12,19 @@ type NutritionDay = {
   date: string;
   calories: number | null;
   proteinG: number | null;
+  carbsG: number | null;
+  fatG: number | null;
   updatedAt: string | null;
 };
 type RecentResponse = { days: number; entries: NutritionDay[] };
-type GoalsTargets = { proteinTargetG: number | null; calorieTarget: number | null };
+// Targets come from the AI calculation on the Goals page. Any of them may be
+// null until the runner computes them — the rings degrade to a bare value.
+type GoalsTargets = {
+  calorieTarget: number | null;
+  proteinTargetG: number | null;
+  carbsTargetG: number | null;
+  fatTargetG: number | null;
+};
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url, { headers: { accept: "application/json" } });
@@ -44,6 +49,83 @@ function formatDayLabel(date: string): string {
   return d.toLocaleDateString(undefined, { weekday: "short", day: "numeric" });
 }
 
+// A single macro ring. Monochrome-accent: the progress arc is the teal accent
+// (primary), the track is neutral (muted). When `target` is null we show the
+// value with no goal ring (a full neutral circle), never a hardcoded goal.
+function MacroRing({
+  label,
+  Icon,
+  value,
+  target,
+  unit,
+}: {
+  label: string;
+  Icon: LucideIcon;
+  value: number | null;
+  target: number | null;
+  unit: string;
+}) {
+  const size = 104;
+  const stroke = 8;
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const hasGoal = target != null && target > 0;
+  const pct =
+    value != null && hasGoal ? Math.min(1, value / (target as number)) : 0;
+  const hit = hasGoal && value != null && value >= (target as number);
+  const remaining =
+    hasGoal && value != null ? Math.max(0, (target as number) - value) : null;
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg width={size} height={size} className="-rotate-90">
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            strokeWidth={stroke}
+            className="stroke-muted"
+          />
+          {hasGoal && (
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={r}
+              fill="none"
+              strokeWidth={stroke}
+              strokeLinecap="round"
+              className="stroke-primary transition-[stroke-dashoffset]"
+              strokeDasharray={circ}
+              strokeDashoffset={circ * (1 - pct)}
+            />
+          )}
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-2xl font-bold tabular-nums text-primary">
+            {value ?? "—"}
+          </span>
+          <span className="text-[11px] text-muted-foreground">{unit}</span>
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5 text-xs tracking-wider text-muted-foreground">
+        <Icon className="h-3.5 w-3.5 text-primary" />
+        {label}
+      </div>
+      <p className="h-4 text-[11px] text-muted-foreground tabular-nums">
+        {value == null
+          ? "Waiting on sync"
+          : hasGoal
+            ? hit
+              ? "Goal hit"
+              : `${remaining} ${unit} to go`
+            : "No goal set"}
+      </p>
+    </div>
+  );
+}
+
 export default function Nutrition() {
   const todayQuery = useQuery({
     queryKey: ["/api/nutrition/today"],
@@ -53,27 +135,60 @@ export default function Nutrition() {
     queryKey: ["/api/nutrition/recent", 14],
     queryFn: () => getJson<RecentResponse>("/api/nutrition/recent?days=14"),
   });
-  // AI-calculated targets from the Goals page drive the bars; fall back to the
-  // constant until the runner computes them.
+  // AI-calculated targets from the Goals page drive the rings; each is null
+  // until the runner computes them, and the ring degrades gracefully.
   const goalsQuery = useQuery({
     queryKey: ["/api/goals"],
     queryFn: () => getJson<GoalsTargets>("/api/goals"),
   });
 
-  const proteinGoal = goalsQuery.data?.proteinTargetG ?? PROTEIN_GOAL_FALLBACK;
-  const calorieTarget = goalsQuery.data?.calorieTarget ?? null;
-
+  const t = goalsQuery.data;
   const today = todayQuery.data;
-  const protein = today?.proteinG ?? null;
-  const calories = today?.calories ?? null;
-  const proteinPct =
-    protein != null ? Math.min(100, (protein / proteinGoal) * 100) : 0;
-  const proteinLeft =
-    protein != null ? Math.max(0, proteinGoal - protein) : proteinGoal;
 
+  const macros: Array<{
+    label: string;
+    Icon: LucideIcon;
+    value: number | null;
+    target: number | null;
+    unit: string;
+  }> = [
+    {
+      label: "Calories",
+      Icon: Flame,
+      value: today?.calories ?? null,
+      target: t?.calorieTarget ?? null,
+      unit: "kcal",
+    },
+    {
+      label: "Protein",
+      Icon: Beef,
+      value: today?.proteinG ?? null,
+      target: t?.proteinTargetG ?? null,
+      unit: "g",
+    },
+    {
+      label: "Carbs",
+      Icon: Wheat,
+      value: today?.carbsG ?? null,
+      target: t?.carbsTargetG ?? null,
+      unit: "g",
+    },
+    {
+      label: "Fat",
+      Icon: Droplet,
+      value: today?.fatG ?? null,
+      target: t?.fatTargetG ?? null,
+      unit: "g",
+    },
+  ];
+
+  // 14-day protein trend. Peak scales the bars; the protein target (when set)
+  // is the goal threshold that fills a bar to full accent.
   const entries = recentQuery.data?.entries ?? [];
+  const proteinGoal = t?.proteinTargetG ?? null;
   const peakProtein = Math.max(
-    proteinGoal,
+    proteinGoal ?? 0,
+    1,
     ...entries.map((e) => e.proteinG ?? 0),
   );
 
@@ -84,80 +199,51 @@ export default function Nutrition() {
           Nutrition
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Calories and protein synced from your food tracker via Apple Health.
+          Calories and macros synced from your food tracker via Apple Health.
         </p>
       </div>
 
-      {/* Today's headline tiles */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm tracking-wider text-muted-foreground">
-              <Beef className="h-4 w-4 text-primary" />
-              Protein Today
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {todayQuery.isLoading ? (
-              <Skeleton className="h-16 w-full" />
-            ) : (
-              <>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-5xl font-bold text-primary tabular-nums">
-                    {protein ?? "—"}
-                  </span>
-                  <span className="text-lg text-muted-foreground">
-                    / {proteinGoal} g
-                  </span>
-                </div>
-                <Progress value={proteinPct} className="mt-3 h-2" />
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {protein == null
-                    ? "Waiting on today's sync"
-                    : proteinLeft > 0
-                      ? `${proteinLeft} g to go`
-                      : "Goal hit"}
-                </p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm tracking-wider text-muted-foreground">
-              <Flame className="h-4 w-4 text-primary" />
-              Calories Today
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {todayQuery.isLoading ? (
-              <Skeleton className="h-16 w-full" />
-            ) : (
-              <>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-5xl font-bold tabular-nums">
-                    {calories ?? "—"}
-                  </span>
-                  <span className="text-lg text-muted-foreground">
-                    {calorieTarget != null ? `/ ${calorieTarget}` : "kcal"}
-                  </span>
-                </div>
-                <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <RefreshCw className="h-3 w-3" />
-                  {formatUpdated(today?.updatedAt ?? null)}
-                </p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      {/* Today's four macros vs target */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center justify-between text-sm tracking-wider text-muted-foreground">
+            <span>Today</span>
+            <span className="flex items-center gap-1.5 text-xs font-normal normal-case">
+              <RefreshCw className="h-3 w-3" />
+              {formatUpdated(today?.updatedAt ?? null)}
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {todayQuery.isLoading || goalsQuery.isLoading ? (
+            <Skeleton className="h-40 w-full" />
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
+                {macros.map((m) => (
+                  <MacroRing key={m.label} {...m} />
+                ))}
+              </div>
+              {t != null &&
+                t.calorieTarget == null &&
+                t.proteinTargetG == null &&
+                t.carbsTargetG == null &&
+                t.fatTargetG == null && (
+                  <p className="mt-4 text-xs text-muted-foreground">
+                    No targets set yet. Calculate them on the Goals page to see
+                    progress rings.
+                  </p>
+                )}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {/* 14-day protein trend */}
       <Card>
         <CardHeader>
           <CardTitle className="text-sm tracking-wider text-muted-foreground">
-            Last 14 Days · Protein
+            Last 14 days · protein
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -173,7 +259,7 @@ export default function Nutrition() {
               {entries.map((e) => {
                 const g = e.proteinG ?? 0;
                 const pct = peakProtein > 0 ? (g / peakProtein) * 100 : 0;
-                const hitGoal = g >= proteinGoal;
+                const hitGoal = proteinGoal != null && g >= proteinGoal;
                 return (
                   <div key={e.date} className="flex items-center gap-3">
                     <span className="w-16 shrink-0 text-xs text-muted-foreground tabular-nums">
@@ -182,19 +268,17 @@ export default function Nutrition() {
                     <div className="h-5 flex-1 overflow-hidden rounded bg-muted">
                       <div
                         className={
-                          hitGoal
-                            ? "h-full bg-primary"
-                            : "h-full bg-primary/50"
+                          hitGoal ? "h-full bg-primary" : "h-full bg-primary/50"
                         }
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                    <span className="w-20 shrink-0 text-right text-xs tabular-nums">
+                    <span className="w-28 shrink-0 text-right text-xs tabular-nums">
                       {e.proteinG ?? "—"} g
                       {e.calories != null && (
                         <span className="text-muted-foreground">
                           {" "}
-                          · {e.calories}
+                          · {e.calories} kcal
                         </span>
                       )}
                     </span>
