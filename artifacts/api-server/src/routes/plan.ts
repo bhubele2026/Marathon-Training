@@ -820,6 +820,9 @@ async function fetchRecentWorkoutsByPair(
       notes: r.notes,
       timeOfDay: r.time_of_day,
       modality: r.modality,
+      // Apple Health import idempotency key — not selected for this
+      // suggestion/plan-vs-actual sample, so leave it null.
+      sourceKey: null,
       // Task #270: the suggestions/plan-vs-actual sample doesn't need
       // the workout's "Edited" snapshot, so we leave the seed_* mirrors
       // null here. Filling them out would require selecting every

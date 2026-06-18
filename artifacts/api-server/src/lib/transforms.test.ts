@@ -34,6 +34,7 @@ function makeWorkoutRow(overrides: Partial<WorkoutRow> = {}): WorkoutRow {
     notes: null,
     timeOfDay: null,
     modality: "Cardio",
+    sourceKey: null,
     seedSessionType: null,
     seedEquipment: null,
     seedEquipmentList: null,
