@@ -13,7 +13,6 @@ import {
   getAnthropic,
   isConfigured,
   MODEL,
-  Anthropic,
 } from "@workspace/integrations-anthropic";
 
 // Goals + body stats + AI-calculated nutrition targets + Tonal Strength Score
@@ -234,30 +233,30 @@ function parseTargets(text: string): ComputedTargets | null {
 // return all assistant text concatenated. The web_search tool + adaptive
 // thinking are GA on the API; params are cast (like plan-builder.ts) so the
 // installed SDK's static types don't block the build.
+// SDK calls are `any`-typed on purpose: web_search, adaptive thinking, and
+// output_config are GA on the wire but the installed SDK's static types lag, so
+// typing them strictly is what breaks the build. The wire shapes are correct.
+/* eslint-disable @typescript-eslint/no-explicit-any */
 async function researchTargets(system: string, userText: string): Promise<string> {
-  const client = getAnthropic();
-  const messages: Anthropic.MessageParam[] = [{ role: "user", content: userText }];
+  const client: any = getAnthropic();
+  const messages: any[] = [{ role: "user", content: userText }];
   let text = "";
   for (let i = 0; i < 6; i++) {
-    const params = {
+    const resp: any = await client.messages.create({
       model: MODEL,
       max_tokens: 8000,
-      thinking: { type: "adaptive" as const },
+      thinking: { type: "adaptive" },
       system,
       tools: [{ type: "web_search_20260209", name: "web_search" }],
       messages,
-    };
-    const resp = (await client.messages.create(params as never)) as Anthropic.Message;
-    for (const block of resp.content) {
-      if (block.type === "text") text += block.text + "\n";
+    });
+    for (const block of resp.content ?? []) {
+      if (block?.type === "text") text += `${block.text}\n`;
     }
     // Server-tool loop hit its internal limit — re-send the conversation so the
     // server resumes (echo the assistant turn back, no extra user message).
     if (resp.stop_reason === "pause_turn") {
-      messages.push({
-        role: "assistant",
-        content: resp.content,
-      } as Anthropic.MessageParam);
+      messages.push({ role: "assistant", content: resp.content });
       continue;
     }
     break;
@@ -269,27 +268,28 @@ async function researchTargets(system: string, userText: string): Promise<string
 async function extractTargets(text: string): Promise<ComputedTargets | null> {
   const direct = parseTargets(text);
   if (direct) return direct;
-  const params = {
+  const client: any = getAnthropic();
+  const resp: any = await client.messages.create({
     model: MODEL,
     max_tokens: 1000,
     system:
       "You extract structured data. Reply with ONLY a JSON object and nothing else.",
     messages: [
       {
-        role: "user" as const,
+        role: "user",
         content:
           'From the text below, return ONLY this JSON object (no prose, no code fence): {"calorieTarget": <integer kcal>, "proteinTargetG": <integer grams>, "rationale": "<one or two sentences>"}\n\nText:\n' +
           text,
       },
     ],
-  };
-  const resp = (await getAnthropic().messages.create(params as never)) as Anthropic.Message;
-  const out = resp.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("\n");
+  });
+  let out = "";
+  for (const block of resp.content ?? []) {
+    if (block?.type === "text") out += `${block.text}\n`;
+  }
   return parseTargets(out);
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 // POST /api/goals/compute-targets — research + persist personalized targets.
 router.post("/goals/compute-targets", async (req, res) => {
