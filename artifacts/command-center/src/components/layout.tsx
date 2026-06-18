@@ -35,11 +35,11 @@ export function Layout({ children }: LayoutProps) {
   const navItems = [
     { href: "/", label: "Command Center", icon: Home },
     { href: "/today", label: "Today's Mission", icon: Activity },
+    { href: "/goals", label: "Goals", icon: Target },
+    { href: "/nutrition", label: "Nutrition", icon: Beef },
     { href: "/plan", label: planLabel, icon: CalendarDays },
     { href: "/log", label: "Training Log", icon: ListOrdered },
     { href: "/measurements", label: "Body Metrics", icon: Scale },
-    { href: "/nutrition", label: "Nutrition", icon: Beef },
-    { href: "/goals", label: "Goals", icon: Target },
     { href: "/races", label: "Race History", icon: Trophy },
     { href: "/equipment", label: "Equipment", icon: Dumbbell },
     { href: "/planner", label: "Phase Planner", icon: SlidersHorizontal },

@@ -94,7 +94,7 @@ function Router() {
 
 function App() {
   return (
-    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
       <QueryClientProvider client={queryClient}>
         {/* VisualThemeProvider lives inside the QueryClientProvider so
             it can hydrate from the server-side user-preferences row
