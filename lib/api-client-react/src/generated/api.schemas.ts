@@ -1793,7 +1793,7 @@ export const UserPreferencesVisualTheme = {
   "trail-forest": "trail-forest",
   "championship-red": "championship-red",
   "sunset-endurance": "sunset-endurance",
-  "blacksmith": "blacksmith",
+  blacksmith: "blacksmith",
 } as const;
 
 /**
@@ -1910,7 +1910,7 @@ export const UpdateUserPreferencesBodyVisualTheme = {
   "trail-forest": "trail-forest",
   "championship-red": "championship-red",
   "sunset-endurance": "sunset-endurance",
-  "blacksmith": "blacksmith",
+  blacksmith: "blacksmith",
 } as const;
 
 /**
