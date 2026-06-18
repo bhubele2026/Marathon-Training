@@ -64,7 +64,7 @@ export function Layout({ children }: LayoutProps) {
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* Slim, sticky, quiet top bar. Subtle bottom hairline. */}
       <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-        <div className="mx-auto max-w-6xl px-4 md:px-6 h-14 flex items-center gap-6">
+        <div className="mx-auto max-w-[1600px] px-4 md:px-6 h-14 flex items-center gap-6">
           <Wordmark />
 
           {/* Primary nav — exactly four destinations (desktop). */}
@@ -145,7 +145,7 @@ export function Layout({ children }: LayoutProps) {
       </header>
 
       <main className="flex-1 px-4 md:px-6 py-6 md:py-10 pb-24 md:pb-10">
-        <div className="mx-auto max-w-6xl">
+        <div className="mx-auto max-w-[1600px]">
           {/* Restrained route-change transition: gentle fade + slide. */}
           <AnimatePresence mode="wait">
             <motion.div

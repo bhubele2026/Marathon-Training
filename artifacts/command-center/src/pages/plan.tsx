@@ -422,7 +422,7 @@ export default function Plan() {
   // is hidden because there's nothing to reset.
   if (!overview.hasPlan || weeks.length === 0) {
     return (
-      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto">
+      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1600px] mx-auto">
         <div>
           <h2
             className="text-3xl font-black tracking-tight text-primary"
@@ -514,7 +514,7 @@ export default function Plan() {
   const nextMissedPlanDayId = overview.nextMissedPlanDayId ?? null;
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1600px] mx-auto">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h2

@@ -251,7 +251,7 @@ export default function WeekDetail() {
   }, [missedIdValid, missedDate, week]);
 
   if (isLoading) {
-    return <div className="space-y-6 max-w-4xl mx-auto"><Skeleton className="h-32 w-full" /><Skeleton className="h-96 w-full" /></div>;
+    return <div className="space-y-6 max-w-[1600px] mx-auto"><Skeleton className="h-32 w-full" /><Skeleton className="h-96 w-full" /></div>;
   }
 
   // Task #307: when no plan has been applied the week endpoint 404s.
@@ -259,7 +259,7 @@ export default function WeekDetail() {
   // step instead of a dead "Week not found" string.
   if (!week) {
     return (
-      <div className="space-y-6 max-w-4xl mx-auto">
+      <div className="space-y-6 max-w-[1600px] mx-auto">
         <EmptyPlanState
           title="Week not found"
           description="This week is not part of any applied plan. Open the Phase Planner to build a plan and populate your weekly schedule."
@@ -469,7 +469,7 @@ export default function WeekDetail() {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl mx-auto">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1600px] mx-auto">
       
       <div className="flex items-center justify-between">
         <Button variant="outline" size="sm" onClick={() => setLocation(`/plan/${weekNum - 1}`)} disabled={weekNum <= 1}>

@@ -363,7 +363,7 @@ export default function Races() {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-6xl mx-auto">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1600px] mx-auto">
       <div className="flex items-end justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-3xl font-black tracking-tight text-primary">Race History</h2>
