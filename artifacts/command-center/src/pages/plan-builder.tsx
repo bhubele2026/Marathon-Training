@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { Send, Loader2, Check, AlertTriangle, Info, SlidersHorizontal } from "lucide-react";
@@ -86,6 +86,10 @@ export default function PlanBuilder() {
   const [streaming, setStreaming] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [input, setInput] = useState("");
+  // Optional timeframe: a target date ("2026-10-01") OR a free-text length
+  // ("12 weeks"). Woven into the FIRST message so Claude maps it to totalWeeks
+  // / an end date. Cleared after it's been folded into a turn.
+  const [timeframe, setTimeframe] = useState("");
 
   const [plan, setPlan] = useState<AiPlan | null>(null);
   const [weekly, setWeekly] = useState<WeeklyPreview[]>([]);
@@ -105,7 +109,19 @@ export default function PlanBuilder() {
     const trimmed = text.trim();
     if (!trimmed || busy) return;
 
-    const nextMessages: ChatMsg[] = [...messages, { role: "user", content: trimmed }];
+    // Fold the timeframe into the FIRST user message only (when the chat is
+    // empty). A bare date is read as a target date; anything else as a length.
+    let content = trimmed;
+    const tf = timeframe.trim();
+    if (tf && messages.length === 0) {
+      const isDate = /^\d{4}-\d{2}-\d{2}$/.test(tf);
+      content += isDate
+        ? `\n\nTimeframe: get me to my goal by ${tf} (target date — build the right number of weeks to land there).`
+        : `\n\nTimeframe: ${tf}.`;
+      setTimeframe("");
+    }
+
+    const nextMessages: ChatMsg[] = [...messages, { role: "user", content }];
     setMessages(nextMessages);
     setInput("");
     setStreaming("");
@@ -194,6 +210,25 @@ export default function PlanBuilder() {
       scrollToBottom();
     }
   }
+
+  // Adjust-from-anywhere: when the builder is opened with a `?seed=...` query
+  // param (from the Today view or a day card — e.g. "Make Wednesday shorter"),
+  // pre-fill the input with that message so the runner sees it and can send /
+  // edit it. Runs once on mount; we strip the param so a refresh doesn't replay
+  // it. The existing propose_plan revise flow then handles it like any turn.
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seededRef.current) return;
+    seededRef.current = true;
+    const params = new URLSearchParams(window.location.search);
+    const seed = params.get("seed");
+    if (seed && seed.trim()) {
+      setInput(seed.trim());
+      // Drop the query param without reloading so a manual refresh starts clean.
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function accept() {
     if (!plan || accepting) return;
@@ -310,6 +345,28 @@ export default function PlanBuilder() {
                 </div>
               )}
             </div>
+
+            {/* Optional timeframe — a target date or a length. Only meaningful
+                on the first message; once the conversation is going, the
+                timeframe lives in the chat. */}
+            {messages.length === 0 && (
+              <div className="space-y-1">
+                <label
+                  htmlFor="plan-builder-timeframe"
+                  className="text-xs text-muted-foreground"
+                >
+                  Target date or length (optional)
+                </label>
+                <Input
+                  id="plan-builder-timeframe"
+                  value={timeframe}
+                  onChange={(e) => setTimeframe(e.target.value)}
+                  placeholder='e.g. "2026-10-01" or "12 weeks"'
+                  disabled={busy}
+                  data-testid="plan-builder-timeframe"
+                />
+              </div>
+            )}
 
             <form
               className="flex items-center gap-2"

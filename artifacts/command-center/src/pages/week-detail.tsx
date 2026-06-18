@@ -52,6 +52,7 @@ import {
   Undo2,
   Sparkles,
   Trophy,
+  Wand2,
 } from "lucide-react";
 import { useMissionActions } from "@/hooks/use-mission-actions";
 import { cn } from "@/lib/utils";
@@ -166,6 +167,13 @@ export default function WeekDetail() {
   );
   const { openLog, openEdit, requestDelete, requestSkip, crushIt, isDeleting, isCrushing, dialogs } =
     useMissionActions();
+
+  // Adjust-from-anywhere (Phase 6): open the Claude plan builder pre-seeded
+  // with a message about a specific day (e.g. "Make Wednesday shorter"). The
+  // builder reads ?seed= on mount and pre-fills the chat input.
+  const askAiToAdjust = (seed: string) => {
+    setLocation(`/planner?seed=${encodeURIComponent(seed)}`);
+  };
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -737,6 +745,18 @@ export default function WeekDetail() {
                 title="Reset to original prescription"
               >
                 <Undo2 className="h-3 w-3 mr-1" /> Reset
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-[10px] font-bold tracking-wider hover:text-foreground"
+                onClick={() =>
+                  askAiToAdjust(`Adjust ${day.day} of week ${day.week} (${day.sessionType}). `)
+                }
+                data-testid={`button-ask-ai-plan-${chipTestIdSuffix}`}
+                title="Ask Claude to adjust this day"
+              >
+                <Wand2 className="h-3 w-3 mr-1" /> Ask AI
               </Button>
             </div>
           );

@@ -28,7 +28,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistance, formatLoad } from "@/lib/format";
-import { CheckCircle2, Activity, Trash2, Edit, Zap, Pencil, XCircle, Rocket, Sparkles, Trophy } from "lucide-react";
+import { CheckCircle2, Activity, Trash2, Edit, Zap, Pencil, XCircle, Rocket, Sparkles, Trophy, Wand2 } from "lucide-react";
 import { useMissionActions } from "@/hooks/use-mission-actions";
 import { QuickLogActivity } from "@/components/quick-log-activity";
 import { TimeOfDayBadge } from "@/components/time-of-day-badge";
@@ -67,6 +67,14 @@ export default function Today() {
   const campaignHasPlan = overview ? overview.hasPlan : true;
   const { openLog, openEdit, requestDelete, requestSkip, crushIt, isDeleting, isCrushing, dialogs } =
     useMissionActions();
+
+  // Adjust-from-anywhere (Phase 6): open the Claude plan builder pre-seeded
+  // with a context message about this day/session ("Make Wednesday shorter",
+  // "swap the bike for the row", "I'm sore today"). The builder reads ?seed=
+  // on mount and pre-fills the chat input; the runner sends/edits from there.
+  const askAiToAdjust = (seed: string) => {
+    window.location.assign(`/planner?seed=${encodeURIComponent(seed)}`);
+  };
 
   // Task #345 review fix: open the same finish-time form on /today so
   // the runner can log a scheduled race result without bouncing to
@@ -218,6 +226,18 @@ export default function Today() {
           <p className="text-muted-foreground font-medium tracking-widest">{today.date}</p>
         </div>
         <div className="flex items-center gap-2">
+          {campaignHasPlan && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs font-bold tracking-wider"
+              onClick={() => askAiToAdjust("Adjust my plan for today")}
+              data-testid="button-today-ask-ai-adjust"
+            >
+              <Wand2 className="mr-1 h-3.5 w-3.5" />
+              Ask AI to adjust
+            </Button>
+          )}
           {campaignHasPlan && (
             <Button
               variant="outline"
@@ -382,6 +402,26 @@ export default function Today() {
                   </div>
                 );
               })()}
+              {/* Phase 7: prominent equipment rail on the pre-launch preview
+                  too, so the runner knows which machine(s) the first session
+                  uses before the campaign even starts. */}
+              {((today.firstSession.equipmentList &&
+                today.firstSession.equipmentList.length > 0) ||
+                today.firstSession.equipment) && (
+                <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
+                  <span className="text-[10px] font-bold tracking-widest text-muted-foreground">
+                    EQUIPMENT
+                  </span>
+                  <EquipmentChipRail
+                    equipmentList={today.firstSession.equipmentList}
+                    equipment={today.firstSession.equipment}
+                    chipTestIdPrefix={`chip-equipment-first-prominent-${today.firstSession.date}`}
+                    railTestId="chip-rail-first-prominent"
+                    keyPrefix="first-prom-eq"
+                  />
+                </div>
+              )}
+
               {/* Slim collapsed view (Task #133): just the one headline
                   number for the first session. Equipment chips, the
                   planned minute breakdown, and the strength / total load
@@ -766,6 +806,27 @@ export default function Today() {
                         <span className="font-black text-2xl tracking-tight">{plan.sessionType}</span>
                       </div>
 
+                      {/* Phase 7: prominent "what to use today" rail — the
+                          machine(s) for this session are obvious at a glance
+                          (e.g. "Tonal · Peloton Row") without expanding the
+                          detail disclosure. Distinct testid prefix so it
+                          doesn't collide with the in-disclosure rail below. */}
+                      {((plan.equipmentList && plan.equipmentList.length > 0) ||
+                        plan.equipment) && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[10px] font-bold tracking-widest text-muted-foreground">
+                            TODAY
+                          </span>
+                          <EquipmentChipRail
+                            equipmentList={plan.equipmentList}
+                            equipment={plan.equipment}
+                            chipTestIdPrefix={`chip-equipment-today-prominent-${plan.date}`}
+                            railTestId={`chip-rail-today-prominent-${plan.sourceEntryIndex}`}
+                            keyPrefix={`today-prom-eq-${plan.id}`}
+                          />
+                        </div>
+                      )}
+
                       {plan.description && (
                         <p className="text-foreground text-lg leading-relaxed">{plan.description}</p>
                       )}
@@ -923,6 +984,25 @@ export default function Today() {
                           Skipped
                         </Button>
                       )}
+                      {/* Adjust-from-anywhere: seed the builder with this
+                          session's day so "Ask AI" lands on the right card. */}
+                      <Button
+                        variant="ghost"
+                        className="font-bold tracking-wider text-muted-foreground"
+                        onClick={() =>
+                          askAiToAdjust(
+                            `Adjust my ${plan.day ?? "today's"} session (${plan.sessionType}). `,
+                          )
+                        }
+                        data-testid={
+                          planIdx === 0
+                            ? "button-ask-ai-today"
+                            : `button-ask-ai-today-${plan.sourceEntryIndex}`
+                        }
+                      >
+                        <Wand2 className="mr-2 h-4 w-4" />
+                        Ask AI to adjust
+                      </Button>
                     </div>
                   </div>
                 </div>

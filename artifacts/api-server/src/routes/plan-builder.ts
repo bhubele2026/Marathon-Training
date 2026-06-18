@@ -6,8 +6,10 @@ import {
   workoutsTable,
   measurementsTable,
   plannerConfigsTable,
+  userPreferencesTable,
 } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
+import { computeRecompSummary } from "./dashboard";
 import {
   getAnthropic,
   isConfigured,
@@ -85,7 +87,53 @@ async function gatherContext(): Promise<PersonalContext> {
     );
   }
 
+  // Phase 3 cadence (Mon rest; Tue-Thu short; Fri-Sun long) from the active
+  // config's DailyBudget. normalizeDailyBudget (run inside the briefing +
+  // guardrails) backfills the canonical short/long buckets, so passing the
+  // stored jsonb through as-is is enough — defaults apply when it's empty.
   const budget: DailyBudget = active?.dailyBudget ?? {};
+
+  // Recomp signal (inches lost + muscle proxy + Tonal strength score + weight)
+  // — the DEFAULT objective when no race is set. Reuses the dashboard's
+  // computeRecompSummary so the builder and the dashboard read the same numbers.
+  let recomp: PersonalContext["recomp"] = null;
+  try {
+    const rs = await computeRecompSummary();
+    recomp = {
+      totalInchesLost: rs.totalInchesLost,
+      muscleProxyInchesGained: rs.muscleProxyInchesGained,
+      strengthScoreCurrent: rs.strengthScoreCurrent,
+      strengthScoreGoal: rs.strengthScoreGoal,
+      weightLatestLbs: rs.weightLatest,
+      weightBaselineLbs: rs.weightBaseline,
+    };
+  } catch {
+    // Recomp is best-effort context; never block plan authoring on it.
+    recomp = null;
+  }
+
+  // Current macro / calorie goals (user_preferences, id=1) for the nutrition brain.
+  const prefRows = await db
+    .select({
+      calorieTarget: userPreferencesTable.calorieTarget,
+      proteinTargetG: userPreferencesTable.proteinTargetG,
+      carbsTargetG: userPreferencesTable.carbsTargetG,
+      fatTargetG: userPreferencesTable.fatTargetG,
+      bodyGoal: userPreferencesTable.bodyGoal,
+    })
+    .from(userPreferencesTable)
+    .where(eq(userPreferencesTable.id, 1))
+    .limit(1);
+  const pref = prefRows[0];
+  const macros: PersonalContext["macros"] = pref
+    ? {
+        calorieTarget: pref.calorieTarget ?? null,
+        proteinTargetG: pref.proteinTargetG ?? null,
+        carbsTargetG: pref.carbsTargetG ?? null,
+        fatTargetG: pref.fatTargetG ?? null,
+        bodyGoal: pref.bodyGoal ?? null,
+      }
+    : null;
 
   return {
     todayISO: todayISO(),
@@ -95,6 +143,8 @@ async function gatherContext(): Promise<PersonalContext> {
     budget,
     recentActivitySummary: summaryParts.length ? summaryParts.join(" ") : null,
     notes: active?.notes ?? null,
+    recomp,
+    macros,
   };
 }
 

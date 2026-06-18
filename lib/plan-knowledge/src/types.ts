@@ -183,6 +183,34 @@ export function dayBudgetForDayName(
   return { min: n.longDayMin, max: n.longDayMax };
 }
 
+/** Current macro / calorie goals (from user_preferences). Null until the runner
+ * computes targets on Goals. Fed into the nutrition brain so Claude reasons from
+ * the runner's actual numbers rather than re-deriving them. */
+export interface MacroTargets {
+  calorieTarget?: number | null;
+  proteinTargetG?: number | null;
+  carbsTargetG?: number | null;
+  fatTargetG?: number | null;
+  /** "recomp" | "cut" | "lean_bulk" — drives the calorie strategy. */
+  bodyGoal?: string | null;
+}
+
+/** Recomposition signal distilled from measurements + the Tonal strength score.
+ * Recomp (lose inches + gain muscle) is the DEFAULT objective when no race is
+ * set, so Claude needs to see where the runner is on it. */
+export interface RecompSignal {
+  /** Σ inches lost across all four measured sites (fat loss + any limb shrink). */
+  totalInchesLost?: number | null;
+  /** Σ growth across arm + leg sites (lean-mass proxy). */
+  muscleProxyInchesGained?: number | null;
+  /** Tonal Strength Score, app-only (entered on Goals). */
+  strengthScoreCurrent?: number | null;
+  strengthScoreGoal?: number | null;
+  /** Latest / baseline bodyweight from measurements, lb. */
+  weightLatestLbs?: number | null;
+  weightBaselineLbs?: number | null;
+}
+
 export interface PersonalContext {
   /** ISO date "today" (UTC) so Claude anchors relative dates correctly. */
   todayISO: string;
@@ -195,6 +223,11 @@ export interface PersonalContext {
   recentActivitySummary?: string | null;
   /** Anything the runner typed into the active config's notes field. */
   notes?: string | null;
+  /** Recomp progress (inches / muscle proxy / strength score / weight). The
+   * recomp signal is the DEFAULT objective when no race is set. */
+  recomp?: RecompSignal | null;
+  /** Current macro + calorie goals so the nutrition brain references real numbers. */
+  macros?: MacroTargets | null;
 }
 
 // ---------------------------------------------------------------------------

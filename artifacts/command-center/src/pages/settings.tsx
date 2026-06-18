@@ -658,6 +658,123 @@ export default function Settings() {
           )}
         </CardContent>
       </Card>
+
+      <Card data-testid="card-connections">
+        <CardHeader>
+          <CardTitle className="text-lg tracking-wider">Connections</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <p className="text-sm text-muted-foreground">
+            How your Tonal, Peloton, and treadmill work gets into the Command
+            Center. There is no "connect" button here on purpose — these
+            devices have no public sync API, so the honest path is Apple Health.
+          </p>
+
+          {/* Automatic — the real sync. Apple Health is the bridge: Tonal,
+              Peloton (Bike/Row/Tread) and treadmill runs all write workouts to
+              Apple Health, and an Apple Shortcut pushes them to the server. */}
+          <div
+            className="rounded-md border border-border p-4 space-y-3"
+            data-testid="connections-apple-health"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-bold tracking-wider text-sm">
+                Automatic — Apple Health
+              </span>
+              <span className="text-[10px] tracking-widest font-bold text-primary">
+                RECOMMENDED
+              </span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Tonal, Peloton (Bike, Row, Tread) and your treadmill all write
+              their workouts to Apple Health. An Apple Shortcut on your iPhone
+              reads those workouts and pushes them to the Command Center, where
+              they're deduplicated and linked to the matching planned day. No
+              account linking, no scraping, no fake integrations.
+            </p>
+            <div className="space-y-1">
+              <p className="text-xs font-bold tracking-wider text-muted-foreground">
+                Set up the Shortcut (one time)
+              </p>
+              <ol className="list-decimal pl-5 text-sm text-muted-foreground space-y-1">
+                <li>
+                  In the iOS Shortcuts app, create a shortcut that uses
+                  "Find Health Samples" → Workouts (filter to recent days).
+                </li>
+                <li>
+                  Add a "Get Contents of URL" action: method{" "}
+                  <span className="font-mono text-foreground">POST</span> to{" "}
+                  <span className="font-mono text-foreground">
+                    /api/workouts/import
+                  </span>{" "}
+                  on your Command Center URL.
+                </li>
+                <li>
+                  Send a JSON body of{" "}
+                  <span className="font-mono text-foreground">
+                    {"{ token, workouts: [...] }"}
+                  </span>{" "}
+                  — each workout carries its type, start time, duration,
+                  distance, average HR and calories.
+                </li>
+                <li>
+                  Put your ingest token in the{" "}
+                  <span className="font-mono text-foreground">token</span> field.
+                  It must match the{" "}
+                  <span className="font-mono text-foreground">
+                    NUTRITION_TOKEN
+                  </span>{" "}
+                  secret set on the server (the same token the nutrition sync
+                  uses).
+                </li>
+                <li>
+                  Add an Automation to run the Shortcut daily (e.g. after your
+                  last workout) so new sessions flow in on their own.
+                </li>
+              </ol>
+            </div>
+            <p className="text-xs text-muted-foreground italic">
+              Re-running is safe — imports are idempotent on each workout's
+              source key, so duplicates are skipped.
+            </p>
+          </div>
+
+          {/* Manual — Tonal Strength Score. App-only, no API anywhere. */}
+          <div
+            className="rounded-md border border-border p-4 space-y-2"
+            data-testid="connections-strength-score"
+          >
+            <span className="font-bold tracking-wider text-sm">
+              Manual — Tonal Strength Score
+            </span>
+            <p className="text-sm text-muted-foreground">
+              The Tonal Strength Score lives only inside the Tonal app — it
+              isn't exposed through Apple Health or any API. Read it off your
+              Tonal and enter it (current and goal) on the{" "}
+              <a
+                href="/goals"
+                className="text-primary font-medium hover:underline"
+                data-testid="link-connections-goals"
+              >
+                Goals
+              </a>{" "}
+              page so the recomp dashboard can track it toward your target.
+            </p>
+          </div>
+
+          {/* Peloton note — we deliberately do NOT add an unofficial member-API
+              fetch. Peloton already writes to Apple Health, so the bridge above
+              covers it. */}
+          <p
+            className="text-xs text-muted-foreground"
+            data-testid="connections-peloton-note"
+          >
+            Peloton: there's no official Peloton API, so there's no separate
+            Peloton connection here. Your Peloton rides and runs already land in
+            Apple Health and sync through the bridge above.
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -71,6 +71,29 @@ The HR Zone targeting mode supports four zone models (`five_zone_max` default, `
 - **Workout↔plan_day linking:** `plan_day_id` linked at log time. Legacy rows retro-linked by `backfill-workout-plan-day` (scores `session_type` matches +2, `equipment` +1; ties → lowest `source_entry_index`). Idempotent, runs on every merge. Adherence/completion queries are a straight join on `plan_day_id`. Orphans (no plan_day on their date) are valid quick-logged off-plan rows and never credit completion; `/api/workouts/unlinked-count` powers a "N unlinked — review" filter in the /log header. Post-merge `check-workout-orphans` exits non-zero if any workout has `plan_day_id IS NULL` while a plan_day exists on its date.
 - **equipment_list chip rail** on `plan_days` (+ `seed_equipment_list` mirror): ordered set of every machine used that day. **Contract:** scalar `equipment` column always equals `equipment_list[0]` (primary machine) so back-compat reads agree with the chip rail's lead. PATCH on `/api/plan/:date` collapses the chip rail to `[equipment]` when the runner edits the scalar. Backfilled by `backfill-plan-day-equipment` (idempotent, runs on every merge).
 
+## Device sync (Apple Health bridge — no device APIs)
+
+The honest sync story, surfaced in Settings → Connections. There are NO OAuth
+"connect your Tonal/Peloton" flows because those devices have no public API.
+
+- **Workouts (automatic):** Tonal, Peloton (Bike/Row/Tread) and the treadmill
+  all write workouts to **Apple Health**. An **Apple Shortcut** on the runner's
+  iPhone reads recent Health workouts and `POST`s them to
+  `POST /api/workouts/import` as `{ token, workouts: [...] }`. The route maps
+  Apple Health activity types → equipment/modality, dedupes on `source_key`
+  (idempotent — safe to re-run), and links each session to the matching
+  `plan_day`. Auth is the bearer `NUTRITION_TOKEN` secret (shared with the
+  nutrition ingest). This is THE sync — there is no server-side device fetch.
+- **Nutrition (automatic):** the same Apple-Health-Shortcut pattern feeds the
+  nutrition ingest with the shared `NUTRITION_TOKEN`.
+- **Tonal Strength Score (manual):** app-only, not exposed by Apple Health or
+  any API. Entered by hand (current + goal) on `/goals`; the recomp dashboard
+  tracks it toward the target. Surfaced in Settings → Connections as the manual
+  channel.
+- **Peloton:** intentionally NO unofficial Peloton member-API fetch (it's
+  unofficial, brittle, and unsupported). Peloton already writes to Apple Health,
+  so the bridge above covers Peloton rides/runs with no separate integration.
+
 ## Stack
 
 - pnpm workspaces, Node 24, TypeScript 5.9

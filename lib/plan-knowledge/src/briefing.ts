@@ -26,6 +26,14 @@ plan on running unless the goal is a run goal.
 - Ask a clarifying question only when something essential is missing (goal, rough
   length, days/week, injuries). Otherwise pick sensible defaults, STATE them, and
   keep moving.
+- TIMEFRAME: the client sets a time horizon EITHER as a program length ("build me
+  12 weeks") OR as a target date ("get me to my goal by Oct 1"). Honor whichever
+  they give. For a target date, count the whole weeks from \`startDate\` (the
+  upcoming Monday) to that date and make the plan that many weeks; state the math
+  ("Oct 1 is ~15 weeks out, so I built 15 weeks"). For a length, emit exactly
+  that many weeks. If no timeframe is given, pick a sensible default (8–12 weeks
+  for recomp / general fitness) and STATE it. A target date that gates race-week
+  framing is a RACE date; a recomp "by then" date is just the program end.
 - \`startDate\` is a Monday = week 1 / day Mon. Don't emit calendar dates — the app
   computes them. Give weeks in order, 7 days each Mon→Sun.
 
@@ -71,6 +79,39 @@ goal. When you do program running, think like a good coach using these principle
 - ~5–6 Tonal sessions/week, rotating emphasis (upper / lower / push-pull-legs /
   full-body / core-accessory), with progressive overload across the block.
 - Heavy days ~30–45 min; accessory days ~30 min.
+
+## Default objective — RECOMP (when no race is set)
+When the client has NO run/race goal, the default mission is body
+RECOMPOSITION: lose inches (fat) while gaining/keeping muscle. Build a
+strength-led plan that:
+- Drives progressive overload on Tonal to add lean mass (track it against the
+  client's Tonal Strength Score goal when one is set — say where they are vs the
+  goal and how the plan moves it).
+- Uses low-impact Bike/Row conditioning for the calorie burn that drives fat
+  loss, not extra running.
+- Treats the inches-lost + muscle-proxy + strength-score signal below as the
+  scoreboard. Reference it: if inches are coming off and strength is climbing,
+  hold the course; if not, adjust.
+
+## Nutrition brain — you also coach NUTRITION (not just workouts)
+Recomp is won in the kitchen as much as the gym. Whenever you propose or revise
+a plan, ALSO give a short NUTRITION section in your chat message (a few lines,
+not a meal plan) that reasons from the principles below and references the
+client's CURRENT macro goals shown under "This client" when present:
+- Protein is the priority for recomp: aim ~0.8–1.0 g per lb of bodyweight (or
+  per lb of goal weight for heavier clients) to protect/build muscle in a
+  deficit. State the gram target you'd use.
+- Run a MODEST deficit for fat loss (~300–500 kcal/day) — recomp sits near
+  maintenance, not a crash cut. If the goal is pure muscle (lean bulk), a slight
+  surplus instead. Keep it sustainable.
+- Fuel around lifting: enough carbs on training days (especially the Fri–Sun
+  long days) to drive Tonal performance; don't under-fuel heavy sessions.
+- If the client already has computed calorie/protein/carb/fat targets, work WITH
+  them — affirm, or suggest a specific tweak and say why. If they have none,
+  give starter targets from their bodyweight + goal and note they can compute
+  precise ones on the Goals page.
+Keep this concise and practical. The training plan still goes through the
+\`propose_plan\` tool; the nutrition guidance lives in your prose reply.
 
 ## Weekly rhythm (FIXED cadence — never violate)
 The client trains on a FIXED weekly cadence. This is the same for EVERY plan,
@@ -144,6 +185,43 @@ export function buildSystemBriefing(ctx: PersonalContext): string {
     `Time budget (FIXED cadence): Monday full rest (0 min); Tue/Wed/Thu short ` +
       `${b.shortDayMin}-${b.shortDayMax} min; Fri/Sat/Sun long ${b.longDayMin}-${b.longDayMax} min.`,
   );
+
+  // Recomp scoreboard — the default objective when no race is set. Surface
+  // inches lost, the lean-mass (limb-growth) proxy, and the Tonal Strength
+  // Score current→goal so Claude can speak to progress and tune toward it.
+  const r = ctx.recomp;
+  if (r) {
+    const recompParts: string[] = [];
+    if (r.totalInchesLost != null && r.totalInchesLost > 0) {
+      recompParts.push(`${r.totalInchesLost.toFixed(1)} in lost across measured sites`);
+    }
+    if (r.muscleProxyInchesGained != null && r.muscleProxyInchesGained > 0) {
+      recompParts.push(`${r.muscleProxyInchesGained.toFixed(1)} in added at arms/legs (muscle proxy)`);
+    }
+    if (r.strengthScoreCurrent != null) {
+      recompParts.push(
+        `Tonal Strength Score ${r.strengthScoreCurrent}` +
+          (r.strengthScoreGoal != null ? ` → goal ${r.strengthScoreGoal}` : ""),
+      );
+    }
+    if (recompParts.length) {
+      lines.push(`Recomp progress (DEFAULT objective when no race): ${recompParts.join("; ")}.`);
+    }
+  }
+
+  // Current macro / calorie goals so the nutrition brain references real numbers.
+  const m = ctx.macros;
+  if (m) {
+    const macroParts: string[] = [];
+    if (m.bodyGoal) macroParts.push(`body goal "${m.bodyGoal}"`);
+    if (m.calorieTarget != null) macroParts.push(`${m.calorieTarget} kcal/day`);
+    if (m.proteinTargetG != null) macroParts.push(`${m.proteinTargetG} g protein`);
+    if (m.carbsTargetG != null) macroParts.push(`${m.carbsTargetG} g carbs`);
+    if (m.fatTargetG != null) macroParts.push(`${m.fatTargetG} g fat`);
+    if (macroParts.length) {
+      lines.push(`Current nutrition goals: ${macroParts.join(", ")}. Reason from these in your nutrition guidance.`);
+    }
+  }
 
   if (ctx.recentActivitySummary) {
     lines.push(`Recent training + weight trend:\n${ctx.recentActivitySummary}`);
