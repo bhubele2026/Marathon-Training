@@ -209,8 +209,29 @@ const SUMMARY: {
   raceKind: "marathon" | "half" | "10k" | "5k" | null;
   activeConfigName: string;
   hasPlan: boolean;
+  recomp: Record<string, unknown>;
 } = {
   hasPlan: true,
+  // Phase 4. Body-recomp summary now rides the dashboard summary and the
+  // hero leads with inches lost. Default to a populated recomp so the
+  // hero renders; per-test overrides can pin measurementCount: 0 to
+  // exercise the empty state.
+  recomp: {
+    measurementCount: 3,
+    sites: [
+      { key: "belly", label: "Belly", muscleProxy: false, baseline: 42, latest: 38, delta: 4, series: [{ date: "2026-01-01", value: 42 }, { date: "2026-03-01", value: 38 }] },
+      { key: "chest", label: "Chest", muscleProxy: false, baseline: 44, latest: 43, delta: 1, series: [{ date: "2026-01-01", value: 44 }, { date: "2026-03-01", value: 43 }] },
+      { key: "arms", label: "Arms", muscleProxy: true, baseline: 28, latest: 29, delta: -1, series: [{ date: "2026-01-01", value: 28 }, { date: "2026-03-01", value: 29 }] },
+      { key: "legs", label: "Legs", muscleProxy: true, baseline: 48, latest: 49, delta: -1, series: [{ date: "2026-01-01", value: 48 }, { date: "2026-03-01", value: 49 }] },
+    ],
+    totalInchesLost: 5,
+    muscleProxyInchesGained: 2,
+    strengthScoreCurrent: 300,
+    strengthScoreGoal: 500,
+    weightBaseline: 280,
+    weightLatest: 250,
+    onTrack: true,
+  },
   currentWeek: 34,
   currentPhase: "Marathon-Specific",
   totalWeeks: 52,
@@ -873,7 +894,12 @@ describe("Dashboard — prescribed run target on Recent Logs (task #147)", () =>
     expect(screen.getByTestId("dashboard-empty-plan")).toBeTruthy();
     expect(screen.getByTestId("dashboard-empty-plan-cta")).toBeTruthy();
     expect(screen.getByTestId("dashboard-empty-stats")).toBeTruthy();
-    expect(screen.getByText("Body Mass")).toBeTruthy();
+    // Phase 4. The body-recomp hero leads even on the empty-plan
+    // dashboard; weight is demoted into its secondary line.
+    expect(screen.getByTestId("recomp-hero")).toBeTruthy();
+    expect(screen.getByTestId("recomp-hero-inches-lost").textContent).toContain(
+      "5.0",
+    );
     // Recent Logs preserved with the logged workout visible.
     expect(screen.getByTestId("dashboard-empty-recent-activity")).toBeTruthy();
     expect(screen.getByText("Outdoor Walk")).toBeTruthy();

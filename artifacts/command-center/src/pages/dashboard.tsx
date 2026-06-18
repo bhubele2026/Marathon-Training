@@ -8,6 +8,7 @@ import {
 } from "recharts";
 import type { TooltipProps } from "recharts";
 import { formatDistance, formatLoad, formatWeight, formatDate, formatDuration } from "@/lib/format";
+import type { RecompSummary, RecompSite } from "@workspace/api-client-react";
 import { PrimaryMetricDisplay } from "@/components/primary-metric-display";
 import { SessionDetailDisclosure } from "@/components/session-detail-disclosure";
 import { EquipmentChipRail } from "@/components/equipment-chip-rail";
@@ -237,31 +238,13 @@ export default function Dashboard() {
           </p>
         </div>
         <EmptyPlanState testId="dashboard-empty-plan" />
+        {/* Phase 4. Even before a plan is applied, the body-recomp hero
+            leads so the runner sees inches lost / muscle proxy. */}
+        <RecompHero recomp={summary.recomp} weightGoal={summary.weightGoal} />
         <div
-          className="grid grid-cols-1 md:grid-cols-2 gap-4"
+          className="grid grid-cols-1 gap-4"
           data-testid="dashboard-empty-stats"
         >
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between space-x-2">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground tracking-wider">
-                    Body Mass
-                  </p>
-                  <div className="text-3xl font-black mt-1">
-                    {formatWeight(summary.weightCurrent)}
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Goal: {summary.weightGoal ?? "—"} |{" "}
-                    <span className="text-primary font-semibold">
-                      -{summary.weightLost.toFixed(1)} lbs
-                    </span>
-                  </p>
-                </div>
-                <TrendingDown className="h-8 w-8 text-muted-foreground opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between space-x-2">
@@ -355,8 +338,14 @@ export default function Dashboard() {
 
       <RaceWeekBanner raceKind={raceKind} />
 
+      {/* Phase 4. Body-recomp hero — the dashboard now LEADS with
+          "inches lost" + a muscle/strength proxy. Weight is demoted into
+          the hero's secondary line, so the old Body Mass tile is gone
+          from the stats row below. */}
+      <RecompHero recomp={summary.recomp} weightGoal={summary.weightGoal} />
+
       {/* Top Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card
           className="bg-card border-l-4"
           style={{ borderLeftColor: phaseColor(summary.currentPhase) }}
@@ -404,21 +393,6 @@ export default function Dashboard() {
           </Card>
         )}
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between space-x-2">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground tracking-wider">Body Mass</p>
-                <div className="text-3xl font-black mt-1">{formatWeight(summary.weightCurrent)}</div>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Goal: {summary.weightGoal ?? "—"} | <span className="text-primary font-semibold">-{summary.weightLost.toFixed(1)} lbs</span>
-                </p>
-              </div>
-              <TrendingDown className="h-8 w-8 text-muted-foreground opacity-50" />
-            </div>
-          </CardContent>
-        </Card>
-        
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between space-x-2">
@@ -1336,6 +1310,246 @@ export default function Dashboard() {
       </div>
 
     </div>
+  );
+}
+
+// Phase 4. Per-site sparkline — a tiny accent line over the site's
+// chronological values, used in the hero's belly/chest/arms/legs row.
+// Single point or empty renders a flat baseline so the row never breaks.
+function SiteSparkline({
+  series,
+  testId,
+}: {
+  series: RecompSite["series"];
+  testId: string;
+}) {
+  const data =
+    series.length > 0
+      ? series
+      : [{ date: "", value: 0 }];
+  return (
+    <div className="h-8 w-full" data-testid={testId}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
+          <YAxis hide domain={["dataMin - 0.5", "dataMax + 0.5"]} />
+          <Line
+            type="monotone"
+            dataKey="value"
+            stroke="hsl(var(--chart-1))"
+            strokeWidth={2}
+            dot={false}
+            isAnimationActive={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// Phase 4. The dashboard hero: leads with INCHES LOST (the single most
+// important accent number), a per-site sparkline row, a muscle/strength
+// proxy block, and a combined on-track verdict. Weight is demoted to a
+// small secondary line. Empty + single-measurement safe.
+export function RecompHero({
+  recomp,
+  weightGoal,
+}: {
+  recomp: RecompSummary;
+  weightGoal: number | null;
+}) {
+  const hasData = recomp.measurementCount > 0;
+
+  // Empty state: invite the first check-in instead of rendering NaNs.
+  if (!hasData) {
+    return (
+      <Card
+        className="border-primary/20 bg-primary/5"
+        data-testid="recomp-hero-empty"
+      >
+        <CardContent className="p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-muted-foreground tracking-wider">
+              Body recomposition
+            </p>
+            <div className="text-2xl font-black mt-1">Lose inches, gain muscle</div>
+            <p className="text-sm text-muted-foreground mt-1">
+              Log your first measurement to start tracking inches lost and
+              muscle gained.
+            </p>
+          </div>
+          <Link href="/measurements">
+            <Button className="font-black tracking-wider" data-testid="recomp-hero-empty-cta">
+              Log measurement
+            </Button>
+          </Link>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const siteByKey = (k: RecompSite["key"]) =>
+    recomp.sites.find((s) => s.key === k);
+  const heroSites = (["belly", "chest", "arms", "legs"] as const)
+    .map((k) => siteByKey(k))
+    .filter((s): s is RecompSite => s != null);
+
+  const strengthPct =
+    recomp.strengthScoreCurrent != null && recomp.strengthScoreGoal
+      ? Math.min(100, (recomp.strengthScoreCurrent / recomp.strengthScoreGoal) * 100)
+      : null;
+
+  return (
+    <Card
+      className="border-primary/20 bg-primary/5"
+      data-testid="recomp-hero"
+    >
+      <CardContent className="p-6 space-y-6">
+        {/* Headline: inches lost (the single accent number) */}
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-muted-foreground tracking-wider">
+              Inches lost
+            </p>
+            <div
+              className="text-5xl font-black mt-1 text-primary tabular-nums"
+              data-testid="recomp-hero-inches-lost"
+            >
+              {recomp.totalInchesLost.toFixed(1)}
+              <span className="text-2xl text-muted-foreground ml-2 font-bold">in</span>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              Across belly, chest, arms and legs
+            </p>
+          </div>
+          {/* Combined recomp verdict — muted positive when on track. */}
+          {recomp.onTrack ? (
+            <div
+              className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-600/10 px-4 py-2 rounded-md self-start"
+              data-testid="recomp-hero-verdict-on-track"
+            >
+              <TrendingUp className="h-5 w-5" />
+              On track
+            </div>
+          ) : (
+            <div
+              className="flex items-center gap-2 text-muted-foreground font-bold bg-muted/40 px-4 py-2 rounded-md self-start"
+              data-testid="recomp-hero-verdict-neutral"
+            >
+              <Activity className="h-5 w-5" />
+              Building data
+            </div>
+          )}
+        </div>
+
+        {/* Per-site sparkline row */}
+        <div
+          className="grid grid-cols-2 md:grid-cols-4 gap-4"
+          data-testid="recomp-hero-sites"
+        >
+          {heroSites.map((s) => {
+            const grew = s.delta != null && s.delta < 0;
+            const shrank = s.delta != null && s.delta > 0;
+            const magnitude = s.delta == null ? null : Math.abs(s.delta);
+            // Good direction depends on the site: belly/chest want to
+            // shrink, arms/legs (muscleProxy) want to grow.
+            const good = s.muscleProxy ? grew : shrank;
+            return (
+              <div
+                key={s.key}
+                className="space-y-1"
+                data-testid={`recomp-hero-site-${s.key}`}
+              >
+                <div className="flex items-baseline justify-between gap-1">
+                  <span className="text-xs font-bold tracking-wider text-muted-foreground">
+                    {s.label}
+                  </span>
+                  {magnitude != null && magnitude > 0 ? (
+                    <span
+                      className={`text-xs font-mono font-bold ${good ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}
+                    >
+                      {s.muscleProxy
+                        ? `${grew ? "+" : "-"}${magnitude.toFixed(1)}"`
+                        : `-${magnitude.toFixed(1)}"`}
+                    </span>
+                  ) : (
+                    <span className="text-xs font-mono text-muted-foreground">—</span>
+                  )}
+                </div>
+                <SiteSparkline
+                  series={s.series}
+                  testId={`recomp-hero-spark-${s.key}`}
+                />
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Muscle / strength proxy block + secondary weight */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border pt-4">
+          <div data-testid="recomp-hero-muscle">
+            <p className="text-xs font-bold tracking-wider text-muted-foreground">
+              Muscle (proxies for lean mass)
+            </p>
+            <div className="mt-2 space-y-2">
+              <div className="flex items-baseline justify-between">
+                <span className="text-sm text-muted-foreground">
+                  Arm + leg growth
+                </span>
+                <span className="text-sm font-mono font-bold text-foreground">
+                  +{recomp.muscleProxyInchesGained.toFixed(1)} in
+                </span>
+              </div>
+              {recomp.strengthScoreCurrent != null &&
+              recomp.strengthScoreGoal != null ? (
+                <div className="space-y-1">
+                  <div className="flex items-baseline justify-between text-sm">
+                    <span className="text-muted-foreground">
+                      Tonal strength score
+                    </span>
+                    <span className="font-mono font-bold">
+                      {recomp.strengthScoreCurrent}
+                      <span className="text-muted-foreground">
+                        {" "}
+                        / {recomp.strengthScoreGoal}
+                      </span>
+                    </span>
+                  </div>
+                  {strengthPct != null && (
+                    <Progress value={strengthPct} className="h-2" />
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Set a Tonal strength score on Goals to track it here.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Weight rides secondary now */}
+          <div
+            className="md:text-right md:border-l md:border-border md:pl-4"
+            data-testid="recomp-hero-weight"
+          >
+            <p className="text-xs font-bold tracking-wider text-muted-foreground">
+              Weight (secondary)
+            </p>
+            <div className="text-2xl font-black mt-1 tabular-nums">
+              {formatWeight(recomp.weightLatest)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {recomp.weightBaseline != null && recomp.weightLatest != null ? (
+                <>
+                  Start {recomp.weightBaseline.toFixed(1)}
+                  {" · "}
+                </>
+              ) : null}
+              Goal {weightGoal != null ? weightGoal.toFixed(0) : "—"}
+            </p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

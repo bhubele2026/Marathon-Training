@@ -2518,6 +2518,95 @@ first paint uses this consolidated endpoint.
 export const GetDashboardBootstrapResponse = zod
   .object({
     summary: zod.object({
+      recomp: zod
+        .object({
+          measurementCount: zod
+            .number()
+            .describe(
+              "Distinct measurement rows. 0 = empty (show the log-first empty), 1 = baseline-only (deltas are 0).",
+            ),
+          sites: zod.array(
+            zod
+              .object({
+                key: zod.enum(["belly", "chest", "arms", "legs"]),
+                label: zod.string(),
+                muscleProxy: zod
+                  .boolean()
+                  .describe(
+                    "True for arms\/legs — growth here is treated as a lean-mass proxy.",
+                  ),
+                baseline: zod
+                  .number()
+                  .nullable()
+                  .describe(
+                    "Earliest non-null reading for this site (null if none).",
+                  ),
+                latest: zod
+                  .number()
+                  .nullable()
+                  .describe(
+                    "Most-recent non-null reading for this site (null if none).",
+                  ),
+                delta: zod
+                  .number()
+                  .nullable()
+                  .describe(
+                    "baseline - latest. Positive = shrank, negative = grew. Null if no reading.",
+                  ),
+                series: zod
+                  .array(
+                    zod.object({
+                      date: zod.string(),
+                      value: zod.number(),
+                    }),
+                  )
+                  .describe(
+                    "Chronological non-null date+value points for the per-site sparkline.",
+                  ),
+              })
+              .describe(
+                "Phase 4. One circumference-tape site in the body-recomp story.\nbelly\/chest are fat-loss sites (shrinking = fat off); arms\/legs\nare lean-mass PROXY sites (growth there reads as muscle). `delta`\nis baseline - latest (positive = the site shrank).\n",
+              ),
+          ),
+          totalInchesLost: zod
+            .number()
+            .describe(
+              "Σ of REDUCTIONS (positive baseline-latest) across all four sites.",
+            ),
+          muscleProxyInchesGained: zod
+            .number()
+            .describe(
+              "Σ of GROWTH (positive latest-baseline) across the arm + leg sites only.",
+            ),
+          strengthScoreCurrent: zod
+            .number()
+            .nullable()
+            .describe(
+              "Tonal Strength Score, current (entered on Goals). Null until set.",
+            ),
+          strengthScoreGoal: zod
+            .number()
+            .nullable()
+            .describe("Tonal Strength Score, goal. Null until set."),
+          weightBaseline: zod
+            .number()
+            .nullable()
+            .describe(
+              "Earliest non-null weight. Weight renders secondary on the new hero.",
+            ),
+          weightLatest: zod
+            .number()
+            .nullable()
+            .describe("Most-recent non-null weight."),
+          onTrack: zod
+            .boolean()
+            .describe(
+              "Combined recomp verdict — inches trending down AND (strength climbing toward goal OR an arm\/leg proxy growing). False on empty \/ single-measurement.\n",
+            ),
+        })
+        .describe(
+          'Phase 4. Server-computed body-recomposition summary. The dashboard\nLEADS with \"inches lost\" + a muscle\/strength proxy rather than\nweight or races. All fields are guarded for the no-data \/\nsingle-measurement case (zeros \/ nulls, never NaN).\n',
+        ),
       hasPlan: zod
         .boolean()
         .describe(
@@ -3680,6 +3769,95 @@ export const GetDashboardBootstrapResponse = zod
   );
 
 export const GetDashboardSummaryResponse = zod.object({
+  recomp: zod
+    .object({
+      measurementCount: zod
+        .number()
+        .describe(
+          "Distinct measurement rows. 0 = empty (show the log-first empty), 1 = baseline-only (deltas are 0).",
+        ),
+      sites: zod.array(
+        zod
+          .object({
+            key: zod.enum(["belly", "chest", "arms", "legs"]),
+            label: zod.string(),
+            muscleProxy: zod
+              .boolean()
+              .describe(
+                "True for arms\/legs — growth here is treated as a lean-mass proxy.",
+              ),
+            baseline: zod
+              .number()
+              .nullable()
+              .describe(
+                "Earliest non-null reading for this site (null if none).",
+              ),
+            latest: zod
+              .number()
+              .nullable()
+              .describe(
+                "Most-recent non-null reading for this site (null if none).",
+              ),
+            delta: zod
+              .number()
+              .nullable()
+              .describe(
+                "baseline - latest. Positive = shrank, negative = grew. Null if no reading.",
+              ),
+            series: zod
+              .array(
+                zod.object({
+                  date: zod.string(),
+                  value: zod.number(),
+                }),
+              )
+              .describe(
+                "Chronological non-null date+value points for the per-site sparkline.",
+              ),
+          })
+          .describe(
+            "Phase 4. One circumference-tape site in the body-recomp story.\nbelly\/chest are fat-loss sites (shrinking = fat off); arms\/legs\nare lean-mass PROXY sites (growth there reads as muscle). `delta`\nis baseline - latest (positive = the site shrank).\n",
+          ),
+      ),
+      totalInchesLost: zod
+        .number()
+        .describe(
+          "Σ of REDUCTIONS (positive baseline-latest) across all four sites.",
+        ),
+      muscleProxyInchesGained: zod
+        .number()
+        .describe(
+          "Σ of GROWTH (positive latest-baseline) across the arm + leg sites only.",
+        ),
+      strengthScoreCurrent: zod
+        .number()
+        .nullable()
+        .describe(
+          "Tonal Strength Score, current (entered on Goals). Null until set.",
+        ),
+      strengthScoreGoal: zod
+        .number()
+        .nullable()
+        .describe("Tonal Strength Score, goal. Null until set."),
+      weightBaseline: zod
+        .number()
+        .nullable()
+        .describe(
+          "Earliest non-null weight. Weight renders secondary on the new hero.",
+        ),
+      weightLatest: zod
+        .number()
+        .nullable()
+        .describe("Most-recent non-null weight."),
+      onTrack: zod
+        .boolean()
+        .describe(
+          "Combined recomp verdict — inches trending down AND (strength climbing toward goal OR an arm\/leg proxy growing). False on empty \/ single-measurement.\n",
+        ),
+    })
+    .describe(
+      'Phase 4. Server-computed body-recomposition summary. The dashboard\nLEADS with \"inches lost\" + a muscle\/strength proxy rather than\nweight or races. All fields are guarded for the no-data \/\nsingle-measurement case (zeros \/ nulls, never NaN).\n',
+    ),
   hasPlan: zod
     .boolean()
     .describe(

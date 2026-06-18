@@ -1,10 +1,21 @@
 import { useState, useMemo } from "react";
-import { useListMeasurements, useGetWeightTrend, useDeleteMeasurement, getListMeasurementsQueryKey, getGetWeightTrendQueryKey, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
+import {
+  useListMeasurements,
+  useDeleteMeasurement,
+  getListMeasurementsQueryKey,
+  getGetWeightTrendQueryKey,
+  getGetDashboardSummaryQueryKey,
+  getGetDashboardBootstrapQueryKey,
+  type Measurement,
+} from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, LineChart, Line, Legend } from "recharts";
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  LineChart, Line, Legend,
+} from "recharts";
 import { formatDate } from "@/lib/format";
 import { Plus, Edit, Trash2 } from "lucide-react";
 import { MeasurementForm } from "@/components/measurement-form";
@@ -23,34 +34,49 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-// Let's assume useDeleteMeasurement is exported, or I'll implement it. Wait, checking api.ts... it wasn't listed in schemas snippet but standard Orval outputs `useDeleteMeasurement`. Wait, let me just add it.
+// Phase 4. A circumference-tape site charted over time. belly/chest are
+// fat-loss sites; arms/legs (summed L+R) are lean-mass proxies. Each one
+// gets a baseline → latest delta line and its own series on the chart.
+type SitePoint = { date: string; value: number };
+type SiteDef = {
+  key: string;
+  label: string;
+  // Growth here reads as a lean-mass proxy (arms/legs).
+  muscleProxy: boolean;
+  pick: (m: Measurement) => number | null;
+  // chart-1 is the accent; chart-2..5 + muted-foreground are neutral grays.
+  stroke: string;
+};
 
-// Mock delete if it doesn't exist, but we assume it does based on task instructions.
-const useDeleteMeasurementWrapper = () => {
-  let hook: any;
-  try {
-    hook = require("@workspace/api-client-react").useDeleteMeasurement;
-  } catch (e) {}
-  if (hook) return hook();
-  return { mutate: (p: any, opts: any) => opts.onSuccess?.(), isPending: false };
+const SITE_DEFS: SiteDef[] = [
+  { key: "belly", label: "Belly", muscleProxy: false, pick: (m) => m.belly ?? null, stroke: "hsl(var(--chart-1))" },
+  { key: "chest", label: "Chest", muscleProxy: false, pick: (m) => m.chest ?? null, stroke: "hsl(var(--chart-2))" },
+  {
+    key: "arms",
+    label: "Arms (L+R)",
+    muscleProxy: true,
+    pick: (m) => sumPair(m.lArm, m.rArm),
+    stroke: "hsl(var(--chart-3))",
+  },
+  {
+    key: "legs",
+    label: "Legs (L+R)",
+    muscleProxy: true,
+    pick: (m) => sumPair(m.lLeg, m.rLeg),
+    stroke: "hsl(var(--chart-4))",
+  },
+];
+
+function sumPair(a?: number | null, b?: number | null): number | null {
+  if (a == null && b == null) return null;
+  return (a ?? 0) + (b ?? 0);
 }
 
 export default function Measurements() {
   const { data: measurements, isLoading: loadingMs } = useListMeasurements();
-  const { data: weightTrend, isLoading: loadingTrend } = useGetWeightTrend();
-  
-  // Use wrapper just in case, but assume we have it.
-  let deleteMeasurementHook: any;
-  try {
-    const api = require("@workspace/api-client-react");
-    deleteMeasurementHook = api.useDeleteMeasurement;
-  } catch(e) {}
-  
-  // Actually, I can just import useMutation and customFetch if needed, but I'll use `deleteMeasurement` from api if I can.
-  // I will just use the standard hook since it was generated.
-  
+
   const [formOpen, setFormOpen] = useState(false);
-  const [editItem, setEditItem] = useState<any>(null);
+  const [editItem, setEditItem] = useState<Measurement | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -59,74 +85,172 @@ export default function Measurements() {
     setFormOpen(true);
   };
 
-  const handleEdit = (item: any) => {
+  const handleEdit = (item: Measurement) => {
     setEditItem(item);
     setFormOpen(true);
   };
 
-  // I will assume `useDeleteMeasurement` exists in api-client-react since it's standard.
-  // But to be safe if TS complains, I can cast. Let's just use it.
-  
-  const deleteMutation = (useDeleteMeasurement as any) ? (useDeleteMeasurement as any)() : { mutate: () => {} };
+  const deleteMutation = useDeleteMeasurement();
 
   const handleDelete = (id: number) => {
-    deleteMutation.mutate({ id }, {
-      onSuccess: () => {
-        toast({ title: "Measurement deleted" });
-        queryClient.invalidateQueries({ queryKey: getListMeasurementsQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetWeightTrendQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
-      }
-    });
+    deleteMutation.mutate(
+      { id },
+      {
+        onSuccess: () => {
+          toast({ title: "Measurement deleted" });
+          queryClient.invalidateQueries({ queryKey: getListMeasurementsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetWeightTrendQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetDashboardBootstrapQueryKey() });
+        },
+      },
+    );
   };
 
-  const bodyMetricsData = useMemo(() => {
-    if (!measurements) return [];
-    return [...measurements].reverse().map(m => ({
-      date: m.date,
-      belly: m.belly,
-      chest: m.chest,
-      lArm: m.lArm,
-      rArm: m.rArm,
-      lLeg: m.lLeg,
-      rLeg: m.rLeg
-    })).filter(m => m.belly || m.chest || m.lArm || m.rArm || m.lLeg || m.rLeg);
-  }, [measurements]);
+  // Oldest → newest, for the time-series charts.
+  const chrono = useMemo(
+    () => (measurements ? [...measurements].reverse() : []),
+    [measurements],
+  );
+
+  // Weight series (drop rows with no weight).
+  const weightData = useMemo(
+    () =>
+      chrono
+        .filter((m) => m.weight != null)
+        .map((m) => ({ date: m.date, weight: m.weight })),
+    [chrono],
+  );
+
+  // Per-site series for the tape chart (combined into one dataset keyed by date).
+  const tapeData = useMemo(() => {
+    return chrono
+      .map((m) => {
+        const row: Record<string, string | number | null> = { date: m.date };
+        for (const def of SITE_DEFS) row[def.key] = def.pick(m);
+        return row;
+      })
+      .filter((row) => SITE_DEFS.some((d) => row[d.key] != null));
+  }, [chrono]);
+
+  // Per-site baseline → latest deltas (earliest/latest non-null value).
+  const siteDeltas = useMemo(() => {
+    return SITE_DEFS.map((def) => {
+      const series: SitePoint[] = [];
+      for (const m of chrono) {
+        const v = def.pick(m);
+        if (v != null && Number.isFinite(v)) series.push({ date: m.date, value: v });
+      }
+      const baseline = series.length > 0 ? series[0]!.value : null;
+      const latest = series.length > 0 ? series[series.length - 1]!.value : null;
+      const delta = baseline != null && latest != null ? baseline - latest : null;
+      return { def, baseline, latest, delta };
+    });
+  }, [chrono]);
+
+  const hasMeasurements = (measurements?.length ?? 0) > 0;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-6xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-black tracking-tight text-primary">Body Metrics</h2>
-          <p className="text-muted-foreground font-medium tracking-widest mt-1">Composition Tracking</p>
+          <h2 className="text-3xl font-black tracking-tight text-primary">Body</h2>
+          <p className="text-muted-foreground font-medium tracking-widest mt-1">
+            Lose inches, gain muscle
+          </p>
         </div>
-        <Button onClick={handleCreate} className="font-bold tracking-wider">
-          <Plus className="h-4 w-4 mr-2" /> Add Check-in
+        {/* Phase 4. Fast logging — one prominent primary action up top
+            opens the check-in form (1 tap to open, submit inside). */}
+        <Button
+          onClick={handleCreate}
+          size="lg"
+          className="font-black tracking-wider"
+          data-testid="measurements-log-cta"
+        >
+          <Plus className="h-5 w-5 mr-2" /> Log measurement
         </Button>
       </div>
 
+      {/* Per-site baseline → latest deltas */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg tracking-wider">Weight Trend</CardTitle>
+          <CardTitle className="text-lg tracking-wider">Since baseline</CardTitle>
         </CardHeader>
         <CardContent>
-          {loadingTrend ? <Skeleton className="h-64 w-full" /> : (
+          {loadingMs ? (
+            <Skeleton className="h-20 w-full" />
+          ) : !hasMeasurements ? (
+            <p className="text-sm text-muted-foreground">
+              Log your first measurement to see your baseline → latest change
+              per site.
+            </p>
+          ) : (
+            <div
+              className="grid grid-cols-2 md:grid-cols-4 gap-4"
+              data-testid="measurements-site-deltas"
+            >
+              {siteDeltas.map(({ def, baseline, latest, delta }) => {
+                const grew = delta != null && delta < 0;
+                const shrank = delta != null && delta > 0;
+                const good = def.muscleProxy ? grew : shrank;
+                const magnitude = delta == null ? null : Math.abs(delta);
+                return (
+                  <div
+                    key={def.key}
+                    data-testid={`measurements-site-delta-${def.key}`}
+                  >
+                    <p className="text-xs font-bold tracking-wider text-muted-foreground">
+                      {def.label}
+                    </p>
+                    <div className="text-2xl font-black mt-1 tabular-nums">
+                      {latest != null ? latest.toFixed(1) : "—"}
+                      <span className="text-sm text-muted-foreground">"</span>
+                    </div>
+                    <p className="text-xs mt-1">
+                      {magnitude != null && magnitude > 0 ? (
+                        <span
+                          className={`font-mono font-bold ${good ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}
+                        >
+                          {def.muscleProxy
+                            ? `${grew ? "+" : "-"}${magnitude.toFixed(1)}"`
+                            : `-${magnitude.toFixed(1)}"`}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground font-mono">no change</span>
+                      )}
+                      <span className="text-muted-foreground">
+                        {" "}
+                        from {baseline != null ? `${baseline.toFixed(1)}"` : "—"}
+                      </span>
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg tracking-wider">Weight trend</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loadingMs ? <Skeleton className="h-64 w-full" /> : (
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={weightTrend} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                <AreaChart data={weightData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorWeightMain" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
                   <XAxis dataKey="date" tickFormatter={(str) => format(parseISO(str), 'MMM d')} />
-                  <YAxis domain={[200, 290]} />
+                  <YAxis domain={["dataMin - 5", "dataMax + 5"]} />
                   <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }} />
-                  <ReferenceLine y={281.6} label="Start (281.6)" stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
-                  <ReferenceLine y={210} label="Goal (210)" stroke="hsl(var(--primary))" strokeDasharray="3 3" />
-                  <Area type="monotone" dataKey="weight" stroke="hsl(var(--primary))" strokeWidth={3} fillOpacity={1} fill="url(#colorWeightMain)" />
+                  <Area type="monotone" dataKey="weight" name="Weight" stroke="hsl(var(--chart-1))" strokeWidth={3} fillOpacity={1} fill="url(#colorWeightMain)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -136,27 +260,31 @@ export default function Measurements() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg tracking-wider">Tape Measurements</CardTitle>
+          <CardTitle className="text-lg tracking-wider">Tape measurements</CardTitle>
         </CardHeader>
         <CardContent>
           {loadingMs ? <Skeleton className="h-64 w-full" /> : (
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={bodyMetricsData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                <LineChart data={tapeData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
                   <XAxis dataKey="date" tickFormatter={(str) => format(parseISO(str), 'MMM d')} />
                   <YAxis />
                   <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }} />
                   <Legend />
-                  {/* Single accent + neutral-gray ramp (no rainbow). Belly,
-                      the headline tracked measurement, takes the teal
-                      accent; the rest read as graded neutral grays. */}
-                  <Line type="monotone" dataKey="belly" name="Belly" stroke="hsl(var(--chart-1))" strokeWidth={2} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="chest" name="Chest" stroke="hsl(var(--chart-2))" strokeWidth={2} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="lArm" name="L. Arm" stroke="hsl(var(--chart-3))" strokeWidth={2} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="rArm" name="R. Arm" stroke="hsl(var(--chart-4))" strokeWidth={2} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="lLeg" name="L. Leg" stroke="hsl(var(--chart-5))" strokeWidth={2} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="rLeg" name="R. Leg" stroke="hsl(var(--muted-foreground))" strokeWidth={2} dot={{ r: 3 }} />
+                  {/* Single accent (chart-1 = belly) + neutral-gray ramp; no rainbow. */}
+                  {SITE_DEFS.map((def) => (
+                    <Line
+                      key={def.key}
+                      type="monotone"
+                      dataKey={def.key}
+                      name={def.label}
+                      stroke={def.stroke}
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                      connectNulls
+                    />
+                  ))}
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -181,9 +309,11 @@ export default function Measurements() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {measurements?.length === 0 ? (
+              {!hasMeasurements ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No measurements found</TableCell>
+                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                    No measurements yet. Log your first check-in to start tracking.
+                  </TableCell>
                 </TableRow>
               ) : (
                 measurements?.map((m) => (
@@ -228,11 +358,11 @@ export default function Measurements() {
         )}
       </div>
 
-      <MeasurementForm 
-        open={formOpen} 
-        onOpenChange={setFormOpen} 
+      <MeasurementForm
+        open={formOpen}
+        onOpenChange={setFormOpen}
         measurementId={editItem?.id}
-        initial={editItem || undefined} 
+        initial={editItem || undefined}
       />
     </div>
   );

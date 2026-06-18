@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, planWeeksTable, planDaysTable, workoutsTable, measurementsTable } from "@workspace/db";
+import { db, planWeeksTable, planDaysTable, workoutsTable, measurementsTable, userPreferencesTable } from "@workspace/db";
 import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { LIFESTYLE_EQUIPMENT, detectRaceKind } from "@workspace/plan-generator";
 import { toWorkout } from "../lib/transforms";
@@ -27,6 +27,186 @@ function todayISO(): string {
 // where source_entry_label is NULL. Mirrors what /plan/overview shows so the
 // runner sees the same program name everywhere.
 const FALLBACK_PROGRAM_LABEL = "Marathon Plan";
+
+// Phase 4. Body-recomposition summary. The dashboard now LEADS with
+// "lose inches, gain muscle" rather than weight or races, so we compute
+// the circumference-tape recomp story server-side and the client just
+// renders it. All math is guarded for the no-data / single-measurement
+// case (returns zeros / nulls, never NaN).
+//
+// Sites: belly + chest are the fat-loss tape sites (shrinking = fat off);
+// arms (lArm+rArm) + legs (lLeg+rLeg) are the lean-mass PROXY sites
+// (growth there reads as muscle, since we don't measure true muscle).
+//
+//   - baseline  = earliest non-null measurement for that site
+//   - latest    = most recent non-null measurement for that site
+//   - delta      = baseline - latest  (positive = the site SHRANK)
+//
+//   - totalInchesLost      = Σ positive (baseline - latest) across all
+//                            four sites (only sites that shrank count)
+//   - muscleProxyInchesGained = Σ positive (latest - baseline) across the
+//                            arm + leg sites only (only growth counts)
+//
+// `strengthScoreCurrent` / `strengthScoreGoal` (Tonal Strength Score) are
+// passed through from user_preferences so the muscle block can render a
+// strength→goal progress bar alongside the limb-growth proxy.
+export type RecompSiteKey = "belly" | "chest" | "arms" | "legs";
+
+export interface RecompSite {
+  key: RecompSiteKey;
+  label: string;
+  // True for arms/legs — growth here reads as a lean-mass proxy, so the
+  // client frames a positive (latest - baseline) as muscle, not regression.
+  muscleProxy: boolean;
+  baseline: number | null;
+  latest: number | null;
+  // baseline - latest. Positive = shrank (good for belly/chest), negative
+  // = grew (good for arms/legs). Null when fewer than 1 reading exists.
+  delta: number | null;
+  // date + value series for a sparkline (chronological, non-null only).
+  series: Array<{ date: string; value: number }>;
+}
+
+export interface RecompSummary {
+  // How many distinct measurement rows exist. 0 = brand-new user (render
+  // the "log your first measurement" empty); 1 = only a baseline so far
+  // (deltas are 0, sparklines are single points).
+  measurementCount: number;
+  sites: RecompSite[];
+  // Σ of REDUCTIONS across all four sites (fat loss + any limb that shrank).
+  totalInchesLost: number;
+  // Σ of GROWTH across arm + leg sites only (lean-mass proxy).
+  muscleProxyInchesGained: number;
+  // Tonal Strength Score (app-only, entered on Goals) — passed through.
+  strengthScoreCurrent: number | null;
+  strengthScoreGoal: number | null;
+  // Weight rides secondary on the dashboard now.
+  weightBaseline: number | null;
+  weightLatest: number | null;
+  // Combined recomp verdict: inches trending down AND (strength up OR a
+  // limb grew). "on_track" uses the muted positive tone; "neutral"
+  // otherwise (incl. empty / single-measurement).
+  onTrack: boolean;
+}
+
+interface RecompMeasurementRow extends Record<string, unknown> {
+  date: string;
+  weight: number | null;
+  l_arm: number | null;
+  r_arm: number | null;
+  l_leg: number | null;
+  r_leg: number | null;
+  belly: number | null;
+  chest: number | null;
+}
+
+// Earliest / latest non-null value (and its date) for a numeric extractor,
+// plus the full non-null chronological series. Rows MUST arrive sorted by
+// date ascending. Returns nulls cleanly when no row has a value.
+function siteStats(
+  rows: RecompMeasurementRow[],
+  pick: (r: RecompMeasurementRow) => number | null,
+): { baseline: number | null; latest: number | null; series: Array<{ date: string; value: number }> } {
+  const series: Array<{ date: string; value: number }> = [];
+  for (const r of rows) {
+    const v = pick(r);
+    if (v != null && Number.isFinite(v)) series.push({ date: r.date, value: v });
+  }
+  if (series.length === 0) return { baseline: null, latest: null, series };
+  return {
+    baseline: series[0]!.value,
+    latest: series[series.length - 1]!.value,
+    series,
+  };
+}
+
+// Sum two nullable site values (e.g. lArm + rArm). Null only when BOTH
+// sides are null, so a runner who taped just one arm still gets a value.
+function sumPair(a: number | null, b: number | null): number | null {
+  if (a == null && b == null) return null;
+  return (a ?? 0) + (b ?? 0);
+}
+
+export async function computeRecompSummary(): Promise<RecompSummary> {
+  // Pull every measurement (oldest first) plus the singleton strength
+  // score. Both reads are independent so we fan them out.
+  const [measRes, prefRows] = await Promise.all([
+    db.execute<RecompMeasurementRow>(
+      sql`SELECT TO_CHAR(date, 'YYYY-MM-DD') AS date, weight, l_arm, r_arm, l_leg, r_leg, belly, chest
+          FROM measurements ORDER BY date ASC`,
+    ),
+    db
+      .select({
+        current: userPreferencesTable.strengthScoreCurrent,
+        goal: userPreferencesTable.strengthScoreGoal,
+      })
+      .from(userPreferencesTable)
+      .where(eq(userPreferencesTable.id, 1))
+      .limit(1),
+  ]);
+  const rows = measRes.rows;
+  const strengthScoreCurrent = prefRows[0]?.current ?? null;
+  const strengthScoreGoal = prefRows[0]?.goal ?? null;
+
+  const buildSite = (
+    key: RecompSiteKey,
+    label: string,
+    muscleProxy: boolean,
+    pick: (r: RecompMeasurementRow) => number | null,
+  ): RecompSite => {
+    const { baseline, latest, series } = siteStats(rows, pick);
+    const delta =
+      baseline != null && latest != null ? baseline - latest : null;
+    return { key, label, muscleProxy, baseline, latest, delta, series };
+  };
+
+  const sites: RecompSite[] = [
+    buildSite("belly", "Belly", false, (r) => r.belly),
+    buildSite("chest", "Chest", false, (r) => r.chest),
+    buildSite("arms", "Arms", true, (r) => sumPair(r.l_arm, r.r_arm)),
+    buildSite("legs", "Legs", true, (r) => sumPair(r.l_leg, r.r_leg)),
+  ];
+
+  // Inches lost = Σ positive (baseline - latest) across ALL sites that
+  // shrank. A limb that shrank still counts as inches lost; its growth
+  // (if any) is what the muscle proxy below credits instead.
+  let totalInchesLost = 0;
+  for (const s of sites) {
+    if (s.delta != null && s.delta > 0) totalInchesLost += s.delta;
+  }
+
+  // Muscle proxy = Σ positive (latest - baseline) across the arm + leg
+  // sites only — growth there reads as lean mass.
+  let muscleProxyInchesGained = 0;
+  for (const s of sites) {
+    if (s.muscleProxy && s.delta != null && s.delta < 0) {
+      muscleProxyInchesGained += -s.delta;
+    }
+  }
+
+  const weightStats = siteStats(rows, (r) => r.weight);
+
+  // On track = inches trending down AND (strength climbing toward goal OR
+  // a limb proxy growing). Stays false on empty / single-measurement.
+  const strengthUp =
+    strengthScoreCurrent != null &&
+    strengthScoreGoal != null &&
+    strengthScoreCurrent < strengthScoreGoal;
+  const onTrack =
+    totalInchesLost > 0 && (strengthUp || muscleProxyInchesGained > 0);
+
+  return {
+    measurementCount: rows.length,
+    sites,
+    totalInchesLost,
+    muscleProxyInchesGained,
+    strengthScoreCurrent,
+    strengthScoreGoal,
+    weightBaseline: weightStats.baseline,
+    weightLatest: weightStats.latest,
+    onTrack,
+  };
+}
 
 // Task #383. Each dashboard handler is implemented as an exported
 // `compute*()` function returning the JSON payload. The route handler
@@ -324,7 +504,12 @@ export async function computeDashboardSummary() {
     ? detectRaceKind(lastDay.distance_mi, lastDay.description, lastDay.session_type)
     : null;
 
+  // Phase 4. Body-recomp story rides the dashboard summary so the hero
+  // gets it in the existing bootstrap fetch (no extra round-trip).
+  const recomp = await computeRecompSummary();
+
   return {
+    recomp,
     hasPlan: !!weekRow,
     currentWeek: weekRow?.week ?? 1,
     currentPhase: weekRow?.phase ?? "Foundation Build",

@@ -943,6 +943,70 @@ export interface UpdateMeasurementBody {
   notes?: string | null;
 }
 
+export type RecompSiteKey = (typeof RecompSiteKey)[keyof typeof RecompSiteKey];
+
+export const RecompSiteKey = {
+  belly: "belly",
+  chest: "chest",
+  arms: "arms",
+  legs: "legs",
+} as const;
+
+export type RecompSiteSeriesItem = {
+  date: string;
+  value: number;
+};
+
+/**
+ * Phase 4. One circumference-tape site in the body-recomp story.
+belly/chest are fat-loss sites (shrinking = fat off); arms/legs
+are lean-mass PROXY sites (growth there reads as muscle). `delta`
+is baseline - latest (positive = the site shrank).
+
+ */
+export interface RecompSite {
+  key: RecompSiteKey;
+  label: string;
+  /** True for arms/legs — growth here is treated as a lean-mass proxy. */
+  muscleProxy: boolean;
+  /** Earliest non-null reading for this site (null if none). */
+  baseline: number | null;
+  /** Most-recent non-null reading for this site (null if none). */
+  latest: number | null;
+  /** baseline - latest. Positive = shrank, negative = grew. Null if no reading. */
+  delta: number | null;
+  /** Chronological non-null date+value points for the per-site sparkline. */
+  series: RecompSiteSeriesItem[];
+}
+
+/**
+ * Phase 4. Server-computed body-recomposition summary. The dashboard
+LEADS with "inches lost" + a muscle/strength proxy rather than
+weight or races. All fields are guarded for the no-data /
+single-measurement case (zeros / nulls, never NaN).
+
+ */
+export interface RecompSummary {
+  /** Distinct measurement rows. 0 = empty (show the log-first empty), 1 = baseline-only (deltas are 0). */
+  measurementCount: number;
+  sites: RecompSite[];
+  /** Σ of REDUCTIONS (positive baseline-latest) across all four sites. */
+  totalInchesLost: number;
+  /** Σ of GROWTH (positive latest-baseline) across the arm + leg sites only. */
+  muscleProxyInchesGained: number;
+  /** Tonal Strength Score, current (entered on Goals). Null until set. */
+  strengthScoreCurrent: number | null;
+  /** Tonal Strength Score, goal. Null until set. */
+  strengthScoreGoal: number | null;
+  /** Earliest non-null weight. Weight renders secondary on the new hero. */
+  weightBaseline: number | null;
+  /** Most-recent non-null weight. */
+  weightLatest: number | null;
+  /** Combined recomp verdict — inches trending down AND (strength climbing toward goal OR an arm/leg proxy growing). False on empty / single-measurement.
+   */
+  onTrack: boolean;
+}
+
 export interface DashboardSummaryProgram {
   /** Stable identifier for this program within the active planner config (0..N-1). */
   sourceEntryIndex: number;
@@ -1001,6 +1065,7 @@ export const DashboardSummaryRaceKind = {
 } as const;
 
 export interface DashboardSummary {
+  recomp: RecompSummary;
   /** Task #307. False when no Phase Planner config has ever been
 applied (fresh installs / after a Full Reset against an empty
 `planner_configs`). Drives the dashboard's "Open Phase

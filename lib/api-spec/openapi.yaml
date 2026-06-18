@@ -2309,6 +2309,99 @@ components:
         today: { $ref: "#/components/schemas/TodayPlan" }
         overview: { $ref: "#/components/schemas/PlanOverview" }
 
+    RecompSite:
+      type: object
+      description: |
+        Phase 4. One circumference-tape site in the body-recomp story.
+        belly/chest are fat-loss sites (shrinking = fat off); arms/legs
+        are lean-mass PROXY sites (growth there reads as muscle). `delta`
+        is baseline - latest (positive = the site shrank).
+      required: [key, label, muscleProxy, baseline, latest, delta, series]
+      properties:
+        key:
+          type: string
+          enum: [belly, chest, arms, legs]
+        label: { type: string }
+        muscleProxy:
+          type: boolean
+          description: True for arms/legs — growth here is treated as a lean-mass proxy.
+        baseline:
+          type: number
+          nullable: true
+          description: Earliest non-null reading for this site (null if none).
+        latest:
+          type: number
+          nullable: true
+          description: Most-recent non-null reading for this site (null if none).
+        delta:
+          type: number
+          nullable: true
+          description: baseline - latest. Positive = shrank, negative = grew. Null if no reading.
+        series:
+          type: array
+          description: Chronological non-null date+value points for the per-site sparkline.
+          items:
+            type: object
+            required: [date, value]
+            properties:
+              date: { type: string }
+              value: { type: number }
+
+    RecompSummary:
+      type: object
+      description: |
+        Phase 4. Server-computed body-recomposition summary. The dashboard
+        LEADS with "inches lost" + a muscle/strength proxy rather than
+        weight or races. All fields are guarded for the no-data /
+        single-measurement case (zeros / nulls, never NaN).
+      required:
+        [
+          measurementCount,
+          sites,
+          totalInchesLost,
+          muscleProxyInchesGained,
+          strengthScoreCurrent,
+          strengthScoreGoal,
+          weightBaseline,
+          weightLatest,
+          onTrack,
+        ]
+      properties:
+        measurementCount:
+          type: integer
+          description: Distinct measurement rows. 0 = empty (show the log-first empty), 1 = baseline-only (deltas are 0).
+        sites:
+          type: array
+          items: { $ref: "#/components/schemas/RecompSite" }
+        totalInchesLost:
+          type: number
+          description: Σ of REDUCTIONS (positive baseline-latest) across all four sites.
+        muscleProxyInchesGained:
+          type: number
+          description: Σ of GROWTH (positive latest-baseline) across the arm + leg sites only.
+        strengthScoreCurrent:
+          type: integer
+          nullable: true
+          description: Tonal Strength Score, current (entered on Goals). Null until set.
+        strengthScoreGoal:
+          type: integer
+          nullable: true
+          description: Tonal Strength Score, goal. Null until set.
+        weightBaseline:
+          type: number
+          nullable: true
+          description: Earliest non-null weight. Weight renders secondary on the new hero.
+        weightLatest:
+          type: number
+          nullable: true
+          description: Most-recent non-null weight.
+        onTrack:
+          type: boolean
+          description: >
+            Combined recomp verdict — inches trending down AND (strength
+            climbing toward goal OR an arm/leg proxy growing). False on
+            empty / single-measurement.
+
     DashboardSummary:
       type: object
       required:
@@ -2336,8 +2429,11 @@ components:
           daysToRace,
           programs,
           activeConfigName,
+          recomp,
         ]
       properties:
+        recomp:
+          $ref: "#/components/schemas/RecompSummary"
         hasPlan:
           type: boolean
           description: |
