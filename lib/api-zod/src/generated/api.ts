@@ -5119,6 +5119,7 @@ export const GetUserPreferencesResponse = zod
         zod.literal("trail-forest"),
         zod.literal("championship-red"),
         zod.literal("sunset-endurance"),
+        zod.literal("blacksmith"),
         zod.literal(null),
       ])
       .nullable()
@@ -5170,6 +5171,7 @@ export const UpdateUserPreferencesBody = zod
         zod.literal("trail-forest"),
         zod.literal("championship-red"),
         zod.literal("sunset-endurance"),
+        zod.literal("blacksmith"),
         zod.literal(null),
       ])
       .nullish(),
@@ -5224,6 +5226,7 @@ export const UpdateUserPreferencesResponse = zod
         zod.literal("trail-forest"),
         zod.literal("championship-red"),
         zod.literal("sunset-endurance"),
+        zod.literal("blacksmith"),
         zod.literal(null),
       ])
       .nullable()

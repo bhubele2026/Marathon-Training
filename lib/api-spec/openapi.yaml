@@ -3423,7 +3423,7 @@ components:
         visualTheme:
           type: string
           nullable: true
-          enum: [arctic-performance, midnight-track, trail-forest, championship-red, sunset-endurance, null]
+          enum: [arctic-performance, midnight-track, trail-forest, championship-red, sunset-endurance, blacksmith, null]
           description: |
             Which visual theme palette the runner picked (Task #196). The
             five palettes match the keys in the frontend theme registry
@@ -3487,7 +3487,7 @@ components:
         visualTheme:
           type: string
           nullable: true
-          enum: [arctic-performance, midnight-track, trail-forest, championship-red, sunset-endurance, null]
+          enum: [arctic-performance, midnight-track, trail-forest, championship-red, sunset-endurance, blacksmith, null]
 
     ApplyPlannerConfigResponse:
       type: object
