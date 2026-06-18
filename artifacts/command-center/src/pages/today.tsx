@@ -222,7 +222,7 @@ export default function Today() {
               />
             </div>
           )}
-          <h2 className="text-3xl font-black tracking-tight text-primary">Today</h2>
+          <h2 className="text-4xl font-extrabold tracking-tight text-primary">Today</h2>
           <p className="text-muted-foreground font-medium tracking-widest">{today.date}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -578,7 +578,7 @@ export default function Today() {
             return (
             <Card
               key={`today-plan-${plan.id}`}
-              className="border-primary/20 bg-primary/5"
+              className="border-primary/20 bg-primary/5 border-l-4 border-l-primary shadow-card-lg"
               data-testid={`card-mission-brief-${plan.sourceEntryIndex}`}
             >
               <CardHeader>
@@ -803,7 +803,7 @@ export default function Today() {
                         );
                       })()}
                       <div className="flex flex-wrap items-baseline gap-3">
-                        <span className="font-black text-2xl tracking-tight">{plan.sessionType}</span>
+                        <span className="font-extrabold text-3xl md:text-4xl tracking-tight leading-none">{plan.sessionType}</span>
                       </div>
 
                       {/* Phase 7: prominent "what to use today" rail — the

@@ -154,7 +154,7 @@ export default function Measurements() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1600px] mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-black tracking-tight text-primary">Body</h2>
+          <h2 className="text-4xl font-extrabold tracking-tight text-primary">Body</h2>
           <p className="text-muted-foreground font-medium tracking-widest mt-1">
             Lose inches, gain muscle
           </p>
@@ -174,7 +174,7 @@ export default function Measurements() {
       {/* Per-site baseline → latest deltas */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg tracking-wider">Since baseline</CardTitle>
+          <CardTitle className="text-sm font-bold uppercase tracking-[0.12em]">Since baseline</CardTitle>
         </CardHeader>
         <CardContent>
           {loadingMs ? (
@@ -199,12 +199,12 @@ export default function Measurements() {
                     key={def.key}
                     data-testid={`measurements-site-delta-${def.key}`}
                   >
-                    <p className="text-xs font-bold tracking-wider text-muted-foreground">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
                       {def.label}
                     </p>
-                    <div className="text-2xl font-black mt-1 tabular-nums">
+                    <div className="text-4xl font-extrabold mt-1 tabular-nums leading-none">
                       {latest != null ? latest.toFixed(1) : "—"}
-                      <span className="text-sm text-muted-foreground">"</span>
+                      <span className="text-lg text-muted-foreground font-bold">"</span>
                     </div>
                     <p className="text-xs mt-1">
                       {magnitude != null && magnitude > 0 ? (
@@ -233,7 +233,7 @@ export default function Measurements() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg tracking-wider">Weight trend</CardTitle>
+          <CardTitle className="text-sm font-bold uppercase tracking-[0.12em]">Weight trend</CardTitle>
         </CardHeader>
         <CardContent>
           {loadingMs ? <Skeleton className="h-64 w-full" /> : (
@@ -260,7 +260,7 @@ export default function Measurements() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg tracking-wider">Tape measurements</CardTitle>
+          <CardTitle className="text-sm font-bold uppercase tracking-[0.12em]">Tape measurements</CardTitle>
         </CardHeader>
         <CardContent>
           {loadingMs ? <Skeleton className="h-64 w-full" /> : (
@@ -292,7 +292,7 @@ export default function Measurements() {
         </CardContent>
       </Card>
 
-      <div className="bg-card border border-border rounded-lg overflow-hidden">
+      <div className="bg-card border border-card-border shadow-card overflow-hidden">
         {loadingMs ? (
           <div className="p-8"><Skeleton className="h-64 w-full" /></div>
         ) : (

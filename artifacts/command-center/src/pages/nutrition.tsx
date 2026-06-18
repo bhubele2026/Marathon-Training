@@ -65,8 +65,8 @@ function MacroRing({
   target: number | null;
   unit: string;
 }) {
-  const size = 104;
-  const stroke = 8;
+  const size = 116;
+  const stroke = 11;
   const r = (size - stroke) / 2;
   const circ = 2 * Math.PI * r;
   const hasGoal = target != null && target > 0;
@@ -103,13 +103,13 @@ function MacroRing({
           )}
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-2xl font-bold tabular-nums text-primary">
+          <span className="text-3xl font-extrabold tabular-nums text-primary leading-none">
             {value ?? "—"}
           </span>
-          <span className="text-[11px] text-muted-foreground">{unit}</span>
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">{unit}</span>
         </div>
       </div>
-      <div className="flex items-center gap-1.5 text-xs tracking-wider text-muted-foreground">
+      <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
         <Icon className="h-3.5 w-3.5 text-primary" />
         {label}
       </div>
@@ -195,7 +195,7 @@ export default function Nutrition() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-primary">
+        <h1 className="text-4xl font-extrabold tracking-tight text-primary">
           Nutrition
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
@@ -265,7 +265,7 @@ export default function Nutrition() {
                     <span className="w-16 shrink-0 text-xs text-muted-foreground tabular-nums">
                       {formatDayLabel(e.date)}
                     </span>
-                    <div className="h-5 flex-1 overflow-hidden rounded bg-muted">
+                    <div className="h-6 flex-1 overflow-hidden bg-muted">
                       <div
                         className={
                           hitGoal ? "h-full bg-primary" : "h-full bg-primary/50"
@@ -274,7 +274,7 @@ export default function Nutrition() {
                       />
                     </div>
                     <span className="w-28 shrink-0 text-right text-xs tabular-nums">
-                      {e.proteinG ?? "—"} g
+                      <span className="font-bold text-foreground">{e.proteinG ?? "—"}</span> g
                       {e.calories != null && (
                         <span className="text-muted-foreground">
                           {" "}

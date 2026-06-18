@@ -9,8 +9,11 @@ const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      // Flat & minimal: square corners, hairline border, no shadow.
-      "border border-card-border bg-card text-card-foreground",
+      // Light & bold premium: square corners + hairline border (kept),
+      // but now a real elevated surface — soft modern shadow so cards
+      // read as physical planes against the faint-gray page, not flat
+      // wireframe outlines. Square radius is preserved (global --radius=0).
+      "border border-card-border bg-card text-card-foreground shadow-card",
       className
     )}
     {...props}

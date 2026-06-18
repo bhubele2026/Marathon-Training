@@ -425,7 +425,7 @@ export default function Plan() {
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1600px] mx-auto">
         <div>
           <h2
-            className="text-3xl font-black tracking-tight text-primary"
+            className="text-4xl font-extrabold tracking-tight text-primary"
             data-testid="plan-header-title"
             data-race-kind=""
           >
@@ -518,7 +518,7 @@ export default function Plan() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h2
-            className="text-3xl font-black tracking-tight text-primary"
+            className="text-4xl font-extrabold tracking-tight text-primary"
             data-testid="plan-header-title"
             data-race-kind={raceKind ?? ""}
           >
@@ -632,12 +632,12 @@ export default function Plan() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-primary/5 border-primary/20">
+        <Card className="bg-primary/5 border-primary/20 border-l-4 border-l-primary shadow-card-lg">
           <CardContent className="p-6 flex items-center gap-4">
-            <CalendarDays className="h-8 w-8 text-primary" />
+            <CalendarDays className="h-8 w-8 text-primary shrink-0" />
             <div>
-              <p className="text-xs font-bold text-muted-foreground tracking-wider">Current Week</p>
-              <div className="text-2xl font-black">Week {overview.currentWeek}</div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Current Week</p>
+              <div className="text-3xl font-extrabold tabular-nums leading-none mt-0.5">Week {overview.currentWeek}</div>
             </div>
           </CardContent>
         </Card>
@@ -647,21 +647,21 @@ export default function Plan() {
         >
           <CardContent className="p-6 flex items-center gap-4">
             <Activity
-              className="h-8 w-8"
+              className="h-8 w-8 shrink-0"
               style={{ color: phaseColor(overview.currentPhase) }}
             />
             <div>
-              <p className="text-xs font-bold text-muted-foreground tracking-wider">Phase</p>
-              <div className="text-2xl font-black">{overview.currentPhase}</div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Phase</p>
+              <div className="text-2xl font-extrabold leading-tight mt-0.5">{overview.currentPhase}</div>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-6 flex items-center gap-4">
-            <Target className="h-8 w-8 text-muted-foreground" />
+            <Target className="h-8 w-8 text-muted-foreground shrink-0" />
             <div>
-              <p className="text-xs font-bold text-muted-foreground tracking-wider">Target Miles</p>
-              <div className="text-2xl font-black">{overview.weeklyMilesTarget ? formatDistance(overview.weeklyMilesTarget) : '-'}</div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Target Miles</p>
+              <div className="text-3xl font-extrabold tabular-nums leading-none mt-0.5">{overview.weeklyMilesTarget ? formatDistance(overview.weeklyMilesTarget) : '-'}</div>
             </div>
           </CardContent>
         </Card>

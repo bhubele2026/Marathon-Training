@@ -224,7 +224,7 @@ export default function Dashboard() {
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div data-testid="dashboard-header" className="flex flex-col gap-2">
           <h2
-            className="text-3xl font-black tracking-tight text-primary"
+            className="text-4xl font-extrabold tracking-tight text-primary"
             data-testid="dashboard-header-title"
             data-race-kind=""
           >
@@ -249,10 +249,10 @@ export default function Dashboard() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between space-x-2">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground tracking-wider">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
                     Total Volume
                   </p>
-                  <div className="text-3xl font-black mt-1">
+                  <div className="text-4xl font-extrabold mt-1 tabular-nums leading-none">
                     {formatDistance(summary.totalMilesAllTime)}
                   </div>
                   <p className="text-sm text-muted-foreground mt-1">
@@ -266,7 +266,7 @@ export default function Dashboard() {
         </div>
         <Card data-testid="dashboard-empty-recent-activity">
           <CardHeader>
-            <CardTitle className="text-lg tracking-wider">Recent Logs</CardTitle>
+            <CardTitle className="text-sm font-bold uppercase tracking-[0.12em]">Recent Logs</CardTitle>
           </CardHeader>
           <CardContent>
             {loadingActivity ? (
@@ -315,7 +315,7 @@ export default function Dashboard() {
           />
         )}
         <h2
-          className="text-3xl font-black tracking-tight text-primary"
+          className="text-4xl font-extrabold tracking-tight text-primary"
           data-testid="dashboard-header-title"
           data-race-kind={raceKind ?? ""}
         >
@@ -353,8 +353,8 @@ export default function Dashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between space-x-2">
               <div>
-                <p className="text-sm font-medium text-muted-foreground tracking-wider">This Week</p>
-                <div className="text-3xl font-black mt-1">Week {summary.currentWeek}</div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">This Week</p>
+                <div className="text-4xl font-extrabold mt-1 tabular-nums leading-none">Week {summary.currentWeek}</div>
                 <p
                   className="text-sm font-semibold mt-1 flex items-center gap-2"
                   data-testid="dashboard-current-phase"
@@ -383,8 +383,8 @@ export default function Dashboard() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between space-x-2">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground tracking-wider">Days to Race</p>
-                  <div className="text-3xl font-black mt-1">{summary.daysToRace}</div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Days to Race</p>
+                  <div className="text-4xl font-extrabold mt-1 tabular-nums leading-none text-primary">{summary.daysToRace}</div>
                   <p className="text-sm text-muted-foreground mt-1">Adherence: <span className="text-foreground font-semibold">{summary.adherencePct.toFixed(0)}%</span></p>
                 </div>
                 <Target className="h-8 w-8 text-muted-foreground opacity-50" />
@@ -397,8 +397,8 @@ export default function Dashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between space-x-2">
               <div>
-                <p className="text-sm font-medium text-muted-foreground tracking-wider">Total Volume</p>
-                <div className="text-3xl font-black mt-1">{formatDistance(summary.totalMilesAllTime)}</div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Total Volume</p>
+                <div className="text-4xl font-extrabold mt-1 tabular-nums leading-none">{formatDistance(summary.totalMilesAllTime)}</div>
                 <p className="text-sm text-muted-foreground mt-1">Max Long Run: <span className="text-foreground font-semibold">{formatDistance(summary.longestRunMi)}</span></p>
               </div>
               <Activity className="h-8 w-8 text-muted-foreground opacity-50" />
@@ -413,9 +413,9 @@ export default function Dashboard() {
         <div className="lg:col-span-2 space-y-6">
           
           {/* Today */}
-          <Card className="border-primary/20 bg-primary/5">
+          <Card className="border-primary/20 bg-primary/5 border-l-4 border-l-primary shadow-card-lg">
             <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-lg tracking-wider text-primary">Today</CardTitle>
+              <CardTitle className="text-base font-bold uppercase tracking-[0.14em] text-primary">Today</CardTitle>
               <Link href="/today">
                 <Button variant="ghost" size="sm" className="text-xs tracking-wider text-muted-foreground hover:text-primary">
                   Open Today <ExternalLink className="ml-1 h-3 w-3" />
@@ -660,27 +660,27 @@ export default function Dashboard() {
           {/* Current Week Progress */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg tracking-wider">Week {summary.currentWeek} Snapshot</CardTitle>
+              <CardTitle className="text-sm font-bold uppercase tracking-[0.12em]">Week {summary.currentWeek} Snapshot</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
-                <div className="flex justify-between text-sm font-bold">
-                  <span>Mileage</span>
-                  <span>{formatDistance(summary.weeklyMilesActual)} / {formatDistance(summary.weeklyMilesPlanned)}</span>
+                <div className="flex justify-between items-baseline">
+                  <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Mileage</span>
+                  <span className="text-base font-bold tabular-nums">{formatDistance(summary.weeklyMilesActual)} / {formatDistance(summary.weeklyMilesPlanned)}</span>
                 </div>
                 <Progress value={(summary.weeklyMilesActual / Math.max(summary.weeklyMilesPlanned, 1)) * 100} className="h-3" />
               </div>
               <div className="space-y-2">
-                <div className="flex justify-between text-sm font-bold">
-                  <span>Training Load</span>
-                  <span>{formatLoad(summary.weeklyLoadActual)} / {formatLoad(summary.weeklyLoadPlanned)}</span>
+                <div className="flex justify-between items-baseline">
+                  <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Training Load</span>
+                  <span className="text-base font-bold tabular-nums">{formatLoad(summary.weeklyLoadActual)} / {formatLoad(summary.weeklyLoadPlanned)}</span>
                 </div>
                 <Progress value={(summary.weeklyLoadActual / Math.max(summary.weeklyLoadPlanned, 1)) * 100} className="h-3" />
               </div>
               <div className="space-y-2">
-                <div className="flex justify-between text-sm font-bold">
-                  <span>Sessions Completed</span>
-                  <span>{summary.weeklySessionsCompleted} / {summary.weeklySessionsPlanned}</span>
+                <div className="flex justify-between items-baseline">
+                  <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Sessions Completed</span>
+                  <span className="text-base font-bold tabular-nums">{summary.weeklySessionsCompleted} / {summary.weeklySessionsPlanned}</span>
                 </div>
                 <Progress value={(summary.weeklySessionsCompleted / Math.max(summary.weeklySessionsPlanned, 1)) * 100} className="h-3" />
               </div>
@@ -844,7 +844,7 @@ export default function Dashboard() {
           {/* Weekly Mileage Chart */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg tracking-wider">Mileage Volume</CardTitle>
+              <CardTitle className="text-sm font-bold uppercase tracking-[0.12em]">Mileage Volume</CardTitle>
             </CardHeader>
             <CardContent>
               {loadingMileage ? <Skeleton className="h-64" /> : (
@@ -1043,7 +1043,7 @@ export default function Dashboard() {
           {/* Long Run Progression */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg tracking-wider">Long Run Build</CardTitle>
+              <CardTitle className="text-sm font-bold uppercase tracking-[0.12em]">Long Run Build</CardTitle>
             </CardHeader>
             <CardContent>
               {loadingLongRun ? <Skeleton className="h-64" /> : (
@@ -1159,7 +1159,7 @@ export default function Dashboard() {
           {/* Weight Trend */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg tracking-wider">Body trend</CardTitle>
+              <CardTitle className="text-sm font-bold uppercase tracking-[0.12em]">Body trend</CardTitle>
             </CardHeader>
             <CardContent>
               {loadingWeight ? <Skeleton className="h-48" /> : (
@@ -1187,7 +1187,7 @@ export default function Dashboard() {
           {/* Equipment */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg tracking-wider">Equipment</CardTitle>
+              <CardTitle className="text-sm font-bold uppercase tracking-[0.12em]">Equipment</CardTitle>
             </CardHeader>
             <CardContent>
               {loadingEq ? <Skeleton className="h-64" /> : (
@@ -1257,7 +1257,7 @@ export default function Dashboard() {
           {/* Recent Activity */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg tracking-wider">Recent Logs</CardTitle>
+              <CardTitle className="text-sm font-bold uppercase tracking-[0.12em]">Recent Logs</CardTitle>
             </CardHeader>
             <CardContent>
               {loadingActivity ? <Skeleton className="h-64" /> : (
@@ -1363,15 +1363,15 @@ export function RecompHero({
   if (!hasData) {
     return (
       <Card
-        className="border-primary/20 bg-primary/5"
+        className="border-primary/20 bg-primary/5 border-l-[6px] border-l-primary shadow-card-lg"
         data-testid="recomp-hero-empty"
       >
-        <CardContent className="p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <CardContent className="p-6 md:p-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <p className="text-sm font-medium text-muted-foreground tracking-wider">
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
               Body recomposition
             </p>
-            <div className="text-2xl font-black mt-1">Lose inches, gain muscle</div>
+            <div className="text-3xl font-extrabold mt-1 tracking-tight">Lose inches, gain muscle</div>
             <p className="text-sm text-muted-foreground mt-1">
               Log your first measurement to start tracking inches lost and
               muscle gained.
@@ -1400,24 +1400,26 @@ export function RecompHero({
 
   return (
     <Card
-      className="border-primary/20 bg-primary/5"
+      className="border-primary/20 bg-primary/5 border-l-[6px] border-l-primary shadow-card-lg"
       data-testid="recomp-hero"
     >
-      <CardContent className="p-6 space-y-6">
-        {/* Headline: inches lost (the single accent number) */}
+      <CardContent className="p-6 md:p-8 space-y-6">
+        {/* Headline: inches lost — the single biggest accent number on the
+            dashboard. Scoreboard treatment: tiny uppercase eyebrow over a
+            7xl extrabold tabular figure in the accent. */}
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div>
-            <p className="text-sm font-medium text-muted-foreground tracking-wider">
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
               Inches lost
             </p>
             <div
-              className="text-5xl font-black mt-1 text-primary tabular-nums"
+              className="text-6xl md:text-7xl font-extrabold mt-2 text-primary tabular-nums leading-none"
               data-testid="recomp-hero-inches-lost"
             >
               {recomp.totalInchesLost.toFixed(1)}
-              <span className="text-2xl text-muted-foreground ml-2 font-bold">in</span>
+              <span className="text-3xl text-muted-foreground ml-2 font-bold align-baseline">in</span>
             </div>
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="text-sm text-muted-foreground mt-2">
               Across belly, chest, arms and legs
             </p>
           </div>
@@ -1487,35 +1489,35 @@ export function RecompHero({
         {/* Muscle / strength proxy block + secondary weight */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border pt-4">
           <div data-testid="recomp-hero-muscle">
-            <p className="text-xs font-bold tracking-wider text-muted-foreground">
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
               Muscle (proxies for lean mass)
             </p>
-            <div className="mt-2 space-y-2">
+            <div className="mt-2 space-y-3">
               <div className="flex items-baseline justify-between">
                 <span className="text-sm text-muted-foreground">
                   Arm + leg growth
                 </span>
-                <span className="text-sm font-mono font-bold text-foreground">
+                <span className="text-base font-mono font-bold text-foreground tabular-nums">
                   +{recomp.muscleProxyInchesGained.toFixed(1)} in
                 </span>
               </div>
               {recomp.strengthScoreCurrent != null &&
               recomp.strengthScoreGoal != null ? (
-                <div className="space-y-1">
-                  <div className="flex items-baseline justify-between text-sm">
-                    <span className="text-muted-foreground">
+                <div className="space-y-1.5">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-sm text-muted-foreground">
                       Tonal strength score
                     </span>
-                    <span className="font-mono font-bold">
+                    <span className="font-mono font-extrabold tabular-nums text-xl">
                       {recomp.strengthScoreCurrent}
-                      <span className="text-muted-foreground">
+                      <span className="text-muted-foreground text-base font-bold">
                         {" "}
                         / {recomp.strengthScoreGoal}
                       </span>
                     </span>
                   </div>
                   {strengthPct != null && (
-                    <Progress value={strengthPct} className="h-2" />
+                    <Progress value={strengthPct} className="h-2.5" />
                   )}
                 </div>
               ) : (

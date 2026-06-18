@@ -216,6 +216,32 @@
 }
 
 @layer utilities {
+  /* Light & bold premium elevation. A soft, low, multi-stop shadow so
+     square cards read as real surfaces against the faint-gray page
+     without looking heavy or rounded. `shadow-card-lg` is the slightly
+     lifted variant for hero / active surfaces. Dark theme dials the
+     ambient shadow down (near-black canvas swallows soft shadows). */
+  .shadow-card {
+    box-shadow:
+      0 1px 2px -1px rgba(16, 24, 32, 0.06),
+      0 4px 12px -2px rgba(16, 24, 32, 0.07);
+  }
+  .shadow-card-lg {
+    box-shadow:
+      0 2px 4px -2px rgba(16, 24, 32, 0.08),
+      0 10px 28px -6px rgba(16, 24, 32, 0.12);
+  }
+  .dark .shadow-card {
+    box-shadow:
+      0 1px 2px -1px rgba(0, 0, 0, 0.5),
+      0 4px 12px -2px rgba(0, 0, 0, 0.4);
+  }
+  .dark .shadow-card-lg {
+    box-shadow:
+      0 2px 6px -2px rgba(0, 0, 0, 0.55),
+      0 12px 30px -6px rgba(0, 0, 0, 0.5);
+  }
+  /* Thicker, confident accent progress fill on a muted track. */
   input[type="search"]::-webkit-search-cancel-button {
     @apply hidden;
   }
