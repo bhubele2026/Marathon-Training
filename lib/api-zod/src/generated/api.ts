@@ -4160,6 +4160,14 @@ export const ListPlannerConfigsResponse = zod.object({
  * Create a brand-new named Planner config. Optional `setActive` flag (default true on the first config, otherwise false) marks it as the active one immediately. Validates dates and block weeks the same way the update endpoint does.
  */
 
+export const createPlannerConfigBodyDailyBudgetShortDayMinMax = 180;
+
+export const createPlannerConfigBodyDailyBudgetShortDayMaxMax = 180;
+
+export const createPlannerConfigBodyDailyBudgetLongDayMinMax = 180;
+
+export const createPlannerConfigBodyDailyBudgetLongDayMaxMax = 180;
+
 export const createPlannerConfigBodyDailyBudgetWeekdayMinMax = 180;
 
 export const createPlannerConfigBodyDailyBudgetWeekdayMaxMax = 180;
@@ -4263,6 +4271,26 @@ export const CreatePlannerConfigBody = zod.object({
   goalEndingPaceSec: zod.number().nullish().describe("Task"),
   dailyBudget: zod
     .object({
+      shortDayMin: zod
+        .number()
+        .min(1)
+        .max(createPlannerConfigBodyDailyBudgetShortDayMinMax)
+        .nullish(),
+      shortDayMax: zod
+        .number()
+        .min(1)
+        .max(createPlannerConfigBodyDailyBudgetShortDayMaxMax)
+        .nullish(),
+      longDayMin: zod
+        .number()
+        .min(1)
+        .max(createPlannerConfigBodyDailyBudgetLongDayMinMax)
+        .nullish(),
+      longDayMax: zod
+        .number()
+        .min(1)
+        .max(createPlannerConfigBodyDailyBudgetLongDayMaxMax)
+        .nullish(),
       weekdayMin: zod
         .number()
         .min(1)
@@ -4280,7 +4308,9 @@ export const CreatePlannerConfigBody = zod.object({
         .nullish(),
     })
     .nullish()
-    .describe("Task"),
+    .describe(
+      "Optional per-runner override of the fixed-cadence daily time-budget. Canonical fields shortDayMin\/shortDayMax (Tue-Thu, default 30\/50) and longDayMin\/longDayMax (Fri-Sun, default 60\/90); Monday is always rest. Legacy weekdayMin\/weekdayMax\/weekendMin retained for back-compat reads. Each field capped at 180 min; route layer enforces floor <= cap per window.",
+    ),
   setActive: zod
     .boolean()
     .nullish()
@@ -4292,6 +4322,14 @@ export const CreatePlannerConfigBody = zod.object({
 export const GetPlannerConfigParams = zod.object({
   id: zod.coerce.number(),
 });
+
+export const getPlannerConfigResponseDailyBudgetShortDayMinMax = 180;
+
+export const getPlannerConfigResponseDailyBudgetShortDayMaxMax = 180;
+
+export const getPlannerConfigResponseDailyBudgetLongDayMinMax = 180;
+
+export const getPlannerConfigResponseDailyBudgetLongDayMaxMax = 180;
 
 export const getPlannerConfigResponseDailyBudgetWeekdayMinMax = 180;
 
@@ -4419,6 +4457,26 @@ export const GetPlannerConfigResponse = zod.object({
     ),
   dailyBudget: zod
     .object({
+      shortDayMin: zod
+        .number()
+        .min(1)
+        .max(getPlannerConfigResponseDailyBudgetShortDayMinMax)
+        .nullish(),
+      shortDayMax: zod
+        .number()
+        .min(1)
+        .max(getPlannerConfigResponseDailyBudgetShortDayMaxMax)
+        .nullish(),
+      longDayMin: zod
+        .number()
+        .min(1)
+        .max(getPlannerConfigResponseDailyBudgetLongDayMinMax)
+        .nullish(),
+      longDayMax: zod
+        .number()
+        .min(1)
+        .max(getPlannerConfigResponseDailyBudgetLongDayMaxMax)
+        .nullish(),
       weekdayMin: zod
         .number()
         .min(1)
@@ -4437,7 +4495,7 @@ export const GetPlannerConfigResponse = zod.object({
     })
     .nullable()
     .describe(
-      "Task #338. Optional per-runner override of the daily\ntime-budget contract (Task #336). When non-null, fields set\nhere replace WEEKDAY_MIN_TOTAL_MIN \/ WEEKDAY_MAX_TOTAL_MIN \/\nWEEKEND_MIN_TOTAL_MIN in `enforceDailyTimeBudget`. NULL\nfields fall back to the constants (45 \/ 60 \/ 60). Task\n#340 adds an upper bound (180 min) per field and a\ncross-field rule (weekdayMin <= weekdayMax) enforced at\nthe route layer so impossible windows can't be saved.\n",
+      "Optional per-runner override of the FIXED-cadence daily\ntime-budget contract. Canonical fields: shortDayMin\/shortDayMax\n(Tue-Thu, default 30\/50) and longDayMin\/longDayMax (Fri-Sun,\ndefault 60\/90). Monday is always full rest (0) and is not\nconfigurable. The legacy weekdayMin\/weekdayMax\/weekendMin fields\nare retained for back-compat reads of pre-overhaul stored configs\nand are folded into the new buckets server-side. Each field is\ncapped at 180 min; the route layer enforces floor <= cap per\nwindow so impossible windows can't be saved.\n",
     ),
   goalWeight: zod
     .number()
@@ -4465,6 +4523,14 @@ export const GetPlannerConfigResponse = zod.object({
 export const UpdatePlannerConfigParams = zod.object({
   id: zod.coerce.number(),
 });
+
+export const updatePlannerConfigBodyDailyBudgetShortDayMinMax = 180;
+
+export const updatePlannerConfigBodyDailyBudgetShortDayMaxMax = 180;
+
+export const updatePlannerConfigBodyDailyBudgetLongDayMinMax = 180;
+
+export const updatePlannerConfigBodyDailyBudgetLongDayMaxMax = 180;
 
 export const updatePlannerConfigBodyDailyBudgetWeekdayMinMax = 180;
 
@@ -4569,6 +4635,26 @@ export const UpdatePlannerConfigBody = zod.object({
   goalEndingPaceSec: zod.number().nullish().describe("Task"),
   dailyBudget: zod
     .object({
+      shortDayMin: zod
+        .number()
+        .min(1)
+        .max(updatePlannerConfigBodyDailyBudgetShortDayMinMax)
+        .nullish(),
+      shortDayMax: zod
+        .number()
+        .min(1)
+        .max(updatePlannerConfigBodyDailyBudgetShortDayMaxMax)
+        .nullish(),
+      longDayMin: zod
+        .number()
+        .min(1)
+        .max(updatePlannerConfigBodyDailyBudgetLongDayMinMax)
+        .nullish(),
+      longDayMax: zod
+        .number()
+        .min(1)
+        .max(updatePlannerConfigBodyDailyBudgetLongDayMaxMax)
+        .nullish(),
       weekdayMin: zod
         .number()
         .min(1)
@@ -4586,8 +4672,18 @@ export const UpdatePlannerConfigBody = zod.object({
         .nullish(),
     })
     .nullish()
-    .describe("Task"),
+    .describe(
+      "Optional per-runner override of the fixed-cadence daily time-budget. Canonical fields shortDayMin\/shortDayMax (Tue-Thu, default 30\/50) and longDayMin\/longDayMax (Fri-Sun, default 60\/90); Monday is always rest. Legacy weekdayMin\/weekdayMax\/weekendMin retained for back-compat reads. Each field capped at 180 min; route layer enforces floor <= cap per window.",
+    ),
 });
+
+export const updatePlannerConfigResponseDailyBudgetShortDayMinMax = 180;
+
+export const updatePlannerConfigResponseDailyBudgetShortDayMaxMax = 180;
+
+export const updatePlannerConfigResponseDailyBudgetLongDayMinMax = 180;
+
+export const updatePlannerConfigResponseDailyBudgetLongDayMaxMax = 180;
 
 export const updatePlannerConfigResponseDailyBudgetWeekdayMinMax = 180;
 
@@ -4715,6 +4811,26 @@ export const UpdatePlannerConfigResponse = zod.object({
     ),
   dailyBudget: zod
     .object({
+      shortDayMin: zod
+        .number()
+        .min(1)
+        .max(updatePlannerConfigResponseDailyBudgetShortDayMinMax)
+        .nullish(),
+      shortDayMax: zod
+        .number()
+        .min(1)
+        .max(updatePlannerConfigResponseDailyBudgetShortDayMaxMax)
+        .nullish(),
+      longDayMin: zod
+        .number()
+        .min(1)
+        .max(updatePlannerConfigResponseDailyBudgetLongDayMinMax)
+        .nullish(),
+      longDayMax: zod
+        .number()
+        .min(1)
+        .max(updatePlannerConfigResponseDailyBudgetLongDayMaxMax)
+        .nullish(),
       weekdayMin: zod
         .number()
         .min(1)
@@ -4733,7 +4849,7 @@ export const UpdatePlannerConfigResponse = zod.object({
     })
     .nullable()
     .describe(
-      "Task #338. Optional per-runner override of the daily\ntime-budget contract (Task #336). When non-null, fields set\nhere replace WEEKDAY_MIN_TOTAL_MIN \/ WEEKDAY_MAX_TOTAL_MIN \/\nWEEKEND_MIN_TOTAL_MIN in `enforceDailyTimeBudget`. NULL\nfields fall back to the constants (45 \/ 60 \/ 60). Task\n#340 adds an upper bound (180 min) per field and a\ncross-field rule (weekdayMin <= weekdayMax) enforced at\nthe route layer so impossible windows can't be saved.\n",
+      "Optional per-runner override of the FIXED-cadence daily\ntime-budget contract. Canonical fields: shortDayMin\/shortDayMax\n(Tue-Thu, default 30\/50) and longDayMin\/longDayMax (Fri-Sun,\ndefault 60\/90). Monday is always full rest (0) and is not\nconfigurable. The legacy weekdayMin\/weekdayMax\/weekendMin fields\nare retained for back-compat reads of pre-overhaul stored configs\nand are folded into the new buckets server-side. Each field is\ncapped at 180 min; the route layer enforces floor <= cap per\nwindow so impossible windows can't be saved.\n",
     ),
   goalWeight: zod
     .number()
@@ -4807,6 +4923,14 @@ export const DuplicatePlannerConfigBody = zod.object({
 export const ActivatePlannerConfigParams = zod.object({
   id: zod.coerce.number(),
 });
+
+export const activatePlannerConfigResponseDailyBudgetShortDayMinMax = 180;
+
+export const activatePlannerConfigResponseDailyBudgetShortDayMaxMax = 180;
+
+export const activatePlannerConfigResponseDailyBudgetLongDayMinMax = 180;
+
+export const activatePlannerConfigResponseDailyBudgetLongDayMaxMax = 180;
 
 export const activatePlannerConfigResponseDailyBudgetWeekdayMinMax = 180;
 
@@ -4934,6 +5058,26 @@ export const ActivatePlannerConfigResponse = zod.object({
     ),
   dailyBudget: zod
     .object({
+      shortDayMin: zod
+        .number()
+        .min(1)
+        .max(activatePlannerConfigResponseDailyBudgetShortDayMinMax)
+        .nullish(),
+      shortDayMax: zod
+        .number()
+        .min(1)
+        .max(activatePlannerConfigResponseDailyBudgetShortDayMaxMax)
+        .nullish(),
+      longDayMin: zod
+        .number()
+        .min(1)
+        .max(activatePlannerConfigResponseDailyBudgetLongDayMinMax)
+        .nullish(),
+      longDayMax: zod
+        .number()
+        .min(1)
+        .max(activatePlannerConfigResponseDailyBudgetLongDayMaxMax)
+        .nullish(),
       weekdayMin: zod
         .number()
         .min(1)
@@ -4952,7 +5096,7 @@ export const ActivatePlannerConfigResponse = zod.object({
     })
     .nullable()
     .describe(
-      "Task #338. Optional per-runner override of the daily\ntime-budget contract (Task #336). When non-null, fields set\nhere replace WEEKDAY_MIN_TOTAL_MIN \/ WEEKDAY_MAX_TOTAL_MIN \/\nWEEKEND_MIN_TOTAL_MIN in `enforceDailyTimeBudget`. NULL\nfields fall back to the constants (45 \/ 60 \/ 60). Task\n#340 adds an upper bound (180 min) per field and a\ncross-field rule (weekdayMin <= weekdayMax) enforced at\nthe route layer so impossible windows can't be saved.\n",
+      "Optional per-runner override of the FIXED-cadence daily\ntime-budget contract. Canonical fields: shortDayMin\/shortDayMax\n(Tue-Thu, default 30\/50) and longDayMin\/longDayMax (Fri-Sun,\ndefault 60\/90). Monday is always full rest (0) and is not\nconfigurable. The legacy weekdayMin\/weekdayMax\/weekendMin fields\nare retained for back-compat reads of pre-overhaul stored configs\nand are folded into the new buckets server-side. Each field is\ncapped at 180 min; the route layer enforces floor <= cap per\nwindow so impossible windows can't be saved.\n",
     ),
   goalWeight: zod
     .number()

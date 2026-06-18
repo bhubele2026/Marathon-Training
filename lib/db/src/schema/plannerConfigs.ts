@@ -171,19 +171,29 @@ export const plannerConfigsTable = pgTable("planner_configs", {
   appliedStartingPaceSec: integer("applied_starting_pace_sec"),
   // Task #373. Apply-time snapshot of goal_ending_pace_sec.
   appliedGoalEndingPaceSec: integer("applied_goal_ending_pace_sec"),
-  // Task #338. Optional per-runner override of the daily time-budget
-  // contract (Task #336). Any of weekdayMin / weekdayMax / weekendMin
-  // set here replaces the matching global default in
-  // `enforceDailyTimeBudget`. NULL fields fall back to the constants
-  // (45 / 60 / 60). NULL on the column means the runner has not
-  // overridden any field.
+  // Task #338 + cadence overhaul. Optional per-runner override of the
+  // fixed-cadence daily time-budget contract. Canonical fields:
+  // shortDayMin/shortDayMax (Tue-Thu, default 30/50) and
+  // longDayMin/longDayMax (Fri-Sun, default 60/90). The legacy
+  // weekdayMin/weekdayMax/weekendMin fields are kept OPTIONAL so
+  // pre-overhaul stored rows still read; the generator/briefing/guardrails
+  // fold them into the new buckets via normalizeDailyBudget / resolveBudget.
+  // NULL on the column means the runner has not overridden any field.
   dailyBudget: jsonb("daily_budget").$type<{
+    shortDayMin?: number | null;
+    shortDayMax?: number | null;
+    longDayMin?: number | null;
+    longDayMax?: number | null;
     weekdayMin?: number | null;
     weekdayMax?: number | null;
     weekendMin?: number | null;
   } | null>(),
   // Apply-time snapshot of daily_budget (mirrors applied_*).
   appliedDailyBudget: jsonb("applied_daily_budget").$type<{
+    shortDayMin?: number | null;
+    shortDayMax?: number | null;
+    longDayMin?: number | null;
+    longDayMax?: number | null;
     weekdayMin?: number | null;
     weekdayMax?: number | null;
     weekendMin?: number | null;

@@ -72,14 +72,16 @@ export type DailyRow = {
 // ---------------------------------------------------------------------------
 // Every day emitted by every generator path (legacy `generatePlan`,
 // recipe-driven `buildWeekDays`, hybrid `buildHybridWeekDays`,
-// lift-primary `buildLiftPrimaryWeekDays`) must obey the same daily
-// time-budget contract:
+// lift-primary `buildLiftPrimaryWeekDays`) must obey the same FIXED-cadence
+// daily time-budget contract (cadence overhaul 2026-06):
 //
 //   - Mon: full rest day, all three minute buckets at 0.
-//   - Tue-Sat (non-rest): totalMin ∈ [WEEKDAY_MIN_TOTAL_MIN,
-//     WEEKDAY_MAX_TOTAL_MIN] = [45, 75] inclusive.
-//   - Sun (non-rest): totalMin ≥ WEEKEND_MIN_TOTAL_MIN = 60. No upper
-//     cap — Sun is the long-run day and may carry 90-150+ minutes.
+//   - Tue/Wed/Thu (non-rest) = SHORT days: totalMin ∈ [SHORT_DAY_MIN_TOTAL_MIN,
+//     SHORT_DAY_MAX_TOTAL_MIN] = [30, 50] inclusive.
+//   - Fri/Sat/Sun (non-rest) = LONG days: totalMin ∈ [LONG_DAY_MIN_TOTAL_MIN,
+//     LONG_DAY_MAX_TOTAL_MIN] = [60, 90] inclusive. (Sun, the long-run day,
+//     is still capped at the LONG max so weekday-style days stay sane; the
+//     enforcer trims cardio/run to fit just like the short days.)
 //   - Strength floor: Tue-Sun non-rest days carry at least
 //     DAILY_STRENGTH_FLOOR_MIN = 30 minutes of Tonal lifting, so the
 //     runner gets six lifting sessions a week. When a generator emits
@@ -103,43 +105,83 @@ export type DailyRow = {
 // day has any cardio, else strength, else run). `total_load` is
 // adjusted by the same delta so weekly load summaries stay coherent.
 export const REST_MIN_TOTAL_MIN = 0;
-export const WEEKDAY_MIN_TOTAL_MIN = 45;
-export const WEEKDAY_MAX_TOTAL_MIN = 75;
-export const WEEKEND_MIN_TOTAL_MIN = 60;
+// Canonical fixed-cadence windows (cadence overhaul 2026-06).
+export const SHORT_DAY_MIN_TOTAL_MIN = 30; // Tue-Thu floor
+export const SHORT_DAY_MAX_TOTAL_MIN = 50; // Tue-Thu ceiling
+export const LONG_DAY_MIN_TOTAL_MIN = 60; // Fri-Sun floor
+export const LONG_DAY_MAX_TOTAL_MIN = 90; // Fri-Sun ceiling
 export const DAILY_STRENGTH_FLOOR_MIN = 30;
 
-// Task #338. Optional per-runner override of the weekday window /
-// weekend floor. When present on a `PlannerConfig`, the override is
-// threaded through every builder into `enforceDailyTimeBudget` so a
-// runner who can carve out 90-min weekday sessions (or wants a hard
-// 30-min floor on weekends because of a tight schedule) can shift
-// every generator path at once. Absent / partially-set fields fall
-// back to the constants above.
+// Legacy aliases kept so older imports / docs don't break. The weekday
+// window now maps to the SHORT (Tue-Thu) bucket and the weekend floor to
+// the LONG (Fri-Sun) bucket.
+/** @deprecated use SHORT_DAY_MIN_TOTAL_MIN */
+export const WEEKDAY_MIN_TOTAL_MIN = SHORT_DAY_MIN_TOTAL_MIN;
+/** @deprecated use SHORT_DAY_MAX_TOTAL_MIN */
+export const WEEKDAY_MAX_TOTAL_MIN = SHORT_DAY_MAX_TOTAL_MIN;
+/** @deprecated use LONG_DAY_MIN_TOTAL_MIN */
+export const WEEKEND_MIN_TOTAL_MIN = LONG_DAY_MIN_TOTAL_MIN;
+
+// Task #338 + cadence overhaul. Optional per-runner override of the
+// short-day (Tue-Thu) window and long-day (Fri-Sun) window. When present
+// on a `PlannerConfig`, the override is threaded through every builder
+// into `enforceDailyTimeBudget`. The legacy weekday{Min,Max}/weekendMin
+// fields are still accepted for back-compat reads of stored configs and
+// are folded into the new buckets by `resolveBudget`. Absent / partially
+// set fields fall back to the constants above.
 export interface DailyBudgetOverride {
+  shortDayMin?: number | null;
+  shortDayMax?: number | null;
+  longDayMin?: number | null;
+  longDayMax?: number | null;
+  /** @deprecated legacy Tue-Sat lower bound. */
   weekdayMin?: number | null;
+  /** @deprecated legacy Tue-Sat upper bound. */
   weekdayMax?: number | null;
+  /** @deprecated legacy Sunday floor. */
   weekendMin?: number | null;
 }
 
-function resolveBudget(override?: DailyBudgetOverride | null): {
-  weekdayMin: number;
-  weekdayMax: number;
-  weekendMin: number;
-} {
-  return {
-    weekdayMin:
-      override && typeof override.weekdayMin === "number"
-        ? override.weekdayMin
-        : WEEKDAY_MIN_TOTAL_MIN,
-    weekdayMax:
-      override && typeof override.weekdayMax === "number"
-        ? override.weekdayMax
-        : WEEKDAY_MAX_TOTAL_MIN,
-    weekendMin:
-      override && typeof override.weekendMin === "number"
-        ? override.weekendMin
-        : WEEKEND_MIN_TOTAL_MIN,
-  };
+interface ResolvedBudget {
+  shortDayMin: number;
+  shortDayMax: number;
+  longDayMin: number;
+  longDayMax: number;
+}
+
+function resolveBudget(override?: DailyBudgetOverride | null): ResolvedBudget {
+  const num = (v: number | null | undefined): number | undefined =>
+    typeof v === "number" && Number.isFinite(v) ? v : undefined;
+  const o = override ?? {};
+
+  let shortMin =
+    num(o.shortDayMin) ?? num(o.weekdayMin) ?? SHORT_DAY_MIN_TOTAL_MIN;
+  let shortMax =
+    num(o.shortDayMax) ?? num(o.weekdayMax) ?? SHORT_DAY_MAX_TOTAL_MIN;
+  let longMin = num(o.longDayMin) ?? num(o.weekendMin) ?? LONG_DAY_MIN_TOTAL_MIN;
+  let longMax = num(o.longDayMax) ?? LONG_DAY_MAX_TOTAL_MIN;
+
+  shortMin = Math.max(0, shortMin);
+  shortMax = Math.max(0, shortMax);
+  longMin = Math.max(0, longMin);
+  longMax = Math.max(0, longMax);
+  if (shortMin > shortMax) shortMax = shortMin;
+  if (longMin > longMax) longMax = longMin;
+
+  return { shortDayMin: shortMin, shortDayMax: shortMax, longDayMin: longMin, longDayMax: longMax };
+}
+
+/** Resolve the {min,max} window for a generator day name on the fixed cadence. */
+function windowForDay(
+  day: DailyRow["day"],
+  budget: ResolvedBudget,
+): { min: number; max: number } {
+  if (day === "Mon") return { min: 0, max: 0 };
+  if (day === "Tue" || day === "Wed" || day === "Thu") {
+    return { min: budget.shortDayMin, max: budget.shortDayMax };
+  }
+  // Fri, Sat, Sun.
+  return { min: budget.longDayMin, max: budget.longDayMax };
 }
 
 const BUDGET_EXEMPT_SESSION_TYPES = new Set<string>([
@@ -194,16 +236,22 @@ function clampDayBudget(
   if (opts.isRaceWeek) return row;
   if (isBudgetExempt(row)) return row;
 
-  // Sun is the long-run day — has a floor (budget.weekendMin) but no
-  // upper cap. Sat is now a normal weekday for budget purposes since
-  // long runs stay on Sun. Both floors and the weekday cap are
-  // configurable via the per-runner dailyBudget override resolved
-  // above (defaults: 45 / 75 / 60).
-  const isLongRunDay = row.day === "Sun";
-  const minTotal = isLongRunDay ? budget.weekendMin : budget.weekdayMin;
-  const maxTotal = isLongRunDay
-    ? Number.POSITIVE_INFINITY
-    : budget.weekdayMax;
+  // Fixed-cadence window for this day. Tue/Wed/Thu are SHORT days
+  // (default 30-50), Fri/Sat/Sun are LONG days (default 60-90). Both the
+  // floor and the cap are configurable via the per-runner dailyBudget
+  // override resolved above; Mon was already forced to rest above.
+  //
+  // The actual Long Run (session_type "Long Run", always Sat/Sun) keeps
+  // the LONG-day FLOOR but is exempt from the upper cap: race-distance
+  // safety means a marathon long run can run well past 90 min, and
+  // mileage — not minutes — is the source of truth for that row (the
+  // weekly mileage preview projects from distance_mi). Capping it would
+  // silently shorten the long run and desync planned_miles. Every other
+  // Fri/Sat/Sun day still obeys the 60-90 ceiling.
+  const win = windowForDay(row.day, budget);
+  const isLongRun = row.session_type === "Long Run";
+  const minTotal = win.min;
+  const maxTotal = isLongRun ? Number.POSITIVE_INFINITY : win.max;
 
   let strength = row.strength_min ?? 0;
   let cardio = row.cardio_min ?? 0;
@@ -212,15 +260,16 @@ function clampDayBudget(
 
   // Strength floor (Tue-Sun): bump strength up to 30 without
   // proactively stealing from cardio/run — the cap step below will
-  // trim cardio/run if the resulting total exceeds the weekday cap.
-  // For Sun (no upper cap) the long run keeps its full duration and
-  // the day's total simply grows by the deficit.
+  // trim cardio/run if the resulting total exceeds the day's cap.
   if (strength < DAILY_STRENGTH_FLOOR_MIN) {
     strength = DAILY_STRENGTH_FLOOR_MIN;
   }
 
-  // Cap (weekday: 75 inclusive; Sun: open-ended). Trim cardio → run.
-  // Strength stays at the 30-min floor — never trimmed below.
+  // Cap (short days 50, long days 90 — both inclusive). Trim cardio →
+  // run → strength. Strength is trimmed only as a last resort and never
+  // below the 30-min floor; a strength session longer than the cap is
+  // pulled down to the cap (e.g. a 52-min Tonal block on a 50-min
+  // short day → 50, with 30 still left for the floor).
   let total = strength + cardio + run;
   if (total > maxTotal) {
     let excess = total - maxTotal;
@@ -228,7 +277,18 @@ function clampDayBudget(
     cardio -= trimCardio;
     excess -= trimCardio;
     if (excess > 0) {
-      run = Math.max(0, run - excess);
+      const trimRun = Math.min(run, excess);
+      run -= trimRun;
+      excess -= trimRun;
+    }
+    if (excess > 0) {
+      // Cardio + run are exhausted; the strength block itself exceeds the
+      // cap. Trim strength down toward the cap but never below the floor.
+      const trimStrength = Math.min(
+        Math.max(0, strength - DAILY_STRENGTH_FLOOR_MIN),
+        excess,
+      );
+      strength -= trimStrength;
     }
     total = strength + cardio + run;
   }
@@ -290,6 +350,15 @@ function clampDayBudget(
       `Tonal (${strength} min,`,
     );
   }
+
+  // NB: distance_mi is intentionally left untouched even when the cap
+  // trims run minutes. Mileage (distance_mi) is the campaign's source of
+  // truth — the weekly mileage preview (previewWeeklyMileage), dashboard
+  // sparklines, and planned_miles all project from the recipe-prescribed
+  // distance, and a parity contract pins preview == generated. Recomputing
+  // distance from the trimmed minutes would silently desync that contract.
+  // The actual Long Run is cap-exempt above so its distance is never at
+  // risk; short-day quality runs keep their prescribed mileage.
   const delta = total - before;
   return {
     ...row,

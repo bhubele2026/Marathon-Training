@@ -1,3 +1,4 @@
+import { normalizeDailyBudget } from "./types";
 import type { PersonalContext } from "./types";
 
 // The trainer knowledge base. This is the system prompt Claude reasons from when
@@ -71,18 +72,23 @@ goal. When you do program running, think like a good coach using these principle
   full-body / core-accessory), with progressive overload across the block.
 - Heavy days ~30–45 min; accessory days ~30 min.
 
-## Weekly rhythm (default — adapt to the client)
-- Mon = full REST (0 min).
-- Tue–Sun = training: Tonal strength most days, paired with Bike/Row conditioning.
-  Add Tread running ONLY on the days the goal needs it (e.g. 2–3 short runs/week
-  for a 5K goal). For a pure strength/weight-loss plan, there may be no running
-  at all.
-- Any longer session goes Sat or Sun — never Fri.
+## Weekly rhythm (FIXED cadence — never violate)
+The client trains on a FIXED weekly cadence. This is the same for EVERY plan,
+strength or running:
+- Mon = full REST (0 min). Absolutely no work on Monday, ever.
+- Tue / Wed / Thu = SHORT days: 30–50 min each.
+- Fri / Sat / Sun = LONG days: 60–90 min each.
+On training days: Tonal strength most days, paired with Bike/Row conditioning.
+Add Tread running ONLY on the days the goal needs it (e.g. 2–3 short runs/week
+for a 5K goal). For a pure strength/weight-loss plan, there may be no running at
+all. The long run, when there is one, goes on Sat or Sun — never Fri.
 
 ## Daily time budget (HARD limits — never violate)
-- Mon: 0. Tue–Sat: within the client's weekday min–max (default 45–75); the MAX
-  is a ceiling — never exceed it; trim cardio/run to fit. Sun: weekend min+
-  (default 60+), open-ended.
+- Mon: 0 (full rest).
+- Tue / Wed / Thu: total within the client's SHORT-day min–max (default 30–50);
+  the MAX is a ceiling — never exceed it; trim cardio/run to fit.
+- Fri / Sat / Sun: total within the client's LONG-day min–max (default 60–90);
+  stay at or above the LONG-day min and at or below the LONG-day max.
 - Strength floor: every non-rest Tue–Sun day has ≥ 30 min of Tonal lifting
   (peak/taper days near a race are exempt).
 - Day total = strengthMin + cardioMin + runMin. Add it up for EVERY day and
@@ -99,8 +105,10 @@ goal. When you do program running, think like a good coach using these principle
 
 ## Before you call propose_plan — sanity-check your own plan
 MECHANICAL (must be exact — the app/schedule depends on it):
-- Every Tue–Sat day total (strength+cardio+run) is within the weekday max; Sunday
-  ≥ the weekend min; Monday is all 0 (full rest).
+- Monday is all 0 (full rest).
+- Every Tue/Wed/Thu day total (strength+cardio+run) is within the SHORT-day
+  window (default 30–50).
+- Every Fri/Sat/Sun day total is within the LONG-day window (default 60–90).
 - Every non-rest Tue–Sun day has ≥ 30 min of Tonal.
 
 COACHING JUDGMENT (does it actually serve THIS client?):
@@ -131,12 +139,10 @@ export function buildSystemBriefing(ctx: PersonalContext): string {
     }.`,
   );
 
-  const b = ctx.budget;
-  const weekdayMin = b.weekdayMin ?? 45;
-  const weekdayMax = b.weekdayMax ?? 75;
-  const weekendMin = b.weekendMin ?? 60;
+  const b = normalizeDailyBudget(ctx.budget);
   lines.push(
-    `Time budget: weekdays ${weekdayMin}-${weekdayMax} min, Sunday ${weekendMin}+ min, Monday rest.`,
+    `Time budget (FIXED cadence): Monday full rest (0 min); Tue/Wed/Thu short ` +
+      `${b.shortDayMin}-${b.shortDayMax} min; Fri/Sat/Sun long ${b.longDayMin}-${b.longDayMax} min.`,
   );
 
   if (ctx.recentActivitySummary) {

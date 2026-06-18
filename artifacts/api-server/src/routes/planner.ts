@@ -54,9 +54,15 @@ type ApiPlannerConfig = {
   // interpolates easy pace across the campaign instead of using the
   // fixed-rate RAMP_SEC_PER_WEEK ramp.
   goalEndingPaceSec: number | null;
-  // Task #338. Optional per-runner override of the daily time-budget
-  // contract. NULL means no override (defaults apply).
+  // Task #338 + cadence overhaul. Optional per-runner override of the
+  // fixed-cadence daily time-budget. Canonical: shortDay{Min,Max}
+  // (Tue-Thu) + longDay{Min,Max} (Fri-Sun). Legacy weekday/weekend fields
+  // kept for back-compat reads. NULL means no override (defaults apply).
   dailyBudget: {
+    shortDayMin?: number | null;
+    shortDayMax?: number | null;
+    longDayMin?: number | null;
+    longDayMax?: number | null;
     weekdayMin?: number | null;
     weekdayMax?: number | null;
     weekendMin?: number | null;
@@ -262,6 +268,10 @@ const DAILY_BUDGET_MAX_MIN = 180;
 function validateDailyBudget(
   budget:
     | {
+        shortDayMin?: number | null;
+        shortDayMax?: number | null;
+        longDayMin?: number | null;
+        longDayMax?: number | null;
         weekdayMin?: number | null;
         weekdayMax?: number | null;
         weekendMin?: number | null;
@@ -271,20 +281,42 @@ function validateDailyBudget(
 ): Record<string, string[]> | null {
   if (!budget) return null;
   const fieldErrors: Record<string, string[]> = {};
-  const wmin = budget.weekdayMin ?? null;
-  const wmax = budget.weekdayMax ?? null;
-  const emin = budget.weekendMin ?? null;
-  for (const [key, val] of [
-    ["weekdayMin", wmin],
-    ["weekdayMax", wmax],
-    ["weekendMin", emin],
-  ] as const) {
+  // Per-field ceiling — applies to canonical AND legacy fields.
+  const fields = [
+    "shortDayMin",
+    "shortDayMax",
+    "longDayMin",
+    "longDayMax",
+    "weekdayMin",
+    "weekdayMax",
+    "weekendMin",
+  ] as const;
+  for (const key of fields) {
+    const val = budget[key] ?? null;
     if (val !== null && val > DAILY_BUDGET_MAX_MIN) {
       (fieldErrors[`dailyBudget.${key}`] ??= []).push(
         `must be at most ${DAILY_BUDGET_MAX_MIN} min (got ${val})`,
       );
     }
   }
+  // Cross-field floor-above-cap checks for each window. Legacy weekday
+  // floor/cap is still cross-checked for back-compat clients.
+  const shortMin = budget.shortDayMin ?? null;
+  const shortMax = budget.shortDayMax ?? null;
+  if (shortMin !== null && shortMax !== null && shortMin > shortMax) {
+    (fieldErrors[`dailyBudget.shortDayMin`] ??= []).push(
+      `short-day floor (${shortMin}) must be ≤ short-day cap (${shortMax})`,
+    );
+  }
+  const longMin = budget.longDayMin ?? null;
+  const longMax = budget.longDayMax ?? null;
+  if (longMin !== null && longMax !== null && longMin > longMax) {
+    (fieldErrors[`dailyBudget.longDayMin`] ??= []).push(
+      `long-day floor (${longMin}) must be ≤ long-day cap (${longMax})`,
+    );
+  }
+  const wmin = budget.weekdayMin ?? null;
+  const wmax = budget.weekdayMax ?? null;
   if (wmin !== null && wmax !== null && wmin > wmax) {
     (fieldErrors[`dailyBudget.weekdayMin`] ??= []).push(
       `weekday floor (${wmin}) must be ≤ weekday cap (${wmax})`,
@@ -313,6 +345,10 @@ function validateBody(body: {
       }>
     | null;
   dailyBudget?: {
+    shortDayMin?: number | null;
+    shortDayMax?: number | null;
+    longDayMin?: number | null;
+    longDayMax?: number | null;
     weekdayMin?: number | null;
     weekdayMax?: number | null;
     weekendMin?: number | null;

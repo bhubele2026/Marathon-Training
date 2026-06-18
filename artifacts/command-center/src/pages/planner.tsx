@@ -46,9 +46,10 @@ import {
   type StarterShortcut,
   type TemplateEntry,
   type WeekMileagePreview,
-  WEEKDAY_MIN_TOTAL_MIN,
-  WEEKDAY_MAX_TOTAL_MIN,
-  WEEKEND_MIN_TOTAL_MIN,
+  SHORT_DAY_MIN_TOTAL_MIN,
+  SHORT_DAY_MAX_TOTAL_MIN,
+  LONG_DAY_MIN_TOTAL_MIN,
+  LONG_DAY_MAX_TOTAL_MIN,
   DAILY_STRENGTH_FLOOR_MIN,
   generatePlanFromConfig,
   type DailyRow,
@@ -454,13 +455,14 @@ export default function Planner() {
   // generator linearly interpolates from start (week 1) to goal (final
   // week) instead of using the fixed ~3.75 sec/mi/week ramp.
   const [goalEndingPace, setGoalEndingPace] = useState<string>("");
-  // Task #338. Optional per-runner override of the daily time-budget
-  // contract (Task #336). Empty string ⇒ that field is NOT overridden
-  // (defaults of 45 / 60 / 60 apply). When all three are blank the
-  // entire `dailyBudget` payload is sent as null on save / apply.
-  const [weekdayMin, setWeekdayMin] = useState<string>("");
-  const [weekdayMax, setWeekdayMax] = useState<string>("");
-  const [weekendMin, setWeekendMin] = useState<string>("");
+  // Per-runner override of the FIXED-cadence daily time-budget. Empty
+  // string ⇒ that field is NOT overridden (defaults apply: short 30/50
+  // Tue-Thu, long 60/90 Fri-Sun). When all four are blank the entire
+  // `dailyBudget` payload is sent as null on save / apply.
+  const [shortDayMin, setShortDayMin] = useState<string>("");
+  const [shortDayMax, setShortDayMax] = useState<string>("");
+  const [longDayMin, setLongDayMin] = useState<string>("");
+  const [longDayMax, setLongDayMax] = useState<string>("");
   // Empty / non-numeric input → null (no anchored target). Used by the
   // Save / Apply mutations so blank inputs round-trip a NULL on the
   // applied_* snapshot rather than a zero.
@@ -485,15 +487,24 @@ export default function Planner() {
   // set fields populated and the unset fields explicitly null so the
   // generator falls back to the matching default for those.
   function buildDailyBudgetPayload(): {
-    weekdayMin: number | null;
-    weekdayMax: number | null;
-    weekendMin: number | null;
+    shortDayMin: number | null;
+    shortDayMax: number | null;
+    longDayMin: number | null;
+    longDayMax: number | null;
   } | null {
-    const wmin = parseOptionalBudgetMin(weekdayMin);
-    const wmax = parseOptionalBudgetMin(weekdayMax);
-    const emin = parseOptionalBudgetMin(weekendMin);
-    if (wmin === null && wmax === null && emin === null) return null;
-    return { weekdayMin: wmin, weekdayMax: wmax, weekendMin: emin };
+    const smin = parseOptionalBudgetMin(shortDayMin);
+    const smax = parseOptionalBudgetMin(shortDayMax);
+    const lmin = parseOptionalBudgetMin(longDayMin);
+    const lmax = parseOptionalBudgetMin(longDayMax);
+    if (smin === null && smax === null && lmin === null && lmax === null) {
+      return null;
+    }
+    return {
+      shortDayMin: smin,
+      shortDayMax: smax,
+      longDayMin: lmin,
+      longDayMax: lmax,
+    };
   }
   function parseOptionalPaceSec(input: string): number | null {
     const trimmed = input.trim();
@@ -524,7 +535,7 @@ export default function Planner() {
   useEffect(() => {
     setPreviewWeek(null);
     setPreviewError(null);
-  }, [weekdayMin, weekdayMax, weekendMin, startingPace, goalEndingPace]);
+  }, [shortDayMin, shortDayMax, longDayMin, longDayMax, startingPace, goalEndingPace]);
   const [confirmApplyOpen, setConfirmApplyOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -1170,31 +1181,28 @@ export default function Planner() {
           )
         : "",
     );
-    // Task #338. Hydrate the optional daily-budget override. NULL on
+    // Hydrate the optional fixed-cadence daily-budget override. NULL on
     // the saved config (or NULL on a per-field key) ⇒ blank input so a
-    // round-trip leaves the field unset.
+    // round-trip leaves the field unset. Canonical fields are short/long;
+    // pre-overhaul configs only have legacy weekday/weekend fields, so
+    // fall back to those (weekday → short, weekend → long min) for display.
     const cfgBudget = (cfg as {
       dailyBudget?: {
+        shortDayMin?: number | null;
+        shortDayMax?: number | null;
+        longDayMin?: number | null;
+        longDayMax?: number | null;
         weekdayMin?: number | null;
         weekdayMax?: number | null;
         weekendMin?: number | null;
       } | null;
     }).dailyBudget;
-    setWeekdayMin(
-      cfgBudget && typeof cfgBudget.weekdayMin === "number"
-        ? String(cfgBudget.weekdayMin)
-        : "",
-    );
-    setWeekdayMax(
-      cfgBudget && typeof cfgBudget.weekdayMax === "number"
-        ? String(cfgBudget.weekdayMax)
-        : "",
-    );
-    setWeekendMin(
-      cfgBudget && typeof cfgBudget.weekendMin === "number"
-        ? String(cfgBudget.weekendMin)
-        : "",
-    );
+    const num = (v: number | null | undefined): string =>
+      typeof v === "number" ? String(v) : "";
+    setShortDayMin(num(cfgBudget?.shortDayMin ?? cfgBudget?.weekdayMin));
+    setShortDayMax(num(cfgBudget?.shortDayMax ?? cfgBudget?.weekdayMax));
+    setLongDayMin(num(cfgBudget?.longDayMin ?? cfgBudget?.weekendMin));
+    setLongDayMax(num(cfgBudget?.longDayMax));
     setDraft(blocksToDraft(cfg.blocks as PhaseBlock[]));
     // Hydrate entries-mode if the saved config has entries; otherwise
     // null = legacy blocks-mode (auto-pinned 16-week tail).
@@ -1406,13 +1414,15 @@ export default function Planner() {
   // Apply gating reflects what the server will accept.
   const DAILY_BUDGET_MAX_MIN = 180;
   const dailyBudgetIssues: string[] = [];
-  const wminParsed = parseOptionalBudgetMin(weekdayMin);
-  const wmaxParsed = parseOptionalBudgetMin(weekdayMax);
-  const eminParsed = parseOptionalBudgetMin(weekendMin);
+  const sminParsed = parseOptionalBudgetMin(shortDayMin);
+  const smaxParsed = parseOptionalBudgetMin(shortDayMax);
+  const lminParsed = parseOptionalBudgetMin(longDayMin);
+  const lmaxParsed = parseOptionalBudgetMin(longDayMax);
   for (const [label, raw, parsed] of [
-    ["Weekday min", weekdayMin, wminParsed],
-    ["Weekday max", weekdayMax, wmaxParsed],
-    ["Weekend min", weekendMin, eminParsed],
+    ["Short-day min", shortDayMin, sminParsed],
+    ["Short-day max", shortDayMax, smaxParsed],
+    ["Long-day min", longDayMin, lminParsed],
+    ["Long-day max", longDayMax, lmaxParsed],
   ] as const) {
     if (raw.trim() !== "") {
       const n = Number(raw);
@@ -1425,13 +1435,14 @@ export default function Planner() {
       }
     }
   }
-  if (
-    wminParsed !== null &&
-    wmaxParsed !== null &&
-    wminParsed > wmaxParsed
-  ) {
+  if (sminParsed !== null && smaxParsed !== null && sminParsed > smaxParsed) {
     dailyBudgetIssues.push(
-      `Weekday min (${wminParsed}) must be ≤ weekday max (${wmaxParsed}).`,
+      `Short-day min (${sminParsed}) must be ≤ short-day max (${smaxParsed}).`,
+    );
+  }
+  if (lminParsed !== null && lmaxParsed !== null && lminParsed > lmaxParsed) {
+    dailyBudgetIssues.push(
+      `Long-day min (${lminParsed}) must be ≤ long-day max (${lmaxParsed}).`,
     );
   }
   for (const m of dailyBudgetIssues) issues.push(m);
@@ -2839,64 +2850,82 @@ export default function Planner() {
               sec/mi/week ramp.
             </p>
           </div>
-          {/* Task #338. Optional per-runner override of the daily
-              time-budget contract. Blank ⇒ use the matching default
-              (45 / 60 / 60 min). All blank ⇒ no override sent.
-              Task #340 caps each field at 180 min and enforces
-              weekday floor ≤ weekday cap; violations surface inline
-              below and gate Save / Apply. */}
+          {/* Optional per-runner override of the FIXED-cadence daily
+              time-budget. Mon is always full rest (not configurable).
+              Tue-Thu = SHORT days (default 30-50), Fri-Sun = LONG days
+              (default 60-90). Blank ⇒ use the matching default. All blank
+              ⇒ no override sent. Each field caps at 180 min; floor ≤ cap
+              per window is enforced inline and gates Save / Apply. */}
           <div className="space-y-2">
-            <Label htmlFor="planner-weekday-min">
-              Weekday min (min, optional)
+            <Label htmlFor="planner-short-min">
+              Short-day min (min, optional)
             </Label>
             <Input
-              id="planner-weekday-min"
-              data-testid="planner-weekday-min"
+              id="planner-short-min"
+              data-testid="planner-short-min"
               type="number"
               step="1"
               min="1"
-              value={weekdayMin}
-              onChange={(e) => setWeekdayMin(e.target.value)}
-              placeholder="45"
+              value={shortDayMin}
+              onChange={(e) => setShortDayMin(e.target.value)}
+              placeholder="30"
             />
             <p className="text-[11px] text-muted-foreground leading-snug">
-              Floor for Tue-Sat sessions. Blank = default 45 min.
+              Floor for Tue-Thu sessions. Blank = default 30 min.
             </p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="planner-weekday-max">
-              Weekday max (min, optional)
+            <Label htmlFor="planner-short-max">
+              Short-day max (min, optional)
             </Label>
             <Input
-              id="planner-weekday-max"
-              data-testid="planner-weekday-max"
+              id="planner-short-max"
+              data-testid="planner-short-max"
               type="number"
               step="1"
               min="1"
-              value={weekdayMax}
-              onChange={(e) => setWeekdayMax(e.target.value)}
-              placeholder="60"
+              value={shortDayMax}
+              onChange={(e) => setShortDayMax(e.target.value)}
+              placeholder="50"
             />
             <p className="text-[11px] text-muted-foreground leading-snug">
-              Cap for Tue-Sat sessions. Blank = default 75 min.
+              Cap for Tue-Thu sessions. Blank = default 50 min.
             </p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="planner-weekend-min">
-              Weekend min (min, optional)
+            <Label htmlFor="planner-long-min">
+              Long-day min (min, optional)
             </Label>
             <Input
-              id="planner-weekend-min"
-              data-testid="planner-weekend-min"
+              id="planner-long-min"
+              data-testid="planner-long-min"
               type="number"
               step="1"
               min="1"
-              value={weekendMin}
-              onChange={(e) => setWeekendMin(e.target.value)}
+              value={longDayMin}
+              onChange={(e) => setLongDayMin(e.target.value)}
               placeholder="60"
             />
             <p className="text-[11px] text-muted-foreground leading-snug">
-              Floor for Sat/Sun sessions (no cap). Blank = default 60 min.
+              Floor for Fri-Sun sessions. Blank = default 60 min.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="planner-long-max">
+              Long-day max (min, optional)
+            </Label>
+            <Input
+              id="planner-long-max"
+              data-testid="planner-long-max"
+              type="number"
+              step="1"
+              min="1"
+              value={longDayMax}
+              onChange={(e) => setLongDayMax(e.target.value)}
+              placeholder="90"
+            />
+            <p className="text-[11px] text-muted-foreground leading-snug">
+              Cap for Fri-Sun sessions. Blank = default 90 min.
             </p>
           </div>
           {dailyBudgetIssues.length > 0 && (
@@ -2918,15 +2947,18 @@ export default function Planner() {
               Each row labels itself as (default) when the field is blank
               or (custom) when overridden. */}
           {(() => {
-            const parsedWmin = parseOptionalBudgetMin(weekdayMin);
-            const parsedWmax = parseOptionalBudgetMin(weekdayMax);
-            const parsedEmin = parseOptionalBudgetMin(weekendMin);
-            const wmin = parsedWmin ?? WEEKDAY_MIN_TOTAL_MIN;
-            const wmax = parsedWmax ?? WEEKDAY_MAX_TOTAL_MIN;
-            const emin = parsedEmin ?? WEEKEND_MIN_TOTAL_MIN;
-            const weekdayCustom = parsedWmin !== null || parsedWmax !== null;
-            const weekendCustom = parsedEmin !== null;
-            const weekdayInvalid = wmin > wmax;
+            const parsedSmin = parseOptionalBudgetMin(shortDayMin);
+            const parsedSmax = parseOptionalBudgetMin(shortDayMax);
+            const parsedLmin = parseOptionalBudgetMin(longDayMin);
+            const parsedLmax = parseOptionalBudgetMin(longDayMax);
+            const smin = parsedSmin ?? SHORT_DAY_MIN_TOTAL_MIN;
+            const smax = parsedSmax ?? SHORT_DAY_MAX_TOTAL_MIN;
+            const lmin = parsedLmin ?? LONG_DAY_MIN_TOTAL_MIN;
+            const lmax = parsedLmax ?? LONG_DAY_MAX_TOTAL_MIN;
+            const shortCustom = parsedSmin !== null || parsedSmax !== null;
+            const longCustom = parsedLmin !== null || parsedLmax !== null;
+            const shortInvalid = smin > smax;
+            const longInvalid = lmin > lmax;
             return (
               <div
                 className="md:col-span-3 rounded-md border border-border/60 bg-muted/30 p-3 space-y-1.5"
@@ -2941,26 +2973,34 @@ export default function Planner() {
                     sessions scheduled).
                   </li>
                   <li data-testid="planner-budget-preview-weekday">
-                    <span className="font-mono">Tue–Sat</span> sessions:{" "}
-                    {weekdayInvalid ? (
+                    <span className="font-mono">Tue–Thu</span> short days:{" "}
+                    {shortInvalid ? (
                       <span className="text-destructive">
-                        invalid window ({wmin}–{wmax} min) — min must be ≤ max
+                        invalid window ({smin}–{smax} min) — min must be ≤ max
                       </span>
                     ) : (
                       <>
-                        {wmin}–{wmax} min{" "}
+                        {smin}–{smax} min{" "}
                         <span className="text-muted-foreground">
-                          ({weekdayCustom ? "custom" : "default"})
+                          ({shortCustom ? "custom" : "default"})
                         </span>
                       </>
                     )}
                   </li>
                   <li data-testid="planner-budget-preview-weekend">
-                    <span className="font-mono">Sun</span> long run: ≥ {emin}{" "}
-                    min, no upper cap{" "}
-                    <span className="text-muted-foreground">
-                      ({weekendCustom ? "custom" : "default"})
-                    </span>
+                    <span className="font-mono">Fri–Sun</span> long days:{" "}
+                    {longInvalid ? (
+                      <span className="text-destructive">
+                        invalid window ({lmin}–{lmax} min) — min must be ≤ max
+                      </span>
+                    ) : (
+                      <>
+                        {lmin}–{lmax} min{" "}
+                        <span className="text-muted-foreground">
+                          ({longCustom ? "custom" : "default"})
+                        </span>
+                      </>
+                    )}
                   </li>
                   <li data-testid="planner-budget-preview-strength">
                     Strength floor: ≥ {DAILY_STRENGTH_FLOOR_MIN} min of Tonal

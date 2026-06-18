@@ -1434,17 +1434,38 @@ export interface PhaseBlock {
 }
 
 /**
- * Task #338. Optional per-runner override of the daily
-time-budget contract (Task #336). When non-null, fields set
-here replace WEEKDAY_MIN_TOTAL_MIN / WEEKDAY_MAX_TOTAL_MIN /
-WEEKEND_MIN_TOTAL_MIN in `enforceDailyTimeBudget`. NULL
-fields fall back to the constants (45 / 60 / 60). Task
-#340 adds an upper bound (180 min) per field and a
-cross-field rule (weekdayMin <= weekdayMax) enforced at
-the route layer so impossible windows can't be saved.
+ * Optional per-runner override of the FIXED-cadence daily
+time-budget contract. Canonical fields: shortDayMin/shortDayMax
+(Tue-Thu, default 30/50) and longDayMin/longDayMax (Fri-Sun,
+default 60/90). Monday is always full rest (0) and is not
+configurable. The legacy weekdayMin/weekdayMax/weekendMin fields
+are retained for back-compat reads of pre-overhaul stored configs
+and are folded into the new buckets server-side. Each field is
+capped at 180 min; the route layer enforces floor <= cap per
+window so impossible windows can't be saved.
 
  */
 export type PlannerConfigDailyBudget = {
+  /**
+   * @minimum 1
+   * @maximum 180
+   */
+  shortDayMin?: number | null;
+  /**
+   * @minimum 1
+   * @maximum 180
+   */
+  shortDayMax?: number | null;
+  /**
+   * @minimum 1
+   * @maximum 180
+   */
+  longDayMin?: number | null;
+  /**
+   * @minimum 1
+   * @maximum 180
+   */
+  longDayMax?: number | null;
   /**
    * @minimum 1
    * @maximum 180
@@ -1515,14 +1536,15 @@ ramp behavior. Recipe floors and race-kind offsets still
 layer on top of the interpolated value.
  */
   goalEndingPaceSec: number | null;
-  /** Task #338. Optional per-runner override of the daily
-time-budget contract (Task #336). When non-null, fields set
-here replace WEEKDAY_MIN_TOTAL_MIN / WEEKDAY_MAX_TOTAL_MIN /
-WEEKEND_MIN_TOTAL_MIN in `enforceDailyTimeBudget`. NULL
-fields fall back to the constants (45 / 60 / 60). Task
-#340 adds an upper bound (180 min) per field and a
-cross-field rule (weekdayMin <= weekdayMax) enforced at
-the route layer so impossible windows can't be saved.
+  /** Optional per-runner override of the FIXED-cadence daily
+time-budget contract. Canonical fields: shortDayMin/shortDayMax
+(Tue-Thu, default 30/50) and longDayMin/longDayMax (Fri-Sun,
+default 60/90). Monday is always full rest (0) and is not
+configurable. The legacy weekdayMin/weekdayMax/weekendMin fields
+are retained for back-compat reads of pre-overhaul stored configs
+and are folded into the new buckets server-side. Each field is
+capped at 180 min; the route layer enforces floor <= cap per
+window so impossible windows can't be saved.
  */
   dailyBudget: PlannerConfigDailyBudget;
   /** Task #330. Optional body-mass goal target (lbs). NULL when
@@ -1634,9 +1656,29 @@ export interface ListPlannerConfigsResponse {
 }
 
 /**
- * Task
+ * Optional per-runner override of the fixed-cadence daily time-budget. Canonical fields shortDayMin/shortDayMax (Tue-Thu, default 30/50) and longDayMin/longDayMax (Fri-Sun, default 60/90); Monday is always rest. Legacy weekdayMin/weekdayMax/weekendMin retained for back-compat reads. Each field capped at 180 min; route layer enforces floor <= cap per window.
  */
 export type CreatePlannerConfigBodyDailyBudget = {
+  /**
+   * @minimum 1
+   * @maximum 180
+   */
+  shortDayMin?: number | null;
+  /**
+   * @minimum 1
+   * @maximum 180
+   */
+  shortDayMax?: number | null;
+  /**
+   * @minimum 1
+   * @maximum 180
+   */
+  longDayMin?: number | null;
+  /**
+   * @minimum 1
+   * @maximum 180
+   */
+  longDayMax?: number | null;
   /**
    * @minimum 1
    * @maximum 180
@@ -1672,16 +1714,36 @@ export interface CreatePlannerConfigBody {
   startingPaceSec?: number | null;
   /** Task */
   goalEndingPaceSec?: number | null;
-  /** Task */
+  /** Optional per-runner override of the fixed-cadence daily time-budget. Canonical fields shortDayMin/shortDayMax (Tue-Thu, default 30/50) and longDayMin/longDayMax (Fri-Sun, default 60/90); Monday is always rest. Legacy weekdayMin/weekdayMax/weekendMin retained for back-compat reads. Each field capped at 180 min; route layer enforces floor <= cap per window. */
   dailyBudget?: CreatePlannerConfigBodyDailyBudget;
   /** When true, mark the new config active immediately. Defaults to true if no configs exist yet, false otherwise. */
   setActive?: boolean | null;
 }
 
 /**
- * Task
+ * Optional per-runner override of the fixed-cadence daily time-budget. Canonical fields shortDayMin/shortDayMax (Tue-Thu, default 30/50) and longDayMin/longDayMax (Fri-Sun, default 60/90); Monday is always rest. Legacy weekdayMin/weekdayMax/weekendMin retained for back-compat reads. Each field capped at 180 min; route layer enforces floor <= cap per window.
  */
 export type UpdatePlannerConfigBodyDailyBudget = {
+  /**
+   * @minimum 1
+   * @maximum 180
+   */
+  shortDayMin?: number | null;
+  /**
+   * @minimum 1
+   * @maximum 180
+   */
+  shortDayMax?: number | null;
+  /**
+   * @minimum 1
+   * @maximum 180
+   */
+  longDayMin?: number | null;
+  /**
+   * @minimum 1
+   * @maximum 180
+   */
+  longDayMax?: number | null;
   /**
    * @minimum 1
    * @maximum 180
@@ -1717,7 +1779,7 @@ export interface UpdatePlannerConfigBody {
   startingPaceSec?: number | null;
   /** Task */
   goalEndingPaceSec?: number | null;
-  /** Task */
+  /** Optional per-runner override of the fixed-cadence daily time-budget. Canonical fields shortDayMin/shortDayMax (Tue-Thu, default 30/50) and longDayMin/longDayMax (Fri-Sun, default 60/90); Monday is always rest. Legacy weekdayMin/weekdayMax/weekendMin retained for back-compat reads. Each field capped at 180 min; route layer enforces floor <= cap per window. */
   dailyBudget?: UpdatePlannerConfigBodyDailyBudget;
 }
 

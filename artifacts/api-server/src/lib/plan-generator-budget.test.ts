@@ -1,15 +1,15 @@
-// Generator-level enforcement of the daily time budget contract
-// (Task #336, expanded 2026-05-12). Locks in five invariants across
+// Generator-level enforcement of the FIXED-cadence daily time budget
+// contract (cadence overhaul 2026-06). Locks in five invariants across
 // every generator path — legacy `generatePlan`, recipe-driven
 // `buildWeekDays`, hybrid `buildHybridWeekDays`, and lift-primary
 // `buildLiftPrimaryWeekDays`:
 //
 //   1. Mon is always a hard rest day (strength_min + cardio_min +
 //      run_min === 0). No template can slot a session there.
-//   2. Tue-Sat non-rest days have totalMin ∈ [45, 75] inclusive. No
-//      day blows past 75 (unsustainable on a workday) or under-delivers
-//      below 45 (not worth the warmup).
-//   3. Sun (long-run day) non-rest has totalMin ≥ 60, no upper cap.
+//   2. Tue/Wed/Thu (SHORT days) non-rest have totalMin ∈ [30, 50]
+//      inclusive.
+//   3. Fri/Sat/Sun (LONG days) non-rest have totalMin ∈ [60, 90]
+//      inclusive.
 //   4. Strength floor: every Tue-Sun non-rest day has strength_min
 //      ≥ 30 minutes — six lifting sessions per week.
 //   5. Long runs (`session_type === "Long Run"`) are only ever
@@ -21,9 +21,10 @@
 import { describe, expect, it } from "vitest";
 import {
   DAILY_STRENGTH_FLOOR_MIN,
-  WEEKDAY_MAX_TOTAL_MIN,
-  WEEKDAY_MIN_TOTAL_MIN,
-  WEEKEND_MIN_TOTAL_MIN,
+  SHORT_DAY_MAX_TOTAL_MIN,
+  SHORT_DAY_MIN_TOTAL_MIN,
+  LONG_DAY_MAX_TOTAL_MIN,
+  LONG_DAY_MIN_TOTAL_MIN,
   HYBRID_POSITIONS_ORDERED,
   generatePlan,
   generatePlanFromConfig,
@@ -32,6 +33,11 @@ import {
   type HybridMixPosition,
   type PlannerConfig,
 } from "@workspace/plan-generator";
+
+// A SHORT day is Tue/Wed/Thu; a LONG day is Fri/Sat/Sun.
+function isShortDay(day: string): boolean {
+  return day === "Tue" || day === "Wed" || day === "Thu";
+}
 
 const RACE_EXEMPT_SESSION_TYPES = new Set<string>([
   "Race Prep",
@@ -82,19 +88,30 @@ function assertBudgetContract(
     if (row.session_type === "Active Recovery") continue;
 
     const min = totalMin(row);
-    if (row.day === "Sun") {
-      // (3) Sun long-run floor (no upper cap).
-      expect(min, `${ctx} Sun floor (${WEEKEND_MIN_TOTAL_MIN})`).toBeGreaterThanOrEqual(
-        WEEKEND_MIN_TOTAL_MIN,
-      );
+    if (isShortDay(row.day)) {
+      // (2) Tue-Thu SHORT-day window [30, 50].
+      expect(
+        min,
+        `${ctx} short-day floor (${SHORT_DAY_MIN_TOTAL_MIN})`,
+      ).toBeGreaterThanOrEqual(SHORT_DAY_MIN_TOTAL_MIN);
+      expect(
+        min,
+        `${ctx} short-day cap (${SHORT_DAY_MAX_TOTAL_MIN})`,
+      ).toBeLessThanOrEqual(SHORT_DAY_MAX_TOTAL_MIN);
     } else {
-      // (2) Tue-Sat capped weekday window.
-      expect(min, `${ctx} weekday floor (${WEEKDAY_MIN_TOTAL_MIN})`).toBeGreaterThanOrEqual(
-        WEEKDAY_MIN_TOTAL_MIN,
-      );
-      expect(min, `${ctx} weekday cap (${WEEKDAY_MAX_TOTAL_MIN})`).toBeLessThanOrEqual(
-        WEEKDAY_MAX_TOTAL_MIN,
-      );
+      // (3) Fri-Sun LONG-day window [60, 90]. The actual Long Run keeps
+      // the floor but is exempt from the upper cap (race-distance safety
+      // — a marathon long run can run past 90 min).
+      expect(
+        min,
+        `${ctx} long-day floor (${LONG_DAY_MIN_TOTAL_MIN})`,
+      ).toBeGreaterThanOrEqual(LONG_DAY_MIN_TOTAL_MIN);
+      if (row.session_type !== "Long Run") {
+        expect(
+          min,
+          `${ctx} long-day cap (${LONG_DAY_MAX_TOTAL_MIN})`,
+        ).toBeLessThanOrEqual(LONG_DAY_MAX_TOTAL_MIN);
+      }
     }
 
     // (4) Strength floor: every non-rest Tue-Sun day has ≥ 30 min lift.
@@ -221,9 +238,31 @@ describe("daily time budget contract — lift-primary (every kind)", () => {
 // ----- Task #338: per-runner daily-budget override propagates -------
 
 describe("daily time budget contract — per-runner dailyBudget override propagates", () => {
-  // Pick an override that's clearly outside the defaults so the
-  // assertions can't accidentally pass against the constants.
-  const override = { weekdayMin: 60, weekdayMax: 90, weekendMin: 75 };
+  // Pick an override that's clearly inside-of/different-from the defaults
+  // so the assertions can't accidentally pass against the constants.
+  // Defaults: short 30-50 (Tue-Thu), long 60-90 (Fri-Sun). Override
+  // tightens the short floor to 35 and the long window to 70-88.
+  const override = {
+    shortDayMin: 35,
+    shortDayMax: 48,
+    longDayMin: 70,
+    longDayMax: 88,
+  };
+
+  // Assert one non-exempt row sits inside the override window for its day.
+  function expectInOverrideWindow(row: DailyRow): void {
+    const min = totalMin(row);
+    if (isShortDay(row.day)) {
+      expect(min).toBeGreaterThanOrEqual(override.shortDayMin);
+      expect(min).toBeLessThanOrEqual(override.shortDayMax);
+    } else {
+      expect(min).toBeGreaterThanOrEqual(override.longDayMin);
+      // Long Run rows keep the floor but are exempt from the cap.
+      if (row.session_type !== "Long Run") {
+        expect(min).toBeLessThanOrEqual(override.longDayMax);
+      }
+    }
+  }
 
   it("hybrid generator respects the override floors and cap", () => {
     const cfg: PlannerConfig = {
@@ -242,15 +281,7 @@ describe("daily time budget contract — per-runner dailyBudget override propaga
       if (row.is_rest) continue;
       if (row.session_type === "Active Recovery") continue;
       if (RACE_EXEMPT_SESSION_TYPES.has(row.session_type)) continue;
-      const min = totalMin(row);
-      // Sun is the long-run day (floor only). Sat counts as a weekday
-      // for budget purposes since long runs stay on Sun.
-      if (row.day === "Sun") {
-        expect(min).toBeGreaterThanOrEqual(override.weekendMin);
-      } else {
-        expect(min).toBeGreaterThanOrEqual(override.weekdayMin);
-        expect(min).toBeLessThanOrEqual(override.weekdayMax);
-      }
+      expectInOverrideWindow(row);
     }
   });
 
@@ -274,38 +305,35 @@ describe("daily time budget contract — per-runner dailyBudget override propaga
         !d.is_rest &&
         d.session_type !== "Active Recovery",
     );
-    // (1) Under the override, every non-rest weekday sits within the
-    // override window; Sun (long-run day) clears the override floor.
+    // (1) Under the override, every non-rest day sits within the override
+    // window for its bucket (short vs long).
     for (const row of ovr) {
-      const min = totalMin(row);
-      if (row.day === "Sun") {
-        expect(min).toBeGreaterThanOrEqual(override.weekendMin);
-      } else {
-        expect(min).toBeGreaterThanOrEqual(override.weekdayMin);
-        expect(min).toBeLessThanOrEqual(override.weekdayMax);
-      }
+      expectInOverrideWindow(row);
     }
-    // (2) The override actually CHANGED weekday minutes: a default
-    // weekday session (~45 min lift) sits below the override floor
-    // (60), so propagation must push it up. If the override were
-    // silently dropped both runs would be identical.
+    // (2) The override actually CHANGED minutes: at least one default
+    // long-day session sits below the override long floor (70) and must
+    // be padded up. If the override were silently dropped both runs would
+    // be identical.
     const sameDay = (a: typeof def[number], b: typeof ovr[number]) =>
       a.date === b.date;
     let mutated = false;
     for (const d of def) {
-      if (d.day === "Sun" || d.day === "Mon") continue;
+      if (d.day === "Mon") continue;
       const o = ovr.find((x) => sameDay(d, x));
       if (!o) continue;
-      if (totalMin(d) < override.weekdayMin) {
+      const floor = isShortDay(d.day)
+        ? override.shortDayMin
+        : override.longDayMin;
+      if (totalMin(d) < floor) {
         // Same session under the override must have been padded up.
-        expect(totalMin(o)).toBeGreaterThanOrEqual(override.weekdayMin);
+        expect(totalMin(o)).toBeGreaterThanOrEqual(floor);
         expect(totalMin(o)).toBeGreaterThan(totalMin(d));
         mutated = true;
       }
     }
     expect(
       mutated,
-      "expected the override to widen at least one lift-primary weekday up to the override floor",
+      "expected the override to widen at least one lift-primary day up to the override floor",
     ).toBe(true);
   });
 
@@ -329,13 +357,8 @@ describe("daily time budget contract — per-runner dailyBudget override propaga
       if (row.description.startsWith("RACE DAY")) continue;
       // Race week (final week) is exempt from the contract.
       if (row.week === 24) continue;
-      const min = totalMin(row);
-      if (row.day === "Sun") {
-        expect(min).toBeGreaterThanOrEqual(override.weekendMin);
-      } else {
-        expect(min).toBeGreaterThanOrEqual(override.weekdayMin);
-        expect(min).toBeLessThanOrEqual(override.weekdayMax);
-      }
+      if (row.session_type === "Active Recovery") continue;
+      expectInOverrideWindow(row);
     }
   });
 });

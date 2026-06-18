@@ -200,14 +200,16 @@ describe("Task #335: stacked pace ramp from 16:00/mi", () => {
       entries: ENTRIES,
       startingPaceSec: 810, // 13:30/mi, < 840 threshold
     });
-    // The strength-floor enforcer pads Fri-quality days (lift 0 → 30
-    // min) and steals from run minutes to keep the Fri budget ≤ 75 —
-    // that's a separate composition concern, not the per-row math.
-    // Pin the formula on Wed/Sun where the recipe's own lift block
-    // already meets the floor and run minutes are not budget-trimmed.
+    // Under the fixed-cadence overhaul, SHORT days (Tue-Thu) cap at
+    // 50 min, so a Wed that pairs a quality run with the 30-min strength
+    // floor has its run minutes trimmed to fit — a composition concern,
+    // not the per-row math. Pin the formula on the Sun LONG RUN instead:
+    // it is cap-exempt (race-distance safety), so its run minutes are
+    // never budget-trimmed and run_min ≈ distance × pace holds exactly.
     const runRows = taggedDaily.filter(
       (r) =>
-        (r.row.day === "Wed" || r.row.day === "Sun") &&
+        r.row.day === "Sun" &&
+        r.row.session_type === "Long Run" &&
         (r.row.run_min ?? 0) > 0 &&
         (r.row.distance_mi ?? 0) > 0 &&
         (r.row.pace ?? "") !== "" &&

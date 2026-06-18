@@ -1,22 +1,24 @@
-// Renders a thin horizontal bar that visualizes the daily time-budget
-// contract (Task #336, expanded 2026-05-12: Mon = 0 / hard rest,
-// Tue-Sat ∈ [45, 75] minutes inclusive, Sun ≥ 60 minutes / open-ended
-// for the long run). The plan generator already enforces the contract
-// — this component just makes it legible to the runner so they can see
-// at a glance whether a day is at the cap, has headroom, or has been
-// pushed over budget by a longer logged actual.
+// Renders a thin horizontal bar that visualizes the FIXED-cadence daily
+// time-budget contract (cadence overhaul 2026-06: Mon = 0 / hard rest;
+// Tue-Thu SHORT days ∈ [30, 50] min inclusive; Fri-Sun LONG days ∈
+// [60, 90] min, with the actual long run open-ended above the floor).
+// The plan generator already enforces the contract — this component just
+// makes it legible to the runner so they can see at a glance whether a
+// day is at the cap, has headroom, or has been pushed over budget by a
+// longer logged actual.
 //
 // Behavior:
 //   * Mon (dayOfWeek === 1) — bar is hidden entirely. The PlannedBreakdown
 //     parent already returns null on Mon since totalMin = 0 there, so this
 //     is mostly a belt-and-suspenders guard.
-//   * Tue-Sat (dayOfWeek 2..6) — capped at 75 min. Bar shows planned fill
-//     against a 75-min track; the cap label reads "/ 75 MIN BUDGET". A
-//     logged actual is overlaid as a thinner inner bar; if actual > 75
-//     the overflow segment renders past the cap in the destructive tone
-//     and the label flips to "OVER BUDGET".
-//   * Sun (dayOfWeek 0) — long-run day, open-ended. No cap warning,
-//     label reads "/ 60+ MIN" so the runner still sees the floor.
+//   * Tue-Thu (dayOfWeek 2..4) — SHORT days, capped at 50 min. Bar shows
+//     planned fill against a 50-min track; the cap label reads
+//     "/ 50 MIN BUDGET". A logged actual is overlaid as a thinner inner
+//     bar; if actual > 50 the overflow segment renders past the cap in the
+//     destructive tone and the label flips to "OVER BUDGET".
+//   * Fri-Sun (dayOfWeek 5, 6, 0) — LONG days, anchored to the 60-min
+//     floor and open-ended (the long run can run well past 90). No cap
+//     warning; label reads "/ 60+ MIN" so the runner still sees the floor.
 //     Actual overlay still renders but never colors as "over budget".
 //
 // Day-of-week is derived from the YYYY-MM-DD date string in local time
@@ -33,8 +35,8 @@ export interface TimeBudgetBarProps {
   testIdPrefix?: string;
 }
 
-const WEEKDAY_CAP_MIN = 75;
-const WEEKEND_FLOOR_MIN = 60;
+const SHORT_DAY_CAP_MIN = 50;
+const LONG_DAY_FLOOR_MIN = 60;
 
 function dayOfWeekFromDate(date: string): number {
   // YYYY-MM-DD parsed as local midnight so the day-of-week matches the
@@ -63,34 +65,37 @@ export function TimeBudgetBar({
   if (!Number.isFinite(dow) || dow === 1) return null;
   if (plannedMin <= 0 && (actualMin ?? 0) <= 0) return null;
 
-  // Sun (long-run day) is open-ended; Tue-Sat are all capped at 75.
-  const isWeekend = dow === 0;
+  // Fri/Sat/Sun (dow 5, 6, 0) are LONG days, anchored to the 60-min floor
+  // and open-ended (the long run runs past 90). Tue/Wed/Thu (dow 2, 3, 4)
+  // are SHORT days, capped at 50.
+  const isLongDay = dow === 0 || dow === 5 || dow === 6;
   const actual = actualMin ?? 0;
 
-  // Track width: weekday is anchored to the 60-min cap (with overflow
-  // bleeding past it); weekend has no cap so the track stretches to fit
-  // whichever side is largest, but never collapses below the 60-min floor
-  // so a 70-min long-run day still reads as "comfortably above the floor".
-  const cap = isWeekend
-    ? Math.max(WEEKEND_FLOOR_MIN, plannedMin, actual)
-    : WEEKDAY_CAP_MIN;
-  const trackMax = isWeekend
+  // Track width: short days are anchored to the 50-min cap (with overflow
+  // bleeding past it); long days have no upper cap so the track stretches
+  // to fit whichever side is largest, but never collapses below the 60-min
+  // floor so a 70-min long-run day still reads as "comfortably above the
+  // floor".
+  const cap = isLongDay
+    ? Math.max(LONG_DAY_FLOOR_MIN, plannedMin, actual)
+    : SHORT_DAY_CAP_MIN;
+  const trackMax = isLongDay
     ? cap
-    : Math.max(WEEKDAY_CAP_MIN, plannedMin, actual);
+    : Math.max(SHORT_DAY_CAP_MIN, plannedMin, actual);
 
   const pct = (n: number) => `${Math.min(100, (n / trackMax) * 100)}%`;
   const plannedPct = pct(Math.min(plannedMin, trackMax));
   const actualWithinCapPct = pct(Math.min(actual, cap));
-  const actualOverCap = !isWeekend && actual > cap;
+  const actualOverCap = !isLongDay && actual > cap;
   const overCapPct = actualOverCap
     ? `${Math.min(100, ((actual - cap) / trackMax) * 100)}%`
     : "0%";
   // Position of the cap marker on the track (only meaningful when the
-  // track extends past the cap — i.e. weekday with overflow).
+  // track extends past the cap — i.e. short day with overflow).
   const capMarkerLeft = pct(cap);
 
-  const overBudget = !isWeekend && actual > WEEKDAY_CAP_MIN;
-  const atCap = !isWeekend && plannedMin >= WEEKDAY_CAP_MIN;
+  const overBudget = !isLongDay && actual > SHORT_DAY_CAP_MIN;
+  const atCap = !isLongDay && plannedMin >= SHORT_DAY_CAP_MIN;
 
   const tid = (suffix: string) =>
     testIdPrefix ? `${testIdPrefix}-${suffix}` : undefined;
@@ -100,14 +105,14 @@ export function TimeBudgetBar({
 
   let label: string;
   if (overBudget) {
-    label = `${actual} / ${WEEKDAY_CAP_MIN} min · over budget`;
-  } else if (isWeekend) {
-    label = `${plannedMin} / ${WEEKEND_FLOOR_MIN}+ min`;
+    label = `${actual} / ${SHORT_DAY_CAP_MIN} min · over budget`;
+  } else if (isLongDay) {
+    label = `${plannedMin} / ${LONG_DAY_FLOOR_MIN}+ min`;
   } else {
-    label = `${plannedMin} / ${WEEKDAY_CAP_MIN} min budget`;
+    label = `${plannedMin} / ${SHORT_DAY_CAP_MIN} min budget`;
   }
 
-  // Tone: weekday at-cap reads in the primary accent (we hit the
+  // Tone: short-day at-cap reads in the primary accent (we hit the
   // budget — good); over-budget reads destructive; everything else
   // is the neutral primary/40 fill.
   const plannedFillTone = overBudget
@@ -131,7 +136,7 @@ export function TimeBudgetBar({
         aria-valuemin={0}
         aria-valuemax={cap}
         aria-valuenow={Math.min(plannedMin, cap)}
-        aria-label={`Planned ${plannedMin} of ${isWeekend ? `${WEEKEND_FLOOR_MIN}+` : WEEKDAY_CAP_MIN} minute budget`}
+        aria-label={`Planned ${plannedMin} of ${isLongDay ? `${LONG_DAY_FLOOR_MIN}+` : SHORT_DAY_CAP_MIN} minute budget`}
       >
         <div
           className={cn("absolute inset-y-0 left-0", plannedFillTone)}
@@ -157,7 +162,7 @@ export function TimeBudgetBar({
             )}
           </>
         )}
-        {!isWeekend && trackMax > cap && (
+        {!isLongDay && trackMax > cap && (
           <div
             className="absolute inset-y-0 w-px bg-foreground/40"
             style={{ left: capMarkerLeft }}

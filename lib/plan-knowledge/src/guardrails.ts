@@ -1,12 +1,11 @@
 import { DAY_ORDER, isMonday } from "./dates";
+import { dayBudgetForDayName } from "./types";
 import type { AiPlan, DailyBudget, Guardrail } from "./types";
 
 // Soft guardrails over a proposed plan. These NEVER block — they flag likely
 // slips so we can show the runner and/or feed them back to Claude to self-correct.
 // Claude still owns the numbers; this just catches obvious mistakes.
 
-const DEFAULT_WEEKDAY_MAX = 75;
-const DEFAULT_WEEKEND_MIN = 60;
 const STRENGTH_FLOOR_MIN = 30;
 // Flag a weekly-mileage jump above this fraction (the ~10% rule, with slack).
 const MILEAGE_JUMP_FRACTION = 0.15;
@@ -19,8 +18,6 @@ function dayTotal(d: { strengthMin: number; cardioMin: number; runMin: number })
 
 export function runGuardrails(plan: AiPlan, budget: DailyBudget): Guardrail[] {
   const out: Guardrail[] = [];
-  const weekdayMax = budget.weekdayMax ?? DEFAULT_WEEKDAY_MAX;
-  const weekendMin = budget.weekendMin ?? DEFAULT_WEEKEND_MIN;
 
   if (!isMonday(plan.startDate)) {
     out.push({
@@ -85,24 +82,33 @@ export function runGuardrails(plan: AiPlan, budget: DailyBudget): Guardrail[] {
 
       if (d.isRest) continue;
 
-      // Time-budget ceiling (Sunday is open-ended, so skip its max).
-      if (d.day !== "Sun" && d.day !== "Mon" && total > weekdayMax) {
-        out.push({
-          level: "warn",
-          code: "over_budget",
-          week: week.week,
-          day: d.day,
-          message: `Week ${week.week} ${d.day} totals ${total} min, over the ${weekdayMax} min weekday ceiling.`,
-        });
-      }
-      if (d.day === "Sun" && total < weekendMin) {
-        out.push({
-          level: "info",
-          code: "short_sunday",
-          week: week.week,
-          day: d.day,
-          message: `Week ${week.week} Sunday totals ${total} min, under the ${weekendMin} min target.`,
-        });
+      // Fixed-cadence per-day budget window. Mon is handled by the
+      // monday_not_rest check above; here we enforce the SHORT (Tue-Thu,
+      // default 30-50) and LONG (Fri-Sun, default 60-90) windows. Both the
+      // floor and the ceiling are flagged so an over- or under-loaded day
+      // surfaces regardless of which bucket it falls in.
+      if (d.day !== "Mon") {
+        const win = dayBudgetForDayName(d.day, budget);
+        const bucket =
+          d.day === "Tue" || d.day === "Wed" || d.day === "Thu" ? "short" : "long";
+        if (total > win.max) {
+          out.push({
+            level: "warn",
+            code: "over_budget",
+            week: week.week,
+            day: d.day,
+            message: `Week ${week.week} ${d.day} totals ${total} min, over the ${win.max} min ${bucket}-day ceiling.`,
+          });
+        }
+        if (total < win.min) {
+          out.push({
+            level: "info",
+            code: "under_budget",
+            week: week.week,
+            day: d.day,
+            message: `Week ${week.week} ${d.day} totals ${total} min, under the ${win.min} min ${bucket}-day floor.`,
+          });
+        }
       }
 
       // Strength floor on training days.

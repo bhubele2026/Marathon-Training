@@ -29,42 +29,43 @@ function day(partial: Partial<AiDay> & { day: string }): AiDay {
   };
 }
 
-// A clean, contract-respecting week (Mon rest; Tue-Sat 45-75; Sun >=60;
-// >=30 lift on training days; valid paces; 11 mi/week).
+// A clean, contract-respecting week under the FIXED cadence (Mon rest;
+// Tue-Thu SHORT 30-50; Fri-Sun LONG 60-90; >=30 lift on training days;
+// valid paces; 11 mi/week).
 function cleanWeek(week: number, phase = "Base"): AiWeek {
   return {
     week,
     phase,
     days: [
       day({ day: "Mon", isRest: true, sessionType: "Rest", strengthMin: 0, equipmentList: [] }),
-      day({ day: "Tue", strengthMin: 45, cardioMin: 15, equipmentList: ["Tonal", "Peloton Bike"] }),
+      day({ day: "Tue", strengthMin: 30, cardioMin: 15, equipmentList: ["Tonal", "Peloton Bike"] }), // 45
       day({
         day: "Wed",
         strengthMin: 30,
-        runMin: 30,
+        runMin: 18,
         distanceMi: 3,
         pace: "12:30",
         equipmentList: ["Peloton Tread", "Tonal"],
-      }),
-      day({ day: "Thu", strengthMin: 45, cardioMin: 15, equipmentList: ["Tonal", "Peloton Row"] }),
+      }), // 48
+      day({ day: "Thu", strengthMin: 30, cardioMin: 15, equipmentList: ["Tonal", "Peloton Row"] }), // 45
       day({
         day: "Fri",
         strengthMin: 30,
-        runMin: 30,
+        runMin: 35,
         distanceMi: 3,
         pace: "11:30",
         equipmentList: ["Peloton Tread", "Tonal"],
-      }),
-      day({ day: "Sat", strengthMin: 40, cardioMin: 20, equipmentList: ["Tonal", "Peloton Bike"] }),
+      }), // 65
+      day({ day: "Sat", strengthMin: 40, cardioMin: 25, equipmentList: ["Tonal", "Peloton Bike"] }), // 65
       day({
         day: "Sun",
         sessionType: "Long Run",
         strengthMin: 30,
-        runMin: 45,
+        runMin: 50,
         distanceMi: 5,
         pace: "13:00",
         equipmentList: ["Peloton Tread", "Tonal"],
-      }),
+      }), // 80
     ],
   };
 }

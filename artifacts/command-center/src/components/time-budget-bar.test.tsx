@@ -1,6 +1,7 @@
-// Tests for TimeBudgetBar — locks in the daily time-budget contract
-// visualization (Mon hidden, Tue-Sat capped at 75, Sun open-ended ≥ 60),
-// the over-budget destructive-tone overlay, and the at-cap primary tone.
+// Tests for TimeBudgetBar — locks in the fixed-cadence daily time-budget
+// contract visualization (Mon hidden; Tue-Thu SHORT capped at 50;
+// Fri-Sun LONG open-ended ≥ 60), the over-budget destructive-tone overlay
+// on short days, and the at-cap primary tone.
 
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
@@ -19,39 +20,49 @@ describe("TimeBudgetBar", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("renders a 75-min cap label on a Tue-Sat weekday", () => {
+  it("renders a 50-min cap label on a Tue-Thu short day", () => {
     // 2026-05-05 is a Tuesday.
     render(
-      <TimeBudgetBar date="2026-05-05" plannedMin={55} testIdPrefix="t" />,
+      <TimeBudgetBar date="2026-05-05" plannedMin={45} testIdPrefix="t" />,
     );
     expect(screen.getByTestId("t-time-budget")).not.toBeNull();
     expect(screen.getByTestId("t-time-budget-label").textContent).toBe(
-      "55 / 75 min budget",
+      "45 / 50 min budget",
     );
   });
 
-  it("treats Saturday as a capped weekday (75 min cap, not open-ended)", () => {
+  it("treats Friday as a LONG day (60+ open-ended, not a short cap)", () => {
+    // 2026-05-08 is a Friday.
+    render(
+      <TimeBudgetBar date="2026-05-08" plannedMin={75} testIdPrefix="t" />,
+    );
+    expect(screen.getByTestId("t-time-budget-label").textContent).toBe(
+      "75 / 60+ min",
+    );
+  });
+
+  it("treats Saturday as a LONG day (60+ open-ended)", () => {
     // 2026-05-09 is a Saturday.
     render(
       <TimeBudgetBar date="2026-05-09" plannedMin={70} testIdPrefix="t" />,
     );
     expect(screen.getByTestId("t-time-budget-label").textContent).toBe(
-      "70 / 75 min budget",
+      "70 / 60+ min",
     );
   });
 
-  it("flips the label to OVER BUDGET when the actual exceeds 75 on a weekday", () => {
-    // 2026-05-08 is a Friday.
+  it("flips the label to OVER BUDGET when the actual exceeds 50 on a short day", () => {
+    // 2026-05-06 is a Wednesday (short day).
     render(
       <TimeBudgetBar
-        date="2026-05-08"
-        plannedMin={70}
-        actualMin={88}
+        date="2026-05-06"
+        plannedMin={45}
+        actualMin={62}
         testIdPrefix="t"
       />,
     );
     expect(screen.getByTestId("t-time-budget-label").textContent).toBe(
-      "88 / 75 min · over budget",
+      "62 / 50 min · over budget",
     );
     expect(screen.getByTestId("t-time-budget-overflow")).not.toBeNull();
   });
@@ -74,7 +85,7 @@ describe("TimeBudgetBar", () => {
 
   it("does not render the actual overlay or overflow when no actual is logged", () => {
     render(
-      <TimeBudgetBar date="2026-05-05" plannedMin={50} testIdPrefix="t" />,
+      <TimeBudgetBar date="2026-05-05" plannedMin={45} testIdPrefix="t" />,
     );
     expect(screen.queryByTestId("t-time-budget-actual")).toBeNull();
     expect(screen.queryByTestId("t-time-budget-overflow")).toBeNull();
