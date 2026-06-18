@@ -366,8 +366,8 @@ export default function Races() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-6xl mx-auto">
       <div className="flex items-end justify-between gap-3 flex-wrap">
         <div>
-          <h2 className="text-3xl font-black uppercase tracking-tight text-primary">Race History</h2>
-          <p className="text-muted-foreground uppercase font-medium tracking-widest mt-1">
+          <h2 className="text-3xl font-black tracking-tight text-primary">Race History</h2>
+          <p className="text-muted-foreground font-medium tracking-widest mt-1">
             Every Finish Line, Every Campaign
           </p>
         </div>
@@ -381,7 +381,7 @@ export default function Races() {
 
       <Card data-testid="card-upcoming-races">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base uppercase tracking-wider flex items-center gap-2">
+          <CardTitle className="text-base tracking-wider flex items-center gap-2">
             <CalendarDays className="h-5 w-5 text-primary" />
             Upcoming Races
           </CardTitle>
@@ -404,7 +404,7 @@ export default function Races() {
                     data-testid={`scheduled-race-${sr.raceDate}`}
                   >
                     <div className="flex items-center gap-3 flex-wrap">
-                      <Badge variant="secondary" className="uppercase tracking-wider">
+                      <Badge variant="secondary" className="tracking-wider">
                         {RACE_KIND_LABELS[sr.raceKind] ?? sr.raceKind}
                       </Badge>
                       <span className="font-mono font-bold text-primary">
@@ -414,7 +414,7 @@ export default function Races() {
                         <span className="text-sm text-muted-foreground">{sr.name}</span>
                       )}
                       {isPast && !sr.hasResult && (
-                        <Badge variant="destructive" className="uppercase tracking-wider">
+                        <Badge variant="destructive" className="tracking-wider">
                           Result Pending
                         </Badge>
                       )}
@@ -505,7 +505,7 @@ export default function Races() {
         <Card>
           <CardContent className="p-12 text-center text-muted-foreground">
             <Trophy className="h-12 w-12 mx-auto mb-4 opacity-30" />
-            <p className="font-semibold uppercase tracking-wider">No race results logged yet</p>
+            <p className="font-semibold tracking-wider">No race results logged yet</p>
             <p className="text-sm mt-2">
               Once you log a race-day result from the post-race banner, it will live here for good.
             </p>
@@ -519,11 +519,11 @@ export default function Races() {
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                   <div className="flex items-center gap-3">
                     <Trophy className="h-5 w-5 text-primary shrink-0" />
-                    <CardTitle className="text-lg uppercase tracking-wider">
+                    <CardTitle className="text-lg tracking-wider">
                       {formatDate(r.raceDate)}
                     </CardTitle>
                     {r.raceKind && (
-                      <Badge variant="secondary" className="uppercase tracking-wider">
+                      <Badge variant="secondary" className="tracking-wider">
                         {RACE_KIND_LABELS[r.raceKind] ?? r.raceKind}
                       </Badge>
                     )}
@@ -569,7 +569,7 @@ export default function Races() {
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                    <div className="text-[10px] font-bold tracking-widest text-muted-foreground">
                       Finish Time
                     </div>
                     <div className="font-mono font-bold text-primary text-lg mt-1">
@@ -577,19 +577,19 @@ export default function Races() {
                     </div>
                   </div>
                   <div>
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                    <div className="text-[10px] font-bold tracking-widest text-muted-foreground">
                       Placement
                     </div>
                     <div className="font-mono font-semibold mt-1">{placementText(r)}</div>
                   </div>
                   <div>
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                    <div className="text-[10px] font-bold tracking-widest text-muted-foreground">
                       Felt
                     </div>
                     <div className="font-mono font-semibold mt-1">{feltLabel(r.feltRating)}</div>
                   </div>
                   <div>
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                    <div className="text-[10px] font-bold tracking-widest text-muted-foreground">
                       Logged
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
@@ -599,7 +599,7 @@ export default function Races() {
                 </div>
                 {r.notes && (
                   <div className="mt-4 pt-4 border-t border-border">
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">
+                    <div className="text-[10px] font-bold tracking-widest text-muted-foreground mb-1">
                       Notes
                     </div>
                     <p className="text-sm whitespace-pre-wrap">{r.notes}</p>
@@ -788,7 +788,7 @@ export default function Races() {
           {logDraft && (
             <div className="space-y-4">
               <div className="flex items-center gap-2 flex-wrap">
-                <Badge variant="secondary" className="uppercase tracking-wider">
+                <Badge variant="secondary" className="tracking-wider">
                   {RACE_KIND_LABELS[logDraft.raceKind] ?? logDraft.raceKind}
                 </Badge>
                 <span className="font-mono font-bold text-primary">

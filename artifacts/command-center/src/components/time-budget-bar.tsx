@@ -167,7 +167,7 @@ export function TimeBudgetBar({
       </div>
       <p
         className={cn(
-          "uppercase tracking-wider font-bold",
+          "tracking-wider font-bold",
           labelSize,
           overBudget ? "text-destructive" : "text-muted-foreground",
         )}

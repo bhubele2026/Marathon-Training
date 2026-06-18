@@ -46,7 +46,7 @@ export function PrimaryMetricDisplay({
       <div className={className} data-testid={tid("primary-metric")}>
         <p
           className={cn(
-            "text-muted-foreground uppercase font-bold tracking-wider",
+            "text-muted-foreground font-bold tracking-wider",
             variant === "prominent" ? "text-xs" : "text-[10px]",
           )}
         >
@@ -81,7 +81,7 @@ export function PrimaryMetricDisplay({
     <div className={className} data-testid={tid("primary-metric")}>
       <p
         className={cn(
-          "text-muted-foreground uppercase font-bold tracking-wider",
+          "text-muted-foreground font-bold tracking-wider",
           variant === "prominent" ? "text-xs" : "text-[10px]",
         )}
       >

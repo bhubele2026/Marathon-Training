@@ -141,12 +141,12 @@ function PacingIndicator({
   return (
     <div className="mb-4">
       <div className="flex items-center justify-between mb-1.5">
-        <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+        <div className="text-[10px] font-bold tracking-wider text-muted-foreground">
           Pace vs plan
         </div>
         <span
           className={cn(
-            "text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border",
+            "text-[10px] font-bold tracking-wider px-2 py-0.5 rounded border",
             styles.badge,
           )}
         >
@@ -191,17 +191,17 @@ function PlannedActualRow({
   if (hideWhenEmpty && planned === "-" && actual === "-") return null;
   return (
     <div>
-      <div className="flex items-center text-[10px] uppercase font-bold text-muted-foreground mb-1">
+      <div className="flex items-center text-[10px] font-bold text-muted-foreground mb-1">
         {icon}
         <span className="ml-1">{label}</span>
       </div>
       <div className="grid grid-cols-2 gap-2 text-xs">
         <div>
-          <div className="text-[9px] uppercase tracking-wider text-muted-foreground/80">Planned</div>
+          <div className="text-[9px] tracking-wider text-muted-foreground/80">Planned</div>
           <div className="font-mono text-base">{planned}</div>
         </div>
         <div>
-          <div className="text-[9px] uppercase tracking-wider text-muted-foreground/80">Actual</div>
+          <div className="text-[9px] tracking-wider text-muted-foreground/80">Actual</div>
           <div className="font-mono text-base">{actual}</div>
         </div>
       </div>
@@ -254,8 +254,8 @@ export default function Equipment() {
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto">
       <div>
-        <h2 className="text-3xl font-black uppercase tracking-tight text-primary">Arsenal</h2>
-        <p className="text-muted-foreground uppercase font-medium tracking-widest mt-1">
+        <h2 className="text-3xl font-black tracking-tight text-primary">Arsenal</h2>
+        <p className="text-muted-foreground font-medium tracking-widest mt-1">
           Equipment Mileage & Usage
         </p>
       </div>
@@ -272,10 +272,10 @@ export default function Equipment() {
             >
               <CardContent className="p-4 flex items-center gap-2">
                 <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                <span className="font-black uppercase tracking-wider text-sm">
+                <span className="font-black tracking-wider text-sm">
                   All Arsenal On Track
                 </span>
-                <span className="text-xs uppercase tracking-wider text-muted-foreground ml-1">
+                <span className="text-xs tracking-wider text-muted-foreground ml-1">
                   Every machine at or above 85% of plan-to-date
                 </span>
               </CardContent>
@@ -290,7 +290,7 @@ export default function Equipment() {
             <CardContent className="p-5">
               <div className="flex items-center gap-2 mb-3">
                 <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                <span className="font-black uppercase tracking-wider text-sm">
+                <span className="font-black tracking-wider text-sm">
                   {behindMachines.length} Machine{behindMachines.length === 1 ? "" : "s"} Need Attention
                 </span>
               </div>
@@ -308,12 +308,12 @@ export default function Equipment() {
                       className="flex items-center justify-between gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-left transition-colors hover:bg-amber-500/20"
                       data-testid={`behind-machine-${eq.equipment.toLowerCase().replace(/\s+/g, "-")}`}
                     >
-                      <span className="font-bold uppercase tracking-wider text-xs truncate">
+                      <span className="font-bold tracking-wider text-xs truncate">
                         {eq.equipment}
                       </span>
                       <span className="text-[11px] font-mono text-amber-600 dark:text-amber-400 shrink-0 text-right">
                         {shortfall} session{shortfall === 1 ? "" : "s"} behind
-                        <span className="block text-[9px] uppercase tracking-wider text-amber-600/70 dark:text-amber-400/70">
+                        <span className="block text-[9px] tracking-wider text-amber-600/70 dark:text-amber-400/70">
                           {eq.sessions}/{eq.plannedToDateSessions} · {ratio}%
                         </span>
                       </span>
@@ -349,7 +349,7 @@ export default function Equipment() {
                     selectedEquipment === "All" ? "text-primary" : "text-muted-foreground",
                   )}
                 />
-                <div className="font-black text-lg uppercase tracking-wider">All Arsenal</div>
+                <div className="font-black text-lg tracking-wider">All Arsenal</div>
               </div>
               <PacingIndicator
                 actual={combined.sessions}
@@ -396,7 +396,7 @@ export default function Equipment() {
               onClick={() => setSelectedEquipment(eq.equipment)}
             >
               <CardContent className="p-5">
-                <div className="font-black text-lg uppercase tracking-wider mb-4 border-b border-border pb-2">
+                <div className="font-black text-lg tracking-wider mb-4 border-b border-border pb-2">
                   {eq.equipment}
                 </div>
                 {(() => {
@@ -439,7 +439,7 @@ export default function Equipment() {
                 </div>
                 {["Peloton Bike", "Peloton Row", "Peloton Tread"].includes(eq.equipment) && eq.plannedMinutes > 0 && (
                   <div className="mt-3 pt-3 border-t border-border" data-testid={`cardio-pace-${eq.equipment.toLowerCase().replace(/\s+/g, "-")}`}>
-                    <div className="flex items-center gap-1 text-[10px] uppercase font-bold text-muted-foreground mb-1">
+                    <div className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground mb-1">
                       <Timer className="h-3 w-3" />
                       Cardio Pace
                     </div>
@@ -451,7 +451,7 @@ export default function Equipment() {
                       </span>
                       {eq.plannedToDateMinutes > 0 && (
                         <span className={cn(
-                          "text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded",
+                          "text-[10px] font-bold tracking-wider px-1.5 py-0.5 rounded",
                           eq.totalMinutes >= eq.plannedToDateMinutes * 0.85
                             ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
                             : "bg-amber-500/15 text-amber-600 dark:text-amber-400",
@@ -478,7 +478,7 @@ export default function Equipment() {
                       className="mt-3 pt-3 border-t border-border"
                       data-testid={`equipment-card-programs-${eq.equipment.toLowerCase().replace(/\s+/g, "-")}`}
                     >
-                      <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1.5">
+                      <div className="text-[10px] font-bold text-muted-foreground mb-1.5">
                         Per Program
                       </div>
                       <div className="space-y-1">
@@ -493,7 +493,7 @@ export default function Equipment() {
                               className="flex items-center justify-between gap-2 text-xs"
                               data-testid={`equipment-card-program-${eq.equipment.toLowerCase().replace(/\s+/g, "-")}-${p.sourceEntryIndex}`}
                             >
-                              <span className="truncate font-bold uppercase tracking-wider">
+                              <span className="truncate font-bold tracking-wider">
                                 {p.label}
                               </span>
                               <span className="shrink-0 font-mono text-muted-foreground">
@@ -517,8 +517,8 @@ export default function Equipment() {
 
       <div className="pt-6 border-t border-border">
         <div className="mb-4">
-          <h3 className="text-xl font-bold uppercase tracking-wider">Campaign Distribution</h3>
-          <p className="text-xs text-muted-foreground uppercase tracking-widest mt-1">
+          <h3 className="text-xl font-bold tracking-wider">Campaign Distribution</h3>
+          <p className="text-xs text-muted-foreground tracking-widest mt-1">
             Planned vs actual sessions per machine across each phase
           </p>
         </div>
@@ -535,12 +535,12 @@ export default function Equipment() {
                       style={{ backgroundColor: phaseColor(phase) }}
                       aria-hidden
                     />
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+                    <span className="text-[10px] font-bold tracking-wider text-muted-foreground">
                       {phase}
                     </span>
                   </div>
                 ))}
-                <div className="ml-auto flex items-center gap-3 text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+                <div className="ml-auto flex items-center gap-3 text-[10px] font-bold tracking-wider text-muted-foreground">
                   <div className="flex items-center gap-1.5">
                     <span
                       className="h-3 w-3 rounded-sm border border-foreground/20 bg-foreground/10"
@@ -583,7 +583,7 @@ export default function Equipment() {
                             key={row.equipment}
                             className="grid grid-cols-[7rem_1fr_4.25rem] items-start gap-3"
                           >
-                            <div className="font-bold uppercase tracking-wider text-xs truncate pt-1">
+                            <div className="font-bold tracking-wider text-xs truncate pt-1">
                               {row.equipment}
                             </div>
                             <div>
@@ -663,7 +663,7 @@ export default function Equipment() {
                                             </div>
                                           </TooltipTrigger>
                                           <TooltipContent>
-                                            <div className="font-bold uppercase tracking-wider">
+                                            <div className="font-bold tracking-wider">
                                               {phaseSummary.phases[i]}
                                             </div>
                                             <div className="text-xs">
@@ -676,19 +676,19 @@ export default function Equipment() {
                                               )}
                                             </div>
                                             {isBehind && (
-                                              <div className="text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-400 font-bold mt-0.5">
+                                              <div className="text-[10px] tracking-wider text-amber-600 dark:text-amber-400 font-bold mt-0.5">
                                                 Behind by {behindShortfall} session
                                                 {behindShortfall === 1 ? "" : "s"} · {actual}/
                                                 {plannedToDate} due so far
                                               </div>
                                             )}
                                             {overshoot && (
-                                              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">
+                                              <div className="text-[10px] tracking-wider text-muted-foreground mt-0.5">
                                                 {actual - planned} over plan
                                               </div>
                                             )}
                                             {planned === 0 && actual > 0 && (
-                                              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">
+                                              <div className="text-[10px] tracking-wider text-muted-foreground mt-0.5">
                                                 Unplanned
                                               </div>
                                             )}
@@ -700,7 +700,7 @@ export default function Equipment() {
                                 )}
                               </div>
                               {behindPhases.length > 0 && (
-                                <div className="mt-1 flex items-start gap-1 text-[10px] uppercase tracking-wider font-bold text-amber-600 dark:text-amber-400">
+                                <div className="mt-1 flex items-start gap-1 text-[10px] tracking-wider font-bold text-amber-600 dark:text-amber-400">
                                   <span
                                     className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"
                                     aria-hidden
@@ -724,7 +724,7 @@ export default function Equipment() {
                                 {row.actualTotal}
                                 <span className="text-muted-foreground">/{row.total}</span>
                               </div>
-                              <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                              <div className="text-[9px] tracking-wider text-muted-foreground">
                                 done/plan
                               </div>
                             </div>
@@ -746,11 +746,11 @@ export default function Equipment() {
 
       <div className="pt-6 border-t border-border">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-bold uppercase tracking-wider">Recent Activity</h3>
+          <h3 className="text-xl font-bold tracking-wider">Recent Activity</h3>
           {selectedEquipment !== "All" && (
             <Badge
               variant="secondary"
-              className="cursor-pointer uppercase tracking-wider text-xs"
+              className="cursor-pointer tracking-wider text-xs"
               onClick={() => setSelectedEquipment("All")}
             >
               Filter: {selectedEquipment} ✕
@@ -780,7 +780,7 @@ export default function Equipment() {
                       <div>
                         <div className="flex items-center gap-2">
                           <h4 className="font-bold text-lg">{workout.sessionType}</h4>
-                          <span className="text-[10px] bg-secondary text-secondary-foreground px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                          <span className="text-[10px] bg-secondary text-secondary-foreground px-2 py-0.5 rounded font-bold tracking-wider">
                             {workout.equipment}
                           </span>
                         </div>
@@ -791,7 +791,7 @@ export default function Equipment() {
                     <div className="flex gap-6 text-sm">
                       {workout.distanceMi != null && (
                         <div className="text-right">
-                          <span className="block text-[10px] uppercase font-bold text-muted-foreground">
+                          <span className="block text-[10px] font-bold text-muted-foreground">
                             Distance
                           </span>
                           <span className="font-mono font-medium">
@@ -801,7 +801,7 @@ export default function Equipment() {
                       )}
                       {workout.durationMin != null && (
                         <div className="text-right">
-                          <span className="block text-[10px] uppercase font-bold text-muted-foreground">
+                          <span className="block text-[10px] font-bold text-muted-foreground">
                             Time
                           </span>
                           <span className="font-mono font-medium">
@@ -811,7 +811,7 @@ export default function Equipment() {
                       )}
                       {workout.totalLoad != null && (
                         <div className="text-right">
-                          <span className="block text-[10px] uppercase font-bold text-muted-foreground">
+                          <span className="block text-[10px] font-bold text-muted-foreground">
                             Load
                           </span>
                           <span className="font-mono font-medium">

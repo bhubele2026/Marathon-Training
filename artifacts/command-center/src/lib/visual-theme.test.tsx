@@ -87,37 +87,46 @@ describe("VisualThemeProvider", () => {
     document.getElementById(STYLE_ELEMENT_ID)?.remove();
   });
 
-  it("defaults to blacksmith when no preference is stored", () => {
+  it("defaults to studio when no preference is stored", () => {
     renderWithProviders(<PickerHarness />);
-    expect(screen.getByTestId("active").textContent).toBe("blacksmith");
+    expect(screen.getByTestId("active").textContent).toBe("studio");
   });
 
-  it("hydrates from localStorage on mount", () => {
-    window.localStorage.setItem(STORAGE_KEY, "trail-forest");
+  it("hydrates the single studio palette from localStorage on mount", () => {
+    window.localStorage.setItem(STORAGE_KEY, "studio");
     renderWithProviders(<PickerHarness />);
-    expect(screen.getByTestId("active").textContent).toBe("trail-forest");
+    expect(screen.getByTestId("active").textContent).toBe("studio");
   });
 
   it("ignores unknown stored values and falls back to default", () => {
     window.localStorage.setItem(STORAGE_KEY, "not-a-real-theme");
     renderWithProviders(<PickerHarness />);
-    expect(screen.getByTestId("active").textContent).toBe("blacksmith");
+    expect(screen.getByTestId("active").textContent).toBe("studio");
   });
 
-  it("persists the new theme to localStorage when changed", () => {
+  it("ignores a legacy (now-removed) palette key and falls back to studio", () => {
+    // Phase 2 collapsed the palette set to a single `studio` theme.
+    // A stale `blacksmith`/`arctic-performance` value from before the
+    // overhaul should no longer resolve — it falls back to default.
+    window.localStorage.setItem(STORAGE_KEY, "blacksmith");
+    renderWithProviders(<PickerHarness />);
+    expect(screen.getByTestId("active").textContent).toBe("studio");
+  });
+
+  it("persists the picked theme to localStorage", () => {
     renderWithProviders(<PickerHarness />);
     act(() => {
-      screen.getByTestId("pick-championship-red").click();
+      screen.getByTestId("pick-studio").click();
     });
-    expect(screen.getByTestId("active").textContent).toBe("championship-red");
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBe("championship-red");
+    expect(screen.getByTestId("active").textContent).toBe("studio");
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe("studio");
   });
 
   it("injects a <style> element with the active theme's tokens", () => {
     renderWithProviders(<PickerHarness />);
     const styleEl = document.getElementById(STYLE_ELEMENT_ID);
     expect(styleEl).not.toBeNull();
-    const active = THEMES["blacksmith"];
+    const active = THEMES["studio"];
     // light tokens land under `:root`
     expect(styleEl!.textContent).toContain(":root");
     expect(styleEl!.textContent).toContain(`--primary: ${active.light.primary};`);
@@ -131,75 +140,44 @@ describe("VisualThemeProvider", () => {
     );
   });
 
-  it("rewrites the injected style when the theme changes", () => {
-    renderWithProviders(<PickerHarness />);
-    act(() => {
-      screen.getByTestId("pick-sunset-endurance").click();
-    });
-    const styleEl = document.getElementById(STYLE_ELEMENT_ID);
-    const sunset = THEMES["sunset-endurance"];
-    expect(styleEl!.textContent).toContain(`--primary: ${sunset.light.primary};`);
-    expect(styleEl!.textContent).toContain(
-      `--phase-race-specific: ${sunset.phaseColors.raceSpecific};`,
-    );
-    // The arctic value should no longer be present.
-    expect(styleEl!.textContent).not.toContain(
-      `--phase-race-specific: ${THEMES["arctic-performance"].phaseColors.raceSpecific};`,
-    );
-  });
-
   it("syncs across tabs via the storage event", () => {
     renderWithProviders(<PickerHarness />);
     act(() => {
       window.dispatchEvent(
         new StorageEvent("storage", {
           key: STORAGE_KEY,
-          newValue: "midnight-track",
+          newValue: "studio",
         }),
       );
     });
-    expect(screen.getByTestId("active").textContent).toBe("midnight-track");
+    expect(screen.getByTestId("active").textContent).toBe("studio");
   });
 
   // Task #196 — server-side hydration / cross-device persistence.
 
-  it("hydrates from the server visualTheme preference (server wins over localStorage)", () => {
-    // Local says trail-forest, server says midnight-track. Server
-    // should win so the choice follows the runner across devices.
-    window.localStorage.setItem(STORAGE_KEY, "trail-forest");
-    serverVisualThemeRef.current = "midnight-track";
+  it("hydrates from the server visualTheme preference", () => {
+    serverVisualThemeRef.current = "studio";
     renderWithProviders(<PickerHarness />);
-    expect(screen.getByTestId("active").textContent).toBe("midnight-track");
+    expect(screen.getByTestId("active").textContent).toBe("studio");
     // …and the server choice is mirrored down to localStorage so an
     // offline reload still picks the right palette.
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBe("midnight-track");
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe("studio");
   });
 
   it("writes the picked theme through to the user-preferences mutation", () => {
     renderWithProviders(<PickerHarness />);
     mutateSpy.mockClear();
     act(() => {
-      screen.getByTestId("pick-championship-red").click();
+      screen.getByTestId("pick-studio").click();
     });
     expect(mutateSpy).toHaveBeenCalledWith({
-      data: { visualTheme: "championship-red" },
+      data: { visualTheme: "studio" },
     });
   });
 
-  it("migrates a non-default localStorage choice up to the server when the server has none", () => {
-    window.localStorage.setItem(STORAGE_KEY, "sunset-endurance");
-    serverVisualThemeRef.current = null;
-    renderWithProviders(<PickerHarness />);
-    // After hydration the mutation should have been fired with the
-    // local value so other devices inherit it.
-    expect(mutateSpy).toHaveBeenCalledWith({
-      data: { visualTheme: "sunset-endurance" },
-    });
-  });
-
-  it("does NOT push the arctic default up when the server has no saved choice yet", () => {
+  it("does NOT push the default up when the server has no saved choice yet", () => {
     // No localStorage value, server has none either — nothing to
-    // migrate. Otherwise we'd lock every new account into arctic.
+    // migrate. The single default is never force-pushed to the server.
     serverVisualThemeRef.current = null;
     renderWithProviders(<PickerHarness />);
     expect(mutateSpy).not.toHaveBeenCalled();
@@ -208,7 +186,7 @@ describe("VisualThemeProvider", () => {
 
 describe("buildThemeCss", () => {
   it("produces selectors for :root, .dark, and the phase block", () => {
-    const css = buildThemeCss(THEMES["championship-red"]);
+    const css = buildThemeCss(THEMES["studio"]);
     expect(css).toContain(":root {");
     expect(css).toContain(".dark {");
     // exactly two `:root {` occurrences (tokens + phase colors)

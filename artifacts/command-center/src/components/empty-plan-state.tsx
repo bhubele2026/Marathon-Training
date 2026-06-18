@@ -25,7 +25,7 @@ export function EmptyPlanState({
       <CardContent className="p-12 text-center space-y-4">
         <Wand2 className="h-12 w-12 mx-auto text-primary opacity-70" />
         <div className="space-y-2">
-          <h3 className="text-xl font-black uppercase tracking-wider">
+          <h3 className="text-xl font-black tracking-wider">
             {title}
           </h3>
           <p className="text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
@@ -34,7 +34,7 @@ export function EmptyPlanState({
         </div>
         <Button
           size="lg"
-          className="uppercase font-bold tracking-wider"
+          className="font-bold tracking-wider"
           onClick={() => navigate("/planner")}
           data-testid={`${testId}-cta`}
         >

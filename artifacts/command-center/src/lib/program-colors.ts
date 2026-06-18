@@ -4,17 +4,19 @@
 // 2+ overlapping programs can visually trace one program's
 // contribution across all three views.
 //
-// The palette is intentionally distinct from the phase palette
-// (`phase-colors.ts`) — phase color sits on actual-miles bars and
-// phase swatches; program color rides borders and the planned-miles
-// stacked bars so the two encodings don't collide.
+// Phase 2 overhaul: single-accent + neutral-gray ramp (no rainbow).
+// The first program reads in the teal accent; additional concurrent
+// programs are differentiated by lightness on the SAME neutral hue, so
+// the planned-miles stacked bars and per-program borders never collide
+// with a second color family. Entries stay distinct (by lightness) so
+// 2+ overlapping programs remain traceable.
 const PROGRAM_PALETTE = [
-  "hsl(199 89% 55%)", // sky
-  "hsl(280 65% 62%)", // violet
-  "hsl(150 60% 45%)", // emerald
-  "hsl(38 92% 55%)", // amber
-  "hsl(340 75% 60%)", // rose
-  "hsl(190 80% 45%)", // teal
+  "hsl(174 60% 45%)", // accent teal
+  "hsl(220 9% 70%)", // light gray
+  "hsl(220 9% 56%)", // mid gray
+  "hsl(220 9% 42%)", // dark gray
+  "hsl(220 9% 80%)", // lighter gray
+  "hsl(220 9% 34%)", // deeper gray
 ];
 
 export function programColor(sourceEntryIndex: number): string {

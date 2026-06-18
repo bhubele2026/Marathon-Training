@@ -80,7 +80,7 @@ export default function Nutrition() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-primary uppercase">
+        <h1 className="text-3xl font-bold tracking-tight text-primary">
           Nutrition
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
@@ -92,7 +92,7 @@ export default function Nutrition() {
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted-foreground">
+            <CardTitle className="flex items-center gap-2 text-sm tracking-wider text-muted-foreground">
               <Beef className="h-4 w-4 text-primary" />
               Protein Today
             </CardTitle>
@@ -125,7 +125,7 @@ export default function Nutrition() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted-foreground">
+            <CardTitle className="flex items-center gap-2 text-sm tracking-wider text-muted-foreground">
               <Flame className="h-4 w-4 text-primary" />
               Calories Today
             </CardTitle>
@@ -156,7 +156,7 @@ export default function Nutrition() {
       {/* 14-day protein trend */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm uppercase tracking-wider text-muted-foreground">
+          <CardTitle className="text-sm tracking-wider text-muted-foreground">
             Last 14 Days · Protein
           </CardTitle>
         </CardHeader>

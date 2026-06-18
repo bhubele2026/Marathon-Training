@@ -153,20 +153,20 @@ export function MoveDayPicker({ open, onOpenChange, day }: MoveDayPickerProps) {
             disabled={targetWeek <= minWeek || swapPlanDay.isPending}
             onClick={() => setTargetWeek((w) => Math.max(minWeek, w - 1))}
             data-testid="button-move-prev-week"
-            className="text-xs uppercase font-bold tracking-wider"
+            className="text-xs font-bold tracking-wider"
           >
             <ChevronLeft className="h-4 w-4 mr-1" /> Prev
           </Button>
           <div className="text-center min-w-0">
-            <div className="text-xs font-black uppercase tracking-wider">
+            <div className="text-xs font-black tracking-wider">
               Week {targetWeek}
               {sameWeek && (
-                <span className="ml-2 text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                <span className="ml-2 text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded font-bold tracking-wider">
                   This Week
                 </span>
               )}
             </div>
-            <div className="text-[10px] uppercase tracking-widest text-muted-foreground truncate">
+            <div className="text-[10px] tracking-widest text-muted-foreground truncate">
               {targetWeekMeta?.phase ?? "—"}
             </div>
           </div>
@@ -176,7 +176,7 @@ export function MoveDayPicker({ open, onOpenChange, day }: MoveDayPickerProps) {
             disabled={targetWeek >= maxWeek || swapPlanDay.isPending}
             onClick={() => setTargetWeek((w) => Math.min(maxWeek, w + 1))}
             data-testid="button-move-next-week"
-            className="text-xs uppercase font-bold tracking-wider"
+            className="text-xs font-bold tracking-wider"
           >
             Next <ChevronRight className="h-4 w-4 ml-1" />
           </Button>
@@ -189,7 +189,7 @@ export function MoveDayPicker({ open, onOpenChange, day }: MoveDayPickerProps) {
           >
             <Sparkles className="h-3.5 w-3.5 mt-0.5 shrink-0" />
             <span>
-              Heads up — this week is in <span className="font-bold uppercase tracking-wider">{targetWeekMeta?.phase}</span>, while {day.day} is in <span className="font-bold uppercase tracking-wider">{day.phase}</span>. Swapping here moves a session across a phase boundary.
+              Heads up — this week is in <span className="font-bold tracking-wider">{targetWeekMeta?.phase}</span>, while {day.day} is in <span className="font-bold tracking-wider">{day.phase}</span>. Swapping here moves a session across a phase boundary.
             </span>
           </div>
         )}
@@ -234,10 +234,10 @@ export function MoveDayPicker({ open, onOpenChange, day }: MoveDayPickerProps) {
             >
               <div className="flex flex-col min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="font-bold uppercase tracking-wider text-xs">{c.day}</span>
+                  <span className="font-bold tracking-wider text-xs">{c.day}</span>
                   <span className="text-xs text-muted-foreground">{formatDate(c.date)}</span>
                   {!sameWeek && (
-                    <span className="text-[10px] bg-secondary text-secondary-foreground px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                    <span className="text-[10px] bg-secondary text-secondary-foreground px-1.5 py-0.5 rounded font-bold tracking-wider">
                       W{c.week}
                     </span>
                   )}

@@ -1,121 +1,232 @@
-import { ReactNode } from "react";
+import { ReactNode, useCallback, useState } from "react";
 import { Link, useLocation } from "wouter";
-import {
-  Activity,
-  Beef,
-  CalendarDays,
-  Dumbbell,
-  Home,
-  LineChart,
-  ListOrdered,
-  Scale,
-  Settings as SettingsIcon,
-  SlidersHorizontal,
-  Target,
-  Trophy,
-} from "lucide-react";
-import { useGetPlanOverview } from "@workspace/api-client-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { MoreHorizontal, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { ThemeToggle } from "./theme-toggle";
-import { QuickLogFab } from "./quick-log-fab";
+import {
+  CommandPalette,
+  useCommandPaletteHotkey,
+} from "./command-palette";
+import { PRIMARY_NAV, MORE_NAV } from "@/lib/nav";
 
 interface LayoutProps {
   children: ReactNode;
 }
 
+function isActivePath(location: string, href: string): boolean {
+  if (href === "/") return location === "/";
+  return location === href || location.startsWith(href + "/");
+}
+
+function Wordmark() {
+  return (
+    <Link
+      href="/"
+      className="flex items-center gap-2.5 shrink-0"
+      aria-label="Studio home"
+    >
+      <span className="h-5 w-1.5 rounded-sm bg-primary shrink-0" />
+      <span className="text-lg font-semibold tracking-tight text-foreground leading-none">
+        Studio
+      </span>
+    </Link>
+  );
+}
+
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
-  // Task #244: the /plan nav label follows the active planner config's
-  // name so the sidebar reads the same label the runner sees on the
-  // /plan and /dashboard headers, instead of a hardcoded "Half Marathon
-  // Plan" that doesn't match Tonal-first / non-running campaigns.
-  const { data: overview } = useGetPlanOverview();
-  const planLabel = overview?.activeConfigName?.trim() || "Workout Plan";
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [moreSheetOpen, setMoreSheetOpen] = useState(false);
 
-  const navItems = [
-    { href: "/", label: "Studio", icon: Home },
-    { href: "/today", label: "Today", icon: Activity },
-    { href: "/goals", label: "Goals", icon: Target },
-    { href: "/nutrition", label: "Nutrition", icon: Beef },
-    { href: "/plan", label: planLabel, icon: CalendarDays },
-    { href: "/log", label: "Training Log", icon: ListOrdered },
-    { href: "/measurements", label: "Body Metrics", icon: Scale },
-    { href: "/races", label: "Race History", icon: Trophy },
-    { href: "/equipment", label: "Equipment", icon: Dumbbell },
-    { href: "/planner", label: "Phase Planner", icon: SlidersHorizontal },
-    { href: "/settings", label: "Settings", icon: SettingsIcon },
-  ];
+  const togglePalette = useCallback(() => setPaletteOpen((v) => !v), []);
+  useCommandPaletteHotkey(togglePalette);
+
+  const isMac =
+    typeof navigator !== "undefined" &&
+    /Mac|iPhone|iPad/.test(navigator.platform);
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground flex-col md:flex-row">
-      <aside className="w-full md:w-64 border-r border-border bg-card flex flex-col hidden md:flex shrink-0">
-        <div className="p-6 border-b border-sidebar-border">
-          <div className="flex items-center gap-2.5">
-            <span className="h-6 w-1.5 rounded-sm bg-primary shrink-0" />
-            <h1 className="font-extrabold text-2xl tracking-tight text-foreground uppercase leading-none">
-              Studio
-            </h1>
-          </div>
-          <p className="text-[10px] text-muted-foreground uppercase font-semibold tracking-[0.28em] mt-2 pl-4">
-            Strength studio
-          </p>
-        </div>
-        <nav className="flex-1 py-4 flex flex-col gap-1 px-3">
-          {navItems.map((item) => {
-            const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
-            const Icon = item.icon;
-            return (
-              <Link 
-                key={item.href} 
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-semibold uppercase tracking-wider transition-colors",
-                  isActive
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-foreground hover:bg-primary/10 hover:text-primary"
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-      </aside>
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      {/* Slim, sticky, quiet top bar. Subtle bottom hairline. */}
+      <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+        <div className="mx-auto max-w-6xl px-4 md:px-6 h-14 flex items-center gap-6">
+          <Wordmark />
 
-      {/* Mobile nav header */}
-      <header className="md:hidden border-b border-border bg-card p-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="h-5 w-1.5 rounded-sm bg-primary shrink-0" />
-          <h1 className="font-extrabold text-lg tracking-tight text-foreground uppercase">
-            Studio
-          </h1>
+          {/* Primary nav — exactly four destinations (desktop). */}
+          <nav className="hidden md:flex items-center gap-1">
+            {PRIMARY_NAV.map((item) => {
+              const active = isActivePath(location, item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "px-3 py-1.5 rounded-md text-sm transition-colors",
+                    active
+                      ? "text-primary font-medium"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+
+            {/* Single More menu holds every other page. */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="px-3 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
+                  data-testid="nav-more"
+                >
+                  More
+                  <MoreHorizontal className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-52">
+                {MORE_NAV.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <DropdownMenuItem key={item.href} asChild>
+                      <Link
+                        href={item.href}
+                        className="flex items-center gap-2 cursor-pointer"
+                      >
+                        <Icon className="h-4 w-4" />
+                        {item.label}
+                      </Link>
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </nav>
+
+          {/* Right cluster: primary quick action, command-palette
+              trigger, theme toggle. */}
+          <div className="ml-auto flex items-center gap-2">
+            <Button
+              asChild
+              size="sm"
+              className="h-8 gap-1.5"
+              data-testid="button-log"
+            >
+              <Link href="/log">
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Log</span>
+              </Link>
+            </Button>
+            <button
+              onClick={togglePalette}
+              data-testid="button-command-palette"
+              aria-label="Open command palette"
+              className="hidden sm:inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              <span className="font-mono">{isMac ? "⌘" : "Ctrl"} K</span>
+            </button>
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
-      {/* Mobile bottom nav */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t border-border bg-card flex items-center justify-around p-2 z-50">
-        {navItems.map((item) => {
-          const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+      <main className="flex-1 px-4 md:px-6 py-6 md:py-10 pb-24 md:pb-10">
+        <div className="mx-auto max-w-6xl">
+          {/* Restrained route-change transition: gentle fade + slide. */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={location}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      </main>
+
+      {/* Mobile bottom tab bar: same four + a More entry. */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background/95 backdrop-blur flex items-stretch justify-around">
+        {PRIMARY_NAV.map((item) => {
+          const active = isActivePath(location, item.href);
           const Icon = item.icon;
           return (
-            <Link key={item.href} href={item.href} className="flex flex-col items-center p-2">
-              <Icon className={cn("h-5 w-5 mb-1", isActive ? "text-primary" : "text-foreground")} />
-              <span className={cn("text-[10px] font-bold uppercase tracking-wider", isActive ? "text-primary" : "text-foreground")}>
-                {item.label.split(" ")[0]}
+            <Link
+              key={item.href}
+              href={item.href}
+              className="flex flex-col items-center justify-center gap-0.5 py-2 flex-1"
+            >
+              <Icon
+                className={cn(
+                  "h-5 w-5",
+                  active ? "text-primary" : "text-muted-foreground",
+                )}
+              />
+              <span
+                className={cn(
+                  "text-[10px]",
+                  active ? "text-primary font-medium" : "text-muted-foreground",
+                )}
+              >
+                {item.short ?? item.label}
               </span>
             </Link>
           );
         })}
+
+        <Sheet open={moreSheetOpen} onOpenChange={setMoreSheetOpen}>
+          <SheetTrigger asChild>
+            <button
+              className="flex flex-col items-center justify-center gap-0.5 py-2 flex-1 text-muted-foreground"
+              data-testid="nav-more-mobile"
+            >
+              <MoreHorizontal className="h-5 w-5" />
+              <span className="text-[10px]">More</span>
+            </button>
+          </SheetTrigger>
+          <SheetContent side="bottom" className="rounded-t-xl">
+            <SheetHeader>
+              <SheetTitle className="text-left text-base font-medium">
+                More
+              </SheetTitle>
+            </SheetHeader>
+            <div className="grid grid-cols-2 gap-2 mt-4 pb-2">
+              {MORE_NAV.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMoreSheetOpen(false)}
+                    className="flex items-center gap-2 rounded-md border border-border px-3 py-3 text-sm hover:bg-muted transition-colors"
+                  >
+                    <Icon className="h-4 w-4 text-muted-foreground" />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          </SheetContent>
+        </Sheet>
       </nav>
 
-      <main className="flex-1 p-4 md:p-8 overflow-y-auto pb-24 md:pb-8">
-        <div className="max-w-6xl mx-auto">
-          {children}
-        </div>
-      </main>
-
-      <QuickLogFab />
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </div>
   );
 }

@@ -34,7 +34,7 @@ export function QuickLogActivity({ testIdSuffix }: QuickLogActivityProps = {}) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg uppercase tracking-wider">Quick Log Activity</CardTitle>
+        <CardTitle className="text-lg tracking-wider">Quick Log Activity</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-2 gap-2" data-testid={`quick-log-presets${suffix}`}>
@@ -44,7 +44,7 @@ export function QuickLogActivity({ testIdSuffix }: QuickLogActivityProps = {}) {
               <Button
                 key={preset.label}
                 variant="outline"
-                className="h-auto py-3 flex flex-col gap-1 uppercase font-bold tracking-wider text-xs"
+                className="h-auto py-3 flex flex-col gap-1 font-bold tracking-wider text-xs"
                 onClick={() => openQuickLog(preset.sessionType)}
                 data-testid={`button-quick-log-${preset.label.toLowerCase().replace(/\s+/g, "-")}${suffix}`}
               >
@@ -56,7 +56,7 @@ export function QuickLogActivity({ testIdSuffix }: QuickLogActivityProps = {}) {
         </div>
         {recentOnly.length > 0 && (
           <div className="mt-3 pt-3 border-t border-border space-y-1.5" data-testid="recent-activities">
-            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-muted-foreground">
+            <div className="flex items-center gap-1.5 text-[10px] tracking-wider font-bold text-muted-foreground">
               <Clock className="h-3 w-3" />
               Recent
             </div>
@@ -66,7 +66,7 @@ export function QuickLogActivity({ testIdSuffix }: QuickLogActivityProps = {}) {
                   key={st}
                   variant="secondary"
                   size="sm"
-                  className="text-xs uppercase font-bold tracking-wider h-auto py-2"
+                  className="text-xs font-bold tracking-wider h-auto py-2"
                   onClick={() => openQuickLog(st)}
                   data-testid={`button-quick-log-recent-${st.toLowerCase().replace(/\s+/g, "-")}${suffix}`}
                 >
@@ -78,7 +78,7 @@ export function QuickLogActivity({ testIdSuffix }: QuickLogActivityProps = {}) {
         )}
         <Button
           variant="ghost"
-          className="w-full mt-2 uppercase font-bold tracking-wider text-xs"
+          className="w-full mt-2 font-bold tracking-wider text-xs"
           onClick={() => openQuickLog(null)}
           data-testid={`button-quick-log-custom${suffix}`}
         >

@@ -97,17 +97,17 @@ export default function Measurements() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-6xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-black uppercase tracking-tight text-primary">Body Metrics</h2>
-          <p className="text-muted-foreground uppercase font-medium tracking-widest mt-1">Composition Tracking</p>
+          <h2 className="text-3xl font-black tracking-tight text-primary">Body Metrics</h2>
+          <p className="text-muted-foreground font-medium tracking-widest mt-1">Composition Tracking</p>
         </div>
-        <Button onClick={handleCreate} className="uppercase font-bold tracking-wider">
+        <Button onClick={handleCreate} className="font-bold tracking-wider">
           <Plus className="h-4 w-4 mr-2" /> Add Check-in
         </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg uppercase tracking-wider">Weight Trend</CardTitle>
+          <CardTitle className="text-lg tracking-wider">Weight Trend</CardTitle>
         </CardHeader>
         <CardContent>
           {loadingTrend ? <Skeleton className="h-64 w-full" /> : (
@@ -136,7 +136,7 @@ export default function Measurements() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg uppercase tracking-wider">Tape Measurements</CardTitle>
+          <CardTitle className="text-lg tracking-wider">Tape Measurements</CardTitle>
         </CardHeader>
         <CardContent>
           {loadingMs ? <Skeleton className="h-64 w-full" /> : (
@@ -148,12 +148,15 @@ export default function Measurements() {
                   <YAxis />
                   <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }} />
                   <Legend />
-                  <Line type="monotone" dataKey="belly" name="Belly" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="chest" name="Chest" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="lArm" name="L. Arm" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="rArm" name="R. Arm" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="lLeg" name="L. Leg" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="rLeg" name="R. Leg" stroke="#fbbf24" strokeWidth={2} dot={{ r: 3 }} />
+                  {/* Single accent + neutral-gray ramp (no rainbow). Belly,
+                      the headline tracked measurement, takes the teal
+                      accent; the rest read as graded neutral grays. */}
+                  <Line type="monotone" dataKey="belly" name="Belly" stroke="hsl(var(--chart-1))" strokeWidth={2} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="chest" name="Chest" stroke="hsl(var(--chart-2))" strokeWidth={2} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="lArm" name="L. Arm" stroke="hsl(var(--chart-3))" strokeWidth={2} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="rArm" name="R. Arm" stroke="hsl(var(--chart-4))" strokeWidth={2} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="lLeg" name="L. Leg" stroke="hsl(var(--chart-5))" strokeWidth={2} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="rLeg" name="R. Leg" stroke="hsl(var(--muted-foreground))" strokeWidth={2} dot={{ r: 3 }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -168,12 +171,12 @@ export default function Measurements() {
           <Table>
             <TableHeader className="bg-muted/50">
               <TableRow>
-                <TableHead className="uppercase text-[10px] font-bold tracking-wider">Date</TableHead>
-                <TableHead className="uppercase text-[10px] font-bold tracking-wider text-right">Weight</TableHead>
-                <TableHead className="uppercase text-[10px] font-bold tracking-wider text-right">Belly</TableHead>
-                <TableHead className="uppercase text-[10px] font-bold tracking-wider text-right">Chest</TableHead>
-                <TableHead className="uppercase text-[10px] font-bold tracking-wider text-right">Arms (L/R)</TableHead>
-                <TableHead className="uppercase text-[10px] font-bold tracking-wider text-right">Legs (L/R)</TableHead>
+                <TableHead className="text-[10px] font-bold tracking-wider">Date</TableHead>
+                <TableHead className="text-[10px] font-bold tracking-wider text-right">Weight</TableHead>
+                <TableHead className="text-[10px] font-bold tracking-wider text-right">Belly</TableHead>
+                <TableHead className="text-[10px] font-bold tracking-wider text-right">Chest</TableHead>
+                <TableHead className="text-[10px] font-bold tracking-wider text-right">Arms (L/R)</TableHead>
+                <TableHead className="text-[10px] font-bold tracking-wider text-right">Legs (L/R)</TableHead>
                 <TableHead className="text-right"></TableHead>
               </TableRow>
             </TableHeader>

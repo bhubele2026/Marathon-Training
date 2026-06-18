@@ -25,7 +25,7 @@
 //
 // Task #137: typography aligned with PrimaryMetricDisplay so the slim
 // card header and the expanded breakdown read as one design system —
-// uppercase tracking-wider muted labels, font-black primary-tone TOTAL,
+// tracking-wider muted labels, font-black primary-tone TOTAL,
 // font-mono semibold values for the secondary buckets. Tile gaps were
 // tightened (gap-x-5 compact, gap-x-7 prominent) to keep the row
 // scannable inside the disclosure gutter.
@@ -125,7 +125,7 @@ export function PlannedBreakdown({
       >
         {cells.map((c) => (
           <div key={c.key}>
-            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+            <p className="text-[10px] text-muted-foreground font-bold tracking-wider">
               {c.label}
             </p>
             <p
@@ -141,7 +141,7 @@ export function PlannedBreakdown({
             </p>
             {c.detail && (
               <p
-                className="text-[10px] text-muted-foreground font-mono mt-0.5 uppercase tracking-wider"
+                className="text-[10px] text-muted-foreground font-mono mt-0.5 tracking-wider"
                 data-testid={tid(`breakdown-${c.key}-detail`)}
               >
                 {c.detail}
@@ -166,7 +166,7 @@ export function PlannedBreakdown({
     >
       {cells.map((c) => (
         <div key={c.key}>
-          <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground block">
+          <span className="text-[10px] font-bold tracking-wider text-muted-foreground block">
             {c.label}
           </span>
           <span

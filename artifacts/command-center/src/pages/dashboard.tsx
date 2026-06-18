@@ -72,7 +72,7 @@ export function MileageTooltipContent({
       style={{ borderColor: "hsl(var(--border))" }}
       data-testid="mileage-tooltip"
     >
-      <div className="font-bold uppercase tracking-wider">{heading}</div>
+      <div className="font-bold tracking-wider">{heading}</div>
       {payload.map((entry, idx) => {
         const value = Number(entry.value ?? 0);
         const isCardio =
@@ -99,7 +99,7 @@ export function MileageTooltipContent({
           style={{ borderColor: "hsl(var(--border))" }}
           data-testid="mileage-tooltip-programs"
         >
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
+          <div className="text-[10px] tracking-wider text-muted-foreground font-bold">
             Per Program
           </div>
           {programs.map((p) => (
@@ -223,14 +223,14 @@ export default function Dashboard() {
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div data-testid="dashboard-header" className="flex flex-col gap-2">
           <h2
-            className="text-3xl font-black uppercase tracking-tight text-primary"
+            className="text-3xl font-black tracking-tight text-primary"
             data-testid="dashboard-header-title"
             data-race-kind=""
           >
             {headerTitle}
           </h2>
           <p
-            className="text-muted-foreground uppercase font-medium tracking-widest text-sm"
+            className="text-muted-foreground font-medium tracking-widest text-sm"
             data-testid="dashboard-header-subtitle"
           >
             No plan applied yet
@@ -245,7 +245,7 @@ export default function Dashboard() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between space-x-2">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                  <p className="text-sm font-medium text-muted-foreground tracking-wider">
                     Body Mass
                   </p>
                   <div className="text-3xl font-black mt-1">
@@ -266,7 +266,7 @@ export default function Dashboard() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between space-x-2">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                  <p className="text-sm font-medium text-muted-foreground tracking-wider">
                     Total Volume
                   </p>
                   <div className="text-3xl font-black mt-1">
@@ -283,7 +283,7 @@ export default function Dashboard() {
         </div>
         <Card data-testid="dashboard-empty-recent-activity">
           <CardHeader>
-            <CardTitle className="text-lg uppercase tracking-wider">Recent Logs</CardTitle>
+            <CardTitle className="text-lg tracking-wider">Recent Logs</CardTitle>
           </CardHeader>
           <CardContent>
             {loadingActivity ? (
@@ -332,7 +332,7 @@ export default function Dashboard() {
           />
         )}
         <h2
-          className="text-3xl font-black uppercase tracking-tight text-primary"
+          className="text-3xl font-black tracking-tight text-primary"
           data-testid="dashboard-header-title"
           data-race-kind={raceKind ?? ""}
         >
@@ -341,7 +341,7 @@ export default function Dashboard() {
         {raceKind !== null ? (
           <div className="flex flex-wrap items-center gap-3">
             <p
-              className="text-muted-foreground uppercase font-medium tracking-widest text-sm"
+              className="text-muted-foreground font-medium tracking-widest text-sm"
               data-testid="dashboard-header-subtitle"
             >
               {summary.daysToRace} Days to Race Day
@@ -364,10 +364,10 @@ export default function Dashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between space-x-2">
               <div>
-                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">This Week</p>
+                <p className="text-sm font-medium text-muted-foreground tracking-wider">This Week</p>
                 <div className="text-3xl font-black mt-1">Week {summary.currentWeek}</div>
                 <p
-                  className="text-sm font-semibold uppercase mt-1 flex items-center gap-2"
+                  className="text-sm font-semibold mt-1 flex items-center gap-2"
                   data-testid="dashboard-current-phase"
                 >
                   <span
@@ -394,7 +394,7 @@ export default function Dashboard() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between space-x-2">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Days to Race</p>
+                  <p className="text-sm font-medium text-muted-foreground tracking-wider">Days to Race</p>
                   <div className="text-3xl font-black mt-1">{summary.daysToRace}</div>
                   <p className="text-sm text-muted-foreground mt-1">Adherence: <span className="text-foreground font-semibold">{summary.adherencePct.toFixed(0)}%</span></p>
                 </div>
@@ -408,7 +408,7 @@ export default function Dashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between space-x-2">
               <div>
-                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Body Mass</p>
+                <p className="text-sm font-medium text-muted-foreground tracking-wider">Body Mass</p>
                 <div className="text-3xl font-black mt-1">{formatWeight(summary.weightCurrent)}</div>
                 <p className="text-sm text-muted-foreground mt-1">
                   Goal: {summary.weightGoal ?? "—"} | <span className="text-primary font-semibold">-{summary.weightLost.toFixed(1)} lbs</span>
@@ -423,7 +423,7 @@ export default function Dashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between space-x-2">
               <div>
-                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Total Volume</p>
+                <p className="text-sm font-medium text-muted-foreground tracking-wider">Total Volume</p>
                 <div className="text-3xl font-black mt-1">{formatDistance(summary.totalMilesAllTime)}</div>
                 <p className="text-sm text-muted-foreground mt-1">Max Long Run: <span className="text-foreground font-semibold">{formatDistance(summary.longestRunMi)}</span></p>
               </div>
@@ -441,9 +441,9 @@ export default function Dashboard() {
           {/* Today */}
           <Card className="border-primary/20 bg-primary/5">
             <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-lg uppercase tracking-wider text-primary">Today</CardTitle>
+              <CardTitle className="text-lg tracking-wider text-primary">Today</CardTitle>
               <Link href="/today">
-                <Button variant="ghost" size="sm" className="text-xs uppercase tracking-wider text-muted-foreground hover:text-primary">
+                <Button variant="ghost" size="sm" className="text-xs tracking-wider text-muted-foreground hover:text-primary">
                   Open Today <ExternalLink className="ml-1 h-3 w-3" />
                 </Button>
               </Link>
@@ -492,19 +492,19 @@ export default function Dashboard() {
                               <div className="grid grid-cols-3 gap-3">
                                 {today.plan.distanceMi != null && (
                                   <div>
-                                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Distance</p>
+                                    <p className="text-[10px] text-muted-foreground font-bold tracking-wider">Distance</p>
                                     <p className="text-sm font-black">{formatDistance(today.plan.distanceMi)}</p>
                                   </div>
                                 )}
                                 {today.plan.strengthLoad && (
                                   <div>
-                                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Strength Load</p>
+                                    <p className="text-[10px] text-muted-foreground font-bold tracking-wider">Strength Load</p>
                                     <p className="text-sm font-black">{today.plan.strengthLoad}</p>
                                   </div>
                                 )}
                                 {today.plan.totalLoad != null && (
                                   <div>
-                                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Total Load</p>
+                                    <p className="text-[10px] text-muted-foreground font-bold tracking-wider">Total Load</p>
                                     <p className="text-sm font-black">{formatLoad(today.plan.totalLoad)}</p>
                                   </div>
                                 )}
@@ -516,7 +516,7 @@ export default function Dashboard() {
 
                       {hasTodaySessions && (
                         <div className="mt-3 pt-3 border-t border-border space-y-2">
-                          <div className="text-xs uppercase tracking-wider text-muted-foreground font-bold">
+                          <div className="text-xs tracking-wider text-muted-foreground font-bold">
                             {todaySessions.length > 1 ? `${todaySessions.length} Sessions Logged` : "Logged"}
                           </div>
                           {todaySessions.map((session) => (
@@ -535,7 +535,7 @@ export default function Dashboard() {
                                   value={session.timeOfDay}
                                   testId={`badge-time-of-day-dashboard-${session.id}`}
                                 />
-                                <span className="text-xs uppercase font-bold tracking-wider text-muted-foreground">
+                                <span className="text-xs font-bold tracking-wider text-muted-foreground">
                                   {session.sessionType}
                                 </span>
                                 <PrimaryMetricDisplay
@@ -592,32 +592,32 @@ export default function Dashboard() {
                                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                       {session.distanceMi != null && (
                                         <div>
-                                          <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Distance</p>
+                                          <p className="text-[10px] text-muted-foreground font-bold tracking-wider">Distance</p>
                                           <p className="text-sm font-black">{formatDistance(session.distanceMi)}</p>
                                         </div>
                                       )}
                                       {session.pace && (
                                         <div>
-                                          <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Pace</p>
+                                          <p className="text-[10px] text-muted-foreground font-bold tracking-wider">Pace</p>
                                           <p className="text-sm font-black">{session.pace}/mi</p>
                                         </div>
                                       )}
                                       {session.rpe != null && (
                                         <div>
-                                          <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">RPE</p>
+                                          <p className="text-[10px] text-muted-foreground font-bold tracking-wider">RPE</p>
                                           <p className="text-sm font-black">{session.rpe}/10</p>
                                         </div>
                                       )}
                                       {session.totalLoad != null && (
                                         <div>
-                                          <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Total Load</p>
+                                          <p className="text-[10px] text-muted-foreground font-bold tracking-wider">Total Load</p>
                                           <p className="text-sm font-black">{formatLoad(session.totalLoad)}</p>
                                         </div>
                                       )}
                                     </div>
                                     {session.notes && (
                                       <div className="pt-2 border-t border-border">
-                                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Notes</p>
+                                        <p className="text-[10px] text-muted-foreground font-bold tracking-wider mb-1">Notes</p>
                                         <p className="text-sm">{session.notes}</p>
                                       </div>
                                     )}
@@ -638,7 +638,7 @@ export default function Dashboard() {
                       )}
                       <div className="flex flex-col gap-2 w-full md:w-44">
                         <Button
-                          className="uppercase font-black tracking-wider"
+                          className="font-black tracking-wider"
                           onClick={() => todayBaseCtx && crushIt({ ...todayBaseCtx, loggedWorkout: null })}
                           disabled={isCrushing}
                           data-testid="button-crush-dashboard"
@@ -649,7 +649,7 @@ export default function Dashboard() {
                         <Button
                           variant="secondary"
                           size="sm"
-                          className="uppercase font-bold tracking-wider"
+                          className="font-bold tracking-wider"
                           onClick={() => todayBaseCtx && openLog({ ...todayBaseCtx, loggedWorkout: null })}
                           disabled={isCrushing}
                           data-testid="button-log-dashboard"
@@ -661,7 +661,7 @@ export default function Dashboard() {
                           <Button
                             variant="outline"
                             size="sm"
-                            className="uppercase font-bold tracking-wider text-destructive hover:text-destructive border-destructive/40"
+                            className="font-bold tracking-wider text-destructive hover:text-destructive border-destructive/40"
                             onClick={() => todayBaseCtx && requestSkip({ ...todayBaseCtx, loggedWorkout: null })}
                             disabled={isCrushing}
                             data-testid="button-skip-dashboard"
@@ -686,25 +686,25 @@ export default function Dashboard() {
           {/* Current Week Progress */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg uppercase tracking-wider">Week {summary.currentWeek} Snapshot</CardTitle>
+              <CardTitle className="text-lg tracking-wider">Week {summary.currentWeek} Snapshot</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
-                <div className="flex justify-between text-sm font-bold uppercase">
+                <div className="flex justify-between text-sm font-bold">
                   <span>Mileage</span>
                   <span>{formatDistance(summary.weeklyMilesActual)} / {formatDistance(summary.weeklyMilesPlanned)}</span>
                 </div>
                 <Progress value={(summary.weeklyMilesActual / Math.max(summary.weeklyMilesPlanned, 1)) * 100} className="h-3" />
               </div>
               <div className="space-y-2">
-                <div className="flex justify-between text-sm font-bold uppercase">
+                <div className="flex justify-between text-sm font-bold">
                   <span>Training Load</span>
                   <span>{formatLoad(summary.weeklyLoadActual)} / {formatLoad(summary.weeklyLoadPlanned)}</span>
                 </div>
                 <Progress value={(summary.weeklyLoadActual / Math.max(summary.weeklyLoadPlanned, 1)) * 100} className="h-3" />
               </div>
               <div className="space-y-2">
-                <div className="flex justify-between text-sm font-bold uppercase">
+                <div className="flex justify-between text-sm font-bold">
                   <span>Sessions Completed</span>
                   <span>{summary.weeklySessionsCompleted} / {summary.weeklySessionsPlanned}</span>
                 </div>
@@ -724,7 +724,7 @@ export default function Dashboard() {
                   data-testid="snapshot-programs-breakdown"
                 >
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <div className="text-xs uppercase tracking-wider font-bold text-muted-foreground">
+                    <div className="text-xs tracking-wider font-bold text-muted-foreground">
                       Per Program
                     </div>
                     <div
@@ -744,7 +744,7 @@ export default function Dashboard() {
                             }}
                             aria-hidden
                           />
-                          <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+                          <span className="text-[10px] font-bold tracking-wider text-muted-foreground">
                             {p.label}
                           </span>
                         </div>
@@ -772,19 +772,19 @@ export default function Dashboard() {
                         data-testid={`snapshot-program-${p.sourceEntryIndex}`}
                       >
                         <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <span className="font-bold text-sm uppercase tracking-wider">
+                          <span className="font-bold text-sm tracking-wider">
                             {p.label}
                           </span>
                           <div className="flex items-center gap-2 flex-wrap">
                             <span
-                              className="text-[10px] font-bold uppercase tracking-wider text-primary bg-background px-2 py-0.5 rounded"
+                              className="text-[10px] font-bold tracking-wider text-primary bg-background px-2 py-0.5 rounded"
                               data-testid={`snapshot-program-race-in-${p.sourceEntryIndex}`}
                             >
                               Race in {programDaysToRace} {programDaysToRace === 1 ? "day" : "days"}
                             </span>
                             {programEndsEarly && (
                               <span
-                                className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-background px-2 py-0.5 rounded"
+                                className="text-[10px] font-bold tracking-wider text-muted-foreground bg-background px-2 py-0.5 rounded"
                                 data-testid={`snapshot-program-end-${p.sourceEntryIndex}`}
                               >
                                 Ends {p.endDate}
@@ -794,25 +794,25 @@ export default function Dashboard() {
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                           <div>
-                            <div className="text-[10px] uppercase font-bold text-muted-foreground">Miles</div>
+                            <div className="text-[10px] font-bold text-muted-foreground">Miles</div>
                             <div className="font-mono">
                               {formatDistance(p.weeklyMilesActual)} / {formatDistance(p.weeklyMilesPlanned)}
                             </div>
                           </div>
                           <div>
-                            <div className="text-[10px] uppercase font-bold text-muted-foreground">Load</div>
+                            <div className="text-[10px] font-bold text-muted-foreground">Load</div>
                             <div className="font-mono">
                               {formatLoad(p.weeklyLoadActual)} / {formatLoad(p.weeklyLoadPlanned)}
                             </div>
                           </div>
                           <div>
-                            <div className="text-[10px] uppercase font-bold text-muted-foreground">Sessions</div>
+                            <div className="text-[10px] font-bold text-muted-foreground">Sessions</div>
                             <div className="font-mono">
                               {p.weeklySessionsCompleted} / {p.weeklySessionsPlanned}
                             </div>
                           </div>
                           <div>
-                            <div className="text-[10px] uppercase font-bold text-muted-foreground">Adherence</div>
+                            <div className="text-[10px] font-bold text-muted-foreground">Adherence</div>
                             <div
                               className="font-mono"
                               data-testid={`snapshot-program-adherence-${p.sourceEntryIndex}`}
@@ -830,7 +830,7 @@ export default function Dashboard() {
                 </div>
               )}
               <div
-                className="flex items-center justify-between border-t border-border pt-4 text-sm font-bold uppercase text-muted-foreground"
+                className="flex items-center justify-between border-t border-border pt-4 text-sm font-bold text-muted-foreground"
                 data-testid="row-lifestyle-minutes"
               >
                 <span>Lifestyle Minutes</span>
@@ -870,7 +870,7 @@ export default function Dashboard() {
           {/* Weekly Mileage Chart */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg uppercase tracking-wider">Mileage Volume</CardTitle>
+              <CardTitle className="text-lg tracking-wider">Mileage Volume</CardTitle>
             </CardHeader>
             <CardContent>
               {loadingMileage ? <Skeleton className="h-64" /> : (
@@ -1044,7 +1044,7 @@ export default function Dashboard() {
                     if (steadyCount === 0) return null;
                     return (
                       <div
-                        className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground mt-2"
+                        className="flex items-center gap-1.5 text-[10px] tracking-wider text-muted-foreground mt-2"
                         data-testid="mileage-chart-steady-legend"
                       >
                         <span
@@ -1069,7 +1069,7 @@ export default function Dashboard() {
           {/* Long Run Progression */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg uppercase tracking-wider">Long Run Build</CardTitle>
+              <CardTitle className="text-lg tracking-wider">Long Run Build</CardTitle>
             </CardHeader>
             <CardContent>
               {loadingLongRun ? <Skeleton className="h-64" /> : (
@@ -1185,7 +1185,7 @@ export default function Dashboard() {
           {/* Weight Trend */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg uppercase tracking-wider">Body trend</CardTitle>
+              <CardTitle className="text-lg tracking-wider">Body trend</CardTitle>
             </CardHeader>
             <CardContent>
               {loadingWeight ? <Skeleton className="h-48" /> : (
@@ -1213,7 +1213,7 @@ export default function Dashboard() {
           {/* Equipment */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg uppercase tracking-wider">Equipment</CardTitle>
+              <CardTitle className="text-lg tracking-wider">Equipment</CardTitle>
             </CardHeader>
             <CardContent>
               {loadingEq ? <Skeleton className="h-64" /> : (
@@ -1241,7 +1241,7 @@ export default function Dashboard() {
                           </div>
                           <div className="text-right">
                             <div className="font-mono text-sm">{formatDuration(eq.totalMinutes)}</div>
-                            <div className="text-xs text-muted-foreground uppercase">Load {formatLoad(eq.totalLoad)}</div>
+                            <div className="text-xs text-muted-foreground">Load {formatLoad(eq.totalLoad)}</div>
                           </div>
                         </div>
                         {isShared && (
@@ -1263,7 +1263,7 @@ export default function Dashboard() {
                                     }}
                                     aria-hidden
                                   />
-                                  <span className="uppercase tracking-wider font-bold truncate">{p.label}</span>
+                                  <span className="tracking-wider font-bold truncate">{p.label}</span>
                                 </span>
                                 <span className="font-mono shrink-0">
                                   {p.plannedSessions}× · {Math.round(p.plannedMinutes)}m
@@ -1283,7 +1283,7 @@ export default function Dashboard() {
           {/* Recent Activity */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg uppercase tracking-wider">Recent Logs</CardTitle>
+              <CardTitle className="text-lg tracking-wider">Recent Logs</CardTitle>
             </CardHeader>
             <CardContent>
               {loadingActivity ? <Skeleton className="h-64" /> : (
@@ -1365,13 +1365,13 @@ function PhaseLegend({ phases, showActualSwatch = false }: { phases: string[]; s
             style={{ backgroundColor: phaseColor(phase) }}
             aria-hidden
           />
-          <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+          <span className="text-[10px] font-bold tracking-wider text-muted-foreground">
             {phase}
           </span>
         </div>
       ))}
       {showActualSwatch && (
-        <div className="ml-auto flex items-center gap-3 text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+        <div className="ml-auto flex items-center gap-3 text-[10px] font-bold tracking-wider text-muted-foreground">
           <div className="flex items-center gap-1.5">
             <span
               className="h-3 w-3 rounded-sm border border-foreground/20 bg-foreground/10"

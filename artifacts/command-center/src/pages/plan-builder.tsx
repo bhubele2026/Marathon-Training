@@ -290,7 +290,7 @@ export default function PlanBuilder() {
                       : "mr-8 bg-muted/50 text-foreground",
                   )}
                 >
-                  <div className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">
+                  <div className="mb-1 text-xs tracking-wider text-muted-foreground">
                     {m.role === "user" ? "You" : "Claude"}
                   </div>
                   <div className="whitespace-pre-wrap">{m.content}</div>
@@ -298,7 +298,7 @@ export default function PlanBuilder() {
               ))}
               {streaming && (
                 <div className="mr-8 rounded-md bg-muted/50 p-2 text-sm">
-                  <div className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">
+                  <div className="mb-1 text-xs tracking-wider text-muted-foreground">
                     Claude
                   </div>
                   <div className="whitespace-pre-wrap">{streaming}</div>
@@ -375,7 +375,7 @@ export default function PlanBuilder() {
                 )}
 
                 <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
-                  <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <div className="flex items-center gap-2 text-[10px] tracking-wider text-muted-foreground">
                     <span className="w-10 shrink-0">Week</span>
                     <span className="w-28 shrink-0">Phase</span>
                     <span className="flex-1">Running volume (all runs, per week)</span>

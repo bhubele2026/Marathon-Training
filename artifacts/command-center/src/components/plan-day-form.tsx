@@ -146,7 +146,7 @@ export function PlanDayForm({ open, onOpenChange, planDay }: PlanDayFormProps) {
               render={({ field }) => (
                 <FormItem className="flex items-center justify-between rounded-lg border border-border p-3">
                   <div>
-                    <FormLabel className="text-sm font-bold uppercase tracking-wider">Rest Day</FormLabel>
+                    <FormLabel className="text-sm font-bold tracking-wider">Rest Day</FormLabel>
                     <p className="text-xs text-muted-foreground mt-1">Toggle on to mark this day as rest / recovery.</p>
                   </div>
                   <FormControl>

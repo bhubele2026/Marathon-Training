@@ -214,15 +214,15 @@ export default function Today() {
               />
             </div>
           )}
-          <h2 className="text-3xl font-black uppercase tracking-tight text-primary">Today</h2>
-          <p className="text-muted-foreground uppercase font-medium tracking-widest">{today.date}</p>
+          <h2 className="text-3xl font-black tracking-tight text-primary">Today</h2>
+          <p className="text-muted-foreground font-medium tracking-widest">{today.date}</p>
         </div>
         <div className="flex items-center gap-2">
           {campaignHasPlan && (
             <Button
               variant="outline"
               size="sm"
-              className="text-xs uppercase font-bold tracking-wider"
+              className="text-xs font-bold tracking-wider"
               onClick={() => {
                 window.location.assign("/plan?repace=1");
               }}
@@ -246,7 +246,7 @@ export default function Today() {
               <div className="flex items-center gap-3">
                 <Trophy className="h-6 w-6 text-primary" />
                 <div>
-                  <p className="text-sm uppercase font-bold tracking-wider text-primary">
+                  <p className="text-sm font-bold tracking-wider text-primary">
                     Race Day —{" "}
                     {RACE_KIND_LABELS[
                       today.nextScheduledRace.raceKind as RaceDayKind
@@ -275,14 +275,14 @@ export default function Today() {
           data-testid="card-campaign-countdown"
         >
           <CardHeader className="border-b border-border pb-4">
-            <CardTitle className="text-lg uppercase tracking-wider text-primary flex items-center gap-2">
+            <CardTitle className="text-lg tracking-wider text-primary flex items-center gap-2">
               <Rocket className="h-5 w-5" />
               Pre-Launch
             </CardTitle>
           </CardHeader>
           <CardContent className="p-8 text-center space-y-6">
             <div>
-              <p className="text-sm text-muted-foreground uppercase font-bold tracking-widest mb-2">
+              <p className="text-sm text-muted-foreground font-bold tracking-widest mb-2">
                 Campaign Starts In
               </p>
               <p
@@ -291,15 +291,15 @@ export default function Today() {
               >
                 {today.daysUntilStart}
               </p>
-              <p className="text-sm text-muted-foreground uppercase font-bold tracking-widest mt-2">
+              <p className="text-sm text-muted-foreground font-bold tracking-widest mt-2">
                 {today.daysUntilStart === 1 ? "Day" : "Days"}
               </p>
             </div>
             <div className="bg-background border border-border rounded-md p-6 text-left max-w-xl mx-auto">
-              <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-2">
+              <p className="text-xs text-muted-foreground font-bold tracking-wider mb-2">
                 First Scheduled Session
               </p>
-              <p className="text-lg font-black uppercase tracking-tight" data-testid="text-first-session-date">
+              <p className="text-lg font-black tracking-tight" data-testid="text-first-session-date">
                 {format(parseISO(today.firstSession.date), "EEE MMM d")} —{" "}
                 <span className="text-primary">{today.firstSession.sessionType}</span>
               </p>
@@ -322,7 +322,7 @@ export default function Today() {
                 return (
                   <div className="flex flex-wrap items-center gap-2 mt-3">
                     <span
-                      className="inline-flex items-center gap-1 text-[10px] bg-primary/15 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider w-fit"
+                      className="inline-flex items-center gap-1 text-[10px] bg-primary/15 text-primary px-2 py-1 rounded font-bold tracking-wider w-fit"
                       data-testid={`badge-race-day-first-session-${fs.date}`}
                       data-race-kind={race.kind}
                     >
@@ -334,7 +334,7 @@ export default function Today() {
                         <TooltipTrigger asChild>
                           <span
                             className={cn(
-                              "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wider w-fit cursor-help",
+                              "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold tracking-wider w-fit cursor-help",
                               prp.source === "personalized"
                                 ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
                                 : "bg-muted text-muted-foreground",
@@ -450,19 +450,19 @@ export default function Today() {
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                       {today.firstSession.distanceMi != null && today.firstSession.distanceMi > 0 && (
                         <div>
-                          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Distance</p>
+                          <p className="text-xs text-muted-foreground font-bold tracking-wider">Distance</p>
                           <p className="text-base font-black">{formatDistance(today.firstSession.distanceMi)}</p>
                         </div>
                       )}
                       {today.firstSession.strengthLoad != null && today.firstSession.strengthLoad > 0 && (
                         <div>
-                          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Strength Load</p>
+                          <p className="text-xs text-muted-foreground font-bold tracking-wider">Strength Load</p>
                           <p className="text-base font-black">{today.firstSession.strengthLoad}</p>
                         </div>
                       )}
                       {today.firstSession.totalLoad > 0 && (
                         <div>
-                          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Total Load</p>
+                          <p className="text-xs text-muted-foreground font-bold tracking-wider">Total Load</p>
                           <p className="text-base font-black">{formatLoad(today.firstSession.totalLoad)}</p>
                         </div>
                       )}
@@ -485,7 +485,7 @@ export default function Today() {
         <Card className="border-dashed border-2 bg-muted/50">
           <CardContent className="p-12 text-center text-muted-foreground">
             <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <h3 className="text-xl font-bold uppercase tracking-wider mb-2">Rest Day</h3>
+            <h3 className="text-xl font-bold tracking-wider mb-2">Rest Day</h3>
             <p>Recover and rebuild. No planned session today.</p>
           </CardContent>
         </Card>
@@ -542,7 +542,7 @@ export default function Today() {
               data-testid={`card-mission-brief-${plan.sourceEntryIndex}`}
             >
               <CardHeader>
-                <CardTitle className="text-lg uppercase tracking-wider text-primary flex items-center gap-3 flex-wrap">
+                <CardTitle className="text-lg tracking-wider text-primary flex items-center gap-3 flex-wrap">
                   <span>Today's session</span>
                   {plan.sourceEntryLabel && (today.plans?.length ?? 0) > 1 && (
                     <span
@@ -572,7 +572,7 @@ export default function Today() {
                         return (
                           <div className="flex flex-wrap items-center gap-2">
                             <span
-                              className="inline-flex items-center gap-1 text-[10px] bg-primary/15 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider w-fit"
+                              className="inline-flex items-center gap-1 text-[10px] bg-primary/15 text-primary px-2 py-1 rounded font-bold tracking-wider w-fit"
                               data-testid={`badge-race-day-today-${plan.date}`}
                               data-race-kind={race.kind}
                             >
@@ -584,7 +584,7 @@ export default function Today() {
                                 <TooltipTrigger asChild>
                                   <span
                                     className={cn(
-                                      "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wider w-fit cursor-help",
+                                      "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold tracking-wider w-fit cursor-help",
                                       prp.source === "personalized"
                                         ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
                                         : "bg-muted text-muted-foreground",
@@ -646,7 +646,7 @@ export default function Today() {
                               <TooltipTrigger asChild>
                                 <span
                                   className={cn(
-                                    "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wider w-fit cursor-help",
+                                    "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold tracking-wider w-fit cursor-help",
                                     lp.source === "personalized"
                                       ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
                                       : "bg-muted text-muted-foreground",
@@ -715,7 +715,7 @@ export default function Today() {
                               <TooltipTrigger asChild>
                                 <span
                                   className={cn(
-                                    "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wider w-fit cursor-help",
+                                    "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold tracking-wider w-fit cursor-help",
                                     pp.source === "personalized"
                                       ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
                                       : "bg-muted text-muted-foreground",
@@ -763,7 +763,7 @@ export default function Today() {
                         );
                       })()}
                       <div className="flex flex-wrap items-baseline gap-3">
-                        <span className="font-black text-2xl uppercase tracking-tight">{plan.sessionType}</span>
+                        <span className="font-black text-2xl tracking-tight">{plan.sessionType}</span>
                       </div>
 
                       {plan.description && (
@@ -857,19 +857,19 @@ export default function Today() {
                           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                             {plan.distanceMi != null && plan.distanceMi > 0 && (
                               <div>
-                                <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Distance</p>
+                                <p className="text-xs text-muted-foreground font-bold tracking-wider">Distance</p>
                                 <p className="text-xl font-black">{formatDistance(plan.distanceMi)}</p>
                               </div>
                             )}
                             {plan.strengthLoad != null && plan.strengthLoad > 0 && (
                               <div>
-                                <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Strength Load</p>
+                                <p className="text-xs text-muted-foreground font-bold tracking-wider">Strength Load</p>
                                 <p className="text-xl font-black">{plan.strengthLoad}</p>
                               </div>
                             )}
                             {plan.totalLoad > 0 && (
                               <div>
-                                <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Total Load</p>
+                                <p className="text-xs text-muted-foreground font-bold tracking-wider">Total Load</p>
                                 <p className="text-xl font-black">{formatLoad(plan.totalLoad)}</p>
                               </div>
                             )}
@@ -881,7 +881,7 @@ export default function Today() {
                     <div className="shrink-0 flex flex-col items-stretch justify-center gap-3 border-t md:border-t-0 md:border-l border-border pt-6 md:pt-0 md:pl-6 md:w-56">
                       <Button
                         size="lg"
-                        className="h-14 px-6 text-base uppercase font-black tracking-widest group"
+                        className="h-14 px-6 text-base font-black tracking-widest group"
                         onClick={() => crushIt({ ...ctx, loggedWorkout: null })}
                         disabled={isCrushing}
                         data-testid={
@@ -895,7 +895,7 @@ export default function Today() {
                       </Button>
                       <Button
                         variant="secondary"
-                        className="uppercase font-bold tracking-wider"
+                        className="font-bold tracking-wider"
                         onClick={() => openLog({ ...ctx, loggedWorkout: null })}
                         disabled={isCrushing}
                         data-testid={
@@ -910,7 +910,7 @@ export default function Today() {
                       {!hasSessions && (
                         <Button
                           variant="outline"
-                          className="uppercase font-bold tracking-wider text-destructive hover:text-destructive border-destructive/40"
+                          className="font-bold tracking-wider text-destructive hover:text-destructive border-destructive/40"
                           onClick={() => requestSkip({ ...ctx, loggedWorkout: null })}
                           disabled={isCrushing}
                           data-testid={
@@ -948,7 +948,7 @@ export default function Today() {
             return (
             <Card key={session.id} className="border-border" data-testid={`session-today-${session.id}`}>
               <CardHeader className="bg-muted/30 border-b border-border pb-4 flex flex-row items-center justify-between space-y-0">
-                <CardTitle className="text-lg uppercase tracking-wider flex items-center gap-2">
+                <CardTitle className="text-lg tracking-wider flex items-center gap-2">
                   <CheckCircle2 className="h-5 w-5 text-primary" />
                   Done
                   <TimeOfDayBadge
@@ -1001,7 +1001,7 @@ export default function Today() {
                   return (
                     <div className="flex flex-wrap items-center gap-2">
                       <span
-                        className="inline-flex items-center gap-1 text-[10px] bg-primary/15 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider w-fit"
+                        className="inline-flex items-center gap-1 text-[10px] bg-primary/15 text-primary px-2 py-1 rounded font-bold tracking-wider w-fit"
                         data-testid={`badge-race-day-today-session-${session.id}`}
                         data-race-kind={race.kind}
                       >
@@ -1013,7 +1013,7 @@ export default function Today() {
                           <TooltipTrigger asChild>
                             <span
                               className={cn(
-                                "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wider w-fit cursor-help",
+                                "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold tracking-wider w-fit cursor-help",
                                 prp.source === "personalized"
                                   ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
                                   : "bg-muted text-muted-foreground",
@@ -1139,38 +1139,38 @@ export default function Today() {
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
                       {session.distanceMi != null && (
                         <div>
-                          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Distance</p>
+                          <p className="text-xs text-muted-foreground font-bold tracking-wider">Distance</p>
                           <p className="text-xl font-black">{formatDistance(session.distanceMi)}</p>
                         </div>
                       )}
                       {session.pace && (
                         <div>
-                          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Pace</p>
+                          <p className="text-xs text-muted-foreground font-bold tracking-wider">Pace</p>
                           <p className="text-xl font-black">{session.pace}/mi</p>
                         </div>
                       )}
                       {session.rpe != null && (
                         <div>
-                          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">RPE</p>
+                          <p className="text-xs text-muted-foreground font-bold tracking-wider">RPE</p>
                           <p className="text-xl font-black">{session.rpe}/10</p>
                         </div>
                       )}
                       {session.avgHr != null && (
                         <div>
-                          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Avg HR</p>
+                          <p className="text-xs text-muted-foreground font-bold tracking-wider">Avg HR</p>
                           <p className="text-xl font-black">{session.avgHr} bpm</p>
                         </div>
                       )}
                       {session.totalLoad != null && (
                         <div>
-                          <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Total Load</p>
+                          <p className="text-xs text-muted-foreground font-bold tracking-wider">Total Load</p>
                           <p className="text-xl font-black">{formatLoad(session.totalLoad)}</p>
                         </div>
                       )}
                     </div>
                     {session.notes && (
                       <div className="pt-4 border-t border-border">
-                        <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider mb-2">Notes</p>
+                        <p className="text-xs text-muted-foreground font-bold tracking-wider mb-2">Notes</p>
                         <p className="text-sm">{session.notes}</p>
                       </div>
                     )}
@@ -1196,7 +1196,7 @@ export default function Today() {
           {logDraft && (
             <div className="space-y-4">
               <div className="flex items-center gap-2 flex-wrap">
-                <Badge variant="secondary" className="uppercase tracking-wider">
+                <Badge variant="secondary" className="tracking-wider">
                   {RACE_KIND_LABELS[logDraft.raceKind as RaceDayKind] ??
                     logDraft.raceKind}
                 </Badge>
@@ -1343,7 +1343,7 @@ function TodayEyebrow({ raceKind }: { raceKind: RaceDayKind | null }) {
   }
   return (
     <p
-      className="text-[10px] uppercase tracking-[0.2em] font-bold text-primary mb-1"
+      className="text-[10px] tracking-[0.2em] font-bold text-primary mb-1"
       data-testid="today-eyebrow"
       data-race-kind={raceKind}
       data-race-week={isRaceWeek ? "true" : undefined}

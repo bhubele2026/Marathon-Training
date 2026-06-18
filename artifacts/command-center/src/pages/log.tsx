@@ -48,7 +48,7 @@ function WorkoutEditedBadge({ workout }: { workout: Workout }) {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-2 py-1 rounded font-bold uppercase tracking-wider inline-flex items-center gap-1 cursor-pointer hover:bg-amber-500/25 transition-colors"
+          className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-2 py-1 rounded font-bold tracking-wider inline-flex items-center gap-1 cursor-pointer hover:bg-amber-500/25 transition-colors"
           data-testid={`badge-customized-workout-${workout.id}`}
           aria-label="Show what changed"
         >
@@ -60,7 +60,7 @@ function WorkoutEditedBadge({ workout }: { workout: Workout }) {
         className="w-72 p-3"
         data-testid={`popover-customized-workout-${workout.id}`}
       >
-        <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
+        <div className="text-xs font-bold tracking-wider text-muted-foreground mb-2">
           Edited from original log
         </div>
         {diff.length === 0 ? (
@@ -154,8 +154,8 @@ export default function Log() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-black uppercase tracking-tight text-primary">Training Log</h2>
-          <p className="text-muted-foreground uppercase font-medium tracking-widest mt-1">Activity History</p>
+          <h2 className="text-3xl font-black tracking-tight text-primary">Training Log</h2>
+          <p className="text-muted-foreground font-medium tracking-widest mt-1">Activity History</p>
         </div>
         <div className="flex items-center gap-2">
           {/* Task #294: surface the count of legacy workouts the
@@ -168,14 +168,14 @@ export default function Log() {
               type="button"
               variant={onlyUnlinked ? "default" : "outline"}
               onClick={() => setOnlyUnlinked((prev) => !prev)}
-              className="uppercase font-bold tracking-wider text-xs"
+              className="font-bold tracking-wider text-xs"
               data-testid="badge-unlinked-workouts"
               title="Legacy workouts not linked to a plan day"
             >
               {unlinkedCount} unlinked — {onlyUnlinked ? "show all" : "review"}
             </Button>
           )}
-          <Button onClick={handleCreate} className="uppercase font-bold tracking-wider">
+          <Button onClick={handleCreate} className="font-bold tracking-wider">
             <Plus className="h-4 w-4 mr-2" /> Log New
           </Button>
         </div>
@@ -183,7 +183,7 @@ export default function Log() {
 
       <div className="bg-card border border-border rounded-lg p-4 flex flex-col md:flex-row gap-4 items-end">
         <div className="space-y-2 flex-1 w-full md:w-auto">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Equipment</label>
+          <label className="text-[10px] font-bold tracking-wider text-muted-foreground">Equipment</label>
           <Select value={equipment} onValueChange={setEquipment}>
             <SelectTrigger>
               <SelectValue placeholder="All Equipment" />
@@ -201,7 +201,7 @@ export default function Log() {
           </Select>
         </div>
         <div className="space-y-2 flex-1 w-full md:w-auto">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Time of Day</label>
+          <label className="text-[10px] font-bold tracking-wider text-muted-foreground">Time of Day</label>
           <Select value={timeOfDay} onValueChange={setTimeOfDay}>
             <SelectTrigger>
               <SelectValue placeholder="All Times" />
@@ -215,11 +215,11 @@ export default function Log() {
           </Select>
         </div>
         <div className="space-y-2 flex-1 w-full md:w-auto">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">From Date</label>
+          <label className="text-[10px] font-bold tracking-wider text-muted-foreground">From Date</label>
           <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
         </div>
         <div className="space-y-2 flex-1 w-full md:w-auto">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">To Date</label>
+          <label className="text-[10px] font-bold tracking-wider text-muted-foreground">To Date</label>
           <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         </div>
       </div>
@@ -231,15 +231,15 @@ export default function Log() {
           <Table>
             <TableHeader className="bg-muted/50">
               <TableRow>
-                <TableHead className="uppercase text-[10px] font-bold tracking-wider">Date</TableHead>
-                <TableHead className="uppercase text-[10px] font-bold tracking-wider">Type</TableHead>
-                <TableHead className="uppercase text-[10px] font-bold tracking-wider">Equipment</TableHead>
+                <TableHead className="text-[10px] font-bold tracking-wider">Date</TableHead>
+                <TableHead className="text-[10px] font-bold tracking-wider">Type</TableHead>
+                <TableHead className="text-[10px] font-bold tracking-wider">Equipment</TableHead>
                 {/* Task #138: collapsed Distance / Time / Pace / Load
                     columns into a single one-number "Metric" column
                     powered by getPrimaryMetric, matching the slimmed
                     session-card treatment from Task #133. The full
                     breakdown still lives in the per-row expand below. */}
-                <TableHead className="uppercase text-[10px] font-bold tracking-wider text-right">Metric</TableHead>
+                <TableHead className="text-[10px] font-bold tracking-wider text-right">Metric</TableHead>
                 <TableHead className="text-right"></TableHead>
               </TableRow>
             </TableHeader>
@@ -268,7 +268,7 @@ export default function Log() {
                         {(workout.equipmentList ?? [workout.equipment]).map((eq, idx) => (
                           <span
                             key={`log-eq-${workout.id}-${idx}`}
-                            className="text-[10px] bg-secondary text-secondary-foreground px-2 py-0.5 rounded font-bold uppercase tracking-wider"
+                            className="text-[10px] bg-secondary text-secondary-foreground px-2 py-0.5 rounded font-bold tracking-wider"
                             data-testid={`chip-equipment-log-${workout.id}-${idx}`}
                           >
                             {eq}
@@ -338,15 +338,15 @@ export default function Log() {
                           />
                           <div className="grid grid-cols-3 gap-3 text-xs">
                             <div>
-                              <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Distance</p>
+                              <p className="text-[10px] font-bold tracking-wider text-muted-foreground">Distance</p>
                               <p className="font-mono font-bold" data-testid={`log-row-${workout.id}-distance`}>{formatDistance(workout.distanceMi)}</p>
                             </div>
                             <div>
-                              <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Pace</p>
+                              <p className="text-[10px] font-bold tracking-wider text-muted-foreground">Pace</p>
                               <p className="font-mono font-bold" data-testid={`log-row-${workout.id}-pace`}>{workout.pace || '-'}</p>
                             </div>
                             <div>
-                              <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Load</p>
+                              <p className="text-[10px] font-bold tracking-wider text-muted-foreground">Load</p>
                               <p className="font-mono font-bold" data-testid={`log-row-${workout.id}-load`}>{formatLoad(workout.totalLoad)}</p>
                             </div>
                           </div>

@@ -216,15 +216,15 @@ export default function Settings() {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-3xl mx-auto">
       <div>
-        <h2 className="text-3xl font-black uppercase tracking-tight text-primary">Settings</h2>
-        <p className="text-muted-foreground uppercase font-medium tracking-widest text-xs mt-1">
+        <h2 className="text-3xl font-black tracking-tight text-primary">Settings</h2>
+        <p className="text-muted-foreground font-medium tracking-widest text-xs mt-1">
           App-wide preferences
         </p>
       </div>
 
       <Card data-testid="card-visual-theme">
         <CardHeader>
-          <CardTitle className="text-lg uppercase tracking-wider">Visual theme</CardTitle>
+          <CardTitle className="text-lg tracking-wider">Visual theme</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
@@ -256,10 +256,10 @@ export default function Settings() {
                   />
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="font-bold uppercase tracking-wider text-sm">
+                      <div className="font-bold tracking-wider text-sm">
                         {theme.name}
                       </div>
-                      <span className="text-[10px] uppercase tracking-widest font-mono text-muted-foreground">
+                      <span className="text-[10px] tracking-widest font-mono text-muted-foreground">
                         {theme.number}
                       </span>
                     </div>
@@ -302,7 +302,7 @@ export default function Settings() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg uppercase tracking-wider">Run targeting</CardTitle>
+          <CardTitle className="text-lg tracking-wider">Run targeting</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
@@ -340,7 +340,7 @@ export default function Settings() {
                       data-testid={`radio-run-targeting-${opt.value}`}
                     />
                     <div className="space-y-1">
-                      <div className="font-bold uppercase tracking-wider text-sm">
+                      <div className="font-bold tracking-wider text-sm">
                         {opt.title}
                       </div>
                       <p className="text-xs text-muted-foreground">{opt.description}</p>
@@ -356,7 +356,7 @@ export default function Settings() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg uppercase tracking-wider">
+          <CardTitle className="text-lg tracking-wider">
             Heart-rate zones
           </CardTitle>
         </CardHeader>
@@ -378,7 +378,7 @@ export default function Settings() {
               <div className="space-y-2">
                 <Label
                   htmlFor="hr-zone-model-select"
-                  className="text-xs uppercase tracking-wider font-bold"
+                  className="text-xs tracking-wider font-bold"
                 >
                   Zone model
                 </Label>
@@ -420,7 +420,7 @@ export default function Settings() {
               </div>
 
               <div className="space-y-2 pt-2 border-t border-border">
-                <Label htmlFor="max-hr-input" className="text-xs uppercase tracking-wider font-bold">
+                <Label htmlFor="max-hr-input" className="text-xs tracking-wider font-bold">
                   Max heart rate (bpm)
                 </Label>
                 <div className="flex items-center gap-2">
@@ -463,7 +463,7 @@ export default function Settings() {
                     data-preview-model={previewUsesKarvonen ? "karvonen" : "pct-of-max"}
                     data-zone-model={hrZoneModel}
                   >
-                    <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground mb-2">
+                    <p className="text-[10px] tracking-widest font-bold text-muted-foreground mb-2">
                       Preview · {HR_ZONE_MODEL_LABELS[hrZoneModel]}
                       {previewUsesKarvonen ? " · Karvonen" : ""}
                     </p>
@@ -508,7 +508,7 @@ export default function Settings() {
                                   data-testid={`zone-preview-swatch-${zoneNumber}`}
                                 />
                               )}
-                              <span className="font-bold uppercase tracking-wider">
+                              <span className="font-bold tracking-wider">
                                 {label}
                               </span>
                             </span>
@@ -529,7 +529,7 @@ export default function Settings() {
               <div className="space-y-2 pt-2 border-t border-border">
                 <Label
                   htmlFor="resting-hr-input"
-                  className="text-xs uppercase tracking-wider font-bold"
+                  className="text-xs tracking-wider font-bold"
                 >
                   Resting heart rate (bpm) — optional
                 </Label>
@@ -624,7 +624,7 @@ export default function Settings() {
               </div>
 
               <div className="space-y-2 pt-2 border-t border-border">
-                <Label htmlFor="age-input" className="text-xs uppercase tracking-wider font-bold">
+                <Label htmlFor="age-input" className="text-xs tracking-wider font-bold">
                   Don't know it? Estimate from age (220 − age)
                 </Label>
                 <div className="flex items-center gap-2">

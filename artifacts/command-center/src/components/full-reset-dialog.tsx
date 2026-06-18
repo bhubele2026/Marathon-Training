@@ -17,8 +17,7 @@ import { Label } from "@/components/ui/label";
 export const FULL_RESET_CONFIRM_PHRASE = "WIPE EVERYTHING";
 
 // Centralizing the "did the runner type the magic phrase?" check means
-// both the UI gating and the unit test share one rule. Trim + uppercase
-// matches the server-side comparison so leading/trailing whitespace and
+// both the UI gating and the unit test share one rule. Trim + // matches the server-side comparison so leading/trailing whitespace and
 // stray capitalization don't re-introduce a footgun.
 export function isFullResetConfirmed(value: string): boolean {
   return value.trim().toUpperCase() === FULL_RESET_CONFIRM_PHRASE;
@@ -76,7 +75,7 @@ export function FullResetDialog({
         <div className="space-y-2 py-2">
           <Label
             htmlFor="full-reset-confirm"
-            className="text-xs uppercase tracking-wider"
+            className="text-xs tracking-wider"
           >
             Confirmation
           </Label>

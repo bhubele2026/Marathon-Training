@@ -190,7 +190,7 @@ export function ChecklistNudge({ testId }: { testId?: string } = {}) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-bold uppercase tracking-wider border w-fit",
+        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-bold tracking-wider border w-fit",
         urgent
           ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
           : "border-primary/40 bg-primary/10 text-primary",
@@ -261,7 +261,7 @@ function RaceWeekCountdown({
             <div>
               <p
                 className={cn(
-                  "text-xs uppercase tracking-[0.2em] font-bold",
+                  "text-xs tracking-[0.2em] font-bold",
                   theme.countdown.eyebrowColor,
                 )}
                 data-testid="race-week-eyebrow"
@@ -269,7 +269,7 @@ function RaceWeekCountdown({
               >
                 {eyebrow}
               </p>
-              <h2 className="text-xl md:text-2xl font-black uppercase tracking-wider">
+              <h2 className="text-xl md:text-2xl font-black tracking-wider">
                 Final Approach
               </h2>
             </div>
@@ -285,7 +285,7 @@ function RaceWeekCountdown({
               >
                 {data.daysToRace}
               </span>
-              <span className="text-xs uppercase tracking-wider font-bold text-muted-foreground">
+              <span className="text-xs tracking-wider font-bold text-muted-foreground">
                 day{data.daysToRace === 1 ? "" : "s"}
               </span>
             </div>
@@ -294,7 +294,7 @@ function RaceWeekCountdown({
                 <span className="text-2xl md:text-3xl font-black tabular-nums leading-none">
                   {data.hoursToRace}
                 </span>
-                <span className="text-xs uppercase tracking-wider font-bold text-muted-foreground">
+                <span className="text-xs tracking-wider font-bold text-muted-foreground">
                   hr
                 </span>
               </div>
@@ -304,7 +304,7 @@ function RaceWeekCountdown({
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs uppercase tracking-wider font-bold text-muted-foreground">
+            <div className="flex items-center gap-2 text-xs tracking-wider font-bold text-muted-foreground">
               <ListChecks className="h-4 w-4" />
               Taper Checklist
             </div>
@@ -313,17 +313,17 @@ function RaceWeekCountdown({
               const total = data.checklist.length;
               const remaining = total - done;
               if (remaining === 0) return (
-                <span className="text-[10px] uppercase tracking-wider font-bold text-emerald-600 dark:text-emerald-400">
+                <span className="text-[10px] tracking-wider font-bold text-emerald-600 dark:text-emerald-400">
                   All done
                 </span>
               );
               if (data.daysToRace <= 2 && remaining > 0) return (
-                <span className="text-[10px] uppercase tracking-wider font-bold text-amber-600 dark:text-amber-400" data-testid="checklist-nudge">
+                <span className="text-[10px] tracking-wider font-bold text-amber-600 dark:text-amber-400" data-testid="checklist-nudge">
                   {remaining} item{remaining === 1 ? "" : "s"} left — race is close!
                 </span>
               );
               return (
-                <span className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">
+                <span className="text-[10px] tracking-wider font-bold text-muted-foreground">
                   {done}/{total} complete
                 </span>
               );
@@ -375,11 +375,11 @@ function PostRaceRecovery({
             <Icon className={cn("h-6 w-6", theme.recoveryIconColor)} />
           </div>
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] font-bold text-emerald-600 dark:text-emerald-400">
+            <p className="text-xs tracking-[0.2em] font-bold text-emerald-600 dark:text-emerald-400">
               Recovery Mode
             </p>
             <h2
-              className="text-xl md:text-2xl font-black uppercase tracking-wider"
+              className="text-xl md:text-2xl font-black tracking-wider"
               data-testid="post-race-headline"
               data-race-kind={raceKind ?? ""}
             >
@@ -393,17 +393,17 @@ function PostRaceRecovery({
         <div className="space-y-2 text-sm text-muted-foreground" data-testid="post-race-recovery-guidance">
           <p>Focus on gentle movement, hydration, and nutrition. Your body earned this rest.</p>
           {daysAfter <= 3 && (
-            <p className="text-emerald-600 dark:text-emerald-400 font-bold uppercase text-xs tracking-wider" data-testid="recovery-phase-1">
+            <p className="text-emerald-600 dark:text-emerald-400 font-bold text-xs tracking-wider" data-testid="recovery-phase-1">
               Days 1-3: Walk only. Ice sore spots. Eat well. Sleep extra.
             </p>
           )}
           {daysAfter > 3 && daysAfter <= 7 && (
-            <p className="text-emerald-600 dark:text-emerald-400 font-bold uppercase text-xs tracking-wider" data-testid="recovery-phase-2">
+            <p className="text-emerald-600 dark:text-emerald-400 font-bold text-xs tracking-wider" data-testid="recovery-phase-2">
               Days 4-7: Light movement OK. No intensity. Listen to your body.
             </p>
           )}
           {daysAfter > 7 && (
-            <p className="text-emerald-600 dark:text-emerald-400 font-bold uppercase text-xs tracking-wider" data-testid="recovery-phase-3">
+            <p className="text-emerald-600 dark:text-emerald-400 font-bold text-xs tracking-wider" data-testid="recovery-phase-3">
               Week 2+: Gradually return to easy efforts. No racing for 2-4 weeks.
             </p>
           )}
@@ -480,12 +480,12 @@ function SavedRaceResult({
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-xs uppercase tracking-wider font-bold text-emerald-600 dark:text-emerald-400">
+          <p className="text-xs tracking-wider font-bold text-emerald-600 dark:text-emerald-400">
             Race Result
           </p>
           {isPR ? (
             <span
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-[0.2em] border border-amber-500/50 bg-amber-500/15 text-amber-700 dark:text-amber-400"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black tracking-[0.2em] border border-amber-500/50 bg-amber-500/15 text-amber-700 dark:text-amber-400"
               data-testid="race-result-pr-badge"
               title={
                 previousBest
@@ -521,7 +521,7 @@ function SavedRaceResult({
       {previousBest ? (
         <p
           className={cn(
-            "text-xs uppercase tracking-wider font-bold",
+            "text-xs tracking-wider font-bold",
             isPR
               ? "text-amber-700 dark:text-amber-400"
               : "text-muted-foreground",
@@ -556,7 +556,7 @@ function ResultStat({
 }) {
   return (
     <div className="rounded-md bg-background/60 border border-border p-3" data-testid={testId}>
-      <p className="text-xs uppercase tracking-wider font-bold text-muted-foreground">
+      <p className="text-xs tracking-wider font-bold text-muted-foreground">
         {label}
       </p>
       <p className="mt-1 text-base font-black">{value}</p>
@@ -628,7 +628,7 @@ function RaceResultForm({
       data-testid="race-result-form"
     >
       <div className="flex items-center justify-between">
-        <p className="text-xs uppercase tracking-wider font-bold text-emerald-600 dark:text-emerald-400">
+        <p className="text-xs tracking-wider font-bold text-emerald-600 dark:text-emerald-400">
           {initial ? "Edit Race Result" : "Log Your Race"}
         </p>
         {onCancel ? (
@@ -757,7 +757,7 @@ function RaceDayHero({
           <div>
             <p
               className={cn(
-                "text-xs uppercase tracking-[0.2em] font-bold",
+                "text-xs tracking-[0.2em] font-bold",
                 theme.hero.eyebrowColor,
               )}
               data-testid="race-day-hero-eyebrow"
@@ -765,7 +765,7 @@ function RaceDayHero({
             >
               {eyebrow}
             </p>
-            <h2 className="text-2xl md:text-3xl font-black uppercase tracking-wider">
+            <h2 className="text-2xl md:text-3xl font-black tracking-wider">
               Today is the day. Execute.
             </h2>
           </div>
@@ -864,7 +864,7 @@ function PlanStat({
     >
       <p
         className={cn(
-          "text-xs uppercase tracking-wider font-bold",
+          "text-xs tracking-wider font-bold",
           tone
             ? tone.labelClass
             : accent
@@ -883,7 +883,7 @@ function PlanStat({
       {tone ? (
         <p
           className={cn(
-            "mt-1 text-[10px] uppercase font-bold tracking-wider",
+            "mt-1 text-[10px] font-bold tracking-wider",
             tone.labelClass,
           )}
           data-testid={testId ? `${testId}-zone-hint` : undefined}

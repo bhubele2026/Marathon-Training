@@ -160,7 +160,7 @@ export default function Goals() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-primary uppercase">
+        <h1 className="text-3xl font-bold tracking-tight text-primary">
           Goals
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
@@ -171,7 +171,7 @@ export default function Goals() {
       {/* Body stats */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted-foreground">
+          <CardTitle className="flex items-center gap-2 text-sm tracking-wider text-muted-foreground">
             <User className="h-4 w-4 text-primary" /> Body Stats
           </CardTitle>
         </CardHeader>
@@ -293,14 +293,14 @@ export default function Goals() {
       {/* AI nutrition targets */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted-foreground">
+          <CardTitle className="flex items-center gap-2 text-sm tracking-wider text-muted-foreground">
             <Sparkles className="h-4 w-4 text-primary" /> Nutrition Targets
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="rounded-md border border-border p-4">
-              <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
+              <div className="flex items-center gap-2 text-xs tracking-wider text-muted-foreground">
                 <Beef className="h-3.5 w-3.5 text-primary" /> Protein / day
               </div>
               <div className="mt-1 text-4xl font-bold text-primary tabular-nums">
@@ -311,7 +311,7 @@ export default function Goals() {
               </div>
             </div>
             <div className="rounded-md border border-border p-4">
-              <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
+              <div className="flex items-center gap-2 text-xs tracking-wider text-muted-foreground">
                 <Flame className="h-3.5 w-3.5 text-primary" /> Calories / day
               </div>
               <div className="mt-1 text-4xl font-bold tabular-nums">
@@ -363,7 +363,7 @@ export default function Goals() {
       {/* Tonal Strength Score goal */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted-foreground">
+          <CardTitle className="flex items-center gap-2 text-sm tracking-wider text-muted-foreground">
             <Dumbbell className="h-4 w-4 text-primary" /> Tonal Strength Score
           </CardTitle>
         </CardHeader>

@@ -7,7 +7,7 @@
 // inside a top-bordered, slightly indented gutter so the detail reads
 // as a structured continuation of the slim card header rather than a
 // loose dump of components below the trigger. The trigger itself uses
-// the same uppercase / tracking-wider typography as the primary-metric
+// the same / tracking-wider typography as the primary-metric
 // label so the collapsed and expanded states share a visual language.
 //
 // Notes:
@@ -47,7 +47,7 @@ export function SessionDetailDisclosure({
     <Collapsible open={open} onOpenChange={setOpen}>
       <CollapsibleTrigger
         className={cn(
-          "inline-flex items-center gap-1 text-muted-foreground hover:text-primary uppercase font-bold tracking-wider transition-colors",
+          "inline-flex items-center gap-1 text-muted-foreground hover:text-primary font-bold tracking-wider transition-colors",
           size === "sm" ? "text-[10px]" : "text-xs",
           className,
         )}

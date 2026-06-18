@@ -36,7 +36,7 @@ export function NextScheduledRaceChip({
       <button
         type="button"
         onClick={onLogResult}
-        className="inline-flex items-center gap-1 text-[10px] bg-primary text-primary-foreground px-2 py-1 rounded font-bold uppercase tracking-wider w-fit hover:bg-primary/90 transition-colors"
+        className="inline-flex items-center gap-1 text-[10px] bg-primary text-primary-foreground px-2 py-1 rounded font-bold tracking-wider w-fit hover:bg-primary/90 transition-colors"
         data-testid={testId}
         data-race-date={race.raceDate}
         data-race-kind={race.raceKind}
@@ -55,7 +55,7 @@ export function NextScheduledRaceChip({
   return (
     <Link
       href="/races"
-      className="inline-flex items-center gap-1 text-[10px] bg-primary/15 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider w-fit hover:bg-primary/25 transition-colors"
+      className="inline-flex items-center gap-1 text-[10px] bg-primary/15 text-primary px-2 py-1 rounded font-bold tracking-wider w-fit hover:bg-primary/25 transition-colors"
       data-testid={testId}
       data-race-date={race.raceDate}
       data-race-kind={race.raceKind}

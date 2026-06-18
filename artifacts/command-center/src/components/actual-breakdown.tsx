@@ -161,7 +161,7 @@ function Tiles({ cells, variant, testIdPrefix }: TilesProps) {
       >
         {cells.map((c) => (
           <div key={c.key}>
-            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+            <p className="text-[10px] text-muted-foreground font-bold tracking-wider">
               {c.label}
             </p>
             <p
@@ -177,7 +177,7 @@ function Tiles({ cells, variant, testIdPrefix }: TilesProps) {
             </p>
             {c.planned != null && (
               <p
-                className="text-[10px] text-muted-foreground font-mono mt-0.5 uppercase tracking-wider"
+                className="text-[10px] text-muted-foreground font-mono mt-0.5 tracking-wider"
                 data-testid={tid(`actual-breakdown-${c.key}-planned`)}
               >
                 / {c.planned} planned
@@ -200,7 +200,7 @@ function Tiles({ cells, variant, testIdPrefix }: TilesProps) {
     >
       {cells.map((c) => (
         <div key={c.key}>
-          <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground block">
+          <span className="text-[10px] font-bold tracking-wider text-muted-foreground block">
             {c.label}
           </span>
           <span className="leading-tight block">

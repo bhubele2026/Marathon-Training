@@ -93,14 +93,14 @@ export function HybridWeekPreview({
       data-race-week={preview.isRaceWeek ? "true" : undefined}
     >
       <div className="flex items-center justify-between gap-2">
-        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+        <div className="text-[10px] tracking-wider text-muted-foreground">
           {preview.isRaceWeek
             ? `Race week (week ${preview.weekInBlock} of ${preview.blockWeeks})`
             : `Typical week (week ${preview.weekInBlock} of ${preview.blockWeeks})`}
         </div>
         {preview.isRaceWeek && (
           <span
-            className="rounded bg-amber-500/15 px-1 py-px text-[9px] font-mono uppercase tracking-wider text-amber-700 dark:text-amber-300 flex items-center gap-1"
+            className="rounded bg-amber-500/15 px-1 py-px text-[9px] font-mono tracking-wider text-amber-700 dark:text-amber-300 flex items-center gap-1"
             data-testid={`${tidPrefix}-badge`}
           >
             <Trophy className="h-2.5 w-2.5" /> Race Day
@@ -108,7 +108,7 @@ export function HybridWeekPreview({
         )}
         {showCutbackBadge && (
           <span
-            className="rounded bg-amber-500/15 px-1 py-px text-[9px] font-mono uppercase tracking-wider text-amber-700 dark:text-amber-300"
+            className="rounded bg-amber-500/15 px-1 py-px text-[9px] font-mono tracking-wider text-amber-700 dark:text-amber-300"
             data-testid={`${tidPrefix}-cutback`}
           >
             Cutback
@@ -146,7 +146,7 @@ export function HybridWeekPreview({
               data-testid={`${tidPrefix}-${s.day.toLowerCase()}`}
               data-race-day={s.kind === "race" ? "true" : undefined}
             >
-              <div className="text-[9px] font-mono uppercase text-muted-foreground">
+              <div className="text-[9px] font-mono text-muted-foreground">
                 {s.day}
               </div>
               <div

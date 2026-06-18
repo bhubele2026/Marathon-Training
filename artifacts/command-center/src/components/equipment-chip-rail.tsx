@@ -31,7 +31,7 @@ export function EquipmentChipRail({
         return (
           <span
             key={`${keyPrefix}-${idx}`}
-            className="text-[10px] bg-secondary text-secondary-foreground px-2 py-1 rounded font-bold uppercase tracking-wider"
+            className="text-[10px] bg-secondary text-secondary-foreground px-2 py-1 rounded font-bold tracking-wider"
             data-testid={`${chipTestIdPrefix}-${idx}`}
           >
             {eq}

@@ -86,7 +86,7 @@ export function RunTargetLine({
         data-testid={testId}
         data-run-targeting-mode={mode}
       >
-        <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+        <span className="text-[10px] font-bold tracking-wider text-muted-foreground">
           {modeLabel}
         </span>
         <span className="inline-flex items-center gap-1.5 font-mono font-medium">
@@ -113,8 +113,8 @@ export function RunTargetLine({
     ? cn("rounded-md border px-4 py-3", tone.borderClass, tone.bgClass)
     : cn("rounded-md border border-primary/30 bg-primary/5 px-4 py-3");
   const labelClass = tone
-    ? cn("text-[10px] uppercase font-bold tracking-widest", tone.labelClass)
-    : "text-[10px] text-primary uppercase font-bold tracking-widest";
+    ? cn("text-[10px] font-bold tracking-widest", tone.labelClass)
+    : "text-[10px] text-primary font-bold tracking-widest";
   return (
     <div
       className={wrapperClass}
@@ -146,7 +146,7 @@ export function RunTargetLine({
       {tone ? (
         <p
           className={cn(
-            "mt-1 text-[10px] uppercase font-bold tracking-wider",
+            "mt-1 text-[10px] font-bold tracking-wider",
             tone.labelClass,
           )}
           data-testid={testId ? `${testId}-zone-hint` : undefined}

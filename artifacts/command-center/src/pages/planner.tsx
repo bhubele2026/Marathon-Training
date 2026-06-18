@@ -2562,7 +2562,7 @@ export default function Planner() {
     return (
       <div className="space-y-6 pb-12" data-testid="planner-page-empty">
         <header>
-          <h1 className="text-3xl font-bold tracking-tight uppercase">
+          <h1 className="text-3xl font-bold tracking-tight">
             Phase Planner
           </h1>
           <p className="text-muted-foreground mt-1">
@@ -2602,7 +2602,7 @@ export default function Planner() {
   return (
     <div className="space-y-6 pb-12" data-testid="planner-page">
       <header>
-        <h1 className="text-3xl font-bold tracking-tight uppercase">
+        <h1 className="text-3xl font-bold tracking-tight">
           Phase Planner
         </h1>
         <p className="text-muted-foreground mt-1">
@@ -2616,7 +2616,7 @@ export default function Planner() {
       {/* ---------- CONFIG PICKER ---------- */}
       <Card>
         <CardHeader>
-          <CardTitle className="uppercase tracking-wider text-sm">
+          <CardTitle className="tracking-wider text-sm">
             Saved Configs
           </CardTitle>
         </CardHeader>
@@ -2689,7 +2689,7 @@ export default function Planner() {
       {/* ---------- NAME + DATES ---------- */}
       <Card data-testid="planner-config-card">
         <CardHeader>
-          <CardTitle className="uppercase tracking-wider text-sm">
+          <CardTitle className="tracking-wider text-sm">
             Config
           </CardTitle>
         </CardHeader>
@@ -2932,7 +2932,7 @@ export default function Planner() {
                 className="md:col-span-3 rounded-md border border-border/60 bg-muted/30 p-3 space-y-1.5"
                 data-testid="planner-budget-preview"
               >
-                <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
+                <p className="text-[11px] tracking-wider text-muted-foreground font-semibold">
                   Daily time-budget preview
                 </p>
                 <ul className="text-xs text-foreground/90 space-y-1">
@@ -3019,11 +3019,11 @@ export default function Planner() {
                           data-testid={tid}
                         >
                           <div className="flex items-baseline justify-between gap-2">
-                            <span className="text-[11px] uppercase tracking-wider font-semibold">
+                            <span className="text-[11px] tracking-wider font-semibold">
                               {row.day}
                             </span>
                             {row.is_rest && (
-                              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-mono">
+                              <span className="text-[10px] tracking-wider text-muted-foreground font-mono">
                                 Rest
                               </span>
                             )}
@@ -3033,7 +3033,7 @@ export default function Planner() {
                               {row.equipment_list.map((eq) => (
                                 <span
                                   key={eq}
-                                  className="text-[9px] uppercase tracking-wider font-mono px-1.5 py-0.5 rounded border border-border/60 bg-muted/50"
+                                  className="text-[9px] tracking-wider font-mono px-1.5 py-0.5 rounded border border-border/60 bg-muted/50"
                                 >
                                   {eq}
                                 </span>
@@ -3085,7 +3085,7 @@ export default function Planner() {
       {/* ---------- PLAN TEMPLATE LIBRARY ---------- */}
       <Card data-testid="planner-template-library">
         <CardHeader>
-          <CardTitle className="uppercase tracking-wider text-sm flex items-center gap-2">
+          <CardTitle className="tracking-wider text-sm flex items-center gap-2">
             <Library className="h-4 w-4" /> Plan Template Library
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
@@ -3104,7 +3104,7 @@ export default function Planner() {
               ids (`planner-starter-${id}` / `planner-starter-apply-${id}`)
               are unchanged so existing apply-flow tests keep working. */}
           <div className="space-y-4" data-testid="planner-starter-rail">
-            <h3 className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <h3 className="text-xs tracking-wider text-muted-foreground flex items-center gap-1">
               <Sparkles className="h-3 w-3" /> Starter shortcuts
             </h3>
             {/* Race-distance quick filter (task #229). Chips above the
@@ -3177,7 +3177,7 @@ export default function Planner() {
                   className="space-y-2"
                   data-testid={`planner-starter-group-${g.style}`}
                 >
-                  <h4 className="text-[11px] uppercase tracking-wider text-muted-foreground/80">
+                  <h4 className="text-[11px] tracking-wider text-muted-foreground/80">
                     {g.label}
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -3223,7 +3223,7 @@ export default function Planner() {
                 data-testid="planner-template-tag-cloud-trigger"
                 className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded border border-border bg-background hover:bg-muted text-left"
               >
-                <span className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <span className="text-xs tracking-wider text-muted-foreground flex items-center gap-2">
                   Filter by tag
                   {selectedTemplateTags.size > 0 && (
                     <span
@@ -3250,7 +3250,7 @@ export default function Planner() {
                 }
               >
               <div className="flex items-center justify-between gap-2">
-                <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                <Label className="text-xs tracking-wider text-muted-foreground flex items-center gap-1">
                   Sort
                 </Label>
                 <div className="flex items-center gap-2">
@@ -3383,7 +3383,7 @@ export default function Planner() {
           <div className="space-y-2">
             <Label
               htmlFor="planner-template-search"
-              className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1"
+              className="text-xs tracking-wider text-muted-foreground flex items-center gap-1"
             >
               <Search className="h-3 w-3" /> Search templates
             </Label>
@@ -3437,7 +3437,7 @@ export default function Planner() {
 
           {/* Grouped template grid */}
           <div className="space-y-3">
-            <h3 className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+            <h3 className="text-xs tracking-wider text-muted-foreground flex items-center gap-1">
               <BookOpen className="h-3 w-3" /> Templates by level
             </h3>
             {totalMatchedTemplates === 0 && (
@@ -3517,7 +3517,7 @@ export default function Planner() {
                         <div className="font-semibold text-[15px] leading-tight">
                           {tpl.name}
                         </div>
-                        <div className="text-[11px] uppercase tracking-wider text-muted-foreground mt-0.5">
+                        <div className="text-[11px] tracking-wider text-muted-foreground mt-0.5">
                           {tpl.goalDistance} · {tpl.source}
                         </div>
                       </div>
@@ -3739,7 +3739,7 @@ export default function Planner() {
                           <div className="flex items-center justify-between">
                             <Label className="text-xs">Lift / Run mix</Label>
                             <span
-                              className="text-[11px] uppercase tracking-wider text-muted-foreground"
+                              className="text-[11px] tracking-wider text-muted-foreground"
                               data-testid="planner-hybrid-position-label"
                             >
                               {HYBRID_POSITION_LABEL[hybridPosition]}
@@ -3838,7 +3838,7 @@ export default function Planner() {
                                   <Minus className="h-3 w-3" />
                                 </Button>
                                 <span
-                                  className="min-w-[5.5rem] text-center text-[11px] font-mono uppercase tracking-wider text-muted-foreground"
+                                  className="min-w-[5.5rem] text-center text-[11px] font-mono tracking-wider text-muted-foreground"
                                   data-testid="planner-hybrid-preview-week-label"
                                 >
                                   Week {clampedWeek} of {blockWeeks}
@@ -4027,7 +4027,7 @@ export default function Planner() {
                                   isBaseline ? "true" : undefined
                                 }
                               >
-                                <div className="flex items-center justify-between gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                                <div className="flex items-center justify-between gap-1 text-[10px] tracking-wider text-muted-foreground">
                                   <span className="inline-flex items-center gap-1">
                                     {opts.kind === "pin" && (
                                       <Pin className="h-3 w-3" />
@@ -4509,7 +4509,7 @@ export default function Planner() {
       {/* ---------- TIMELINE MATH ---------- */}
       <Card>
         <CardHeader>
-          <CardTitle className="uppercase tracking-wider text-sm">
+          <CardTitle className="tracking-wider text-sm">
             Timeline
           </CardTitle>
         </CardHeader>
@@ -4589,7 +4589,7 @@ export default function Planner() {
         <Card data-testid="planner-composition-editor">
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <div>
-              <CardTitle className="uppercase tracking-wider text-sm">
+              <CardTitle className="tracking-wider text-sm">
                 Composition · {entries!.length} entr{entries!.length === 1 ? "y" : "ies"} · {entriesProjectedWeeks}/{totalWeeks}w
                 {entriesGapWeeksSum > 0 && (
                   <span
@@ -4652,7 +4652,7 @@ export default function Planner() {
                     >
                       {proj && proj.gapWeeksBefore > 0 && (
                         <div
-                          className="mb-2 text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1"
+                          className="mb-2 text-[10px] tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1"
                           data-testid={`planner-entry-${i}-gap-banner`}
                         >
                           ↳ {proj.gapWeeksBefore}w Recovery gap before this
@@ -4677,7 +4677,7 @@ export default function Planner() {
                               </Badge>
                             )}
                           </div>
-                          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                          <div className="text-[10px] tracking-wider text-muted-foreground">
                             {tpl?.goalDistance ?? "—"} · {tpl?.source ?? "unknown source"}
                           </div>
                         </div>
@@ -4744,7 +4744,7 @@ export default function Planner() {
                               className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground"
                               data-testid={`planner-entry-${i}-dates`}
                             >
-                              <span className="uppercase tracking-wider">
+                              <span className="tracking-wider">
                                 Starts
                               </span>
                               {i === 0 ? (
@@ -4772,7 +4772,7 @@ export default function Planner() {
                                   data-testid={`planner-entry-${i}-start-date`}
                                 />
                               )}
-                              <span className="uppercase tracking-wider">
+                              <span className="tracking-wider">
                                 Ends
                               </span>
                               <Input
@@ -4819,7 +4819,7 @@ export default function Planner() {
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  className="h-5 px-2 text-[10px] uppercase tracking-wider"
+                                  className="h-5 px-2 text-[10px] tracking-wider"
                                   onClick={() =>
                                     updateEntry(i, { startDate: null })
                                   }
@@ -4862,7 +4862,7 @@ export default function Planner() {
                               size="sm"
                               variant="ghost"
                               onClick={() => viewTemplateSource(tpl.id)}
-                              className="h-6 px-2 text-[10px] uppercase tracking-wider shrink-0"
+                              className="h-6 px-2 text-[10px] tracking-wider shrink-0"
                               data-testid={`planner-entry-${i}-view-source`}
                             >
                               <ExternalLink className="h-3 w-3 mr-1" />
@@ -4892,7 +4892,7 @@ export default function Planner() {
                 data-testid="planner-composition-timeline"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <div className="text-[10px] tracking-wider text-muted-foreground">
                     Timeline · {entriesProjectedWeeks}w total
                   </div>
                   <div className="text-[10px] text-muted-foreground font-mono tabular-nums">
@@ -4934,7 +4934,7 @@ export default function Planner() {
                             title={`Recovery gap · ${proj.gapWeeksBefore}w`}
                             data-testid={`planner-timeline-gap-${i}`}
                           >
-                            <div className="absolute inset-0 flex items-center justify-center text-[9px] uppercase tracking-wider text-muted-foreground font-medium pointer-events-none">
+                            <div className="absolute inset-0 flex items-center justify-center text-[9px] tracking-wider text-muted-foreground font-medium pointer-events-none">
                               {proj.gapWeeksBefore >= 2 ? `Gap ${proj.gapWeeksBefore}w` : ""}
                             </div>
                           </div>,
@@ -5091,7 +5091,7 @@ export default function Planner() {
                           data-testid="planner-entry-add-tag-cloud-trigger"
                           className="w-full flex items-center justify-between gap-2 text-left"
                         >
-                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                          <span className="text-[10px] tracking-wider text-muted-foreground flex items-center gap-2">
                             Filter by tag
                             {quickAddSelectedTags.size > 0 && (
                               <span
@@ -5120,7 +5120,7 @@ export default function Planner() {
                           }
                         >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                          <span className="text-[10px] tracking-wider text-muted-foreground">
                             Sort
                           </span>
                           <div className="flex items-center gap-2">
@@ -5302,7 +5302,7 @@ export default function Planner() {
       {!isEntriesMode && (
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle className="uppercase tracking-wider text-sm">
+          <CardTitle className="tracking-wider text-sm">
             Phase Blocks
           </CardTitle>
           <div className="flex gap-2">
@@ -5448,7 +5448,7 @@ export default function Planner() {
                   </span>
                   <Badge variant="secondary">Marathon-Specific</Badge>
                   <span className="text-sm">{MARATHON_TAIL_WEEKS} weeks</span>
-                  <span className="ml-auto text-xs uppercase tracking-wider text-muted-foreground">
+                  <span className="ml-auto text-xs tracking-wider text-muted-foreground">
                     Auto-pinned
                   </span>
                 </div>
@@ -5467,7 +5467,7 @@ export default function Planner() {
       {/* ---------- TIMELINE PREVIEW ---------- */}
       <Card>
         <CardHeader>
-          <CardTitle className="uppercase tracking-wider text-sm">
+          <CardTitle className="tracking-wider text-sm">
             Plan Preview
           </CardTitle>
         </CardHeader>
@@ -5500,7 +5500,7 @@ export default function Planner() {
                     {b.startDateISO} → {b.endDateISO}
                   </span>
                 )}
-                <span className="font-semibold uppercase tracking-wider">
+                <span className="font-semibold tracking-wider">
                   {b.label}
                 </span>
                 {b.autoPinned && (
@@ -5917,7 +5917,7 @@ function TemplateSparkline({
   if (preview.length === 0) {
     return (
       <div
-        className="h-5 w-[60px] shrink-0 text-[9px] uppercase tracking-wider text-muted-foreground flex items-center"
+        className="h-5 w-[60px] shrink-0 text-[9px] tracking-wider text-muted-foreground flex items-center"
         data-testid={testId}
       >
         —
@@ -5993,7 +5993,7 @@ function BlockSparkline({
   if (weeks.length === 0) {
     return (
       <div
-        className="mt-3 h-10 flex items-center text-[10px] uppercase tracking-wider text-muted-foreground"
+        className="mt-3 h-10 flex items-center text-[10px] tracking-wider text-muted-foreground"
         data-testid={testId}
       >
         Mileage preview unavailable
@@ -6066,7 +6066,7 @@ function BlockSparkline({
           />
         ))}
       </svg>
-      <div className="flex justify-between text-[10px] uppercase tracking-wider text-muted-foreground mt-1">
+      <div className="flex justify-between text-[10px] tracking-wider text-muted-foreground mt-1">
         <span>
           <span className="text-primary">●</span> Total · peak{" "}
           <span className="font-semibold tabular-nums">
@@ -6082,7 +6082,7 @@ function BlockSparkline({
       </div>
       {steadyWeeks.length > 0 && (
         <div
-          className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5"
+          className="flex items-center gap-1 text-[10px] tracking-wider text-muted-foreground mt-0.5"
           data-testid={`${testId}-steady-legend`}
         >
           <span
@@ -6172,10 +6172,10 @@ function MileageCurve({
   return (
     <div data-testid={testId}>
       <div className="flex items-center justify-between mb-2">
-        <div className="text-xs uppercase tracking-wider text-muted-foreground">
+        <div className="text-xs tracking-wider text-muted-foreground">
           Projected weekly mileage
         </div>
-        <div className="flex gap-3 text-[10px] uppercase tracking-wider text-muted-foreground">
+        <div className="flex gap-3 text-[10px] tracking-wider text-muted-foreground">
           <span>
             <span className="text-primary">●</span> Total
           </span>
@@ -6245,7 +6245,7 @@ function MileageCurve({
                 y={H - 6}
                 textAnchor="middle"
                 fontSize={8}
-                className="fill-muted-foreground uppercase tracking-wider"
+                className="fill-muted-foreground tracking-wider"
               >
                 {b.label.length > 14 ? `${b.label.slice(0, 12)}…` : b.label}
               </text>
@@ -6287,7 +6287,7 @@ function MileageCurve({
       </svg>
       {steadyWeeks.length > 0 && (
         <div
-          className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground mt-1"
+          className="flex items-center gap-1 text-[10px] tracking-wider text-muted-foreground mt-1"
           data-testid={`${testId}-steady-legend`}
         >
           <span
@@ -6329,7 +6329,7 @@ function Stat({
       }`}
       data-testid={rest["data-testid"]}
     >
-      <div className="text-xs uppercase tracking-wider text-muted-foreground">
+      <div className="text-xs tracking-wider text-muted-foreground">
         {label}
       </div>
       <div className="text-xl font-bold tabular-nums mt-1">{value}</div>

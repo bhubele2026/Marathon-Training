@@ -95,7 +95,7 @@ function CustomizedBadge({ day }: { day: PlanDay }) {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-2 py-1 rounded font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer hover:bg-amber-500/25 transition-colors"
+          className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-2 py-1 rounded font-bold tracking-wider flex items-center gap-1 cursor-pointer hover:bg-amber-500/25 transition-colors"
           data-testid={`badge-customized-${day.date}`}
           aria-label="Show what changed"
         >
@@ -107,7 +107,7 @@ function CustomizedBadge({ day }: { day: PlanDay }) {
         className="w-72 p-3"
         data-testid={`popover-customized-${day.date}`}
       >
-        <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
+        <div className="text-xs font-bold tracking-wider text-muted-foreground mb-2">
           Edited from original
         </div>
         {diff.length === 0 ? (
@@ -470,7 +470,7 @@ export default function WeekDetail() {
         <div className="text-center">
           {weekEyebrow && (
             <p
-              className="text-[10px] uppercase tracking-[0.2em] font-bold text-primary mb-1"
+              className="text-[10px] tracking-[0.2em] font-bold text-primary mb-1"
               data-testid="week-detail-eyebrow"
               data-race-kind={raceKind ?? ""}
               data-race-week={isRaceWeek ? "true" : undefined}
@@ -479,8 +479,8 @@ export default function WeekDetail() {
               {weekEyebrow}
             </p>
           )}
-          <h2 className="text-2xl font-black uppercase tracking-tight text-primary">Week {week.week}</h2>
-          <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest mt-1">{formatDate(week.startDate)} - {formatDate(week.endDate)}</p>
+          <h2 className="text-2xl font-black tracking-tight text-primary">Week {week.week}</h2>
+          <p className="text-xs text-muted-foreground font-bold tracking-widest mt-1">{formatDate(week.startDate)} - {formatDate(week.endDate)}</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => setLocation(`/plan/${weekNum + 1}`)}>
           Next Week <ChevronRight className="h-4 w-4 ml-1" />
@@ -492,7 +492,7 @@ export default function WeekDetail() {
         style={{ borderLeftColor: phaseColor(week.phase) }}
       >
         <div>
-          <p className="text-[10px] uppercase font-bold text-muted-foreground">Phase</p>
+          <p className="text-[10px] font-bold text-muted-foreground">Phase</p>
           <p
             className="font-black text-lg flex items-center gap-2"
             data-testid="week-phase-label"
@@ -506,7 +506,7 @@ export default function WeekDetail() {
           </p>
         </div>
         <div>
-          <p className="text-[10px] uppercase font-bold text-muted-foreground">Volume</p>
+          <p className="text-[10px] font-bold text-muted-foreground">Volume</p>
           {/*
             Bike-only / Row-only weeks (task #107): if the prescription is
             entirely cardio-bucket time (planned_miles 0, planned_cardio
@@ -545,7 +545,7 @@ export default function WeekDetail() {
               </p>
               {week.dominantCardioEquipment && (
                 <span
-                  className="inline-block text-[10px] bg-secondary text-secondary-foreground px-2 py-0.5 rounded font-bold uppercase tracking-wider"
+                  className="inline-block text-[10px] bg-secondary text-secondary-foreground px-2 py-0.5 rounded font-bold tracking-wider"
                   data-testid="week-volume-cardio-chip"
                 >
                   {week.dominantCardioEquipment}
@@ -568,11 +568,11 @@ export default function WeekDetail() {
           )}
         </div>
         <div>
-          <p className="text-[10px] uppercase font-bold text-muted-foreground">Long Run</p>
+          <p className="text-[10px] font-bold text-muted-foreground">Long Run</p>
           <p className="font-black text-lg">{formatDistance(week.longRunMi)}</p>
         </div>
         <div>
-          <p className="text-[10px] uppercase font-bold text-muted-foreground">Sessions</p>
+          <p className="text-[10px] font-bold text-muted-foreground">Sessions</p>
           <p
             className={cn(
               "font-black text-lg",
@@ -587,7 +587,7 @@ export default function WeekDetail() {
           </p>
           {week.programs && week.programs.length > 1 && (
             <div
-              className="mt-1 flex flex-col gap-0.5 text-[10px] uppercase font-bold tracking-wider text-muted-foreground"
+              className="mt-1 flex flex-col gap-0.5 text-[10px] font-bold tracking-wider text-muted-foreground"
               data-testid="week-program-breakdown"
             >
               {week.programs.map((p) => (
@@ -613,7 +613,7 @@ export default function WeekDetail() {
         <Button
           variant="outline"
           size="sm"
-          className="text-xs uppercase font-bold tracking-wider"
+          className="text-xs font-bold tracking-wider"
           onClick={() => setResetWeekOpen(true)}
           data-testid="button-reset-week"
         >
@@ -639,7 +639,7 @@ export default function WeekDetail() {
             return (
               <span
                 key={sr.raceDate}
-                className="inline-flex items-center gap-1 text-[11px] bg-primary/15 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider"
+                className="inline-flex items-center gap-1 text-[11px] bg-primary/15 text-primary px-2 py-1 rounded font-bold tracking-wider"
                 data-testid={`week-scheduled-race-${sr.raceDate}`}
                 data-race-kind={sr.raceKind}
                 data-race-dow={dow}
@@ -677,7 +677,7 @@ export default function WeekDetail() {
             : `${day.date}-${day.sourceEntryIndex}`;
           const programBadge = showProgramBadge ? (
             <span
-              className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider"
+              className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded font-bold tracking-wider"
               data-testid={`badge-program-${day.date}-${day.sourceEntryIndex}`}
             >
               {day.sourceEntryLabel}
@@ -693,7 +693,7 @@ export default function WeekDetail() {
           );
           const scheduledRaceBadge = scheduledRaceForDay ? (
             <span
-              className="inline-flex items-center gap-1 text-[10px] bg-primary/15 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider"
+              className="inline-flex items-center gap-1 text-[10px] bg-primary/15 text-primary px-2 py-1 rounded font-bold tracking-wider"
               data-testid={`badge-scheduled-race-${day.date}`}
               data-race-kind={scheduledRaceForDay.raceKind}
               title={scheduledRaceForDay.name ?? undefined}
@@ -711,7 +711,7 @@ export default function WeekDetail() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 px-2 text-[10px] uppercase font-bold tracking-wider hover:text-foreground"
+                className="h-7 px-2 text-[10px] font-bold tracking-wider hover:text-foreground"
                 onClick={() => setEditPlanDay(day)}
                 data-testid={`button-edit-plan-${chipTestIdSuffix}`}
                 title="Edit planned session"
@@ -721,7 +721,7 @@ export default function WeekDetail() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 px-2 text-[10px] uppercase font-bold tracking-wider hover:text-foreground"
+                className="h-7 px-2 text-[10px] font-bold tracking-wider hover:text-foreground"
                 onClick={() => setMovePlanDay(day)}
                 data-testid={`button-move-plan-${chipTestIdSuffix}`}
                 title="Swap with another day"
@@ -731,7 +731,7 @@ export default function WeekDetail() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 px-2 text-[10px] uppercase font-bold tracking-wider hover:text-foreground"
+                className="h-7 px-2 text-[10px] font-bold tracking-wider hover:text-foreground"
                 onClick={() => setResetPlanDayCtx(day)}
                 data-testid={`button-reset-plan-${chipTestIdSuffix}`}
                 title="Reset to original prescription"
@@ -767,7 +767,7 @@ export default function WeekDetail() {
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 flex-wrap">
                       <div>
-                        <div className="text-sm font-bold uppercase tracking-wider">{day.day}</div>
+                        <div className="text-sm font-bold tracking-wider">{day.day}</div>
                         <div className="text-xs text-muted-foreground">{formatDate(day.date)}</div>
                       </div>
                       {/* Task #133: equipment chips moved into the
@@ -780,7 +780,7 @@ export default function WeekDetail() {
                       {scheduledRaceBadge}
                       <CustomizedBadge day={day} />
                     </div>
-                    <div className="text-sm text-muted-foreground font-medium uppercase tracking-wider flex items-center gap-2">
+                    <div className="text-sm text-muted-foreground font-medium tracking-wider flex items-center gap-2">
                       <Activity className="h-4 w-4 opacity-50" />
                       Rest / Recovery
                     </div>
@@ -788,7 +788,7 @@ export default function WeekDetail() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-xs uppercase font-bold"
+                        className="text-xs font-bold"
                         onClick={() => openLog({ date: day.date, plan: day })}
                         data-testid={`button-log-${chipTestIdSuffix}`}
                       >
@@ -820,7 +820,7 @@ export default function WeekDetail() {
                                 value={session.timeOfDay}
                                 testId={`badge-time-of-day-week-${session.id}`}
                               />
-                              <span className="font-bold uppercase tracking-wider">{session.sessionType}</span>
+                              <span className="font-bold tracking-wider">{session.sessionType}</span>
                               <PrimaryMetricDisplay
                                 metric={getPrimaryMetricCompare(session, null)}
                                 variant="compact"
@@ -846,7 +846,7 @@ export default function WeekDetail() {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="text-xs uppercase font-bold"
+                              className="text-xs font-bold"
                               onClick={() => openEdit({ date: day.date, plan: day, loggedWorkout: session })}
                               data-testid={`button-edit-${day.date}-${session.id}`}
                             >
@@ -855,7 +855,7 @@ export default function WeekDetail() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="text-xs uppercase font-bold text-destructive hover:text-destructive"
+                              className="text-xs font-bold text-destructive hover:text-destructive"
                               onClick={() => requestDelete({ date: day.date, plan: day, loggedWorkout: session })}
                               disabled={isDeleting}
                               data-testid={`button-delete-${day.date}-${session.id}`}
@@ -914,7 +914,7 @@ export default function WeekDetail() {
                           : "bg-muted/30 border-border",
                     )}
                   >
-                    <div className="text-sm font-black uppercase tracking-wider">{day.day}</div>
+                    <div className="text-sm font-black tracking-wider">{day.day}</div>
                     <div className="text-xs text-muted-foreground mb-3">{formatDate(day.date)}</div>
                     {/* Task #133: equipment chips moved into the
                         right-column disclosure so the always-visible
@@ -940,14 +940,14 @@ export default function WeekDetail() {
                           Sundays light up the same way without a
                           duplicate testid here. */}
                       {hasSessions && (
-                        <span className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider flex items-center gap-1">
+                        <span className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded font-bold tracking-wider flex items-center gap-1">
                           <CheckCircle2 className="h-3 w-3" />
                           {sessions.length > 1 ? `${sessions.length} Logged` : "Logged"}
                         </span>
                       )}
                       {missed && (
                         <span
-                          className="text-[10px] bg-destructive/15 text-destructive px-2 py-1 rounded font-bold uppercase tracking-wider flex items-center gap-1"
+                          className="text-[10px] bg-destructive/15 text-destructive px-2 py-1 rounded font-bold tracking-wider flex items-center gap-1"
                           data-testid={`badge-missed-${day.date}`}
                         >
                           <AlertTriangle className="h-3 w-3" /> Missed
@@ -984,7 +984,7 @@ export default function WeekDetail() {
                         return (
                           <div className="flex flex-wrap items-center gap-2">
                             <span
-                              className="inline-flex items-center gap-1 text-[10px] bg-primary/15 text-primary px-2 py-1 rounded font-bold uppercase tracking-wider w-fit"
+                              className="inline-flex items-center gap-1 text-[10px] bg-primary/15 text-primary px-2 py-1 rounded font-bold tracking-wider w-fit"
                               data-testid={`badge-race-day-${day.date}`}
                               data-race-kind={race.kind}
                             >
@@ -996,7 +996,7 @@ export default function WeekDetail() {
                                 <TooltipTrigger asChild>
                                   <span
                                     className={cn(
-                                      "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wider w-fit cursor-help",
+                                      "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold tracking-wider w-fit cursor-help",
                                       prp.source === "personalized"
                                         ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
                                         : "bg-muted text-muted-foreground",
@@ -1077,7 +1077,7 @@ export default function WeekDetail() {
                               <TooltipTrigger asChild>
                                 <span
                                   className={cn(
-                                    "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wider w-fit cursor-help",
+                                    "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold tracking-wider w-fit cursor-help",
                                     lp.source === "personalized"
                                       ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
                                       : "bg-muted text-muted-foreground",
@@ -1134,7 +1134,7 @@ export default function WeekDetail() {
                               <TooltipTrigger asChild>
                                 <span
                                   className={cn(
-                                    "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wider w-fit cursor-help",
+                                    "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold tracking-wider w-fit cursor-help",
                                     pp.source === "personalized"
                                       ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
                                       : "bg-muted text-muted-foreground",
@@ -1181,7 +1181,7 @@ export default function WeekDetail() {
                           </div>
                         );
                       })()}
-                      <h4 className="text-xl font-black uppercase tracking-tight">{day.sessionType}</h4>
+                      <h4 className="text-xl font-black tracking-tight">{day.sessionType}</h4>
                       <p className="text-sm text-muted-foreground line-clamp-2">{day.description}</p>
                       {/* Slim day card (Task #133): show just the one
                           headline number for the planned session.
@@ -1209,13 +1209,13 @@ export default function WeekDetail() {
                           <div className="flex flex-wrap gap-4 text-sm">
                             {day.distanceMi != null && (
                               <div>
-                                <span className="text-[10px] uppercase font-bold text-muted-foreground block">Distance</span>
+                                <span className="text-[10px] font-bold text-muted-foreground block">Distance</span>
                                 <span className="font-mono font-medium">{formatDistance(day.distanceMi)}</span>
                               </div>
                             )}
                             {day.totalLoad != null && day.totalLoad > 0 && (
                               <div>
-                                <span className="text-[10px] uppercase font-bold text-muted-foreground block">Load</span>
+                                <span className="text-[10px] font-bold text-muted-foreground block">Load</span>
                                 <span className="font-mono font-medium">{formatLoad(day.totalLoad)}</span>
                               </div>
                             )}
@@ -1322,7 +1322,7 @@ export default function WeekDetail() {
                                     value={session.timeOfDay}
                                     testId={`badge-time-of-day-week-${session.id}`}
                                   />
-                                  <span className="font-bold uppercase tracking-wider">{session.sessionType}</span>
+                                  <span className="font-bold tracking-wider">{session.sessionType}</span>
                                   <PrimaryMetricDisplay
                                     metric={getPrimaryMetricCompare(session, day)}
                                     variant="compact"
@@ -1366,7 +1366,7 @@ export default function WeekDetail() {
                                 <Button
                                   variant="secondary"
                                   size="sm"
-                                  className="uppercase font-bold text-xs"
+                                  className="font-bold text-xs"
                                   onClick={() => openEdit(sessionCtx)}
                                   data-testid={`button-edit-${day.date}-${session.id}`}
                                 >
@@ -1375,7 +1375,7 @@ export default function WeekDetail() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="uppercase font-bold text-xs text-destructive hover:text-destructive border-destructive/30"
+                                  className="font-bold text-xs text-destructive hover:text-destructive border-destructive/30"
                                   onClick={() => requestDelete(sessionCtx)}
                                   disabled={isDeleting}
                                   data-testid={`button-delete-${day.date}-${session.id}`}
@@ -1391,7 +1391,7 @@ export default function WeekDetail() {
 
                     <div className="flex flex-wrap gap-2 pt-2">
                       <Button
-                        className="uppercase font-black text-xs bg-primary hover:bg-primary/90"
+                        className="font-black text-xs bg-primary hover:bg-primary/90"
                         onClick={() => crushIt(ctxFor(day, null))}
                         disabled={isCrushing}
                         data-testid={`button-crush-${chipTestIdSuffix}`}
@@ -1401,7 +1401,7 @@ export default function WeekDetail() {
                       </Button>
                       <Button
                         variant="secondary"
-                        className="uppercase font-bold text-xs"
+                        className="font-bold text-xs"
                         onClick={() => openLog(ctxFor(day, null))}
                         disabled={isCrushing}
                         data-testid={`button-log-${chipTestIdSuffix}`}
@@ -1412,7 +1412,7 @@ export default function WeekDetail() {
                       {!hasSessions && (
                         <Button
                           variant="outline"
-                          className="uppercase font-bold text-xs text-destructive hover:text-destructive border-destructive/30"
+                          className="font-bold text-xs text-destructive hover:text-destructive border-destructive/30"
                           onClick={() => requestSkip(ctxFor(day, null))}
                           disabled={isCrushing}
                           data-testid={`button-skip-${chipTestIdSuffix}`}

@@ -217,7 +217,7 @@ export function PaceCurveChart({
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] tracking-wider text-muted-foreground">
         <span>
           Start W1: <span className="text-foreground font-bold">{fmtPaceTick(data[0]?.easy ?? 0)}/mi</span>
         </span>

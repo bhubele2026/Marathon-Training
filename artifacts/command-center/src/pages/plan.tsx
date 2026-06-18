@@ -94,7 +94,7 @@ function WeekCustomizedBadge({
         <button
           type="button"
           onClick={(e) => e.stopPropagation()}
-          className="flex items-center gap-1 text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25 transition-colors px-1.5 py-0.5 rounded font-bold uppercase tracking-wider cursor-pointer"
+          className="flex items-center gap-1 text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25 transition-colors px-1.5 py-0.5 rounded font-bold tracking-wider cursor-pointer"
           data-testid={`badge-customized-week-${week}`}
           aria-label="Show what changed this week"
         >
@@ -107,7 +107,7 @@ function WeekCustomizedBadge({
         onClick={(e) => e.stopPropagation()}
         data-testid={`popover-customized-week-${week}`}
       >
-        <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
+        <div className="text-xs font-bold tracking-wider text-muted-foreground mb-2">
           Edited from original — Week {week}
         </div>
         {isLoading && !weekDetail ? (
@@ -122,7 +122,7 @@ function WeekCustomizedBadge({
                 className="space-y-1.5"
                 data-testid={`popover-customized-week-${week}-day-${day.date}`}
               >
-                <div className="text-[11px] font-bold uppercase tracking-wider text-foreground">
+                <div className="text-[11px] font-bold tracking-wider text-foreground">
                   {day.day} · {day.date}
                 </div>
                 {(day.customizedDiff ?? []).length === 0 ? (
@@ -425,14 +425,14 @@ export default function Plan() {
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto">
         <div>
           <h2
-            className="text-3xl font-black uppercase tracking-tight text-primary"
+            className="text-3xl font-black tracking-tight text-primary"
             data-testid="plan-header-title"
             data-race-kind=""
           >
             {overview.activeConfigName?.trim() || "Workout Plan"}
           </h2>
           <p
-            className="text-muted-foreground uppercase font-medium tracking-widest mt-1"
+            className="text-muted-foreground font-medium tracking-widest mt-1"
             data-testid="plan-header-subtitle"
           >
             No plan applied yet
@@ -446,7 +446,7 @@ export default function Plan() {
           <CardContent className="p-6 space-y-4">
             <div className="flex items-center gap-3">
               <Flame className="h-5 w-5 text-destructive" />
-              <h3 className="text-sm font-black uppercase tracking-widest text-destructive">
+              <h3 className="text-sm font-black tracking-widest text-destructive">
                 Danger Zone
               </h3>
             </div>
@@ -464,7 +464,7 @@ export default function Plan() {
               <Button
                 variant="destructive"
                 size="sm"
-                className="text-xs uppercase font-bold tracking-wider self-start md:self-auto shrink-0"
+                className="text-xs font-bold tracking-wider self-start md:self-auto shrink-0"
                 onClick={() => setFullResetOpen(true)}
                 data-testid="button-full-reset"
               >
@@ -518,14 +518,14 @@ export default function Plan() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h2
-            className="text-3xl font-black uppercase tracking-tight text-primary"
+            className="text-3xl font-black tracking-tight text-primary"
             data-testid="plan-header-title"
             data-race-kind={raceKind ?? ""}
           >
             {headerTitle}
           </h2>
           <p
-            className="text-muted-foreground uppercase font-medium tracking-widest mt-1"
+            className="text-muted-foreground font-medium tracking-widest mt-1"
             data-testid="plan-header-subtitle"
           >
             {hasRace
@@ -540,7 +540,7 @@ export default function Plan() {
             {nextMissedDate && nextMissedDateWeek != null && (
               <button
                 type="button"
-                className="flex items-center gap-1.5 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors px-3 py-1 rounded font-bold uppercase tracking-wider"
+                className="flex items-center gap-1.5 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors px-3 py-1 rounded font-bold tracking-wider"
                 onClick={() => {
                   const idParam =
                     nextMissedPlanDayId != null
@@ -565,7 +565,7 @@ export default function Plan() {
               nextMissedWeek ? (
                 <button
                   type="button"
-                  className="flex items-center gap-1 text-xs bg-destructive/15 text-destructive hover:bg-destructive/25 transition-colors px-2 py-1 rounded font-bold uppercase tracking-wider"
+                  className="flex items-center gap-1 text-xs bg-destructive/15 text-destructive hover:bg-destructive/25 transition-colors px-2 py-1 rounded font-bold tracking-wider"
                   onClick={() => {
                     const el = document.querySelector(
                       `[data-week-card="${nextMissedWeek.week}"]`,
@@ -583,7 +583,7 @@ export default function Plan() {
                 </button>
               ) : (
                 <span
-                  className="flex items-center gap-1 text-xs bg-destructive/15 text-destructive px-2 py-1 rounded font-bold uppercase tracking-wider"
+                  className="flex items-center gap-1 text-xs bg-destructive/15 text-destructive px-2 py-1 rounded font-bold tracking-wider"
                   data-testid="badge-total-missed"
                 >
                   <AlertTriangle className="h-3 w-3" />
@@ -593,7 +593,7 @@ export default function Plan() {
             )}
             {totalCustomized > 0 && (
               <span
-                className="flex items-center gap-1 text-xs bg-amber-500/15 text-amber-600 dark:text-amber-400 px-2 py-1 rounded font-bold uppercase tracking-wider"
+                className="flex items-center gap-1 text-xs bg-amber-500/15 text-amber-600 dark:text-amber-400 px-2 py-1 rounded font-bold tracking-wider"
                 data-testid="badge-total-customized"
               >
                 <Sparkles className="h-3 w-3" />
@@ -606,7 +606,7 @@ export default function Plan() {
         <Button
           variant="outline"
           size="sm"
-          className="text-xs uppercase font-bold tracking-wider"
+          className="text-xs font-bold tracking-wider"
           onClick={() => {
             setRepaceInput({
               start: formatPaceMmss(overview.startingPaceSec),
@@ -622,7 +622,7 @@ export default function Plan() {
         <Button
           variant="outline"
           size="sm"
-          className="text-xs uppercase font-bold tracking-wider text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+          className="text-xs font-bold tracking-wider text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
           onClick={() => setResetPlanOpen(true)}
           data-testid="button-reset-plan"
         >
@@ -636,7 +636,7 @@ export default function Plan() {
           <CardContent className="p-6 flex items-center gap-4">
             <CalendarDays className="h-8 w-8 text-primary" />
             <div>
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Current Week</p>
+              <p className="text-xs font-bold text-muted-foreground tracking-wider">Current Week</p>
               <div className="text-2xl font-black">Week {overview.currentWeek}</div>
             </div>
           </CardContent>
@@ -651,7 +651,7 @@ export default function Plan() {
               style={{ color: phaseColor(overview.currentPhase) }}
             />
             <div>
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Phase</p>
+              <p className="text-xs font-bold text-muted-foreground tracking-wider">Phase</p>
               <div className="text-2xl font-black">{overview.currentPhase}</div>
             </div>
           </CardContent>
@@ -660,7 +660,7 @@ export default function Plan() {
           <CardContent className="p-6 flex items-center gap-4">
             <Target className="h-8 w-8 text-muted-foreground" />
             <div>
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Target Miles</p>
+              <p className="text-xs font-bold text-muted-foreground tracking-wider">Target Miles</p>
               <div className="text-2xl font-black">{overview.weeklyMilesTarget ? formatDistance(overview.weeklyMilesTarget) : '-'}</div>
             </div>
           </CardContent>
@@ -683,7 +683,7 @@ export default function Plan() {
           <Card data-testid="card-programs">
             <CardContent className="p-6 space-y-4">
               <div className="flex items-center justify-between gap-3">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                <h3 className="text-sm font-bold tracking-wider text-muted-foreground">
                   Programs ({overview.programs.length})
                 </h3>
                 <span className="text-xs font-mono text-muted-foreground">
@@ -706,7 +706,7 @@ export default function Plan() {
                       data-testid={`row-program-${p.sourceEntryIndex}`}
                     >
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-bold uppercase tracking-wider">
+                        <span className="font-bold tracking-wider">
                           {p.label}
                         </span>
                         <span className="font-mono text-muted-foreground">
@@ -802,7 +802,7 @@ export default function Plan() {
                   <div className="flex items-start gap-3 flex-1">
                     <Wand2 className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                     <div className="space-y-1">
-                      <p className="text-sm font-bold uppercase tracking-wider text-primary">
+                      <p className="text-sm font-bold tracking-wider text-primary">
                         Coach upgrades available
                       </p>
                       <p className="text-xs text-muted-foreground leading-relaxed">
@@ -816,7 +816,7 @@ export default function Plan() {
                   <div className="flex items-center gap-2 shrink-0 self-start md:self-auto">
                     <Button
                       size="sm"
-                      className="text-xs uppercase font-bold tracking-wider"
+                      className="text-xs font-bold tracking-wider"
                       onClick={handleReapply}
                       disabled={reapplyPending}
                       data-testid="button-coach-upgrade-reapply"
@@ -827,7 +827,7 @@ export default function Plan() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-xs uppercase font-bold tracking-wider"
+                      className="text-xs font-bold tracking-wider"
                       onClick={handleDismiss}
                       disabled={reapplyPending}
                       data-testid="button-coach-upgrade-dismiss"
@@ -848,7 +848,7 @@ export default function Plan() {
           return (
           <div key={phase} className="space-y-4">
             <h3
-              className="text-xl font-bold uppercase tracking-wider border-b-2 pb-2 sticky top-0 bg-background/95 backdrop-blur z-10 flex items-center gap-3"
+              className="text-xl font-bold tracking-wider border-b-2 pb-2 sticky top-0 bg-background/95 backdrop-blur z-10 flex items-center gap-3"
               style={{ borderBottomColor: color }}
               data-testid={`phase-header-${phase}`}
             >
@@ -884,7 +884,7 @@ export default function Plan() {
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="font-black text-lg">W{week.week}</span>
-                            {isCurrent && <span className="text-[10px] bg-primary text-primary-foreground px-2 py-0.5 rounded font-bold uppercase tracking-wider">Active</span>}
+                            {isCurrent && <span className="text-[10px] bg-primary text-primary-foreground px-2 py-0.5 rounded font-bold tracking-wider">Active</span>}
                           </div>
                           <p className="text-xs text-muted-foreground mt-1">{formatDate(week.startDate)} - {formatDate(week.endDate)}</p>
                         </div>
@@ -892,7 +892,7 @@ export default function Plan() {
                       
                       <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-sm mb-4">
                         <div>
-                          <p className="text-[10px] uppercase font-bold text-muted-foreground">Volume</p>
+                          <p className="text-[10px] font-bold text-muted-foreground">Volume</p>
                           {/*
                             Bike-only / Row-only weeks (task #107): when the
                             generator emits 0 planned miles but routes the
@@ -931,7 +931,7 @@ export default function Plan() {
                               </p>
                               {week.dominantCardioEquipment && (
                                 <span
-                                  className="inline-block text-[10px] bg-secondary text-secondary-foreground px-2 py-0.5 rounded font-bold uppercase tracking-wider"
+                                  className="inline-block text-[10px] bg-secondary text-secondary-foreground px-2 py-0.5 rounded font-bold tracking-wider"
                                   data-testid={`week-volume-cardio-chip-${week.week}`}
                                 >
                                   {week.dominantCardioEquipment}
@@ -962,7 +962,7 @@ export default function Plan() {
                                 on edge-case weeks where longRunMi = 0.
                               */}
                               <span
-                                className="inline-block text-[10px] bg-secondary text-secondary-foreground px-2 py-0.5 rounded font-bold uppercase tracking-wider"
+                                className="inline-block text-[10px] bg-secondary text-secondary-foreground px-2 py-0.5 rounded font-bold tracking-wider"
                                 data-testid={`week-volume-miles-chip-${week.week}`}
                               >
                                 {(week.longRunMi ?? 0) > 0
@@ -973,13 +973,13 @@ export default function Plan() {
                           )}
                         </div>
                         <div>
-                          <p className="text-[10px] uppercase font-bold text-muted-foreground">Long Run</p>
+                          <p className="text-[10px] font-bold text-muted-foreground">Long Run</p>
                           <p className="font-mono font-medium">{formatDistance(week.longRunMi)}</p>
                         </div>
                       </div>
 
                       <div className="space-y-1.5 mt-4 pt-4 border-t border-border">
-                        <div className="flex justify-between items-center text-[10px] uppercase font-bold text-muted-foreground">
+                        <div className="flex justify-between items-center text-[10px] font-bold text-muted-foreground">
                           <span>Adherence</span>
                           <div className="flex items-center gap-2">
                             {/*
@@ -998,7 +998,7 @@ export default function Plan() {
                             */}
                             {week.wedSteady && (
                               <span
-                                className="flex items-center gap-1 bg-amber-400/15 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider"
+                                className="flex items-center gap-1 bg-amber-400/15 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded font-bold tracking-wider"
                                 data-testid={`badge-steady-week-${week.week}`}
                                 title="Wednesday is a Steady (Z3) run this week"
                               >
@@ -1031,7 +1031,7 @@ export default function Plan() {
                               return (
                                 <span
                                   key={sr.raceDate}
-                                  className="flex items-center gap-1 bg-primary/15 text-primary px-1.5 py-0.5 rounded font-bold uppercase tracking-wider"
+                                  className="flex items-center gap-1 bg-primary/15 text-primary px-1.5 py-0.5 rounded font-bold tracking-wider"
                                   data-testid={`badge-scheduled-race-week-${week.week}-${sr.raceDate}`}
                                   data-race-kind={sr.raceKind}
                                   data-race-dow={dow}
@@ -1043,7 +1043,7 @@ export default function Plan() {
                             })}
                             {(week.missedSessions ?? 0) > 0 && (
                               <span
-                                className="flex items-center gap-1 bg-destructive/15 text-destructive px-1.5 py-0.5 rounded font-bold uppercase tracking-wider"
+                                className="flex items-center gap-1 bg-destructive/15 text-destructive px-1.5 py-0.5 rounded font-bold tracking-wider"
                                 data-testid={`badge-missed-week-${week.week}`}
                               >
                                 <AlertTriangle className="h-2.5 w-2.5" />
@@ -1064,7 +1064,7 @@ export default function Plan() {
                         />
                         {week.programs && week.programs.length > 1 && (
                           <div
-                            className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] uppercase tracking-wider text-muted-foreground"
+                            className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] tracking-wider text-muted-foreground"
                             data-testid={`week-program-breakdown-${week.week}`}
                           >
                             {week.programs.map((p, i) => (
@@ -1102,7 +1102,7 @@ export default function Plan() {
         <CardContent className="p-6 space-y-4">
           <div className="flex items-center gap-3">
             <Flame className="h-5 w-5 text-destructive" />
-            <h3 className="text-sm font-black uppercase tracking-widest text-destructive">
+            <h3 className="text-sm font-black tracking-widest text-destructive">
               Danger Zone
             </h3>
           </div>
@@ -1120,7 +1120,7 @@ export default function Plan() {
             <Button
               variant="destructive"
               size="sm"
-              className="text-xs uppercase font-bold tracking-wider self-start md:self-auto shrink-0"
+              className="text-xs font-bold tracking-wider self-start md:self-auto shrink-0"
               onClick={() => setFullResetOpen(true)}
               data-testid="button-full-reset"
             >
@@ -1145,7 +1145,7 @@ export default function Plan() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2 py-2">
-            <Label htmlFor="reset-plan-confirm" className="text-xs uppercase tracking-wider">
+            <Label htmlFor="reset-plan-confirm" className="text-xs tracking-wider">
               Confirmation
             </Label>
             <Input
@@ -1201,7 +1201,7 @@ export default function Plan() {
             <div className="space-y-2">
               <Label
                 htmlFor="repace-input"
-                className="text-xs uppercase tracking-wider"
+                className="text-xs tracking-wider"
               >
                 Starting easy pace (mm:ss per mile)
               </Label>
@@ -1228,7 +1228,7 @@ export default function Plan() {
             <div className="space-y-2">
               <Label
                 htmlFor="repace-goal-input"
-                className="text-xs uppercase tracking-wider"
+                className="text-xs tracking-wider"
               >
                 Goal ending pace (mm:ss per mile, optional)
               </Label>
@@ -1255,7 +1255,7 @@ export default function Plan() {
                 keystroke; phase bands + race-distance offsets make an
                 unrealistic goal visually obvious. */}
             <div className="space-y-1">
-              <div className="text-xs uppercase tracking-wider text-muted-foreground">
+              <div className="text-xs tracking-wider text-muted-foreground">
                 Preview
               </div>
               <PaceCurveChart

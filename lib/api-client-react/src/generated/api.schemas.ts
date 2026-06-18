@@ -1788,12 +1788,7 @@ export type UserPreferencesVisualTheme =
   | null;
 
 export const UserPreferencesVisualTheme = {
-  "arctic-performance": "arctic-performance",
-  "midnight-track": "midnight-track",
-  "trail-forest": "trail-forest",
-  "championship-red": "championship-red",
-  "sunset-endurance": "sunset-endurance",
-  blacksmith: "blacksmith",
+  studio: "studio",
 } as const;
 
 /**
@@ -1905,12 +1900,7 @@ export type UpdateUserPreferencesBodyVisualTheme =
   | null;
 
 export const UpdateUserPreferencesBodyVisualTheme = {
-  "arctic-performance": "arctic-performance",
-  "midnight-track": "midnight-track",
-  "trail-forest": "trail-forest",
-  "championship-red": "championship-red",
-  "sunset-endurance": "sunset-endurance",
-  blacksmith: "blacksmith",
+  studio: "studio",
 } as const;
 
 /**

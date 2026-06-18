@@ -517,8 +517,8 @@ export function WorkoutForm({ open, onOpenChange, initial, suggestions, workoutI
                                   data-state={isOn ? "on" : "off"}
                                   className={
                                     isOn
-                                      ? "px-3 py-1.5 rounded text-xs uppercase font-bold tracking-wider bg-primary text-primary-foreground border border-primary"
-                                      : "px-3 py-1.5 rounded text-xs uppercase font-bold tracking-wider bg-secondary/40 text-secondary-foreground border border-border hover:bg-secondary"
+                                      ? "px-3 py-1.5 rounded text-xs font-bold tracking-wider bg-primary text-primary-foreground border border-primary"
+                                      : "px-3 py-1.5 rounded text-xs font-bold tracking-wider bg-secondary/40 text-secondary-foreground border border-border hover:bg-secondary"
                                   }
                                 >
                                   {item.label}

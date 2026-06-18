@@ -43,7 +43,7 @@ export function QuickLogFab() {
         </SheetTrigger>
         <SheetContent side="bottom" className="rounded-t-xl">
           <SheetHeader>
-            <SheetTitle className="uppercase tracking-wider text-left">
+            <SheetTitle className="tracking-wider text-left">
               Quick Log Activity
             </SheetTitle>
           </SheetHeader>
@@ -54,7 +54,7 @@ export function QuickLogFab() {
                 <Button
                   key={p.label}
                   variant="outline"
-                  className="h-auto py-3 flex flex-col gap-1 uppercase font-bold tracking-wider text-xs"
+                  className="h-auto py-3 flex flex-col gap-1 font-bold tracking-wider text-xs"
                   onClick={() => openForm(p.sessionType)}
                   data-testid={`button-quick-log-fab-${p.label.toLowerCase().replace(/\s+/g, "-")}`}
                 >
@@ -66,7 +66,7 @@ export function QuickLogFab() {
           </div>
           <Button
             variant="ghost"
-            className="w-full mt-2 uppercase font-bold tracking-wider text-xs"
+            className="w-full mt-2 font-bold tracking-wider text-xs"
             onClick={() => openForm(null)}
             data-testid="button-quick-log-fab-custom"
           >
