@@ -19,7 +19,7 @@ import { formatDate } from "@/lib/format";
 import { Plus, Edit, Trash2 } from "lucide-react";
 import { MeasurementForm } from "@/components/measurement-form";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import {
   AlertDialog,
@@ -71,8 +71,27 @@ function sumPair(a?: number | null, b?: number | null): number | null {
   return (a ?? 0) + (b ?? 0);
 }
 
+type WeeklyWeight = {
+  rateLb: number;
+  currentWeekTargetLb: number;
+  latestActualLb: number | null;
+  varianceLb: number | null;
+  onTrack: boolean | null;
+};
+
 export default function Measurements() {
   const { data: measurements, isLoading: loadingMs } = useListMeasurements();
+  // Weekly weight goal (read-only here; set on Goals). Hand-fetched like the
+  // rest of /api/goals.
+  const goalsQuery = useQuery({
+    queryKey: ["/api/goals"],
+    queryFn: async () => {
+      const r = await fetch("/api/goals", { headers: { accept: "application/json" } });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return (await r.json()) as { weeklyWeight: WeeklyWeight | null };
+    },
+  });
+  const weekly = goalsQuery.data?.weeklyWeight ?? null;
 
   const [formOpen, setFormOpen] = useState(false);
   const [editItem, setEditItem] = useState<Measurement | null>(null);
@@ -169,6 +188,66 @@ export default function Measurements() {
           <Plus className="h-5 w-5 mr-2" /> Log measurement
         </Button>
       </div>
+
+      {/* Weekly weight goal — quiet target-vs-actual for the current week. Set
+          it on Goals; read-only here. De-boxed to match the rest of the page. */}
+      {weekly && (
+        <section className="border-t border-border pt-6">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground mb-3">
+            This week
+          </p>
+          <div className="flex flex-wrap items-baseline gap-x-10 gap-y-2">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                Target
+              </p>
+              <p className="text-3xl font-extrabold tabular-nums leading-none">
+                {weekly.currentWeekTargetLb}
+                <span className="text-base text-muted-foreground font-bold"> lb</span>
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                Actual
+              </p>
+              <p className="text-3xl font-extrabold tabular-nums leading-none">
+                {weekly.latestActualLb != null ? weekly.latestActualLb : "—"}
+                <span className="text-base text-muted-foreground font-bold"> lb</span>
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                Pace
+              </p>
+              <p className="text-sm font-mono tabular-nums mt-1.5">
+                {weekly.rateLb < 0
+                  ? `−${Math.abs(weekly.rateLb)} lb/wk`
+                  : weekly.rateLb > 0
+                    ? `+${weekly.rateLb} lb/wk`
+                    : "maintain"}
+              </p>
+            </div>
+            {weekly.onTrack != null && (
+              <span
+                className={
+                  "text-sm font-bold self-center " +
+                  (weekly.onTrack
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-amber-600 dark:text-amber-400")
+                }
+              >
+                {weekly.onTrack ? "On track" : "Off track"}
+                {weekly.varianceLb != null && weekly.varianceLb !== 0 && (
+                  <span className="ml-1 font-mono font-normal text-muted-foreground">
+                    ({weekly.varianceLb > 0 ? "+" : ""}
+                    {weekly.varianceLb} lb)
+                  </span>
+                )}
+              </span>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Phase 6: the recomp deltas ARE the hero of this screen — large
           numbers straight on the page (no card), one quiet label above,

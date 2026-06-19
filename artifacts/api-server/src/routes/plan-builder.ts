@@ -307,7 +307,10 @@ router.post("/plan-builder/chat", async (req, res): Promise<void> => {
         max_tokens: 64000,
         thinking: { type: "adaptive" as const },
         // Interactive use — balance reasoning quality with latency.
-        output_config: { effort: "medium" as const },
+        // Low reasoning effort: the builder now just schedules sessions and maps
+        // them to a Tonal program — it doesn't program individual exercises — so
+        // heavy reasoning isn't needed and low keeps turns fast.
+        output_config: { effort: "low" as const },
         system,
         tools: [
           PROPOSE_PLAN_TOOL,
@@ -360,6 +363,7 @@ router.post("/plan-builder/chat", async (req, res): Promise<void> => {
             model: MODEL,
             max_tokens: 64000,
             thinking: { type: "adaptive" as const },
+            output_config: { effort: "low" as const },
             tools: [PROPOSE_PLAN_TOOL],
             messages: retryMessages,
           } as never,

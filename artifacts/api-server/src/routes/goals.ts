@@ -25,6 +25,11 @@ import {
   type SafetyNote,
   type GoalContext,
 } from "../lib/nutrition-safety";
+import {
+  clampWeeklyRate,
+  weeklyWeightStatus,
+  type WeeklyWeightStatus,
+} from "../lib/weekly-weight";
 
 // Goals + body stats + AI-calculated nutrition targets + Tonal Strength Score
 // goal. Singleton row (id=1), mirroring the lazy readOrSeed pattern in
@@ -65,9 +70,36 @@ type ApiGoals = {
   strengthScoreCurrent: number | null;
   strengthScoreGoal: number | null;
   currentWeightLb: number | null;
+  /** Weekly weight goal status (Phase 1): the safe-clamped rate, this week's
+   * target vs the latest actual, on-track. Null until a weekly goal is set. */
+  weeklyWeight: (WeeklyWeightStatus & { note: string | null }) | null;
   aiConfigured: boolean;
   updatedAt: string;
 };
+
+// Derive the weekly weight-goal status for the API response from the persisted
+// anchor + rate and the latest actual weight. Null until a weekly goal is set.
+function buildWeeklyWeight(
+  row: UserPreferencesRow,
+  currentWeightLb: number | null,
+): (WeeklyWeightStatus & { note: string | null }) | null {
+  if (
+    row.weeklyRateLb == null ||
+    row.weeklyGoalStartWeightLb == null ||
+    !row.weeklyGoalAnchorDate
+  ) {
+    return null;
+  }
+  const status = weeklyWeightStatus({
+    startWeightLb: row.weeklyGoalStartWeightLb,
+    rateLb: row.weeklyRateLb,
+    goalWeightLb: row.goalWeightLb,
+    anchorDateISO: row.weeklyGoalAnchorDate,
+    todayISO: new Date().toISOString().slice(0, 10),
+    latestActualLb: currentWeightLb,
+  });
+  return { ...status, note: row.weeklyGoalNote ?? null };
+}
 
 function toApi(row: UserPreferencesRow, currentWeightLb: number | null): ApiGoals {
   return {
@@ -90,6 +122,7 @@ function toApi(row: UserPreferencesRow, currentWeightLb: number | null): ApiGoal
     strengthScoreCurrent: row.strengthScoreCurrent,
     strengthScoreGoal: row.strengthScoreGoal,
     currentWeightLb,
+    weeklyWeight: buildWeeklyWeight(row, currentWeightLb),
     aiConfigured: isConfigured(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -652,5 +685,64 @@ router.post("/goals/compute-targets", handleBaselineCompute);
 // POST /api/goals/recompute-targets (R3) — alias of compute-targets. Recomputes
 // the fixed recomp baseline on demand and persists baseline + targetsComputedAt.
 router.post("/goals/recompute-targets", handleBaselineCompute);
+
+// POST /api/goals/weekly-weight — set/adjust the weekly weight goal.
+// Body: { weeklyRateLb: number (signed, negative = loss), goalWeightLb?: number|null }.
+// Anchors the per-week target curve at the CURRENT weight + today, clamps the
+// rate to the science-safe maximum (nutrition-safety), and persists. A weekly
+// goal can never demand faster than safe.
+router.post("/goals/weekly-weight", async (req, res): Promise<void> => {
+  const body = (req.body ?? {}) as {
+    weeklyRateLb?: unknown;
+    goalWeightLb?: unknown;
+  };
+  const rawRate = body.weeklyRateLb;
+  if (typeof rawRate !== "number" || !Number.isFinite(rawRate)) {
+    res.status(400).json({ error: "weeklyRateLb (a number, lb/wk, negative = loss) is required." });
+    return;
+  }
+  if (rawRate < -3 || rawRate > 3) {
+    res.status(400).json({ error: "weeklyRateLb is out of range (expected roughly -3 to 3 lb/wk)." });
+    return;
+  }
+
+  const weight = await latestWeightLb();
+  if (weight == null) {
+    res.status(400).json({
+      error: "Log a current weight (a measurement) before setting a weekly weight goal.",
+    });
+    return;
+  }
+
+  const clamp = clampWeeklyRate(rawRate, weight);
+
+  // Optional goal-weight update (null clears it).
+  let goalWeightLb: number | null | undefined = undefined;
+  if (body.goalWeightLb === null) goalWeightLb = null;
+  else if (typeof body.goalWeightLb === "number" && Number.isFinite(body.goalWeightLb)) {
+    if (body.goalWeightLb < 50 || body.goalWeightLb > 700) {
+      res.status(400).json({ error: "goalWeightLb is out of range." });
+      return;
+    }
+    goalWeightLb = body.goalWeightLb;
+  }
+
+  await readOrSeed();
+  const today = new Date().toISOString().slice(0, 10);
+  await db
+    .update(userPreferencesTable)
+    .set({
+      weeklyRateLb: clamp.rateLb,
+      weeklyGoalStartWeightLb: weight,
+      weeklyGoalAnchorDate: today,
+      weeklyGoalNote: clamp.note,
+      ...(goalWeightLb !== undefined ? { goalWeightLb } : {}),
+      updatedAt: new Date(),
+    })
+    .where(eq(userPreferencesTable.id, SINGLETON_ID));
+
+  const [row, w] = await Promise.all([readOrSeed(), latestWeightLb()]);
+  res.json(toApi(row, w));
+});
 
 export default router;

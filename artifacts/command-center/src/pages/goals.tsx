@@ -34,8 +34,21 @@ type Goals = {
   strengthScoreCurrent: number | null;
   strengthScoreGoal: number | null;
   currentWeightLb: number | null;
+  weeklyWeight: WeeklyWeight | null;
   aiConfigured: boolean;
   updatedAt: string;
+};
+
+type WeeklyWeight = {
+  rateLb: number;
+  goalWeightLb: number | null;
+  startWeightLb: number;
+  weekIndex: number;
+  currentWeekTargetLb: number;
+  latestActualLb: number | null;
+  varianceLb: number | null;
+  onTrack: boolean | null;
+  note: string | null;
 };
 
 const ACTIVITY_OPTIONS: Array<{ value: string; label: string }> = [
@@ -98,6 +111,9 @@ export default function Goals() {
   const [activity, setActivity] = useState("");
   const [bodyGoal, setBodyGoal] = useState("recomp");
   const [goalWeight, setGoalWeight] = useState("");
+  // Weekly weight goal: stored signed (negative = loss); the input shows the
+  // magnitude of loss per week (a positive "lb to lose / week"). We negate on save.
+  const [weeklyLoss, setWeeklyLoss] = useState("");
   const [scoreNow, setScoreNow] = useState("");
   const [scoreGoal, setScoreGoal] = useState("");
   // When compute returns a structured "needs" (e.g. no weight logged yet), we
@@ -115,6 +131,12 @@ export default function Goals() {
     setActivity(data.activityLevel ?? "");
     setBodyGoal(data.bodyGoal ?? "recomp");
     setGoalWeight(data.goalWeightLb != null ? String(data.goalWeightLb) : "");
+    // Show the loss magnitude (positive lb/wk) from the signed stored rate.
+    setWeeklyLoss(
+      data.weeklyWeight != null && data.weeklyWeight.rateLb < 0
+        ? String(Math.abs(data.weeklyWeight.rateLb))
+        : "",
+    );
     setScoreNow(
       data.strengthScoreCurrent != null ? String(data.strengthScoreCurrent) : "",
     );
@@ -146,6 +168,20 @@ export default function Goals() {
         strengthScoreCurrent: numOrNull(scoreNow),
         strengthScoreGoal: numOrNull(scoreGoal),
       }),
+    onSuccess: (g) => qc.setQueryData(["/api/goals"], g),
+  });
+
+  // Weekly weight goal — persist the goal weight first (so the curve has a
+  // target), then the rate (server clamps it to a safe pace).
+  const saveWeeklyWeight = useMutation({
+    mutationFn: async () => {
+      const lossMag = numOrNull(weeklyLoss);
+      const rateLb = lossMag != null ? -Math.abs(lossMag) : 0;
+      return sendJson<Goals>("/api/goals/weekly-weight", "POST", {
+        weeklyRateLb: rateLb,
+        goalWeightLb: numOrNull(goalWeight),
+      });
+    },
     onSuccess: (g) => qc.setQueryData(["/api/goals"], g),
   });
 
@@ -326,6 +362,87 @@ export default function Goals() {
                 )}
               </div>
             </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Weekly weight goal — clamped to a safe pace server-side. */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm tracking-wider text-muted-foreground">
+            Weekly Weight Goal
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="space-y-1.5">
+              <Label>Lose per week (lb)</Label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                step="0.25"
+                placeholder="0.75"
+                className="w-32"
+                value={weeklyLoss}
+                onChange={(e) => setWeeklyLoss(e.target.value)}
+              />
+            </div>
+            <Button
+              onClick={() => saveWeeklyWeight.mutate()}
+              disabled={saveWeeklyWeight.isPending}
+            >
+              {saveWeeklyWeight.isPending ? "Saving…" : "Set weekly goal"}
+            </Button>
+            {saveWeeklyWeight.isError && (
+              <span className="text-xs text-destructive">
+                {(saveWeeklyWeight.error as Error).message}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Capped to a safe, sustainable pace (no faster than ~1% of bodyweight,
+            up to 2 lb, per week). Targets toward your goal weight above.
+          </p>
+
+          {data?.weeklyWeight && (
+            <div className="border-t border-border pt-3 space-y-1">
+              {data.weeklyWeight.note && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  {data.weeklyWeight.note}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm tabular-nums">
+                <span>
+                  <span className="text-muted-foreground">Rate </span>
+                  {data.weeklyWeight.rateLb < 0
+                    ? `${Math.abs(data.weeklyWeight.rateLb)} lb/wk loss`
+                    : data.weeklyWeight.rateLb > 0
+                      ? `${data.weeklyWeight.rateLb} lb/wk gain`
+                      : "maintain"}
+                </span>
+                <span>
+                  <span className="text-muted-foreground">This week's target </span>
+                  {data.weeklyWeight.currentWeekTargetLb} lb
+                </span>
+                {data.weeklyWeight.latestActualLb != null && (
+                  <span>
+                    <span className="text-muted-foreground">Actual </span>
+                    {data.weeklyWeight.latestActualLb} lb
+                  </span>
+                )}
+                {data.weeklyWeight.onTrack != null && (
+                  <span
+                    className={
+                      data.weeklyWeight.onTrack
+                        ? "font-semibold text-emerald-600 dark:text-emerald-400"
+                        : "font-semibold text-amber-600 dark:text-amber-400"
+                    }
+                  >
+                    {data.weeklyWeight.onTrack ? "On track" : "Off track"}
+                  </span>
+                )}
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>

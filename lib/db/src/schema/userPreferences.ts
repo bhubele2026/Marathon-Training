@@ -4,6 +4,7 @@ import {
   text,
   timestamp,
   doublePrecision,
+  date,
   jsonb,
 } from "drizzle-orm/pg-core";
 
@@ -74,6 +75,23 @@ export const userPreferencesTable = pgTable("user_preferences", {
   // Target bodyweight in lb. Current weight comes from measurements; this is
   // the goal the AI and progress views aim at.
   goalWeightLb: doublePrecision("goal_weight_lb"),
+
+  // --- Weekly weight goal (coach voice phase 1) --------------------------
+  // The target weekly rate of weight CHANGE in lb/wk, signed (negative = loss,
+  // positive = lean-bulk gain). Clamped to the safe rate (min 1% bodyweight,
+  // ~2 lb/wk) by POST /api/goals/weekly-weight via nutrition-safety.ts. Null
+  // until the runner sets a weekly goal. The per-week target-weight curve is
+  // DERIVED server-side from start weight + this rate (clamped at goalWeightLb);
+  // never hardcoded.
+  weeklyRateLb: doublePrecision("weekly_rate_lb"),
+  // The bodyweight (lb) when the weekly goal was set — the anchor (week 0) the
+  // target curve is computed from.
+  weeklyGoalStartWeightLb: doublePrecision("weekly_goal_start_weight_lb"),
+  // ISO date the weekly goal was set — week 0 of the curve.
+  weeklyGoalAnchorDate: date("weekly_goal_anchor_date"),
+  // Note when the requested rate was clamped to a safe one (mirrors the
+  // targetsSafety pattern), shown in the UI.
+  weeklyGoalNote: text("weekly_goal_note"),
 
   // --- AI-computed nutrition targets -------------------------------------
   // Written by POST /api/goals/compute-targets, which uses Claude + live web
