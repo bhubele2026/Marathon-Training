@@ -8,7 +8,7 @@ import {
 import { and, gte, lte, eq, sql } from "drizzle-orm";
 import { addDaysISO, COACH_PERSONA } from "@workspace/plan-knowledge";
 import { getAnthropic, isConfigured, MODEL } from "@workspace/integrations-anthropic";
-import { calorieFloor } from "../lib/nutrition-safety";
+import { buildSummaryData } from "../lib/coach-voice";
 import {
   summarizeFood,
   summarizeWeight,
@@ -182,52 +182,6 @@ function hashReview(obj: unknown): string {
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
   return (h >>> 0).toString(16);
-}
-
-function buildSummaryData(review: WeekReview, sex: string | null): string {
-  const f = review.food;
-  const w = review.workouts;
-  const wt = review.weight;
-  const lines: string[] = [`Week ${review.weekStart} → ${review.weekEnd}.`];
-
-  lines.push(
-    `FOOD: ${f.daysLogged}/7 days logged. ` +
-      `Avg calories ${f.avgCalories ?? "—"} (target ${f.target.calories ?? "—"}), ` +
-      `avg protein ${f.avgProtein ?? "—"} g (target ${f.target.protein ?? "—"}). ` +
-      `Protein target hit ${f.proteinHitRate != null ? `${Math.round(f.proteinHitRate * 100)}% of logged days` : "—"}. ` +
-      `${f.daysOverCalories} day(s) over calories, ${f.daysUnderCalories} under.`,
-  );
-  lines.push(
-    `WORKOUTS: ${w.done}/${w.planned} planned sessions done (${w.skipped} skipped), ` +
-      `${w.minutesDone}/${w.minutesPlanned} planned minutes trained. ` +
-      `Lifting days: ${w.liftingDone}/${w.liftingPlanned} done. ` +
-      `${w.missedDays.length ? `Missed: ${w.missedDays.join(", ")}.` : "Nothing missed."}`,
-  );
-  lines.push(
-    `WEIGHT: ` +
-      (wt.startLb != null && wt.endLb != null
-        ? `${wt.startLb} → ${wt.endLb} lb (${wt.actualChangeLb! > 0 ? "+" : ""}${wt.actualChangeLb} lb). `
-        : `not enough weigh-ins. `) +
-      (wt.goalChangeLb != null
-        ? `Weekly goal was ${wt.goalChangeLb} lb. ${wt.onTrack === true ? "On track." : wt.onTrack === false ? "Off track." : ""}`
-        : `No weekly weight goal set.`),
-  );
-
-  // Safety signals for the supportive-flip rail.
-  const floor = calorieFloor(sex);
-  if (f.avgCalories != null && f.avgCalories > 0 && f.avgCalories < floor) {
-    lines.push(
-      `SAFETY SIGNAL: average intake (${f.avgCalories} kcal) is BELOW the safe floor of ${floor}. ` +
-        `Drop the sarcasm — be warm, encourage eating enough, suggest a professional if it's a pattern.`,
-    );
-  }
-  if (wt.actualChangeLb != null && wt.actualChangeLb < -2.5) {
-    lines.push(
-      `SAFETY SIGNAL: dropped ${Math.abs(wt.actualChangeLb)} lb this week — faster than safe. ` +
-        `Be warm and concerned; do NOT praise rapid loss or push for more.`,
-    );
-  }
-  return lines.join("\n");
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */

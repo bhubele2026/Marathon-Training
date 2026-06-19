@@ -10,7 +10,7 @@ import {
 import { and, eq, sql } from "drizzle-orm";
 import { getAnthropic, isConfigured, MODEL } from "@workspace/integrations-anthropic";
 import { COACH_PERSONA } from "@workspace/plan-knowledge";
-import { calorieFloor } from "../lib/nutrition-safety";
+import { buildDataSummary, type DayInputs } from "../lib/coach-voice";
 
 const router: IRouter = Router();
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -24,15 +24,6 @@ function hashInputs(obj: unknown): string {
   return (h >>> 0).toString(16);
 }
 
-type DayInputs = {
-  date: string;
-  target: { calories: number | null; protein: number | null; carbs: number | null; fat: number | null };
-  actual: { calories: number | null; protein: number | null; carbs: number | null; fat: number | null } | null;
-  planned: { sessionType: string; isRest: boolean; minutes: number; lifting: boolean; description: string } | null;
-  loggedWorkouts: number;
-  loggedMinutes: number;
-  sex: string | null;
-};
 
 async function gatherDay(date: string): Promise<DayInputs> {
   const prefsRows = await db
@@ -105,46 +96,6 @@ async function gatherDay(date: string): Promise<DayInputs> {
 // True when there's nothing worth reacting to (no plan, no food, no workout).
 function isEmptyDay(d: DayInputs): boolean {
   return d.planned == null && d.actual == null && d.loggedWorkouts === 0;
-}
-
-function buildDataSummary(d: DayInputs): string {
-  const lines: string[] = [`Date: ${d.date} (react to TODAY only).`];
-  if (d.planned) {
-    lines.push(
-      d.planned.isRest
-        ? `Planned: REST day.`
-        : `Planned session: ${d.planned.sessionType} (~${d.planned.minutes} min${d.planned.lifting ? ", a Tonal lifting day" : ""}). ${d.planned.description}`,
-    );
-  } else {
-    lines.push(`Planned: nothing on the plan today.`);
-  }
-  lines.push(
-    `Workouts logged today: ${d.loggedWorkouts}${d.loggedWorkouts ? ` (${d.loggedMinutes} min)` : ""}.` +
-      (d.planned && !d.planned.isRest && d.loggedWorkouts === 0
-        ? " The planned session has NOT been logged."
-        : ""),
-  );
-
-  if (d.actual) {
-    const t = d.target;
-    const a = d.actual;
-    lines.push(
-      `Food today — calories ${a.calories ?? "—"} (target ${t.calories ?? "—"}), ` +
-        `protein ${a.protein ?? "—"} g (target ${t.protein ?? "—"}), ` +
-        `carbs ${a.carbs ?? "—"} g, fat ${a.fat ?? "—"} g.`,
-    );
-    // Safety signals for the supportive-flip rail.
-    const floor = calorieFloor(d.sex);
-    if (a.calories != null && a.calories > 0 && a.calories < floor) {
-      lines.push(
-        `SAFETY SIGNAL: today's calories (${a.calories}) are BELOW the safe floor of ${floor}. ` +
-          `If this is a real day's intake, DROP the sarcasm and be warm — encourage eating enough.`,
-      );
-    }
-  } else {
-    lines.push(`Food today: nothing synced yet.`);
-  }
-  return lines.join("\n");
 }
 
 // Generate the persona daily line. Returns null when AI is unconfigured or

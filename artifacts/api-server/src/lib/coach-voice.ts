@@ -1,0 +1,102 @@
+// Pure prompt-builders for the coach voice (Phases 4-5). Kept DB-free so the
+// tone-safety logic (the SAFETY SIGNAL that drives the supportive flip) is unit-
+// testable without a database. The routes own the DB gathering + the AI call;
+// these turn the gathered numbers into the model's user message.
+
+import { calorieFloor } from "./nutrition-safety";
+// Type-only import (erased at runtime — no DB module is loaded).
+import type { WeekReview } from "../routes/week-review";
+
+export type DayInputs = {
+  date: string;
+  target: { calories: number | null; protein: number | null; carbs: number | null; fat: number | null };
+  actual: { calories: number | null; protein: number | null; carbs: number | null; fat: number | null } | null;
+  planned: { sessionType: string; isRest: boolean; minutes: number; lifting: boolean; description: string } | null;
+  loggedWorkouts: number;
+  loggedMinutes: number;
+  sex: string | null;
+};
+
+export function buildDataSummary(d: DayInputs): string {
+  const lines: string[] = [`Date: ${d.date} (react to TODAY only).`];
+  if (d.planned) {
+    lines.push(
+      d.planned.isRest
+        ? `Planned: REST day.`
+        : `Planned session: ${d.planned.sessionType} (~${d.planned.minutes} min${d.planned.lifting ? ", a Tonal lifting day" : ""}). ${d.planned.description}`,
+    );
+  } else {
+    lines.push(`Planned: nothing on the plan today.`);
+  }
+  lines.push(
+    `Workouts logged today: ${d.loggedWorkouts}${d.loggedWorkouts ? ` (${d.loggedMinutes} min)` : ""}.` +
+      (d.planned && !d.planned.isRest && d.loggedWorkouts === 0
+        ? " The planned session has NOT been logged."
+        : ""),
+  );
+
+  if (d.actual) {
+    const t = d.target;
+    const a = d.actual;
+    lines.push(
+      `Food today — calories ${a.calories ?? "—"} (target ${t.calories ?? "—"}), ` +
+        `protein ${a.protein ?? "—"} g (target ${t.protein ?? "—"}), ` +
+        `carbs ${a.carbs ?? "—"} g, fat ${a.fat ?? "—"} g.`,
+    );
+    const floor = calorieFloor(d.sex);
+    if (a.calories != null && a.calories > 0 && a.calories < floor) {
+      lines.push(
+        `SAFETY SIGNAL: today's calories (${a.calories}) are BELOW the safe floor of ${floor}. ` +
+          `If this is a real day's intake, DROP the sarcasm and be warm — encourage eating enough.`,
+      );
+    }
+  } else {
+    lines.push(`Food today: nothing synced yet.`);
+  }
+  return lines.join("\n");
+}
+
+export function buildSummaryData(review: WeekReview, sex: string | null): string {
+  const f = review.food;
+  const w = review.workouts;
+  const wt = review.weight;
+  const lines: string[] = [`Week ${review.weekStart} → ${review.weekEnd}.`];
+
+  lines.push(
+    `FOOD: ${f.daysLogged}/7 days logged. ` +
+      `Avg calories ${f.avgCalories ?? "—"} (target ${f.target.calories ?? "—"}), ` +
+      `avg protein ${f.avgProtein ?? "—"} g (target ${f.target.protein ?? "—"}). ` +
+      `Protein target hit ${f.proteinHitRate != null ? `${Math.round(f.proteinHitRate * 100)}% of logged days` : "—"}. ` +
+      `${f.daysOverCalories} day(s) over calories, ${f.daysUnderCalories} under.`,
+  );
+  lines.push(
+    `WORKOUTS: ${w.done}/${w.planned} planned sessions done (${w.skipped} skipped), ` +
+      `${w.minutesDone}/${w.minutesPlanned} planned minutes trained. ` +
+      `Lifting days: ${w.liftingDone}/${w.liftingPlanned} done. ` +
+      `${w.missedDays.length ? `Missed: ${w.missedDays.join(", ")}.` : "Nothing missed."}`,
+  );
+  lines.push(
+    `WEIGHT: ` +
+      (wt.startLb != null && wt.endLb != null
+        ? `${wt.startLb} → ${wt.endLb} lb (${wt.actualChangeLb! > 0 ? "+" : ""}${wt.actualChangeLb} lb). `
+        : `not enough weigh-ins. `) +
+      (wt.goalChangeLb != null
+        ? `Weekly goal was ${wt.goalChangeLb} lb. ${wt.onTrack === true ? "On track." : wt.onTrack === false ? "Off track." : ""}`
+        : `No weekly weight goal set.`),
+  );
+
+  const floor = calorieFloor(sex);
+  if (f.avgCalories != null && f.avgCalories > 0 && f.avgCalories < floor) {
+    lines.push(
+      `SAFETY SIGNAL: average intake (${f.avgCalories} kcal) is BELOW the safe floor of ${floor}. ` +
+        `Drop the sarcasm — be warm, encourage eating enough, suggest a professional if it's a pattern.`,
+    );
+  }
+  if (wt.actualChangeLb != null && wt.actualChangeLb < -2.5) {
+    lines.push(
+      `SAFETY SIGNAL: dropped ${Math.abs(wt.actualChangeLb)} lb this week — faster than safe. ` +
+        `Be warm and concerned; do NOT praise rapid loss or push for more.`,
+    );
+  }
+  return lines.join("\n");
+}

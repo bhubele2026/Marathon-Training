@@ -50,6 +50,19 @@ The AI coach went from "talks well but the workouts are wrong" to a real strengt
 
 > **DB push (Phases 1–5):** new columns/tables need `pnpm --filter @workspace/db run push` on Replit before they're live — `plan_days.strength_blocks` + `seed_strength_blocks`, `workouts.strength_blocks`, `user_preferences.targets_safety`, and the new `plan_drafts` table.
 
+## Coach voice (weekly goals + daily/weekly persona)
+
+A sardonic British tough-love coach layered on top of the data, with hard wellbeing rails.
+
+- **Weekly weight goals.** A signed target rate (lb/wk) on `user_preferences` (`weekly_rate_lb`, anchored by `weekly_goal_start_weight_lb` + `weekly_goal_anchor_date`), set via `POST /api/goals/weekly-weight`. The rate is always clamped to the science-safe max (`clampWeeklyRate` → `safeWeeklyRateLb`, min 1% bodyweight / ~2 lb/wk; modest cap on gains) with a `weekly_goal_note` when eased. The per-week target-weight curve is DERIVED server-side (`weekly-weight.ts`, pure + tested) clamped at the goal weight. `GET /api/goals` returns a `weeklyWeight` status (this week's target vs latest actual, variance, on/off-track); set on Goals, shown quietly on Body.
+- **Weekly rollup.** `GET /api/week-review/:weekStart` — numbers-only planned-vs-actual for a week: food (avg cal/protein/carbs/fat vs targets, days logged/over/under, protein-hit rate), workouts (sessions planned/done/skipped, minutes, missed days, lifting-day adherence via plan_days↔workouts SQL), weight (start/end carry-forward vs the weekly goal, on-track). Pure summarizers in `lib/week-review.ts`.
+- **The persona.** One shared `COACH_PERSONA` (`lib/plan-knowledge/src/persona.ts`) composed into every coach surface — the plan-builder chat, the daily line, and the weekly summary — so it's the same character everywhere. **Non-negotiable wellbeing rails OVERRIDE the persona:** the meanness aims at effort/consistency/excuses, never the body/weight/worth; no body-shaming or food-moralising; it never encourages skipping meals, eating under the safe floor, losing faster than the safe rate, over-training, or training through pain; and it **drops the sarcasm entirely and turns warm + concerned** (suggesting a professional if serious) when the data shows under-eating / rapid loss. Tests guard the rails.
+- **Daily voice.** `GET /api/coach/daily/:date` — a 1–3 sentence persona reaction to today (protein hit? session done/skipped? calories?), cached per day in `coach_daily_notes` and regenerated when the day's input hash changes (a food sync or Done/Log Actual/Skipped). Shown as the quiet `CoachLine` on Today.
+- **Weekly summary.** `GET /api/week-review/:weekStart/summary` — the coach's end-of-week verdict over the rollup (numbers + blunt verdict + 1–2 next-week fixes + on-pace line), cached + persisted per week in `coach_weekly_summaries` (browsable). Surfaced on the new **`/recap` "This week"** page with prev/next week navigation.
+- **Tone safety (the supportive flip)** is driven by a `SAFETY SIGNAL` injected into the prompt by the pure `lib/coach-voice.ts` builders when intake is below the sex-specific floor or weekly loss is rapid — verified deterministically by `tone-safety.test.ts` (fires exactly when it should, never on a normal day).
+
+> **DB push (coach voice):** also push `user_preferences` weekly-goal columns (`weekly_rate_lb`, `weekly_goal_start_weight_lb`, `weekly_goal_anchor_date`, `weekly_goal_note`) and the new `coach_daily_notes` + `coach_weekly_summaries` tables. The coach voice needs `ANTHROPIC_API_KEY`; with it unset, the daily/weekly notes simply don't appear.
+
 ## Plan generator (`lib/plan-generator/src/index.ts`)
 
 - **Long-run progression** is length-aware via `rampToBlockEnd(weekInBlock, blockWeeks, start, peak)` so each block lands at `peak` on its block-final week. Research-aligned peaks: Base 4→10, Time on Feet 10→16, Speed 8→12, Marathon-Specific 12→20, Taper 12→6.
