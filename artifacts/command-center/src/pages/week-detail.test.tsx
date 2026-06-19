@@ -27,6 +27,15 @@ const { workoutsRef } = vi.hoisted(() => ({
   workoutsRef: { current: [] as unknown[] },
 }));
 
+// R2: mutable overview ref so individual tests can flip includesRunning
+// to exercise the recomp tile swap in the week header. Defaults to true
+// so the existing mileage / Long-Run header-tile assertions keep passing.
+const { overviewRef } = vi.hoisted(() => ({
+  overviewRef: {
+    current: { hasPlan: true, includesRunning: true } as Record<string, unknown>,
+  },
+}));
+
 vi.mock("@workspace/api-client-react", () => ({
   useGetPlanWeek: vi.fn(),
   useListWorkouts: () => ({ data: workoutsRef.current }),
@@ -39,7 +48,7 @@ vi.mock("@workspace/api-client-react", () => ({
   // a non-empty configs list so existing tests never trigger the
   // first-run redirect to /planner.
   useGetPlanOverview: () => ({
-    data: { hasPlan: true },
+    data: overviewRef.current,
     isError: false,
   }),
   useListPlannerConfigs: () => ({
@@ -1439,5 +1448,59 @@ describe("Week detail — per-kind eyebrow (task #242)", () => {
     expect(eyebrow.textContent).toBe(label);
     expect(eyebrow.getAttribute("data-race-week")).toBe("true");
     expect(eyebrow.getAttribute("data-post-race")).toBe("true");
+  });
+});
+
+// Behavior rehaul R2: on the default recomp plan (includesRunning false)
+// the week header swaps the Volume / Long-Run mileage tiles for
+// training-minute and strength-load tiles.
+describe("Week detail — recomp header gating (R2)", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    overviewRef.current = { hasPlan: true, includesRunning: true };
+  });
+
+  const recompWeek = {
+    week: 1,
+    phase: "Strength Block",
+    startDate: "2026-05-04",
+    endDate: "2026-05-10",
+    plannedStrength: 120,
+    plannedCardio: 60,
+    plannedTotalLoad: 8400,
+    plannedMiles: 0,
+    longRunMi: 0,
+    actualMiles: 0,
+    actualCardio: 0,
+    completedSessions: 2,
+    totalSessions: 4,
+    missedSessions: 0,
+    dominantCardioEquipment: null,
+    days: [],
+  };
+
+  it("shows training-minute + strength-load tiles instead of mileage when includesRunning is false", () => {
+    overviewRef.current = { hasPlan: true, includesRunning: false };
+    renderWith(recompWeek);
+    // plannedStrength (120) + plannedCardio (60) = 180.
+    expect(screen.getByTestId("week-training-min").textContent).toContain(
+      "180 min",
+    );
+    expect(screen.queryByTestId("week-volume-miles")).toBeNull();
+    expect(screen.queryByText("Long Run")).toBeNull();
+    expect(screen.getByText("Strength load")).toBeTruthy();
+  });
+
+  it("keeps the mileage Volume + Long Run tiles when includesRunning is true", () => {
+    overviewRef.current = { hasPlan: true, includesRunning: true };
+    renderWith({
+      ...recompWeek,
+      plannedMiles: 20,
+      longRunMi: 6,
+    });
+    expect(screen.getByTestId("week-volume-miles")).toBeTruthy();
+    expect(screen.getByText("Long Run")).toBeTruthy();
+    expect(screen.queryByTestId("week-training-min")).toBeNull();
   });
 });

@@ -65,6 +65,12 @@ export default function Today() {
   // campaign-level overview.hasPlan flag.
   const { data: overview } = useGetPlanOverview();
   const campaignHasPlan = overview ? overview.hasPlan : true;
+  // Behavior rehaul R2. Authoritative "this plan includes running" flag.
+  // Running is opt-in; the default plan is strength + recomp with zero
+  // miles. Gate the run-only Adjust Pace control and the pre-launch
+  // "campaign" countdown framing on this so a recomp runner gets a calm
+  // "Starts <date>" line, not a race countdown.
+  const includesRunning = overview ? overview.includesRunning : false;
   const { openLog, openEdit, requestDelete, requestSkip, crushIt, isDeleting, isCrushing, dialogs } =
     useMissionActions();
 
@@ -238,7 +244,9 @@ export default function Today() {
               Ask AI to adjust
             </Button>
           )}
-          {campaignHasPlan && (
+          {/* R2: Adjust Pace is a run-only control. Hidden on the default
+              recomp plan, which has no programmed running pace. */}
+          {campaignHasPlan && includesRunning && (
             <Button
               variant="outline"
               size="sm"
@@ -297,23 +305,42 @@ export default function Today() {
           <CardHeader className="border-b border-border pb-4">
             <CardTitle className="text-lg tracking-wider text-primary flex items-center gap-2">
               <Rocket className="h-5 w-5" />
-              Pre-Launch
+              {/* R2: drop the "Pre-Launch / campaign" framing on the
+                  default recomp plan — just a calm "Starts soon". The
+                  countdown framing stays for opted-in running plans. */}
+              {includesRunning ? "Pre-Launch" : "Starts soon"}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-8 text-center space-y-6">
             <div>
-              <p className="text-sm text-muted-foreground font-bold tracking-widest mb-2">
-                Campaign Starts In
-              </p>
-              <p
-                className="text-6xl font-black text-primary leading-none"
-                data-testid="text-countdown-days"
-              >
-                {today.daysUntilStart}
-              </p>
-              <p className="text-sm text-muted-foreground font-bold tracking-widest mt-2">
-                {today.daysUntilStart === 1 ? "Day" : "Days"}
-              </p>
+              {includesRunning ? (
+                <>
+                  <p className="text-sm text-muted-foreground font-bold tracking-widest mb-2">
+                    Campaign Starts In
+                  </p>
+                  <p
+                    className="text-6xl font-black text-primary leading-none"
+                    data-testid="text-countdown-days"
+                  >
+                    {today.daysUntilStart}
+                  </p>
+                  <p className="text-sm text-muted-foreground font-bold tracking-widest mt-2">
+                    {today.daysUntilStart === 1 ? "Day" : "Days"}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground font-bold tracking-widest mb-2">
+                    Starts
+                  </p>
+                  <p
+                    className="text-3xl font-black text-primary leading-tight"
+                    data-testid="text-starts-date"
+                  >
+                    {format(parseISO(today.firstSession.date), "EEE MMM d")}
+                  </p>
+                </>
+              )}
             </div>
             <div className="bg-background border border-border rounded-md p-6 text-left max-w-xl mx-auto">
               <p className="text-xs text-muted-foreground font-bold tracking-wider mb-2">
@@ -512,7 +539,7 @@ export default function Today() {
               </div>
             </div>
             <p className="text-sm text-muted-foreground italic">
-              Use this window to dial in nutrition, sleep, and gear. The grind starts soon.
+              Use this window to dial in nutrition, sleep, and gear.
             </p>
           </CardContent>
         </Card>

@@ -64,8 +64,13 @@ const OVERVIEW: {
   raceKind: "marathon" | "half" | "10k" | "5k" | null;
   activeConfigName: string;
   hasPlan: boolean;
+  includesRunning: boolean;
 } = {
   hasPlan: true,
+  // R2: these legacy tests assert the running Volume / Long-Run tiles,
+  // so the base mock opts the plan into running. The recomp-swap tests
+  // below override this to false.
+  includesRunning: true,
   currentWeek: 1,
   currentPhase: "Bike Block",
   totalWeeks: 2,
@@ -476,5 +481,62 @@ describe("Plan page — header title from active planner config name (task #244)
     expect(screen.getByTestId("plan-header-title").textContent).toBe(
       "Workout Plan",
     );
+  });
+});
+
+// Behavior rehaul R2: on the default recomp plan (includesRunning false)
+// the running tiles are replaced with strength/recomp tiles, and the
+// run-only "Update Starting Pace" control is hidden.
+describe("Plan page — recomp gating (R2)", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  const recompWeek = {
+    week: 1,
+    phase: "Strength Block",
+    startDate: "2026-05-04",
+    endDate: "2026-05-10",
+    plannedStrength: 120,
+    plannedCardio: 60,
+    plannedTotalLoad: 8400,
+    plannedMiles: 0,
+    longRunMi: 0,
+    actualMiles: 0,
+    actualCardio: 0,
+    completedSessions: 2,
+    totalSessions: 4,
+    missedSessions: 0,
+    dominantCardioEquipment: null,
+  };
+
+  it("swaps the Target Miles header tile for a Sessions tile when includesRunning is false", () => {
+    renderWith([recompWeek], { includesRunning: false, weeklyMilesTarget: 0 });
+    expect(screen.getByTestId("plan-tile-sessions").textContent).toContain(
+      "Sessions this week",
+    );
+    expect(screen.queryByText("Target Miles")).toBeNull();
+  });
+
+  it("replaces the per-week mileage tiles with training-minute / strength-load tiles", () => {
+    renderWith([recompWeek], { includesRunning: false });
+    // Training minutes = plannedStrength (120) + plannedCardio (60) = 180.
+    expect(screen.getByTestId("week-training-min-1").textContent).toContain(
+      "180 min",
+    );
+    // No mileage Volume / Long-Run headline on a recomp week.
+    expect(screen.queryByTestId("week-volume-miles-1")).toBeNull();
+    expect(screen.queryByText("Long Run")).toBeNull();
+  });
+
+  it("hides the run-only Update Starting Pace button on recomp plans", () => {
+    renderWith([recompWeek], { includesRunning: false });
+    expect(screen.queryByTestId("button-update-starting-pace")).toBeNull();
+  });
+
+  it("keeps the Update Starting Pace button on running plans", () => {
+    renderWith([recompWeek], { includesRunning: true });
+    expect(screen.getByTestId("button-update-starting-pace")).toBeTruthy();
   });
 });

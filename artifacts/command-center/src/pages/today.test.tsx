@@ -107,9 +107,13 @@ const mockedUseOverview = vi.mocked(useGetPlanOverview);
 
 // Default the overview mock to a campaign-with-plan response so existing
 // tests don't have to opt in. Empty-campaign tests override per-test.
-function defaultOverview(hasPlan: boolean) {
+// R2: includesRunning defaults to true so the existing countdown /
+// Adjust-Pace assertions keep their running framing. Recomp tests pass
+// includesRunning=false explicitly to exercise the calm "Starts <date>"
+// variant and the hidden Adjust-Pace control.
+function defaultOverview(hasPlan: boolean, includesRunning = true) {
   mockedUseOverview.mockReturnValue({
-    data: { hasPlan },
+    data: { hasPlan, includesRunning },
     isLoading: false,
   } as unknown as ReturnType<typeof useGetPlanOverview>);
 }
@@ -149,13 +153,13 @@ const restPlan = {
 
 function renderWithData(
   payload: Record<string, unknown>,
-  options: { campaignHasPlan?: boolean } = {},
+  options: { campaignHasPlan?: boolean; includesRunning?: boolean } = {},
 ) {
   mockedUseToday.mockReturnValue({
     data: payload,
     isLoading: false,
   } as unknown as ReturnType<typeof useGetTodayPlan>);
-  defaultOverview(options.campaignHasPlan ?? true);
+  defaultOverview(options.campaignHasPlan ?? true, options.includesRunning ?? true);
   // Wrap in TooltipProvider so the race-day personalized pace chip
   // (Task #235) can mount its Radix Tooltip without throwing
   // "Tooltip must be used within TooltipProvider". The real app
@@ -214,6 +218,34 @@ describe("Today page — pre-launch countdown", () => {
     expect(screen.getByTestId("text-countdown-days").textContent).toBe("3");
     expect(screen.getByText("Days")).toBeTruthy();
     expect(screen.queryByText("Rest Day")).toBeNull();
+  });
+
+  // R2: on the default recomp plan (includesRunning false) the pre-launch
+  // window shows a calm "Starts <date>" line, NOT a "Campaign Starts In"
+  // day countdown.
+  it("shows a calm Starts-date line (no campaign countdown) on a recomp pre-launch day", () => {
+    renderWithData(
+      {
+        date: "2026-05-04",
+        hasPlan: true,
+        plan: restPlan,
+        loggedWorkouts: [],
+        suggestions: null,
+        daysUntilStart: 1,
+        firstSession,
+      },
+      { includesRunning: false },
+    );
+
+    // No "Campaign Starts In" countdown framing.
+    expect(screen.queryByTestId("text-countdown-days")).toBeNull();
+    expect(screen.queryByText("Campaign Starts In")).toBeNull();
+    expect(screen.queryByText("Pre-Launch")).toBeNull();
+    // Calm "Starts <date>" line instead.
+    expect(screen.getByText("Starts soon")).toBeTruthy();
+    expect(screen.getByTestId("text-starts-date").textContent).toContain(
+      "Tue May 5",
+    );
   });
 
   it("renders the regular Mission Brief once the campaign has started", () => {
@@ -1860,5 +1892,35 @@ describe("Today page — empty plan vs rest day (Task #307)", () => {
     );
     expect(screen.queryByTestId("today-empty-plan")).toBeNull();
     expect(screen.getByText("Rest Day")).toBeTruthy();
+  });
+});
+
+// Behavior rehaul R2: the Adjust Pace control is run-only. It renders on
+// running plans and is hidden on the default recomp plan.
+describe("Today page — Adjust Pace gating (R2)", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  const startedPayload = {
+    date: "2026-05-05",
+    hasPlan: true,
+    plan: firstSession,
+    plans: [firstSession],
+    loggedWorkouts: [],
+    suggestions: null,
+    daysUntilStart: null,
+    firstSession: null,
+  };
+
+  it("shows Adjust Pace on a running plan", () => {
+    renderWithData(startedPayload, { includesRunning: true });
+    expect(screen.getByTestId("button-today-adjust-pace")).toBeTruthy();
+  });
+
+  it("hides Adjust Pace on a recomp plan", () => {
+    renderWithData(startedPayload, { includesRunning: false });
+    expect(screen.queryByTestId("button-today-adjust-pace")).toBeNull();
   });
 });

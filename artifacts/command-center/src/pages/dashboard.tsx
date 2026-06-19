@@ -162,6 +162,13 @@ export default function Dashboard() {
   const activity = bootstrap?.recentActivity;
   const today = bootstrap?.today;
   const overview = bootstrap?.overview;
+  // Behavior rehaul R2. The single authoritative "this plan includes
+  // running" flag, read off the consolidated bootstrap's plan overview.
+  // Running is opt-in: the default plan is strength + recomp with zero
+  // programmed miles. Every mi / pace / Long-Run surface on the dashboard
+  // gates on this so a recomp runner never sees "0.00 mi" tiles, an empty
+  // mileage chart, or a Long Run Build chart presupposing a race.
+  const includesRunning = overview?.includesRunning ?? false;
   const loadingSummary = loadingBootstrap;
   const loadingWeight = loadingBootstrap;
   const loadingMileage = loadingBootstrap;
@@ -241,29 +248,35 @@ export default function Dashboard() {
         {/* Phase 4. Even before a plan is applied, the body-recomp hero
             leads so the runner sees inches lost / muscle proxy. */}
         <RecompHero recomp={summary.recomp} weightGoal={summary.weightGoal} />
-        <div
-          className="grid grid-cols-1 gap-4"
-          data-testid="dashboard-empty-stats"
-        >
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between space-x-2">
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-                    Total Volume
-                  </p>
-                  <div className="text-4xl font-extrabold mt-1 tabular-nums leading-none">
-                    {formatDistance(summary.totalMilesAllTime)}
+        {/* R2: the all-time mileage tile only makes sense for runners.
+            On the default recomp plan the RecompHero above already leads
+            with inches lost / muscle, so we drop the mileage tile rather
+            than show "0.00 mi logged across all sessions". */}
+        {includesRunning && (
+          <div
+            className="grid grid-cols-1 gap-4"
+            data-testid="dashboard-empty-stats"
+          >
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between space-x-2">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+                      Total Volume
+                    </p>
+                    <div className="text-4xl font-extrabold mt-1 tabular-nums leading-none">
+                      {formatDistance(summary.totalMilesAllTime)}
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Logged across all sessions
+                    </p>
                   </div>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Logged across all sessions
-                  </p>
+                  <Activity className="h-8 w-8 text-muted-foreground opacity-50" />
                 </div>
-                <Activity className="h-8 w-8 text-muted-foreground opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
         <Card data-testid="dashboard-empty-recent-activity">
           <CardHeader>
             <CardTitle className="text-sm font-bold uppercase tracking-[0.12em]">Recent Logs</CardTitle>
@@ -393,18 +406,38 @@ export default function Dashboard() {
           </Card>
         )}
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between space-x-2">
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Total Volume</p>
-                <div className="text-4xl font-extrabold mt-1 tabular-nums leading-none">{formatDistance(summary.totalMilesAllTime)}</div>
-                <p className="text-sm text-muted-foreground mt-1">Max Long Run: <span className="text-foreground font-semibold">{formatDistance(summary.longestRunMi)}</span></p>
+        {/* R2: the Total Volume / Max Long Run tile is run-only. On the
+            default recomp plan we swap in a strength-relevant tile —
+            sessions done this week with training-load context — so the
+            top row never headlines "0.00 mi" miles a recomp runner isn't
+            chasing. */}
+        {includesRunning ? (
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between space-x-2">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Total Volume</p>
+                  <div className="text-4xl font-extrabold mt-1 tabular-nums leading-none">{formatDistance(summary.totalMilesAllTime)}</div>
+                  <p className="text-sm text-muted-foreground mt-1">Max Long Run: <span className="text-foreground font-semibold">{formatDistance(summary.longestRunMi)}</span></p>
+                </div>
+                <Activity className="h-8 w-8 text-muted-foreground opacity-50" />
               </div>
-              <Activity className="h-8 w-8 text-muted-foreground opacity-50" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card data-testid="dashboard-tile-sessions-done">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between space-x-2">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Sessions done</p>
+                  <div className="text-4xl font-extrabold mt-1 tabular-nums leading-none">{summary.weeklySessionsCompleted} / {summary.weeklySessionsPlanned}</div>
+                  <p className="text-sm text-muted-foreground mt-1">Training load: <span className="text-foreground font-semibold">{formatLoad(summary.weeklyLoadActual)} / {formatLoad(summary.weeklyLoadPlanned)}</span></p>
+                </div>
+                <CheckCircle2 className="h-8 w-8 text-muted-foreground opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -663,13 +696,18 @@ export default function Dashboard() {
               <CardTitle className="text-sm font-bold uppercase tracking-[0.12em]">Week {summary.currentWeek} Snapshot</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <div className="flex justify-between items-baseline">
-                  <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Mileage</span>
-                  <span className="text-base font-bold tabular-nums">{formatDistance(summary.weeklyMilesActual)} / {formatDistance(summary.weeklyMilesPlanned)}</span>
+              {/* R2: the Mileage progress row is run-only — gated so the
+                  recomp plan's Week Snapshot leads with training load +
+                  sessions instead of a "0.0 / 0.0 mi" bar. */}
+              {includesRunning && (
+                <div className="space-y-2">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Mileage</span>
+                    <span className="text-base font-bold tabular-nums">{formatDistance(summary.weeklyMilesActual)} / {formatDistance(summary.weeklyMilesPlanned)}</span>
+                  </div>
+                  <Progress value={(summary.weeklyMilesActual / Math.max(summary.weeklyMilesPlanned, 1)) * 100} className="h-3" />
                 </div>
-                <Progress value={(summary.weeklyMilesActual / Math.max(summary.weeklyMilesPlanned, 1)) * 100} className="h-3" />
-              </div>
+              )}
               <div className="space-y-2">
                 <div className="flex justify-between items-baseline">
                   <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Training Load</span>
@@ -841,7 +879,10 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* Weekly Mileage Chart */}
+          {/* Weekly Mileage Chart — R2: run-only. Hidden on the default
+              recomp plan so the dashboard doesn't render an all-zero
+              mileage chart for a non-running plan. */}
+          {includesRunning && (
           <Card>
             <CardHeader>
               <CardTitle className="text-sm font-bold uppercase tracking-[0.12em]">Mileage Volume</CardTitle>
@@ -1039,8 +1080,10 @@ export default function Dashboard() {
               )}
             </CardContent>
           </Card>
+          )}
 
-          {/* Long Run Progression */}
+          {/* Long Run Progression — R2: run-only, hidden on recomp plans. */}
+          {includesRunning && (
           <Card>
             <CardHeader>
               <CardTitle className="text-sm font-bold uppercase tracking-[0.12em]">Long Run Build</CardTitle>
@@ -1147,6 +1190,7 @@ export default function Dashboard() {
               )}
             </CardContent>
           </Card>
+          )}
 
         </div>
 

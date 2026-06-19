@@ -292,6 +292,11 @@ export default function WeekDetail() {
   //   - isPostRace: that race day is strictly in the past.
   const todayDate = todayISO();
   const raceKind: RaceDayKind | null = (week.raceKind ?? null) as RaceDayKind | null;
+  // Behavior rehaul R2. Authoritative "this plan includes running" flag,
+  // read off the campaign-level overview (PlanWeek carries no per-week
+  // flag). Gate the Volume / Long Run header tiles on this so a recomp
+  // week shows training minutes + strength load instead of "0.0 mi".
+  const includesRunning = overviewQuery.data?.includesRunning ?? false;
   const raceDayInWeek = week.days.find(
     (d) => raceDayLabel(d.distanceMi, d.description, d.sessionType) != null,
   );
@@ -513,6 +518,21 @@ export default function WeekDetail() {
             {week.phase}
           </p>
         </div>
+        {!includesRunning ? (
+          <>
+            <div>
+              <p className="text-[10px] font-bold text-muted-foreground">Training min</p>
+              <p className="font-black text-lg" data-testid="week-training-min">
+                {Math.round((week.plannedStrength ?? 0) + (week.plannedCardio ?? 0))} min
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-muted-foreground">Strength load</p>
+              <p className="font-black text-lg">{Math.round(week.plannedTotalLoad)}</p>
+            </div>
+          </>
+        ) : (
+          <>
         <div>
           <p className="text-[10px] font-bold text-muted-foreground">Volume</p>
           {/*
@@ -579,6 +599,8 @@ export default function WeekDetail() {
           <p className="text-[10px] font-bold text-muted-foreground">Long Run</p>
           <p className="font-black text-lg">{formatDistance(week.longRunMi)}</p>
         </div>
+          </>
+        )}
         <div>
           <p className="text-[10px] font-bold text-muted-foreground">Sessions</p>
           <p

@@ -111,7 +111,10 @@ const bootstrapState: BootstrapState = {
   longRunProgression: undefined,
   recentActivity: undefined,
   today: undefined,
-  overview: { nextScheduledRace: null },
+  // R2: default the plan overview to a running plan so the existing
+  // mileage-chart / Total-Volume / empty-state-mileage assertions keep
+  // passing. The recomp-gating tests below set includesRunning=false.
+  overview: { nextScheduledRace: null, includesRunning: true },
   isLoading: false,
 };
 function applyBootstrap() {
@@ -921,5 +924,76 @@ describe("Dashboard — prescribed run target on Recent Logs (task #147)", () =>
     render(<Dashboard />);
 
     expect(screen.queryByTestId("recent-activity-701-run-target")).toBeNull();
+  });
+});
+
+// Behavior rehaul R2: on the default recomp plan (includesRunning false)
+// the dashboard hides the run-only Total Volume tile, Mileage chart, Long
+// Run Build chart and the Week Snapshot mileage row, and swaps in a
+// strength-relevant "Sessions done" tile. Default (no race) shows zero
+// miles / pace surfaces.
+describe("Dashboard — recomp gating (R2)", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    // Restore the running default so other suites are unaffected.
+    bootstrapState.overview = { nextScheduledRace: null, includesRunning: true };
+  });
+
+  it("hides mileage surfaces and swaps in a Sessions tile when includesRunning is false", () => {
+    bootstrapState.overview = { nextScheduledRace: null, includesRunning: false };
+    setupHooks([
+      {
+        week: 34,
+        startDate: "2026-12-28",
+        phase: "Strength Block",
+        plannedMiles: 0,
+        actualMiles: 0,
+        plannedCardioMin: 60,
+        actualCardioMin: 0,
+        dominantCardioEquipment: null,
+        programs: [],
+        wedSteady: false,
+      },
+    ], {
+      raceKind: null,
+      weeklySessionsCompleted: 3,
+      weeklySessionsPlanned: 5,
+    });
+    render(<Dashboard />);
+
+    // Strength-relevant tile replaces Total Volume.
+    expect(screen.getByTestId("dashboard-tile-sessions-done").textContent).toContain(
+      "3 / 5",
+    );
+    expect(screen.queryByText("Total Volume")).toBeNull();
+    expect(screen.queryByText("Max Long Run")).toBeNull();
+    // Run-only charts and the snapshot mileage row are gone.
+    expect(screen.queryByText("Mileage Volume")).toBeNull();
+    expect(screen.queryByText("Long Run Build")).toBeNull();
+    expect(screen.queryByText("Mileage")).toBeNull();
+  });
+
+  it("keeps the mileage surfaces when includesRunning is true", () => {
+    bootstrapState.overview = { nextScheduledRace: null, includesRunning: true };
+    setupHooks([
+      {
+        week: 34,
+        startDate: "2026-12-28",
+        phase: "Marathon-Specific",
+        plannedMiles: 28,
+        actualMiles: 0,
+        plannedCardioMin: 0,
+        actualCardioMin: 0,
+        dominantCardioEquipment: null,
+        programs: [],
+        wedSteady: false,
+      },
+    ]);
+    render(<Dashboard />);
+
+    expect(screen.getByText("Total Volume")).toBeTruthy();
+    expect(screen.getByText("Mileage Volume")).toBeTruthy();
+    expect(screen.getByText("Long Run Build")).toBeTruthy();
   });
 });

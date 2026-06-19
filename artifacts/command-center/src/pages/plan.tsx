@@ -340,7 +340,7 @@ export default function Plan() {
         // succeeded end-to-end (and they can spot any unexpectedly-zero
         // counts if they thought there was data here).
         toast({
-          title: "Campaign reset to day one",
+          title: "Plan reset to day one",
           description: `${data.workoutsWiped} workout${data.workoutsWiped === 1 ? "" : "s"} and ${data.measurementsWiped} measurement${data.measurementsWiped === 1 ? "" : "s"} wiped. Plan tables are empty and every applied Phase Planner config has been demoted to draft — re-apply one from /planner to rebuild the plan.`,
         });
         // A full reset touches EVERY mutable table, so invalidate the
@@ -402,6 +402,12 @@ export default function Plan() {
     }
     return { totalMissed: missed, totalCustomized: customized, nextMissedWeek: next };
   }, [weeks]);
+  // R2: the active week's row, used to drive the recomp "Sessions this
+  // week" tile that replaces "Target Miles" on non-running plans.
+  const currentWeekData = useMemo(
+    () => (weeks ?? []).find((w) => w.week === overview?.currentWeek) ?? null,
+    [weeks, overview?.currentWeek],
+  );
 
   if (loadingOverview || loadingWeeks) {
     return (
@@ -512,6 +518,11 @@ export default function Plan() {
   const nextMissedDate = overview.nextMissedDate ?? null;
   const nextMissedDateWeek = overview.nextMissedWeek ?? null;
   const nextMissedPlanDayId = overview.nextMissedPlanDayId ?? null;
+  // Behavior rehaul R2. Authoritative "this plan includes running" flag.
+  // Running is opt-in; the default plan is strength + recomp with zero
+  // miles. Gate every mi / pace / Long-Run tile on this so a recomp plan
+  // never headlines "Target Miles" or per-week mileage tiles.
+  const includesRunning = overview.includesRunning;
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1600px] mx-auto">
@@ -603,6 +614,10 @@ export default function Plan() {
           </div>
         </div>
         <div className="flex items-center gap-2 self-start md:self-auto">
+        {/* R2: Update Starting Pace is a run-only control (it re-paces
+            easy/long runs). Hidden on the default recomp plan, which has
+            no programmed running pace to adjust. */}
+        {includesRunning && (
         <Button
           variant="outline"
           size="sm"
@@ -619,6 +634,7 @@ export default function Plan() {
         >
           Update Starting Pace
         </Button>
+        )}
         <Button
           variant="outline"
           size="sm"
@@ -656,15 +672,30 @@ export default function Plan() {
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-6 flex items-center gap-4">
-            <Target className="h-8 w-8 text-muted-foreground shrink-0" />
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Target Miles</p>
-              <div className="text-3xl font-extrabold tabular-nums leading-none mt-0.5">{overview.weeklyMilesTarget ? formatDistance(overview.weeklyMilesTarget) : '-'}</div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* R2: Target Miles is run-only. On the default recomp plan we
+            swap in a strength-relevant "Sessions this week" tile so the
+            header never headlines miles a recomp runner isn't chasing. */}
+        {includesRunning ? (
+          <Card>
+            <CardContent className="p-6 flex items-center gap-4">
+              <Target className="h-8 w-8 text-muted-foreground shrink-0" />
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Target Miles</p>
+                <div className="text-3xl font-extrabold tabular-nums leading-none mt-0.5">{overview.weeklyMilesTarget ? formatDistance(overview.weeklyMilesTarget) : '-'}</div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card data-testid="plan-tile-sessions">
+            <CardContent className="p-6 flex items-center gap-4">
+              <Target className="h-8 w-8 text-muted-foreground shrink-0" />
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Sessions this week</p>
+                <div className="text-3xl font-extrabold tabular-nums leading-none mt-0.5">{currentWeekData ? `${currentWeekData.completedSessions || 0} / ${currentWeekData.totalSessions || 0}` : '-'}</div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Task #135: parallel-tracks Programs panel. Renders one bar per
@@ -890,6 +921,28 @@ export default function Plan() {
                         </div>
                       </div>
                       
+                      {/* R2: on the default recomp plan, swap the
+                          per-week mileage tiles (Volume / Long Run) for
+                          strength-relevant ones — training minutes planned
+                          and strength load — so a non-running week card
+                          never headlines "0.0 / 0.0 mi". */}
+                      {!includesRunning ? (
+                        <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-sm mb-4">
+                          <div>
+                            <p className="text-[10px] font-bold text-muted-foreground">Training min</p>
+                            <p className="font-mono font-medium" data-testid={`week-training-min-${week.week}`}>
+                              {Math.round((week.plannedStrength ?? 0) + (week.plannedCardio ?? 0))} min
+                            </p>
+                            <span className="inline-block mt-1 text-[10px] bg-secondary text-secondary-foreground px-2 py-0.5 rounded font-bold tracking-wider">
+                              {week.totalSessions || 0} Session{(week.totalSessions || 0) === 1 ? "" : "s"}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-bold text-muted-foreground">Strength load</p>
+                            <p className="font-mono font-medium">{Math.round(week.plannedTotalLoad)}</p>
+                          </div>
+                        </div>
+                      ) : (
                       <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-sm mb-4">
                         <div>
                           <p className="text-[10px] font-bold text-muted-foreground">Volume</p>
@@ -977,6 +1030,7 @@ export default function Plan() {
                           <p className="font-mono font-medium">{formatDistance(week.longRunMi)}</p>
                         </div>
                       </div>
+                      )}
 
                       <div className="space-y-1.5 mt-4 pt-4 border-t border-border">
                         <div className="flex justify-between items-center text-[10px] font-bold text-muted-foreground">
@@ -1191,7 +1245,7 @@ export default function Plan() {
             <DialogDescription>
               Re-paces every future easy/long run in your applied plan
               from this starting point. The new pace ramps from here as
-              the campaign progresses. Your logged workouts, body
+              the plan progresses. Your logged workouts, body
               measurements, race results, and any day cards you've
               edited on /plan are preserved. Leave the field blank to
               clear the override and fall back to the recipe default.

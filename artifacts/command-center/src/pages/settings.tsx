@@ -53,7 +53,7 @@ const MODE_OPTIONS: ModeOption[] = [
     value: UserPreferencesRunTargetingMode.intervals,
     title: "Walk / run intervals",
     description:
-      "Break each run into walk/run intervals scaled to the planned duration. Walks shrink as the campaign progresses.",
+      "Break each run into walk/run intervals scaled to the planned duration. Walks shrink as the plan progresses.",
     example: 'A 30-min easy run shows up as "5 min run / 1 min walk × 5".',
   },
   {
