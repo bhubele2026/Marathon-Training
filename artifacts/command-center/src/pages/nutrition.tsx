@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Beef, Droplet, Flame, RefreshCw, Wheat } from "lucide-react";
+import { Beef, Droplet, Flame, RefreshCw, Sparkles, Wheat } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 // These routes are intentionally hand-fetched rather than going through the
@@ -17,19 +18,41 @@ type NutritionDay = {
   updatedAt: string | null;
 };
 type RecentResponse = { days: number; entries: NutritionDay[] };
-// Targets come from the AI calculation on the Goals page. Any of them may be
-// null until the runner computes them — the rings degrade to a bare value.
+// Baseline targets from the Goals page. Any of them may be null until the
+// runner computes them.
 type GoalsTargets = {
   calorieTarget: number | null;
   proteinTargetG: number | null;
   carbsTargetG: number | null;
   fatTargetG: number | null;
 };
+// R5/R7 reactive per-day target. The ring TARGET prefers `adjusted` (today's
+// training-reactive number) and falls back to `baseline`; `needsBaseline`
+// means no targets exist at all.
+type Macros = { cal: number; protein: number; carbs: number; fat: number };
+type DayTarget = {
+  date: string;
+  baseline: Macros | null;
+  adjusted: Macros | null;
+  delta: Macros | null;
+  rationale: string | null;
+  actual: Macros | null;
+  source: "planned" | "actual";
+  needsBaseline?: boolean;
+};
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url, { headers: { accept: "application/json" } });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json() as Promise<T>;
+}
+
+function todayUtc(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function fmt(n: number): string {
+  return n.toLocaleString();
 }
 
 function formatUpdated(iso: string | null): string {
@@ -50,8 +73,13 @@ function formatDayLabel(date: string): string {
 }
 
 // A single macro ring. Monochrome-accent: the progress arc is the teal accent
-// (primary), the track is neutral (muted). When `target` is null we show the
-// value with no goal ring (a full neutral circle), never a hardcoded goal.
+// (primary), the track is neutral (muted).
+//
+// R7 dead-state elimination: when a `target` exists we ALWAYS render the
+// target track. If intake hasn't synced (`value` null) we show the target
+// number over an empty fill ("awaiting intake") rather than a bare dash with
+// "No goal set". The "No goal" branch never renders on this page anymore —
+// the caller only mounts rings when targets exist.
 function MacroRing({
   label,
   Icon,
@@ -70,6 +98,7 @@ function MacroRing({
   const r = (size - stroke) / 2;
   const circ = 2 * Math.PI * r;
   const hasGoal = target != null && target > 0;
+  const awaiting = value == null;
   const pct =
     value != null && hasGoal ? Math.min(1, value / (target as number)) : 0;
   const hit = hasGoal && value != null && value >= (target as number);
@@ -88,7 +117,7 @@ function MacroRing({
             strokeWidth={stroke}
             className="stroke-muted"
           />
-          {hasGoal && (
+          {hasGoal && !awaiting && (
             <circle
               cx={size / 2}
               cy={size / 2}
@@ -103,10 +132,19 @@ function MacroRing({
           )}
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-3xl font-extrabold tabular-nums text-primary leading-none">
-            {value ?? "—"}
+          {/* Awaiting intake: lead with the TARGET number (muted) so the ring
+              still means something before the day's food syncs. */}
+          <span
+            className={
+              "text-3xl font-extrabold tabular-nums leading-none " +
+              (awaiting ? "text-muted-foreground" : "text-primary")
+            }
+          >
+            {awaiting ? (hasGoal ? fmt(target as number) : "—") : fmt(value as number)}
           </span>
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">{unit}</span>
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">
+            {unit}
+          </span>
         </div>
       </div>
       <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
@@ -114,19 +152,86 @@ function MacroRing({
         {label}
       </div>
       <p className="h-4 text-[11px] text-muted-foreground tabular-nums">
-        {value == null
-          ? "Waiting on sync"
-          : hasGoal
-            ? hit
-              ? "Goal hit"
-              : `${remaining} ${unit} to go`
-            : "No goal set"}
+        {awaiting
+          ? hasGoal
+            ? `Target ${fmt(target as number)} · awaiting intake`
+            : "Awaiting intake"
+          : hit
+            ? "Goal hit"
+            : remaining != null
+              ? `${fmt(remaining)} ${unit} to go`
+              : `${fmt(value as number)} ${unit}`}
       </p>
     </div>
   );
 }
 
+// One macro's 14-day trend row: a compact sparkbar strip. The peak across the
+// window scales each bar; a bar that meets/exceeds the per-macro target fills
+// to full accent, the rest to a dimmer accent so the trend reads at a glance.
+function MacroTrendRow({
+  label,
+  Icon,
+  unit,
+  entries,
+  pick,
+  goal,
+}: {
+  label: string;
+  Icon: LucideIcon;
+  unit: string;
+  entries: NutritionDay[];
+  pick: (e: NutritionDay) => number | null;
+  goal: number | null;
+}) {
+  const peak = Math.max(goal ?? 0, 1, ...entries.map((e) => pick(e) ?? 0));
+  const latest = entries[0] ? pick(entries[0]) : null;
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+          <Icon className="h-3.5 w-3.5 text-primary" />
+          {label}
+        </div>
+        <span className="text-xs tabular-nums text-muted-foreground">
+          {latest != null ? (
+            <>
+              <span className="font-bold text-foreground">{fmt(latest)}</span> {unit}
+            </>
+          ) : (
+            <span>—</span>
+          )}
+          {goal != null && (
+            <span className="text-muted-foreground"> · goal {fmt(goal)}</span>
+          )}
+        </span>
+      </div>
+      {/* Oldest → newest left to right (entries arrive newest-first). */}
+      <div className="flex items-end gap-0.5 h-10">
+        {[...entries].reverse().map((e) => {
+          const v = pick(e);
+          const h = v == null ? 0 : Math.max(2, (v / peak) * 100);
+          const hitGoal = goal != null && v != null && v >= goal;
+          return (
+            <div
+              key={e.date}
+              className="flex-1 bg-muted/60 h-full flex items-end"
+              title={`${formatDayLabel(e.date)}: ${v != null ? `${v} ${unit}` : "no data"}`}
+            >
+              <div
+                className={hitGoal ? "w-full bg-primary" : "w-full bg-primary/40"}
+                style={{ height: `${h}%` }}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function Nutrition() {
+  const date = todayUtc();
   const todayQuery = useQuery({
     queryKey: ["/api/nutrition/today"],
     queryFn: () => getJson<NutritionDay>("/api/nutrition/today"),
@@ -135,15 +240,67 @@ export default function Nutrition() {
     queryKey: ["/api/nutrition/recent", 14],
     queryFn: () => getJson<RecentResponse>("/api/nutrition/recent?days=14"),
   });
-  // AI-calculated targets from the Goals page drive the rings; each is null
-  // until the runner computes them, and the ring degrades gracefully.
+  // Baseline targets (the fixed recomp numbers) from the Goals page.
   const goalsQuery = useQuery({
     queryKey: ["/api/goals"],
     queryFn: () => getJson<GoalsTargets>("/api/goals"),
   });
+  // R7: today's reactive per-day target drives the rings — the ADJUSTED number
+  // (training-reactive) is the live target; baseline is the fallback. Shares
+  // the same query key the Today block + mission-action invalidation use, so
+  // logging a workout refreshes the rings here too.
+  const dayQuery = useQuery({
+    queryKey: ["/api/nutrition/day", date],
+    queryFn: () => getJson<DayTarget>(`/api/nutrition/day/${date}`),
+  });
 
-  const t = goalsQuery.data;
   const today = todayQuery.data;
+  const day = dayQuery.data;
+  const baselineGoals = goalsQuery.data;
+
+  // TARGET = today's adjusted target, else baseline (day-target baseline, then
+  // the /api/goals baseline as a final fallback so the rings work even before
+  // a day-target row exists).
+  const adjusted = day?.adjusted ?? null;
+  const baseline =
+    day?.baseline ??
+    (baselineGoals
+      ? {
+          cal: baselineGoals.calorieTarget ?? 0,
+          protein: baselineGoals.proteinTargetG ?? 0,
+          carbs: baselineGoals.carbsTargetG ?? 0,
+          fat: baselineGoals.fatTargetG ?? 0,
+        }
+      : null);
+
+  const target = adjusted ?? baseline;
+  // "No targets at all": the day-target service says needsBaseline AND the
+  // Goals baseline is also empty. This is the only state that shows the
+  // single "Calculate targets" CTA — never four "No goal set" rings.
+  const noTargets =
+    (day?.needsBaseline ?? false) &&
+    (baselineGoals == null ||
+      (baselineGoals.calorieTarget == null &&
+        baselineGoals.proteinTargetG == null &&
+        baselineGoals.carbsTargetG == null &&
+        baselineGoals.fatTargetG == null));
+
+  // Ring FILL = actual intake (prefer the day-target's actual; fall back to
+  // today's synced row). Each macro degrades to null → "awaiting intake".
+  const actual: Macros | null =
+    day?.actual ??
+    (today &&
+    (today.calories != null ||
+      today.proteinG != null ||
+      today.carbsG != null ||
+      today.fatG != null)
+      ? {
+          cal: today.calories ?? 0,
+          protein: today.proteinG ?? 0,
+          carbs: today.carbsG ?? 0,
+          fat: today.fatG ?? 0,
+        }
+      : null);
 
   const macros: Array<{
     label: string;
@@ -155,42 +312,36 @@ export default function Nutrition() {
     {
       label: "Calories",
       Icon: Flame,
-      value: today?.calories ?? null,
-      target: t?.calorieTarget ?? null,
+      value: today?.calories ?? day?.actual?.cal ?? null,
+      target: target?.cal ?? null,
       unit: "kcal",
     },
     {
       label: "Protein",
       Icon: Beef,
-      value: today?.proteinG ?? null,
-      target: t?.proteinTargetG ?? null,
+      value: today?.proteinG ?? day?.actual?.protein ?? null,
+      target: target?.protein ?? null,
       unit: "g",
     },
     {
       label: "Carbs",
       Icon: Wheat,
-      value: today?.carbsG ?? null,
-      target: t?.carbsTargetG ?? null,
+      value: today?.carbsG ?? day?.actual?.carbs ?? null,
+      target: target?.carbs ?? null,
       unit: "g",
     },
     {
       label: "Fat",
       Icon: Droplet,
-      value: today?.fatG ?? null,
-      target: t?.fatTargetG ?? null,
+      value: today?.fatG ?? day?.actual?.fat ?? null,
+      target: target?.fat ?? null,
       unit: "g",
     },
   ];
 
-  // 14-day protein trend. Peak scales the bars; the protein target (when set)
-  // is the goal threshold that fills a bar to full accent.
   const entries = recentQuery.data?.entries ?? [];
-  const proteinGoal = t?.proteinTargetG ?? null;
-  const peakProtein = Math.max(
-    proteinGoal ?? 0,
-    1,
-    ...entries.map((e) => e.proteinG ?? 0),
-  );
+  const loadingRings =
+    todayQuery.isLoading || goalsQuery.isLoading || dayQuery.isLoading;
 
   return (
     <div className="space-y-6">
@@ -215,8 +366,27 @@ export default function Nutrition() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {todayQuery.isLoading || goalsQuery.isLoading ? (
+          {loadingRings ? (
             <Skeleton className="h-40 w-full" />
+          ) : noTargets ? (
+            // R7: one clear CTA when NO targets exist — never four dead rings.
+            <div
+              className="flex flex-col items-center gap-3 py-6 text-center"
+              data-testid="nutrition-no-targets"
+            >
+              <Sparkles className="h-7 w-7 text-primary" />
+              <p className="text-sm text-muted-foreground max-w-sm">
+                No targets yet. Calculate your reactive calorie + macro targets
+                and these rings light up with today's number.
+              </p>
+              <Button
+                className="font-bold tracking-wider"
+                onClick={() => window.location.assign("/goals")}
+                data-testid="button-nutrition-calculate-targets"
+              >
+                Calculate targets
+              </Button>
+            </div>
           ) : (
             <>
               <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
@@ -224,26 +394,38 @@ export default function Nutrition() {
                   <MacroRing key={m.label} {...m} />
                 ))}
               </div>
-              {t != null &&
-                t.calorieTarget == null &&
-                t.proteinTargetG == null &&
-                t.carbsTargetG == null &&
-                t.fatTargetG == null && (
-                  <p className="mt-4 text-xs text-muted-foreground">
-                    No targets set yet. Calculate them on the Goals page to see
-                    progress rings.
+              {/* baseline → adjusted reactivity readout + rationale. */}
+              {adjusted && baseline && (
+                <div className="mt-4 space-y-2">
+                  <p
+                    className="text-xs text-muted-foreground tabular-nums"
+                    data-testid="text-nutrition-recomp"
+                  >
+                    baseline {fmt(baseline.cal)} → today{" "}
+                    <span className="font-bold text-foreground">
+                      {fmt(adjusted.cal)}
+                    </span>{" "}
+                    kcal
+                    {day?.source === "actual" ? " · from logged session" : ""}
                   </p>
-                )}
+                  {day?.rationale && (
+                    <p className="text-sm text-muted-foreground border-l-2 border-primary/40 pl-3 flex items-start gap-2">
+                      <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
+                      <span>{day.rationale}</span>
+                    </p>
+                  )}
+                </div>
+              )}
             </>
           )}
         </CardContent>
       </Card>
 
-      {/* 14-day protein trend */}
+      {/* 14-day trend across all four macros */}
       <Card>
         <CardHeader>
           <CardTitle className="text-sm tracking-wider text-muted-foreground">
-            Last 14 days · protein
+            Last 14 days
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -255,36 +437,39 @@ export default function Nutrition() {
               will fill in here.
             </p>
           ) : (
-            <div className="space-y-2">
-              {entries.map((e) => {
-                const g = e.proteinG ?? 0;
-                const pct = peakProtein > 0 ? (g / peakProtein) * 100 : 0;
-                const hitGoal = proteinGoal != null && g >= proteinGoal;
-                return (
-                  <div key={e.date} className="flex items-center gap-3">
-                    <span className="w-16 shrink-0 text-xs text-muted-foreground tabular-nums">
-                      {formatDayLabel(e.date)}
-                    </span>
-                    <div className="h-6 flex-1 overflow-hidden bg-muted">
-                      <div
-                        className={
-                          hitGoal ? "h-full bg-primary" : "h-full bg-primary/50"
-                        }
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <span className="w-28 shrink-0 text-right text-xs tabular-nums">
-                      <span className="font-bold text-foreground">{e.proteinG ?? "—"}</span> g
-                      {e.calories != null && (
-                        <span className="text-muted-foreground">
-                          {" "}
-                          · {e.calories} kcal
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                );
-              })}
+            <div className="grid gap-5 sm:grid-cols-2">
+              <MacroTrendRow
+                label="Calories"
+                Icon={Flame}
+                unit="kcal"
+                entries={entries}
+                pick={(e) => e.calories}
+                goal={target?.cal ?? null}
+              />
+              <MacroTrendRow
+                label="Protein"
+                Icon={Beef}
+                unit="g"
+                entries={entries}
+                pick={(e) => e.proteinG}
+                goal={target?.protein ?? null}
+              />
+              <MacroTrendRow
+                label="Carbs"
+                Icon={Wheat}
+                unit="g"
+                entries={entries}
+                pick={(e) => e.carbsG}
+                goal={target?.carbs ?? null}
+              />
+              <MacroTrendRow
+                label="Fat"
+                Icon={Droplet}
+                unit="g"
+                entries={entries}
+                pick={(e) => e.fatG}
+                goal={target?.fat ?? null}
+              />
             </div>
           )}
         </CardContent>

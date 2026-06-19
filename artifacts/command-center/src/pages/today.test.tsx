@@ -93,6 +93,15 @@ vi.mock("@/components/quick-log-activity", () => ({
   QuickLogActivity: () => <div data-testid="quick-log-stub" />,
 }));
 
+// R6: the "Eat today" block runs its own /api/nutrition/day useQuery. Stub it
+// so the Today page tests keep rendering without a QueryClientProvider; the
+// block's own behavior is covered in eat-today.test.tsx.
+vi.mock("@/components/eat-today", () => ({
+  EatToday: ({ date }: { date: string }) => (
+    <div data-testid="eat-today-stub" data-date={date} />
+  ),
+}));
+
 vi.mock("@/components/race-week-banner", () => ({
   ChecklistNudge: () => null,
 }));

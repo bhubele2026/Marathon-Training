@@ -49,4 +49,13 @@ export function invalidateMissionRelatedQueries(queryClient: QueryClient) {
       typeof query.queryKey[0] === "string" &&
       (query.queryKey[0] as string).startsWith("/api/plan/weeks"),
   });
+  // R6: the reactive per-day nutrition target (["/api/nutrition/day", date])
+  // is driven by the day's training. Logging / editing / skipping / deleting
+  // a workout changes the day's load, so the AI-adjusted "Eat today" calories
+  // + rationale must recompute. Invalidate by key prefix so every dated
+  // day-target query (the Today block + the Nutrition page's selected day)
+  // refetches without the mutation sites needing to plumb the date through.
+  queryClient.invalidateQueries({
+    predicate: (query) => query.queryKey[0] === "/api/nutrition/day",
+  });
 }
