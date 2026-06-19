@@ -37,6 +37,14 @@ interface AiWeek {
   days: AiDay[];
 }
 type GoalKind = "recomp" | "strength" | "hypertrophy" | "fat_loss" | "general" | "race";
+interface AiNutrition {
+  calorieTarget: number;
+  proteinTargetG: number;
+  carbsTargetG: number;
+  fatTargetG: number;
+  weeklyRateLb?: number | null;
+  rationale?: string | null;
+}
 interface AiPlan {
   summary: string;
   name: string;
@@ -44,6 +52,8 @@ interface AiPlan {
   raceKind?: RaceKind | null;
   /** Set when the coach anchored the plan to a real Tonal program. */
   tonalProgram?: string | null;
+  /** Daily nutrition targets the coach set as part of the plan (Phase 4). */
+  nutrition?: AiNutrition | null;
   startDate: string;
   weeks: AiWeek[];
 }
@@ -525,6 +535,26 @@ export default function PlanBuilder() {
                   </Badge>
                   <Badge variant="secondary">Starts {plan.startDate}</Badge>
                 </div>
+
+                {/* Phase 4: the nutrition the coach set as part of the plan.
+                    These become the baseline on apply (and update live as you
+                    chat) — no separate Goals step. */}
+                {plan.nutrition && (
+                  <div className="rounded-md bg-muted/40 p-2">
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs tabular-nums">
+                      <span><span className="text-muted-foreground">Cal </span>{Math.round(plan.nutrition.calorieTarget)}</span>
+                      <span><span className="text-muted-foreground">Protein </span>{Math.round(plan.nutrition.proteinTargetG)}g</span>
+                      <span><span className="text-muted-foreground">Carbs </span>{Math.round(plan.nutrition.carbsTargetG)}g</span>
+                      <span><span className="text-muted-foreground">Fat </span>{Math.round(plan.nutrition.fatTargetG)}g</span>
+                      {plan.nutrition.weeklyRateLb != null && plan.nutrition.weeklyRateLb > 0 && (
+                        <span><span className="text-muted-foreground">Rate </span>{plan.nutrition.weeklyRateLb.toFixed(1)} lb/wk</span>
+                      )}
+                    </div>
+                    {plan.nutrition.rationale && (
+                      <p className="mt-1 text-[11px] text-muted-foreground">{plan.nutrition.rationale}</p>
+                    )}
+                  </div>
+                )}
 
                 {/* Phase 2: Tonal-program anchoring honesty note. Structure is
                     replicated — there is no Tonal account connection / live

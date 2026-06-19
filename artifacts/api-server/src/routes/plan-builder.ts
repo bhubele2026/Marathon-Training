@@ -46,6 +46,38 @@ function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Phase 4: derive the nutrition-baseline inputs from a plan. The coach attaches
+// daily targets to the plan (plan.nutrition); when present they become the
+// persisted baseline via a FAST safety-clamp (no AI/web call). When absent we
+// fall back to the AI baseline calc, passing the plan's goal weight + week-count
+// timeframe so the safe-rate math stays plan-aware. Shared by accept (apply) and
+// the chat handler (propose) so the food tracks the plan in both.
+function nutritionInputsFromPlan(
+  plan: AiPlan,
+  goalWeightLb: number | null,
+): {
+  planCtx: { goalWeightLb: number | null; timeframeWeeks: number; desiredWeeklyRateLb: number | null };
+  override:
+    | { calorieTarget: number; proteinTargetG: number; carbsTargetG: number; fatTargetG: number; rationale: string }
+    | null;
+} {
+  const planCtx = {
+    goalWeightLb: goalWeightLb,
+    timeframeWeeks: plan.weeks.length,
+    desiredWeeklyRateLb: plan.nutrition?.weeklyRateLb ?? null,
+  };
+  const override = plan.nutrition
+    ? {
+        calorieTarget: Math.round(plan.nutrition.calorieTarget),
+        proteinTargetG: Math.round(plan.nutrition.proteinTargetG),
+        carbsTargetG: Math.round(plan.nutrition.carbsTargetG),
+        fatTargetG: Math.round(plan.nutrition.fatTargetG),
+        rationale: plan.nutrition.rationale ?? "",
+      }
+    : null;
+  return { planCtx, override };
+}
+
 // Gather the personalization context for the system briefing from the DB:
 // latest weight + goal, budget override, recent-activity rollup, runner notes.
 async function gatherContext(): Promise<PersonalContext> {
@@ -312,6 +344,21 @@ router.post("/plan-builder/chat", async (req, res): Promise<void> => {
         marathonDate: materialized.marathonDate,
         totalWeeks: materialized.totalWeeks,
       });
+
+      // Phase 4: changing the plan in chat updates the FOOD. When the coach
+      // attached macros to this proposal, persist them as the nutrition baseline
+      // now (fast safety-clamp, no AI/web call) so Today + Nutrition reflect the
+      // new plan immediately — no separate Goals trip, no waiting for accept.
+      // Background + best-effort: never let it block or fail the chat turn.
+      if (plan.nutrition) {
+        const { planCtx, override } = nutritionInputsFromPlan(
+          plan,
+          ctx.goalWeightLbs ?? null,
+        );
+        void computeAndPersistBaselineBestEffort(planCtx, override).catch((err) => {
+          req.log?.error({ err }, "propose-time nutrition baseline failed");
+        });
+      }
     }
 
     send({ type: "done" });
@@ -542,48 +589,49 @@ router.post("/plan-builder/accept", async (req, res): Promise<void> => {
   const latestPrefGoalWeight = prefGoalRows[0]?.goalWeightLb ?? null;
 
   // R4 + plan-aligned macros: accepting an AI plan auto-produces the nutrition
-  // baseline so the runner doesn't make a separate Goals trip. When the coach
-  // attached nutrition targets to the plan, THOSE become the baseline (the
-  // server safety-clamps them) — so the macros reflect the plan's goal + a safe
-  // deficit, not just body-comp math. Otherwise we fall back to the AI
-  // baseline calc, passing the plan's goal weight + timeframe so the safe-rate
-  // math is still plan-aware. Best-effort — never fail the accept on a missing
-  // stat or AI outage.
-  const planCtx = {
-    goalWeightLb: latestPrefGoalWeight,
-    timeframeWeeks: plan.weeks.length,
-    desiredWeeklyRateLb: plan.nutrition?.weeklyRateLb ?? null,
-  };
-  const override = plan.nutrition
-    ? {
-        calorieTarget: Math.round(plan.nutrition.calorieTarget),
-        proteinTargetG: Math.round(plan.nutrition.proteinTargetG),
-        carbsTargetG: Math.round(plan.nutrition.carbsTargetG),
-        fatTargetG: Math.round(plan.nutrition.fatTargetG),
-        rationale: plan.nutrition.rationale ?? "",
-      }
-    : null;
-  const nutrition = await computeAndPersistBaselineBestEffort(planCtx, override);
-  const nutritionNote = nutrition.ok
-    ? `Nutrition baseline set: ${nutrition.targets.calorieTarget} kcal, ${nutrition.targets.proteinTargetG} g protein, ${nutrition.targets.carbsTargetG} g carbs, ${nutrition.targets.fatTargetG} g fat.` +
-      (nutrition.targets.safety ? ` ${nutrition.targets.safety.message}` : "")
-    : `Nutrition baseline not set yet — ${nutrition.message}`;
+  // baseline so the runner doesn't make a separate Goals trip. The macros
+  // reflect the plan's goal + a safe deficit, not just body-comp math.
+  const { planCtx, override } = nutritionInputsFromPlan(plan, latestPrefGoalWeight);
 
   req.log?.warn(
     {
       configId: result.configId,
       weeksSeeded: result.weeksSeeded,
       daysSeeded: result.daysSeeded,
-      nutritionBaseline: nutrition.ok ? "computed" : nutrition.reason,
     },
     "claude-authored plan accepted — plan_weeks/plan_days seeded",
   );
+
+  if (override) {
+    // FAST path: the coach set the plan's macros. Just safety-clamp + persist
+    // (no AI/web call) — quick enough to await so the response carries the note
+    // and the runner sees the numbers immediately. THIS is what makes Accept
+    // instant: the old slow case was the no-targets AI fallback below.
+    const nutrition = await computeAndPersistBaselineBestEffort(planCtx, override);
+    const nutritionNote = nutrition.ok
+      ? `Nutrition baseline set: ${nutrition.targets.calorieTarget} kcal, ${nutrition.targets.proteinTargetG} g protein, ${nutrition.targets.carbsTargetG} g carbs, ${nutrition.targets.fatTargetG} g fat.` +
+        (nutrition.targets.safety ? ` ${nutrition.targets.safety.message}` : "")
+      : `Nutrition baseline not set yet — ${nutrition.message}`;
+    res.json({
+      ...result,
+      nutritionNote,
+      nutritionBaseline: nutrition.ok
+        ? { computed: true, ...nutrition.targets }
+        : { computed: false, reason: nutrition.reason, message: nutrition.message },
+    });
+    return;
+  }
+
+  // SLOW path (no plan targets → AI + web_search baseline): respond NOW so
+  // Accept is instant, and compute the baseline in the BACKGROUND. The runner's
+  // nutrition pages refetch on next visit and pick it up. Best-effort.
   res.json({
     ...result,
-    nutritionNote,
-    nutritionBaseline: nutrition.ok
-      ? { computed: true, ...nutrition.targets }
-      : { computed: false, reason: nutrition.reason, message: nutrition.message },
+    nutritionNote: "Setting your nutrition baseline in the background…",
+    nutritionBaseline: { computing: true },
+  });
+  void computeAndPersistBaselineBestEffort(planCtx, override).catch((err) => {
+    req.log?.error({ err }, "background nutrition baseline failed");
   });
 });
 
