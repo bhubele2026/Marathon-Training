@@ -26,6 +26,9 @@ const MAX_PROTEIN_G = 2000;
 // under these in grams.
 const MAX_CARBS_G = 2000;
 const MAX_FAT_G = 1000;
+// Sodium in milligrams. Daily intake well under this; anything above is almost
+// certainly a units mistake (e.g. grams sent as mg-times-a-thousand).
+const MAX_SODIUM_MG = 20000;
 
 type ApiNutritionDay = {
   date: string;
@@ -33,6 +36,7 @@ type ApiNutritionDay = {
   proteinG: number | null;
   carbsG: number | null;
   fatG: number | null;
+  sodiumMg: number | null;
   updatedAt: string | null;
 };
 
@@ -43,6 +47,7 @@ function toApi(row: NutritionDayRow): ApiNutritionDay {
     proteinG: row.proteinG,
     carbsG: row.carbsG,
     fatG: row.fatG,
+    sodiumMg: row.sodiumMg,
     updatedAt: row.updatedAt.toISOString(),
   };
 }
@@ -85,9 +90,9 @@ function parseMetric(
 
 // POST /api/nutrition — idempotent upsert of one day's totals. Body:
 //   { date?: "YYYY-MM-DD", calories?: number, proteinG?: number,
-//     carbsG?: number, fatG?: number, token?: string }
-// `date` defaults to today (UTC). At least one macro/calorie metric must be
-// present. A push that carries only some metrics leaves the others untouched,
+//     carbsG?: number, fatG?: number, sodiumMg?: number, token?: string }
+// `date` defaults to today (UTC). At least one macro/calorie/sodium metric must
+// be present. A push that carries only some metrics leaves the others untouched,
 // so a protein-only Apple Shortcut keeps working unchanged and carbs/fat stay
 // null until a push carries them.
 router.post("/nutrition", async (req, res) => {
@@ -111,14 +116,16 @@ router.post("/nutrition", async (req, res) => {
   const rawProtein = body.proteinG ?? body.protein ?? body.protein_g;
   const rawCarbs = body.carbsG ?? body.carbs ?? body.carbs_g;
   const rawFat = body.fatG ?? body.fat ?? body.fat_g;
+  const rawSodium = body.sodiumMg ?? body.sodium ?? body.sodium_mg;
   const calories = parseMetric(body.calories, MAX_CALORIES);
   const proteinG = parseMetric(rawProtein, MAX_PROTEIN_G);
   const carbsG = parseMetric(rawCarbs, MAX_CARBS_G);
   const fatG = parseMetric(rawFat, MAX_FAT_G);
-  if (!calories.ok || !proteinG.ok || !carbsG.ok || !fatG.ok) {
+  const sodiumMg = parseMetric(rawSodium, MAX_SODIUM_MG);
+  if (!calories.ok || !proteinG.ok || !carbsG.ok || !fatG.ok || !sodiumMg.ok) {
     res.status(400).json({
       error:
-        "calories, proteinG, carbsG and fatG must be non-negative numbers within range.",
+        "calories, proteinG, carbsG, fatG and sodiumMg must be non-negative numbers within range.",
     });
     return;
   }
@@ -126,11 +133,12 @@ router.post("/nutrition", async (req, res) => {
     calories.value === undefined &&
     proteinG.value === undefined &&
     carbsG.value === undefined &&
-    fatG.value === undefined
+    fatG.value === undefined &&
+    sodiumMg.value === undefined
   ) {
-    res
-      .status(400)
-      .json({ error: "Send at least one of calories, proteinG, carbsG or fatG." });
+    res.status(400).json({
+      error: "Send at least one of calories, proteinG, carbsG, fatG or sodiumMg.",
+    });
     return;
   }
 
@@ -151,6 +159,7 @@ router.post("/nutrition", async (req, res) => {
   if (proteinG.value !== undefined) provided.proteinG = proteinG.value;
   if (carbsG.value !== undefined) provided.carbsG = carbsG.value;
   if (fatG.value !== undefined) provided.fatG = fatG.value;
+  if (sodiumMg.value !== undefined) provided.sodiumMg = sodiumMg.value;
 
   const [row] = await db
     .insert(nutritionDaysTable)
@@ -183,6 +192,7 @@ router.get("/nutrition/today", async (_req, res) => {
     proteinG: null,
     carbsG: null,
     fatG: null,
+    sodiumMg: null,
     updatedAt: null,
   });
 });

@@ -20,6 +20,11 @@ export const nutritionDaysTable = pgTable("nutrition_days", {
   carbsG: integer("carbs_g"),
   // Total dietary fat for the day in grams. Same null semantics as carbsG.
   fatG: integer("fat_g"),
+  // Total dietary sodium for the day in milligrams. Tracked against a daily
+  // limit (the runner over-eats sodium) rather than a macro target. Same null
+  // semantics as carbsG/fatG — older or macros-only pushes leave it null, so a
+  // protein-only Apple Shortcut keeps working unchanged.
+  sodiumMg: integer("sodium_mg"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

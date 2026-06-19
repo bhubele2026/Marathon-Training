@@ -55,6 +55,7 @@ type ApiGoals = {
   fatTargetG: number | null;
   targetsRationale: string | null;
   targetsComputedAt: string | null;
+  sodiumLimitMg: number | null;
   strengthScoreCurrent: number | null;
   strengthScoreGoal: number | null;
   currentWeightLb: number | null;
@@ -78,6 +79,7 @@ function toApi(row: UserPreferencesRow, currentWeightLb: number | null): ApiGoal
     targetsComputedAt: row.targetsComputedAt
       ? row.targetsComputedAt.toISOString()
       : null,
+    sodiumLimitMg: row.sodiumLimitMg,
     strengthScoreCurrent: row.strengthScoreCurrent,
     strengthScoreGoal: row.strengthScoreGoal,
     currentWeightLb,
@@ -165,7 +167,17 @@ router.put("/goals", async (req, res) => {
   const goalWeight = parseIntField(body.goalWeightLb, 60, 700);
   const scoreNow = parseIntField(body.strengthScoreCurrent, 0, 2000);
   const scoreGoal = parseIntField(body.strengthScoreGoal, 0, 2000);
-  if (!heightIn.ok || !age.ok || !goalWeight.ok || !scoreNow.ok || !scoreGoal.ok) {
+  // Daily sodium ceiling in mg. A fixed user LIMIT (not part of the AI macro
+  // math); null clears it back to the 2300 mg default.
+  const sodiumLimit = parseIntField(body.sodiumLimitMg, 0, 10000);
+  if (
+    !heightIn.ok ||
+    !age.ok ||
+    !goalWeight.ok ||
+    !scoreNow.ok ||
+    !scoreGoal.ok ||
+    !sodiumLimit.ok
+  ) {
     res.status(400).json({ error: "A stat value is out of range." });
     return;
   }
@@ -174,6 +186,7 @@ router.put("/goals", async (req, res) => {
   if (goalWeight.value !== undefined) updates.goalWeightLb = goalWeight.value;
   if (scoreNow.value !== undefined) updates.strengthScoreCurrent = scoreNow.value;
   if (scoreGoal.value !== undefined) updates.strengthScoreGoal = scoreGoal.value;
+  if (sodiumLimit.value !== undefined) updates.sodiumLimitMg = sodiumLimit.value;
 
   // Enum/text fields: null clears, omit leaves alone, invalid → 400.
   if (body.sex !== undefined) {

@@ -15,17 +15,22 @@ type NutritionDay = {
   proteinG: number | null;
   carbsG: number | null;
   fatG: number | null;
+  sodiumMg: number | null;
   updatedAt: string | null;
 };
 type RecentResponse = { days: number; entries: NutritionDay[] };
 // Baseline targets from the Goals page. Any of them may be null until the
-// runner computes them.
+// runner computes them. sodiumLimitMg is a user LIMIT (null → 2300 default).
 type GoalsTargets = {
   calorieTarget: number | null;
   proteinTargetG: number | null;
   carbsTargetG: number | null;
   fatTargetG: number | null;
+  sodiumLimitMg: number | null;
 };
+
+// Standard daily sodium guideline (mg) used when the runner hasn't set a limit.
+const DEFAULT_SODIUM_LIMIT_MG = 2300;
 // R5/R7 reactive per-day target. The ring TARGET prefers `adjusted` (today's
 // training-reactive number) and falls back to `baseline`; `needsBaseline`
 // means no targets exist at all.
@@ -161,6 +166,85 @@ function MacroRing({
             : remaining != null
               ? `${fmt(remaining)} ${unit} to go`
               : `${fmt(value as number)} ${unit}`}
+      </p>
+    </div>
+  );
+}
+
+// Sodium readout: today's intake vs the daily limit (user-set or the 2300 mg
+// default). This is a LIMIT, not a target — the whole point is to flag when the
+// runner is OVER, so the over state uses the muted warning tone (destructive),
+// NOT the cobalt accent. Under is neutral/ok; not-yet-synced shows the limit
+// with an "awaiting intake" state rather than a dead dash.
+function SodiumReadout({
+  intake,
+  limit,
+}: {
+  intake: number | null;
+  limit: number;
+}) {
+  const awaiting = intake == null;
+  const over = !awaiting && intake > limit;
+  const overBy = over ? intake - limit : 0;
+  const pct = awaiting ? 0 : Math.min(100, (intake / limit) * 100);
+
+  return (
+    <div className="space-y-2" data-testid="nutrition-sodium">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+          Sodium
+        </div>
+        <span
+          className={
+            "text-sm tabular-nums " +
+            (over ? "font-bold text-destructive" : "text-muted-foreground")
+          }
+        >
+          {awaiting ? (
+            <>
+              <span className="text-muted-foreground">Awaiting intake</span>
+              <span className="text-muted-foreground"> · limit {fmt(limit)} mg</span>
+            </>
+          ) : (
+            <>
+              <span
+                className={
+                  "font-bold " + (over ? "text-destructive" : "text-foreground")
+                }
+              >
+                {fmt(intake)}
+              </span>{" "}
+              / {fmt(limit)} mg
+            </>
+          )}
+        </span>
+      </div>
+      {/* Thick bar. Track is neutral; fill is muted/neutral when under the
+          limit and the warning tone when over. */}
+      <div className="h-3 w-full bg-muted overflow-hidden">
+        <div
+          className={
+            "h-full transition-[width] " +
+            (over ? "bg-destructive" : awaiting ? "bg-muted-foreground/30" : "bg-foreground/70")
+          }
+          style={{ width: `${awaiting ? 0 : pct}%` }}
+        />
+      </div>
+      <p className="h-4 text-[11px] tabular-nums">
+        {over ? (
+          <span
+            className="font-bold text-destructive"
+            data-testid="nutrition-sodium-over"
+          >
+            Over by {fmt(overBy)} mg
+          </span>
+        ) : awaiting ? (
+          <span className="text-muted-foreground">No sodium synced yet today</span>
+        ) : (
+          <span className="text-muted-foreground">
+            {fmt(Math.max(0, limit - intake))} mg under limit
+          </span>
+        )}
       </p>
     </div>
   );
@@ -339,6 +423,12 @@ export default function Nutrition() {
     },
   ];
 
+  // Sodium: today's intake vs the daily limit (user-set, else 2300 mg default).
+  // A LIMIT, not part of the macro/calorie math — derived independently of the
+  // ring targets so it shows even before any AI targets are computed.
+  const sodiumIntake = today?.sodiumMg ?? null;
+  const sodiumLimit = baselineGoals?.sodiumLimitMg ?? DEFAULT_SODIUM_LIMIT_MG;
+
   const entries = recentQuery.data?.entries ?? [];
   const loadingRings =
     todayQuery.isLoading || goalsQuery.isLoading || dayQuery.isLoading;
@@ -417,6 +507,13 @@ export default function Nutrition() {
                 </div>
               )}
             </>
+          )}
+          {/* Sodium vs daily limit — a ceiling to stay under, flagged in the
+              warning tone when over. Independent of the macro rings/targets. */}
+          {!loadingRings && (
+            <div className="mt-6 border-t border-border pt-4">
+              <SodiumReadout intake={sodiumIntake} limit={sodiumLimit} />
+            </div>
           )}
         </CardContent>
       </Card>

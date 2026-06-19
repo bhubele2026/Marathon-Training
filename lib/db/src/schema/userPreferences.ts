@@ -92,6 +92,14 @@ export const userPreferencesTable = pgTable("user_preferences", {
   targetsRationale: text("targets_rationale"),
   targetsComputedAt: timestamp("targets_computed_at", { withTimezone: true }),
 
+  // --- Sodium limit ------------------------------------------------------
+  // The runner's daily sodium ceiling in milligrams. Unlike the AI-computed
+  // calorie/macro targets this is a fixed user-set LIMIT (sodium is tracked to
+  // stay UNDER it, not hit it), so it is entered manually on the Goals page
+  // and is not part of the calorie/macro math. Null until the runner sets one,
+  // in which case the app falls back to the standard 2300 mg guideline.
+  sodiumLimitMg: integer("sodium_limit_mg"),
+
   // --- Tonal Strength Score goal -----------------------------------------
   // The Tonal Strength Score is app-only (not exposed via Apple Health or any
   // API), so both the current value and the goal are entered manually on the
