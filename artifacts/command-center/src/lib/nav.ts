@@ -13,6 +13,7 @@ import {
   Trophy,
   SlidersHorizontal,
   Sparkles,
+  CalendarCheck,
   Settings as SettingsIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -36,6 +37,7 @@ export const PRIMARY_NAV: NavDestination[] = [
 // Everything else lives behind the single "More" menu.
 export const MORE_NAV: NavDestination[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/recap", label: "This week", icon: CalendarCheck },
   { href: "/goals", label: "Goals", icon: Target },
   { href: "/log", label: "Training log", icon: ListOrdered },
   { href: "/equipment", label: "Equipment", icon: Dumbbell },

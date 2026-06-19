@@ -3,9 +3,12 @@ import {
   db,
   nutritionDaysTable,
   userPreferencesTable,
+  coachWeeklySummariesTable,
 } from "@workspace/db";
 import { and, gte, lte, eq, sql } from "drizzle-orm";
-import { addDaysISO } from "@workspace/plan-knowledge";
+import { addDaysISO, COACH_PERSONA } from "@workspace/plan-knowledge";
+import { getAnthropic, isConfigured, MODEL } from "@workspace/integrations-anthropic";
+import { calorieFloor } from "../lib/nutrition-safety";
 import {
   summarizeFood,
   summarizeWeight,
@@ -167,6 +170,142 @@ router.get("/week-review/:weekStart", async (req, res): Promise<void> => {
   }
   const review = await buildWeekReview(weekStart);
   res.json(review);
+});
+
+// ---------------------------------------------------------------------------
+// Phase 5: the weekly summary — the coach's end-of-week recap in persona, built
+// from the numbers-only rollup above. Cached per week (regenerated on hash
+// change), persisted so prior weeks stay stable + browsable.
+// ---------------------------------------------------------------------------
+function hashReview(obj: unknown): string {
+  const s = JSON.stringify(obj);
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(16);
+}
+
+function buildSummaryData(review: WeekReview, sex: string | null): string {
+  const f = review.food;
+  const w = review.workouts;
+  const wt = review.weight;
+  const lines: string[] = [`Week ${review.weekStart} → ${review.weekEnd}.`];
+
+  lines.push(
+    `FOOD: ${f.daysLogged}/7 days logged. ` +
+      `Avg calories ${f.avgCalories ?? "—"} (target ${f.target.calories ?? "—"}), ` +
+      `avg protein ${f.avgProtein ?? "—"} g (target ${f.target.protein ?? "—"}). ` +
+      `Protein target hit ${f.proteinHitRate != null ? `${Math.round(f.proteinHitRate * 100)}% of logged days` : "—"}. ` +
+      `${f.daysOverCalories} day(s) over calories, ${f.daysUnderCalories} under.`,
+  );
+  lines.push(
+    `WORKOUTS: ${w.done}/${w.planned} planned sessions done (${w.skipped} skipped), ` +
+      `${w.minutesDone}/${w.minutesPlanned} planned minutes trained. ` +
+      `Lifting days: ${w.liftingDone}/${w.liftingPlanned} done. ` +
+      `${w.missedDays.length ? `Missed: ${w.missedDays.join(", ")}.` : "Nothing missed."}`,
+  );
+  lines.push(
+    `WEIGHT: ` +
+      (wt.startLb != null && wt.endLb != null
+        ? `${wt.startLb} → ${wt.endLb} lb (${wt.actualChangeLb! > 0 ? "+" : ""}${wt.actualChangeLb} lb). `
+        : `not enough weigh-ins. `) +
+      (wt.goalChangeLb != null
+        ? `Weekly goal was ${wt.goalChangeLb} lb. ${wt.onTrack === true ? "On track." : wt.onTrack === false ? "Off track." : ""}`
+        : `No weekly weight goal set.`),
+  );
+
+  // Safety signals for the supportive-flip rail.
+  const floor = calorieFloor(sex);
+  if (f.avgCalories != null && f.avgCalories > 0 && f.avgCalories < floor) {
+    lines.push(
+      `SAFETY SIGNAL: average intake (${f.avgCalories} kcal) is BELOW the safe floor of ${floor}. ` +
+        `Drop the sarcasm — be warm, encourage eating enough, suggest a professional if it's a pattern.`,
+    );
+  }
+  if (wt.actualChangeLb != null && wt.actualChangeLb < -2.5) {
+    lines.push(
+      `SAFETY SIGNAL: dropped ${Math.abs(wt.actualChangeLb)} lb this week — faster than safe. ` +
+        `Be warm and concerned; do NOT praise rapid loss or push for more.`,
+    );
+  }
+  return lines.join("\n");
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+async function generateWeeklySummary(
+  review: WeekReview,
+  sex: string | null,
+): Promise<string | null> {
+  if (!isConfigured()) return null;
+  const system =
+    `${COACH_PERSONA}\n\n## Your task right now\n` +
+    `Write the END-OF-WEEK recap on the client's "This week" screen. Deliver, in your ` +
+    `voice and in 3-6 sentences: the key numbers (food vs targets, sessions done vs ` +
+    `planned, weight change vs the weekly goal), a blunt VERDICT on the week, the ONE ` +
+    `or TWO things to fix next week, and a line on whether they're on pace for the ` +
+    `weight goal. Obey the wellbeing rails — if a SAFETY SIGNAL appears, drop the ` +
+    `sarcasm and be genuinely warm + concerned. Output ONLY the recap prose: no ` +
+    `headings, no preamble, no quotes.`;
+  try {
+    const client: any = getAnthropic();
+    const resp: any = await client.messages.create({
+      model: MODEL,
+      max_tokens: 700,
+      thinking: { type: "adaptive" },
+      output_config: { effort: "low" },
+      system,
+      messages: [{ role: "user", content: buildSummaryData(review, sex) }],
+    });
+    let text = "";
+    for (const block of resp.content ?? []) {
+      if (block?.type === "text") text += block.text;
+    }
+    return text.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+// GET /api/week-review/:weekStart/summary — the coach's persona recap +
+// the numbers it's based on. Cached + persisted (browsable history).
+router.get("/week-review/:weekStart/summary", async (req, res): Promise<void> => {
+  const weekStart = req.params.weekStart;
+  if (!ISO_DATE.test(weekStart)) {
+    res.status(400).json({ error: "weekStart must be an ISO date (YYYY-MM-DD)." });
+    return;
+  }
+  const review = await buildWeekReview(weekStart);
+  const inputHash = hashReview(review);
+
+  const cached = await db
+    .select()
+    .from(coachWeeklySummariesTable)
+    .where(eq(coachWeeklySummariesTable.weekStart, weekStart))
+    .limit(1);
+  if (cached[0] && cached[0].inputHash === inputHash) {
+    res.json({ weekStart, review, summary: cached[0].summary, generatedAt: cached[0].generatedAt });
+    return;
+  }
+
+  const sexRows = await db
+    .select({ sex: userPreferencesTable.sex })
+    .from(userPreferencesTable)
+    .where(eq(userPreferencesTable.id, 1))
+    .limit(1);
+
+  const summary = await generateWeeklySummary(review, sexRows[0]?.sex ?? null);
+  if (summary == null) {
+    res.json({ weekStart, review, summary: null });
+    return;
+  }
+  const now = new Date();
+  await db
+    .insert(coachWeeklySummariesTable)
+    .values({ weekStart, summary, inputHash, generatedAt: now })
+    .onConflictDoUpdate({
+      target: coachWeeklySummariesTable.weekStart,
+      set: { summary, inputHash, generatedAt: now },
+    });
+  res.json({ weekStart, review, summary, generatedAt: now });
 });
 
 export default router;
