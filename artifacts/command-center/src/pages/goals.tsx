@@ -98,7 +98,6 @@ export default function Goals() {
   const [activity, setActivity] = useState("");
   const [bodyGoal, setBodyGoal] = useState("recomp");
   const [goalWeight, setGoalWeight] = useState("");
-  const [sodiumLimit, setSodiumLimit] = useState("");
   const [scoreNow, setScoreNow] = useState("");
   const [scoreGoal, setScoreGoal] = useState("");
   // When compute returns a structured "needs" (e.g. no weight logged yet), we
@@ -116,7 +115,6 @@ export default function Goals() {
     setActivity(data.activityLevel ?? "");
     setBodyGoal(data.bodyGoal ?? "recomp");
     setGoalWeight(data.goalWeightLb != null ? String(data.goalWeightLb) : "");
-    setSodiumLimit(data.sodiumLimitMg != null ? String(data.sodiumLimitMg) : "");
     setScoreNow(
       data.strengthScoreCurrent != null ? String(data.strengthScoreCurrent) : "",
     );
@@ -137,7 +135,6 @@ export default function Goals() {
         activityLevel: activity || null,
         bodyGoal,
         goalWeightLb: numOrNull(goalWeight),
-        sodiumLimitMg: numOrNull(sodiumLimit),
       });
     },
     onSuccess: (g) => qc.setQueryData(["/api/goals"], g),
@@ -310,20 +307,6 @@ export default function Goals() {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Sodium limit (mg)</Label>
-                  <Input
-                    type="number"
-                    inputMode="numeric"
-                    placeholder="2300"
-                    value={sodiumLimit}
-                    onChange={(e) => setSodiumLimit(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Your daily ceiling. Leave blank to use the 2,300 mg
-                    guideline.
-                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
