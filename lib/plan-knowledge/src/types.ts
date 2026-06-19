@@ -43,6 +43,27 @@ export interface AiWeek {
   days: AiDay[];
 }
 
+/** Daily nutrition targets the coach attaches to a plan. On accept these become
+ * the persisted BASELINE (server safety-clamps them), so they reflect the plan's
+ * goal + a safe deficit rather than pure body-composition math alone. Optional —
+ * a plan without a nutrition focus may omit it, in which case the server falls
+ * back to computeBaselineTargets with the plan's goal/timeframe context. */
+export interface AiNutrition {
+  /** Daily calorie target (kcal). */
+  calorieTarget: number;
+  /** Daily protein target (g) — prioritized to spare muscle in a deficit. */
+  proteinTargetG: number;
+  /** Daily carbohydrate target (g). */
+  carbsTargetG: number;
+  /** Daily fat target (g). */
+  fatTargetG: number;
+  /** The safe weekly rate of weight change this plan targets (lb/wk; >0 = loss).
+   * Lets the server compute the safety note + realistic finish date. */
+  weeklyRateLb?: number | null;
+  /** One-sentence rationale shown alongside the targets. */
+  rationale?: string | null;
+}
+
 export interface AiPlan {
   /** Short human summary shown in the chat after a proposal. */
   summary: string;
@@ -53,6 +74,9 @@ export interface AiPlan {
   /** Campaign start — must be a Monday (week 1, day Mon). */
   startDate: string;
   weeks: AiWeek[];
+  /** Daily nutrition targets tied to the plan's goal + a safe deficit. On accept
+   * these become the persisted nutrition baseline. Optional. */
+  nutrition?: AiNutrition | null;
 }
 
 // ---------------------------------------------------------------------------

@@ -1101,11 +1101,24 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
     };
   });
 
-  // R4: applying a plan auto-produces the recomp nutrition baseline so the
-  // runner never has to make a separate Goals trip. Best-effort — a missing
-  // stat or an AI outage must NOT fail the apply; we just surface whether it
-  // ran in the response.
-  const nutrition = await computeAndPersistBaselineBestEffort();
+  // R4: applying a plan auto-produces the nutrition baseline so the runner
+  // never has to make a separate Goals trip. Now plan-goal-aware: thread the
+  // applied config's goal weight + timeframe (start→marathon dates) so the
+  // safe-rate math + safety note reflect THIS plan, not just body comp.
+  // Best-effort — a missing stat or an AI outage must NOT fail the apply.
+  const applyTimeframeWeeks =
+    row.startDate && row.marathonDate
+      ? (() => {
+          const s = Date.parse(row.startDate);
+          const e = Date.parse(row.marathonDate as string);
+          if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s) return null;
+          return Math.max(1, Math.round((e - s) / (7 * 24 * 60 * 60 * 1000)));
+        })()
+      : null;
+  const nutrition = await computeAndPersistBaselineBestEffort({
+    goalWeightLb: row.goalWeight ?? null,
+    timeframeWeeks: applyTimeframeWeeks,
+  });
 
   req.log.warn(
     {

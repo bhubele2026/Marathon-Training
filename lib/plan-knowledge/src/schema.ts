@@ -77,6 +77,37 @@ const WEEK_SCHEMA = {
   },
 } as const;
 
+// Optional daily nutrition targets the coach attaches to the plan. On accept
+// the server safety-clamps these and persists them as the nutrition baseline,
+// so macros follow the PLAN (goal + safe deficit), not pure body-comp math.
+const NUTRITION_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["calorieTarget", "proteinTargetG", "carbsTargetG", "fatTargetG"],
+  description:
+    "Daily nutrition targets tied to this plan's goal and a SAFE deficit " +
+    "(~0.5-1% bodyweight/wk, never a crash cut). Include this whenever the plan " +
+    "has a fat-loss or body-composition goal so the macros follow the plan.",
+  properties: {
+    calorieTarget: { type: "number", description: "Daily calorie target (kcal)." },
+    proteinTargetG: {
+      type: "number",
+      description: "Daily protein (g); ~0.8-1.0 g/lb to spare muscle in a deficit.",
+    },
+    carbsTargetG: { type: "number", description: "Daily carbohydrate (g)." },
+    fatTargetG: { type: "number", description: "Daily fat (g)." },
+    weeklyRateLb: {
+      type: ["number", "null"],
+      description:
+        "Safe weekly rate of weight change this plan targets (lb/wk; >0 = loss).",
+    },
+    rationale: {
+      type: ["string", "null"],
+      description: "One-sentence rationale for the targets.",
+    },
+  },
+} as const;
+
 export const PROPOSE_PLAN_INPUT_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -107,6 +138,7 @@ export const PROPOSE_PLAN_INPUT_SCHEMA = {
       description: "Ordered weeks, each with exactly 7 days.",
       items: WEEK_SCHEMA,
     },
+    nutrition: NUTRITION_SCHEMA,
   },
 } as const;
 

@@ -420,13 +420,41 @@ router.post("/plan-builder/accept", async (req, res): Promise<void> => {
     };
   });
 
-  // R4: accepting an AI plan also auto-produces the recomp nutrition baseline
-  // so the runner doesn't make a separate Goals trip. Best-effort — never
-  // fail the accept on a missing stat or AI outage. The one-line note is what
-  // the builder UI surfaces ("Nutrition baseline set: …").
-  const nutrition = await computeAndPersistBaselineBestEffort();
+  // Goal weight for the safe-rate context: prefer the prefs goal, since the
+  // plan builder reads goalWeightLb there. null = no loss goal to pace.
+  const prefGoalRows = await db
+    .select({ goalWeightLb: userPreferencesTable.goalWeightLb })
+    .from(userPreferencesTable)
+    .where(eq(userPreferencesTable.id, 1))
+    .limit(1);
+  const latestPrefGoalWeight = prefGoalRows[0]?.goalWeightLb ?? null;
+
+  // R4 + plan-aligned macros: accepting an AI plan auto-produces the nutrition
+  // baseline so the runner doesn't make a separate Goals trip. When the coach
+  // attached nutrition targets to the plan, THOSE become the baseline (the
+  // server safety-clamps them) — so the macros reflect the plan's goal + a safe
+  // deficit, not just body-comp math. Otherwise we fall back to the AI
+  // baseline calc, passing the plan's goal weight + timeframe so the safe-rate
+  // math is still plan-aware. Best-effort — never fail the accept on a missing
+  // stat or AI outage.
+  const planCtx = {
+    goalWeightLb: latestPrefGoalWeight,
+    timeframeWeeks: plan.weeks.length,
+    desiredWeeklyRateLb: plan.nutrition?.weeklyRateLb ?? null,
+  };
+  const override = plan.nutrition
+    ? {
+        calorieTarget: Math.round(plan.nutrition.calorieTarget),
+        proteinTargetG: Math.round(plan.nutrition.proteinTargetG),
+        carbsTargetG: Math.round(plan.nutrition.carbsTargetG),
+        fatTargetG: Math.round(plan.nutrition.fatTargetG),
+        rationale: plan.nutrition.rationale ?? "",
+      }
+    : null;
+  const nutrition = await computeAndPersistBaselineBestEffort(planCtx, override);
   const nutritionNote = nutrition.ok
-    ? `Nutrition baseline set: ${nutrition.targets.calorieTarget} kcal, ${nutrition.targets.proteinTargetG} g protein, ${nutrition.targets.carbsTargetG} g carbs, ${nutrition.targets.fatTargetG} g fat.`
+    ? `Nutrition baseline set: ${nutrition.targets.calorieTarget} kcal, ${nutrition.targets.proteinTargetG} g protein, ${nutrition.targets.carbsTargetG} g carbs, ${nutrition.targets.fatTargetG} g fat.` +
+      (nutrition.targets.safety ? ` ${nutrition.targets.safety.message}` : "")
     : `Nutrition baseline not set yet — ${nutrition.message}`;
 
   req.log?.warn(

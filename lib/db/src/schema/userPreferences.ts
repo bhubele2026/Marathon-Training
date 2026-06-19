@@ -4,6 +4,7 @@ import {
   text,
   timestamp,
   doublePrecision,
+  jsonb,
 } from "drizzle-orm/pg-core";
 
 // Single-row user preferences (Task #134). This is a single-user app so the
@@ -91,6 +92,24 @@ export const userPreferencesTable = pgTable("user_preferences", {
   // Short human-readable rationale the AI returned (what it found + why).
   targetsRationale: text("targets_rationale"),
   targetsComputedAt: timestamp("targets_computed_at", { withTimezone: true }),
+
+  // --- Weight-loss safety note (science-safe target guardrail) ------------
+  // When a goal weight + a timeframe imply a rate of loss, the baseline
+  // calculator clamps to an evidence-based SAFE rate (~0.5-1% bodyweight/wk,
+  // a calorie floor, a deficit cap, protein high enough to spare muscle) and
+  // records the outcome here so the Nutrition page / coach can show it. `ok`
+  // is false when the user's stated pace was unsafe/unachievable and the
+  // target was clamped down; true (with an affirming note) when the goal is
+  // already safe. `safeRateLbPerWk` + `projectedDateISO` let the UI say "you'd
+  // reach it around <date>". Null until the runner first computes a baseline
+  // with a goal weight + timeframe known.
+  targetsSafety: jsonb("targets_safety").$type<{
+    ok: boolean;
+    message: string;
+    impliedRateLbPerWk?: number | null;
+    safeRateLbPerWk?: number | null;
+    projectedDateISO?: string | null;
+  } | null>(),
 
   // --- Sodium limit ------------------------------------------------------
   // The runner's daily sodium ceiling in milligrams. Unlike the AI-computed

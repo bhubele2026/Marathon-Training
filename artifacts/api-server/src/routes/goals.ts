@@ -3,6 +3,7 @@ import {
   db,
   userPreferencesTable,
   measurementsTable,
+  plannerConfigsTable,
   type UserPreferencesRow,
   BODY_GOALS,
   ACTIVITY_LEVELS,
@@ -14,6 +15,16 @@ import {
   isConfigured,
   MODEL,
 } from "@workspace/integrations-anthropic";
+import {
+  computeSafety,
+  effectiveSafeRateLb,
+  enforceSafeClamps,
+  isPlausible,
+  round1,
+  KCAL_PER_LB,
+  type SafetyNote,
+  type GoalContext,
+} from "../lib/nutrition-safety";
 
 // Goals + body stats + AI-calculated nutrition targets + Tonal Strength Score
 // goal. Singleton row (id=1), mirroring the lazy readOrSeed pattern in
@@ -29,18 +40,12 @@ import {
 const router: IRouter = Router();
 const SINGLETON_ID = 1;
 
-// Plausibility clamps for AI output — reject anything outside these as a units
-// or hallucination error rather than store garbage.
-const MIN_CALORIES = 800;
-const MAX_CALORIES = 6000;
-const MIN_PROTEIN_G = 30;
-const MAX_PROTEIN_G = 400;
-// Carbs/fat have no sensible lower bound (a strict cut can run very low), so
-// only the upper clamp guards against a units/hallucination error.
-const MIN_CARBS_G = 0;
-const MAX_CARBS_G = 700;
-const MIN_FAT_G = 0;
-const MAX_FAT_G = 300;
+// Plausibility clamps for AI output (reject units/hallucination errors) live in
+// nutrition-safety.ts alongside the safe-rate guardrails and isPlausible().
+//
+// Science-safe weight-loss guardrails live in a pure, DB-free module so they're
+// directly unit-testable. goals.ts threads them into the AI prompt + clamps the
+// result; the plan-builder reuses the same clamps on coach-supplied targets.
 
 type ApiGoals = {
   heightIn: number | null;
@@ -55,6 +60,7 @@ type ApiGoals = {
   fatTargetG: number | null;
   targetsRationale: string | null;
   targetsComputedAt: string | null;
+  targetsSafety: SafetyNote | null;
   sodiumLimitMg: number | null;
   strengthScoreCurrent: number | null;
   strengthScoreGoal: number | null;
@@ -79,6 +85,7 @@ function toApi(row: UserPreferencesRow, currentWeightLb: number | null): ApiGoal
     targetsComputedAt: row.targetsComputedAt
       ? row.targetsComputedAt.toISOString()
       : null,
+    targetsSafety: row.targetsSafety ?? null,
     sodiumLimitMg: row.sodiumLimitMg,
     strengthScoreCurrent: row.strengthScoreCurrent,
     strengthScoreGoal: row.strengthScoreGoal,
@@ -241,6 +248,9 @@ type ComputedTargets = {
   carbsTargetG: number;
   fatTargetG: number;
   rationale: string;
+  // Weight-loss safety note (when a goal + timeframe imply a rate). Null when
+  // there's no loss goal to evaluate (recomp / maintenance / bulk).
+  safety?: SafetyNote | null;
 };
 
 // Pull the recommended targets out of the model's free text. Prefers a fenced
@@ -370,7 +380,34 @@ export type BaselineResult =
 export async function computeBaselineTargets(
   row: UserPreferencesRow,
   weight: number | null,
+  ctx: GoalContext = {},
+  override?: ComputedTargets | null,
 ): Promise<BaselineResult> {
+  // Resolve the goal weight from the plan context first, then the prefs row.
+  const goalWeightLb = ctx.goalWeightLb ?? row.goalWeightLb ?? null;
+  const goalCtx: GoalContext = { ...ctx, goalWeightLb };
+
+  // Safety + the effective (never-faster-than-safe) weekly loss rate. Computed
+  // before we ask the AI so we can both INSTRUCT it to the safe rate and CLAMP
+  // its answer to it. Null safety = no loss goal/timeframe to reason about.
+  const safety =
+    weight != null ? computeSafety(weight, row.sex, goalCtx) : null;
+  const effRate = weight != null ? effectiveSafeRateLb(weight, goalCtx) : 0;
+
+  // The plan builder may hand us its own targets. When it does we skip the AI
+  // round-trip and just safety-clamp + persist what the coach proposed.
+  if (override) {
+    const clamped = enforceSafeClamps(override, weight, row.sex, effRate);
+    if (!isPlausible(clamped)) {
+      return {
+        ok: false,
+        reason: "implausible",
+        message: "The plan's nutrition targets were implausible. Recompute on Goals.",
+      };
+    }
+    return { ok: true, targets: { ...clamped, safety } };
+  }
+
   const missing = missingEssentialInputs(row, weight);
   if (missing.length > 0) {
     const labels = missing.map((m) => m.label).join(", ");
@@ -400,26 +437,35 @@ export async function computeBaselineTargets(
   const ft = Math.floor((row.heightIn as number) / 12);
   const inch = (row.heightIn as number) % 12;
 
+  // Translate the safe weekly rate into a daily deficit guide for the prompt.
+  const dailyDeficitGuide =
+    effRate > 0 ? Math.round((effRate * KCAL_PER_LB) / 7) : 0;
+
   const system = [
     "You are a sports-nutrition assistant. Use the web_search tool to ground your",
     "recommendation in current, evidence-based guidance (e.g. Mifflin-St Jeor BMR,",
     "activity TDEE multipliers, protein intake for muscle retention/gain ~0.8–1.0 g",
     "per lb of bodyweight, and the calorie strategy appropriate to the stated goal).",
+    "SAFETY IS NON-NEGOTIABLE: a sustainable fat-loss rate is ~0.5-1% of bodyweight",
+    "per week (and never more than ~2 lb/wk). Keep the deficit modest — at most",
+    "~20-25% below maintenance — never a crash deficit, even if a goal seems to",
+    "demand it. Never drop daily calories below a safe floor (~1500 kcal for men,",
+    "~1200 for women). Keep protein high (~0.8-1.0 g/lb) to spare muscle in a deficit.",
     "For a recomposition goal use a MODEST deficit to near-maintenance (lose fat",
     "while building muscle) with protein PRIORITIZED. This is the runner's fixed",
     "daily BASELINE — it is later nudged up or down per-day for training load, so",
     "give the steady all-week baseline, not a single hard day's intake.",
-    "Search for recent reputable sources before answering. Then give ONE daily",
-    "calorie target plus a full macro split — protein, carbohydrate and fat targets",
-    "(all in grams) — for THIS person. The macro grams should be roughly consistent",
-    "with the calorie target (protein 4 kcal/g, carbs 4 kcal/g, fat 9 kcal/g), with",
-    "protein prioritized for muscle retention and the remaining calories split between",
-    "carbs and fat per the goal.",
+    "Search for recent reputable sources (cite the rate/protein guidance in your",
+    "rationale). Then give ONE daily calorie target plus a full macro split — protein,",
+    "carbohydrate and fat targets (all in grams) — for THIS person. The macro grams",
+    "should be roughly consistent with the calorie target (protein 4 kcal/g, carbs 4",
+    "kcal/g, fat 9 kcal/g), with protein prioritized for muscle retention and the",
+    "remaining calories split between carbs and fat per the goal.",
     "",
     "After your reasoning, end your reply with a single fenced ```json code block",
     'containing exactly: {"calorieTarget": <integer kcal>, "proteinTargetG": <integer grams>,',
     '"carbsTargetG": <integer grams>, "fatTargetG": <integer grams>,',
-    '"rationale": "<2-4 sentences: the TDEE estimate, the recomp adjustment, the',
+    '"rationale": "<2-4 sentences: the TDEE estimate, the deficit + safe-rate basis, the',
     'protein basis, the carb/fat split rationale, and any caveat>"}. No other text after',
     "the code block.",
   ].join(" ");
@@ -427,10 +473,15 @@ export async function computeBaselineTargets(
   const userText = [
     `Calculate my fixed daily BASELINE calorie target and full macro split (protein, carbs, fat). Goal: ${goalLabel}.`,
     `Stats: ${row.sex}, age ${row.age}, height ${ft}'${inch}" (${row.heightIn} in),`,
-    `current weight ${weight} lb${row.goalWeightLb ? `, goal weight ${row.goalWeightLb} lb` : ""},`,
+    `current weight ${weight} lb${goalWeightLb ? `, goal weight ${goalWeightLb} lb` : ""},`,
     `activity level: ${row.activityLevel}.`,
+    effRate > 0
+      ? `Target a SAFE, sustainable loss of ~${round1(effRate)} lb/wk (about a ${dailyDeficitGuide} kcal/day deficit below maintenance) — do not exceed this even if my goal date suggests faster.`
+      : "",
     "I lift on a Tonal 5–6x/week plus cardio and the occasional 5K, so protein is a priority.",
-  ].join(" ");
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   let targets: ComputedTargets | null = null;
   try {
@@ -444,17 +495,7 @@ export async function computeBaselineTargets(
     };
   }
 
-  if (
-    !targets ||
-    targets.calorieTarget < MIN_CALORIES ||
-    targets.calorieTarget > MAX_CALORIES ||
-    targets.proteinTargetG < MIN_PROTEIN_G ||
-    targets.proteinTargetG > MAX_PROTEIN_G ||
-    targets.carbsTargetG < MIN_CARBS_G ||
-    targets.carbsTargetG > MAX_CARBS_G ||
-    targets.fatTargetG < MIN_FAT_G ||
-    targets.fatTargetG > MAX_FAT_G
-  ) {
+  if (!targets) {
     return {
       ok: false,
       reason: "implausible",
@@ -462,21 +503,36 @@ export async function computeBaselineTargets(
     };
   }
 
-  return { ok: true, targets };
+  // Enforce the science-safe guardrails on the AI's numbers (deficit cap,
+  // calorie floor, protein floor) BEFORE the plausibility check.
+  const safeTargets = enforceSafeClamps(targets, weight, row.sex, effRate);
+
+  if (!isPlausible(safeTargets)) {
+    return {
+      ok: false,
+      reason: "implausible",
+      message: "The AI returned an unreadable or implausible result. Try again.",
+    };
+  }
+
+  return { ok: true, targets: { ...safeTargets, safety } };
 }
 
 // R4 best-effort hook: compute + persist the recomp baseline as part of another
 // flow (plan apply / AI plan accept). Never throws and never returns an HTTP
 // concern — callers log the outcome and move on. Returns the persisted targets
 // on success, or a short note on why it couldn't (missing stat / AI down).
-export async function computeAndPersistBaselineBestEffort(): Promise<
+export async function computeAndPersistBaselineBestEffort(
+  ctx: GoalContext = {},
+  override?: ComputedTargets | null,
+): Promise<
   | { ok: true; targets: ComputedTargets }
   | { ok: false; reason: string; message: string }
 > {
   try {
     const row = await readOrSeed();
     const weight = await latestWeightLb();
-    const result = await computeBaselineTargets(row, weight);
+    const result = await computeBaselineTargets(row, weight, ctx, override);
     if (!result.ok) {
       return { ok: false, reason: result.reason, message: result.message };
     }
@@ -491,8 +547,9 @@ export async function computeAndPersistBaselineBestEffort(): Promise<
   }
 }
 
-// Persist the four baseline macros + rationale onto the singleton row. The
-// targetsComputedAt timestamp marks this as the current baseline R5 adjusts.
+// Persist the four baseline macros + rationale (+ safety note) onto the
+// singleton row. The targetsComputedAt timestamp marks this as the current
+// baseline R5 adjusts.
 async function persistBaseline(targets: ComputedTargets): Promise<UserPreferencesRow> {
   const updated = await db
     .update(userPreferencesTable)
@@ -502,12 +559,57 @@ async function persistBaseline(targets: ComputedTargets): Promise<UserPreference
       carbsTargetG: targets.carbsTargetG,
       fatTargetG: targets.fatTargetG,
       targetsRationale: targets.rationale || null,
+      targetsSafety: targets.safety ?? null,
       targetsComputedAt: new Date(),
       updatedAt: new Date(),
     })
     .where(eq(userPreferencesTable.id, SINGLETON_ID))
     .returning();
   return updated[0]!;
+}
+
+// Resolve the timeframe context for the on-demand Goals compute from the active
+// planner config: weeks remaining (program length or to a target date). Used so
+// the Goals "Compute targets" button reflects the same plan-aware safe rate the
+// plan-apply path does. Best-effort — any failure falls back to no timeframe.
+async function activePlanGoalContext(): Promise<GoalContext> {
+  try {
+    const rows = await db
+      .select({
+        startDate: plannerConfigsTable.startDate,
+        marathonDate: plannerConfigsTable.marathonDate,
+        goalWeight: plannerConfigsTable.goalWeight,
+        aiPlan: plannerConfigsTable.aiPlan,
+      })
+      .from(plannerConfigsTable)
+      .where(eq(plannerConfigsTable.isActive, true))
+      .limit(1);
+    const cfg = rows[0];
+    if (!cfg) return {};
+
+    let timeframeWeeks: number | null = null;
+    // AI plans carry their own week count; templates use start→marathon dates.
+    const aiWeeks = (cfg.aiPlan as { weeks?: unknown[] } | null)?.weeks;
+    if (Array.isArray(aiWeeks) && aiWeeks.length > 0) {
+      timeframeWeeks = aiWeeks.length;
+    } else if (cfg.startDate && cfg.marathonDate) {
+      timeframeWeeks = weeksBetween(cfg.startDate, cfg.marathonDate);
+    }
+    return {
+      goalWeightLb: cfg.goalWeight ?? null,
+      timeframeWeeks,
+    };
+  } catch {
+    return {};
+  }
+}
+
+// Whole weeks between two ISO dates (>= 0).
+function weeksBetween(startISO: string, endISO: string): number | null {
+  const start = Date.parse(startISO);
+  const end = Date.parse(endISO);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+  return Math.max(1, Math.round((end - start) / (7 * 24 * 60 * 60 * 1000)));
 }
 
 // Shared handler for the on-demand baseline endpoints (compute-targets +
@@ -518,7 +620,10 @@ async function persistBaseline(targets: ComputedTargets): Promise<UserPreference
 async function handleBaselineCompute(req: Request, res: Response): Promise<void> {
   const row = await readOrSeed();
   const weight = await latestWeightLb();
-  const result = await computeBaselineTargets(row, weight);
+  // Pull the active plan's goal weight + timeframe so the on-demand compute is
+  // plan-aware (safe-rate + safety note), same as the plan-apply path.
+  const planCtx = await activePlanGoalContext();
+  const result = await computeBaselineTargets(row, weight, planCtx);
   if (!result.ok) {
     if (result.reason === "needs") {
       // 200 + needs[] — not an error, a prompt for the missing field(s).
