@@ -144,7 +144,9 @@ const WEEK_SCHEMA = {
     phase: {
       type: "string",
       description:
-        'Phase label, e.g. "Foundation Build", "Aerobic Build", "Tempo / Threshold", "Race-Specific", "Taper & Race".',
+        'Phase label for the block. For strength/recomp: "Accumulation", ' +
+        '"Intensification", "Deload", "Hypertrophy", "Strength". Only use run ' +
+        'phases ("Base", "Build", "Peak", "Taper") on a run plan.',
     },
     days: {
       type: "array",

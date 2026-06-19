@@ -10,6 +10,8 @@ import {
   type AiPlan,
   type AiDay,
   type AiWeek,
+  type AiStrengthBlock,
+  type MovementPattern,
 } from "@workspace/plan-knowledge";
 
 // 2026-05-04 is the campaign-start Monday referenced in replit.md.
@@ -201,6 +203,134 @@ describe("materializeAiPlan — Phase 1 (real strength model)", () => {
       weeks: [cleanWeek(1), cleanWeek(2)],
     };
     expect(materializeAiPlan(plan).marathonDate).toBeNull();
+  });
+});
+
+describe("runGuardrails — Phase 5 strength model", () => {
+  const block = (
+    movement: string,
+    pattern: MovementPattern,
+    over: Partial<AiStrengthBlock> = {},
+  ): AiStrengthBlock => ({
+    movement,
+    pattern,
+    sets: 3,
+    reps: "8-10",
+    loadType: "rir",
+    loadValue: 2,
+    ...over,
+  });
+
+  // A balanced training day with real blocks, fitting the SHORT window.
+  function liftDay(dayName: AiDay["day"], blocks: AiStrengthBlock[]): AiDay {
+    return day({ day: dayName, sessionType: "Lift", strengthMin: 40, cardioMin: 0, strengthBlocks: blocks });
+  }
+
+  function recompWeek(week: number, prog: number): AiWeek {
+    // load climbs with `prog` so weeks differ (progression).
+    return {
+      week,
+      phase: "Accumulation",
+      days: [
+        day({ day: "Mon", isRest: true, sessionType: "Rest", strengthMin: 0, equipmentList: [] }),
+        liftDay("Tue", [
+          block("Back Squat", "squat", { loadType: "percent_1rm", loadValue: 70 + prog }),
+          block("Bench Press", "horizontal_push", { loadType: "percent_1rm", loadValue: 70 + prog }),
+          block("Barbell Row", "horizontal_pull"),
+          block("Plank", "core", { loadType: "bodyweight", loadValue: null }),
+        ]),
+        day({ day: "Wed", isRest: true, sessionType: "Rest", strengthMin: 0, equipmentList: [] }),
+        liftDay("Thu", [
+          block("Deadlift", "hinge", { loadType: "percent_1rm", loadValue: 70 + prog }),
+          block("Overhead Press", "vertical_push"),
+          block("Pull-up", "vertical_pull", { loadType: "bodyweight", loadValue: null }),
+        ]),
+        day({ day: "Fri", isRest: true, sessionType: "Rest", strengthMin: 0, equipmentList: [] }),
+        day({ day: "Sat", isRest: true, sessionType: "Rest", strengthMin: 0, equipmentList: [] }),
+        day({ day: "Sun", isRest: true, sessionType: "Rest", strengthMin: 0, equipmentList: [] }),
+      ],
+    };
+  }
+
+  it("passes a balanced, progressing strength plan with no strength findings", () => {
+    const plan: AiPlan = {
+      summary: "s",
+      name: "Recomp",
+      goalKind: "recomp",
+      startDate: MON,
+      weeks: [recompWeek(1, 0), recompWeek(2, 5)],
+    };
+    const codes = runGuardrails(plan, {}).map((g) => g.code);
+    expect(codes).not.toContain("strength_day_no_blocks");
+    expect(codes).not.toContain("weekly_movement_imbalance");
+    expect(codes).not.toContain("no_progression");
+    expect(codes).not.toContain("implausible_block");
+  });
+
+  it("flags a lifting day that has minutes but no blocks (new-model plan)", () => {
+    const w = recompWeek(1, 0);
+    // Strip blocks off Tue but keep the lifting minutes.
+    w.days[1] = day({ day: "Tue", sessionType: "Lift", strengthMin: 40 });
+    const plan: AiPlan = { summary: "s", name: "x", goalKind: "recomp", startDate: MON, weeks: [w, recompWeek(2, 5)] };
+    expect(runGuardrails(plan, {}).map((g) => g.code)).toContain("strength_day_no_blocks");
+  });
+
+  it("flags an all-push week (no pull / no legs)", () => {
+    const pushOnly: AiWeek = {
+      week: 1,
+      phase: "Accumulation",
+      days: [
+        day({ day: "Mon", isRest: true, sessionType: "Rest", strengthMin: 0, equipmentList: [] }),
+        liftDay("Tue", [
+          block("Bench Press", "horizontal_push"),
+          block("Incline Press", "horizontal_push"),
+          block("Overhead Press", "vertical_push"),
+          block("Triceps Press", "horizontal_push"),
+        ]),
+        day({ day: "Wed", isRest: true, sessionType: "Rest", strengthMin: 0, equipmentList: [] }),
+        day({ day: "Thu", isRest: true, sessionType: "Rest", strengthMin: 0, equipmentList: [] }),
+        day({ day: "Fri", isRest: true, sessionType: "Rest", strengthMin: 0, equipmentList: [] }),
+        day({ day: "Sat", isRest: true, sessionType: "Rest", strengthMin: 0, equipmentList: [] }),
+        day({ day: "Sun", isRest: true, sessionType: "Rest", strengthMin: 0, equipmentList: [] }),
+      ],
+    };
+    const plan: AiPlan = { summary: "s", name: "x", goalKind: "recomp", startDate: MON, weeks: [pushOnly] };
+    expect(runGuardrails(plan, {}).map((g) => g.code)).toContain("weekly_movement_imbalance");
+  });
+
+  it("flags identical weeks as no progression + absurd loads", () => {
+    const plan: AiPlan = {
+      summary: "s",
+      name: "x",
+      goalKind: "recomp",
+      startDate: MON,
+      weeks: [recompWeek(1, 0), recompWeek(1, 0)], // same prog -> identical
+    };
+    expect(runGuardrails(plan, {}).map((g) => g.code)).toContain("no_progression");
+
+    const absurd = recompWeek(1, 0);
+    absurd.days[1] = liftDay("Tue", [
+      block("Back Squat", "squat", { sets: 30, loadType: "percent_1rm", loadValue: 250 }),
+      block("Barbell Row", "horizontal_pull"),
+      block("Deadlift", "hinge"),
+      block("Plank", "core", { loadType: "bodyweight", loadValue: null }),
+    ]);
+    const plan2: AiPlan = { summary: "s", name: "x", goalKind: "recomp", startDate: MON, weeks: [absurd, recompWeek(2, 5)] };
+    expect(runGuardrails(plan2, {}).map((g) => g.code)).toContain("implausible_block");
+  });
+
+  it("leaves legacy minute-only plans alone (no strength findings)", () => {
+    // No blocks anywhere -> the strength-model checks are skipped entirely.
+    const plan: AiPlan = {
+      summary: "s",
+      name: "Legacy",
+      raceKind: "10k",
+      startDate: MON,
+      weeks: [cleanWeek(1), cleanWeek(2)],
+    };
+    const codes = runGuardrails(plan, {}).map((g) => g.code);
+    expect(codes).not.toContain("strength_day_no_blocks");
+    expect(codes).not.toContain("weekly_movement_imbalance");
   });
 });
 
