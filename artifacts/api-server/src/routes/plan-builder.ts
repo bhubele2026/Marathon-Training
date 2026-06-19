@@ -7,6 +7,7 @@ import {
   measurementsTable,
   plannerConfigsTable,
   userPreferencesTable,
+  planDraftsTable,
 } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
 import { computeRecompSummary } from "./dashboard";
@@ -151,6 +152,61 @@ async function gatherContext(): Promise<PersonalContext> {
 }
 
 type ChatTurn = { role: "user" | "assistant"; content: string };
+
+// ---------------------------------------------------------------------------
+// Phase 3: working-draft persistence. The iterative coach's plan + conversation
+// live in a single-row table (id=1) so refinement survives navigation — the
+// runner can leave the builder, come back, and keep refining. This is the
+// scratchpad; applying writes through to planner_configs / plan_days separately.
+// ---------------------------------------------------------------------------
+type ChatMsg = { role: string; content: string };
+interface DraftBody {
+  plan?: AiPlan | null;
+  messages?: ChatMsg[];
+  name?: string | null;
+}
+
+// GET /api/plan-builder/draft — load the working draft (nulls when none).
+router.get("/plan-builder/draft", async (_req, res): Promise<void> => {
+  const rows = await db
+    .select()
+    .from(planDraftsTable)
+    .where(eq(planDraftsTable.id, 1))
+    .limit(1);
+  const row = rows[0];
+  res.json({
+    plan: (row?.plan as AiPlan | null) ?? null,
+    messages: row?.messages ?? [],
+    name: row?.name ?? null,
+    updatedAt: row?.updatedAt ?? null,
+  });
+});
+
+// PUT /api/plan-builder/draft — upsert the working draft (plan + conversation).
+router.put("/plan-builder/draft", async (req, res): Promise<void> => {
+  const body = (req.body ?? {}) as DraftBody;
+  const value = {
+    id: 1,
+    plan: (body.plan ?? null) as unknown,
+    messages: Array.isArray(body.messages) ? body.messages : [],
+    name: body.name ?? null,
+    updatedAt: new Date(),
+  };
+  await db
+    .insert(planDraftsTable)
+    .values(value)
+    .onConflictDoUpdate({
+      target: planDraftsTable.id,
+      set: { plan: value.plan, messages: value.messages, name: value.name, updatedAt: value.updatedAt },
+    });
+  res.json({ ok: true });
+});
+
+// DELETE /api/plan-builder/draft — clear the working draft (Start over).
+router.delete("/plan-builder/draft", async (_req, res): Promise<void> => {
+  await db.delete(planDraftsTable).where(eq(planDraftsTable.id, 1));
+  res.json({ ok: true });
+});
 
 // POST /api/plan-builder/chat — streamed (SSE) conversational plan authoring.
 // Body: { messages: ChatTurn[], currentPlan?: AiPlan }
@@ -312,41 +368,75 @@ router.post("/plan-builder/accept", async (req, res): Promise<void> => {
       )
     ).rows;
 
-    // Single-active invariant: demote any currently-active config.
-    await tx
-      .update(plannerConfigsTable)
-      .set({ isActive: false })
-      .where(eq(plannerConfigsTable.isActive, true));
-
-    // New config id (the table uses a manually-assigned integer PK).
-    const [{ maxId } = { maxId: 0 }] = (
-      await tx.execute<{ maxId: number | null }>(
-        sql`SELECT MAX(id) AS "maxId" FROM planner_configs`,
-      )
-    ).rows;
-    const newId = (maxId ?? 0) + 1;
     const now = new Date();
 
-    await tx.insert(plannerConfigsTable).values({
-      id: newId,
-      name,
-      isActive: true,
-      // Use the snapped Monday so the stored campaign start aligns to week 1's
-      // rest day regardless of what the coach emitted.
-      startDate: materialized.startDate,
-      marathonDate: materialized.marathonDate,
-      blocks: [], // engine blocks unused for ai-source configs
-      entries: null,
-      source: "ai",
-      aiPlan: plan,
-      // Snapshot immediately — this config IS being applied right now.
-      lastAppliedAt: now,
-      appliedStartDate: materialized.startDate,
-      appliedMarathonDate: materialized.marathonDate,
-      appliedBlocks: [],
-      appliedEntries: null,
-      appliedAiPlan: plan,
-    });
+    // Phase 3: APPLY IN PLACE. Re-applying a refined plan should UPDATE the
+    // existing active AI config — not spawn a new "campaign" every tweak. If the
+    // active config is already an AI plan, reuse its id and overwrite it. Only
+    // when there's no active AI config (first AI apply, or switching away from a
+    // template) do we mint a new config and demote the old active one.
+    const activeRows = await tx
+      .select({ id: plannerConfigsTable.id, source: plannerConfigsTable.source })
+      .from(plannerConfigsTable)
+      .where(eq(plannerConfigsTable.isActive, true))
+      .limit(1);
+    const activeAi = activeRows[0]?.source === "ai" ? activeRows[0] : null;
+
+    let newId: number;
+    if (activeAi) {
+      // Reuse the active AI config row — same id, updated in place.
+      newId = activeAi.id;
+      await tx
+        .update(plannerConfigsTable)
+        .set({
+          name,
+          isActive: true,
+          startDate: materialized.startDate,
+          marathonDate: materialized.marathonDate,
+          blocks: [],
+          entries: null,
+          source: "ai",
+          aiPlan: plan,
+          lastAppliedAt: now,
+          appliedStartDate: materialized.startDate,
+          appliedMarathonDate: materialized.marathonDate,
+          appliedBlocks: [],
+          appliedEntries: null,
+          appliedAiPlan: plan,
+        })
+        .where(eq(plannerConfigsTable.id, newId));
+    } else {
+      // Single-active invariant: demote any currently-active config, mint a new.
+      await tx
+        .update(plannerConfigsTable)
+        .set({ isActive: false })
+        .where(eq(plannerConfigsTable.isActive, true));
+      const [{ maxId } = { maxId: 0 }] = (
+        await tx.execute<{ maxId: number | null }>(
+          sql`SELECT MAX(id) AS "maxId" FROM planner_configs`,
+        )
+      ).rows;
+      newId = (maxId ?? 0) + 1;
+      await tx.insert(plannerConfigsTable).values({
+        id: newId,
+        name,
+        isActive: true,
+        // Use the snapped Monday so the stored start aligns to week 1's rest day.
+        startDate: materialized.startDate,
+        marathonDate: materialized.marathonDate,
+        blocks: [], // engine blocks unused for ai-source configs
+        entries: null,
+        source: "ai",
+        aiPlan: plan,
+        // Snapshot immediately — this config IS being applied right now.
+        lastAppliedAt: now,
+        appliedStartDate: materialized.startDate,
+        appliedMarathonDate: materialized.marathonDate,
+        appliedBlocks: [],
+        appliedEntries: null,
+        appliedAiPlan: plan,
+      });
+    }
 
     // Detach workout FKs before truncating plan_days.
     await tx
@@ -432,6 +522,7 @@ router.post("/plan-builder/accept", async (req, res): Promise<void> => {
 
     return {
       configId: newId,
+      appliedInPlace: Boolean(activeAi),
       weeksSeeded: materialized.weekly.length,
       daysSeeded: materialized.days.length,
       workoutsPreserved: workoutsBefore,

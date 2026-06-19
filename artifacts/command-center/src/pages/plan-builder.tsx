@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { Send, Loader2, Check, AlertTriangle, Info, SlidersHorizontal } from "lucide-react";
+import { Send, Loader2, Check, AlertTriangle, Info, SlidersHorizontal, RotateCcw } from "lucide-react";
+import type { StrengthBlock } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { StrengthBlocks } from "@/components/strength-blocks";
 
 // ---------------------------------------------------------------------------
 // Local copies of the plan shapes returned by /api/plan-builder. Kept inline so
@@ -23,6 +25,7 @@ interface AiDay {
   strengthMin: number;
   cardioMin: number;
   runMin: number;
+  strengthBlocks?: StrengthBlock[] | null;
   distanceMi?: number | null;
   pace?: string | null;
   equipmentList: string[];
@@ -76,9 +79,19 @@ type StreamEvent =
   | { type: "error"; message: string };
 
 const SUGGESTIONS = [
-  "12 weeks, mostly lifting with 2 short runs a week, build to a 10K.",
-  "Half-marathon in 16 weeks. Keep my 6 Tonal days. Long runs on Sunday.",
-  "8-week strength block, no running, focus on losing weight.",
+  "Build a 12-week recomp plan around a Tonal program — lose fat, build muscle.",
+  "8-week strength block on Tonal, no running, lose weight.",
+  "Recommend me a Tonal program for body recomposition.",
+];
+
+// Phase 3: quick adjust chips shown once a plan exists, so refining is one tap.
+const ADJUST_CHIPS = [
+  "Make Tuesday shorter",
+  "Swap to an upper/lower split",
+  "More hypertrophy, higher reps",
+  "I'm sore — make this a deload week",
+  "Add a row finisher on Friday",
+  "Drop the running entirely",
 ];
 
 export default function PlanBuilder() {
@@ -96,17 +109,34 @@ export default function PlanBuilder() {
   const [timeframe, setTimeframe] = useState("");
 
   const [plan, setPlan] = useState<AiPlan | null>(null);
-  const [weekly, setWeekly] = useState<WeeklyPreview[]>([]);
   const [guardrails, setGuardrails] = useState<Guardrail[]>([]);
   const [totalWeeks, setTotalWeeks] = useState<number>(0);
   const [planName, setPlanName] = useState<string>("");
   const [accepting, setAccepting] = useState(false);
+  // Phase 3: once a draft has been applied, we stay on the page so the runner
+  // can keep chatting and RE-apply into the same plan.
+  const [appliedOnce, setAppliedOnce] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const scrollToBottom = () => {
     requestAnimationFrame(() => {
       scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
     });
+  };
+
+  // Phase 3: persist the working draft (plan + conversation) server-side so
+  // refinement survives navigation. Fire-and-forget — a failed save never
+  // blocks the chat.
+  const saveDraft = (
+    nextPlan: AiPlan | null,
+    nextMessages: ChatMsg[],
+    name: string,
+  ) => {
+    void fetch("/api/plan-builder/draft", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ plan: nextPlan, messages: nextMessages, name }),
+    }).catch(() => {});
   };
 
   async function send(text: string) {
@@ -156,6 +186,10 @@ export default function PlanBuilder() {
       const decoder = new TextDecoder();
       let buf = "";
       let assistantText = "";
+      // Capture the latest proposed plan from the stream so we can persist the
+      // draft once the turn finishes (React state updates are async).
+      let capturedPlan: AiPlan | null = plan;
+      let capturedName = planName;
 
       // Read the SSE stream frame-by-frame (frames separated by a blank line).
       // eslint-disable-next-line no-constant-condition
@@ -180,11 +214,14 @@ export default function PlanBuilder() {
             setStreaming(assistantText);
             scrollToBottom();
           } else if (evt.type === "plan") {
+            capturedPlan = evt.plan;
             setPlan(evt.plan);
-            setWeekly(evt.weekly);
             setGuardrails(evt.guardrails);
             setTotalWeeks(evt.totalWeeks);
-            setPlanName((prev) => prev || evt.plan.name);
+            setPlanName((prev) => {
+              capturedName = prev || evt.plan.name;
+              return capturedName;
+            });
           } else if (evt.type === "error") {
             toast({
               title: "Plan builder error",
@@ -195,14 +232,17 @@ export default function PlanBuilder() {
         }
       }
 
-      setMessages((prev) => [
-        ...prev,
+      const finalMessages: ChatMsg[] = [
+        ...nextMessages,
         {
           role: "assistant",
           content: assistantText || "(proposed an updated plan — see the preview)",
         },
-      ]);
+      ];
+      setMessages(finalMessages);
       setStreaming("");
+      // Phase 3: persist the working draft so it survives navigation.
+      saveDraft(capturedPlan, finalMessages, capturedName);
     } catch (err) {
       toast({
         title: "Plan builder error",
@@ -226,11 +266,35 @@ export default function PlanBuilder() {
     seededRef.current = true;
     const params = new URLSearchParams(window.location.search);
     const seed = params.get("seed");
-    if (seed && seed.trim()) {
-      setInput(seed.trim());
-      // Drop the query param without reloading so a manual refresh starts clean.
-      window.history.replaceState({}, "", window.location.pathname);
-    }
+
+    // Phase 3: rehydrate the working draft (plan + conversation) so leaving and
+    // coming back doesn't lose progress. Then layer any ?seed= adjust message
+    // into the input on top of the restored draft.
+    void (async () => {
+      try {
+        const resp = await fetch("/api/plan-builder/draft");
+        if (resp.ok) {
+          const d = (await resp.json()) as {
+            plan: AiPlan | null;
+            messages: ChatMsg[];
+            name: string | null;
+          };
+          if (d.plan) setPlan(d.plan);
+          if (Array.isArray(d.messages) && d.messages.length) setMessages(d.messages);
+          if (d.name) setPlanName(d.name);
+          if (d.plan) {
+            setTotalWeeks(d.plan.weeks.length);
+            scrollToBottom();
+          }
+        }
+      } catch {
+        /* no draft / offline — start clean */
+      }
+      if (seed && seed.trim()) {
+        setInput(seed.trim());
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -256,11 +320,17 @@ export default function PlanBuilder() {
       }
       const data = await resp.json();
       await queryClient.invalidateQueries();
+      // Phase 3: STAY on the builder so the runner can keep chatting and
+      // re-apply into the SAME plan. Re-applying updates in place (no new
+      // campaign). Keep the draft saved with the applied plan.
+      setAppliedOnce(true);
+      saveDraft(plan, messages, planName || plan.name);
       toast({
-        title: "Plan applied",
-        description: `${data.weeksSeeded} weeks · ${data.daysSeeded} days seeded.`,
+        title: data.appliedInPlace ? "Plan updated" : "Plan applied",
+        description: data.appliedInPlace
+          ? `Updated your plan in place — ${data.weeksSeeded} weeks. Keep refining, or open Plan.`
+          : `${data.weeksSeeded} weeks · ${data.daysSeeded} days. Keep refining, or open Plan.`,
       });
-      navigate("/plan");
     } catch (err) {
       toast({
         title: "Couldn't apply plan",
@@ -272,7 +342,24 @@ export default function PlanBuilder() {
     }
   }
 
-  const maxMiles = Math.max(1, ...weekly.map((w) => w.plannedMiles));
+  // Phase 3: clear the working draft and start fresh.
+  async function startOver() {
+    if (busy || accepting) return;
+    try {
+      await fetch("/api/plan-builder/draft", { method: "DELETE" });
+    } catch {
+      /* ignore */
+    }
+    setPlan(null);
+    setMessages([]);
+    setGuardrails([]);
+    setTotalWeeks(0);
+    setPlanName("");
+    setAppliedOnce(false);
+    setInput("");
+    setStreaming("");
+  }
+
   const warnings = guardrails.filter((g) => g.level === "warn");
   const infos = guardrails.filter((g) => g.level === "info");
 
@@ -282,7 +369,8 @@ export default function PlanBuilder() {
         <div>
           <h1 className="text-2xl font-bold text-primary">Build with Claude</h1>
           <p className="text-sm text-muted-foreground">
-            Describe the plan you want. Go back and forth. Accept when you like it.
+            Describe the plan you want. Keep chatting to adjust it until it's
+            right — then apply. You can re-apply as you refine.
           </p>
         </div>
         <Button
@@ -372,6 +460,24 @@ export default function PlanBuilder() {
               </div>
             )}
 
+            {/* Phase 3: quick adjust chips — once a plan exists, refining is one
+                tap. They send straight to the coach, which revises in place. */}
+            {plan && !busy && (
+              <div className="flex flex-wrap gap-1.5">
+                {ADJUST_CHIPS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => send(c)}
+                    className="rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                    data-testid={`adjust-chip-${c.slice(0, 8)}`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            )}
+
             <form
               className="flex items-center gap-2"
               onSubmit={(e) => {
@@ -401,8 +507,9 @@ export default function PlanBuilder() {
           <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
             {!plan ? (
               <p className="text-sm text-muted-foreground">
-                No plan yet. Once Claude proposes one, it shows up here with a weekly
-                preview and an Accept button.
+                No plan yet. Once Claude proposes one, the full week-by-week plan
+                shows up here — with the real movements, sets and reps — and
+                updates live as you keep chatting.
               </p>
             ) : (
               <>
@@ -453,46 +560,105 @@ export default function PlanBuilder() {
                   </div>
                 )}
 
-                <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
-                  <div className="flex items-center gap-2 text-[10px] tracking-wider text-muted-foreground">
-                    <span className="w-10 shrink-0">Week</span>
-                    <span className="w-28 shrink-0">Phase</span>
-                    <span className="flex-1">Running volume (all runs, per week)</span>
-                    <span className="w-24 shrink-0 text-right">wk / longest</span>
-                  </div>
-                  {weekly.map((w) => (
-                    <div key={w.week} className="flex items-center gap-2 text-xs">
-                      <span className="w-10 shrink-0 text-muted-foreground">W{w.week}</span>
-                      <span className="w-28 shrink-0 truncate">{w.phase}</span>
-                      <div className="h-2 flex-1 rounded bg-muted">
-                        <div
-                          className="h-2 rounded bg-primary"
-                          style={{ width: `${(w.plannedMiles / maxMiles) * 100}%` }}
-                        />
+                {/* Phase 3: the live draft rendered as real week/day cards —
+                    each training day shows its session, minutes, machines, and
+                    the actual strength movements. Updates as the chat revises
+                    the plan. */}
+                <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+                  {plan.weeks.map((w) => {
+                    const trainingDays = w.days.filter((d) => !d.isRest);
+                    return (
+                      <div key={w.week} className="space-y-2">
+                        <div className="flex items-baseline justify-between border-b border-border pb-1">
+                          <span className="text-sm font-bold tracking-tight">Week {w.week}</span>
+                          <span className="text-xs text-muted-foreground">{w.phase}</span>
+                        </div>
+                        {trainingDays.length === 0 && (
+                          <p className="text-xs text-muted-foreground">Full recovery week.</p>
+                        )}
+                        {trainingDays.map((d) => {
+                          const mins = d.strengthMin + d.cardioMin + d.runMin;
+                          return (
+                            <div key={`${w.week}-${d.day}`} className="space-y-1">
+                              <div className="flex items-baseline justify-between gap-2">
+                                <span className="text-sm font-semibold">
+                                  <span className="text-muted-foreground mr-2 font-mono text-xs">
+                                    {d.day}
+                                  </span>
+                                  {d.sessionType}
+                                </span>
+                                <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
+                                  {mins} min
+                                </span>
+                              </div>
+                              {d.equipmentList.length > 0 && (
+                                <div className="flex flex-wrap gap-1">
+                                  {d.equipmentList.map((eq, i) => (
+                                    <span
+                                      key={i}
+                                      className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground"
+                                    >
+                                      {eq}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              <StrengthBlocks blocks={d.strengthBlocks} />
+                              {(!d.strengthBlocks || d.strengthBlocks.length === 0) &&
+                                d.description && (
+                                  <p className="text-xs text-muted-foreground">{d.description}</p>
+                                )}
+                            </div>
+                          );
+                        })}
                       </div>
-                      <span className="w-24 shrink-0 text-right font-mono">
-                        {w.plannedMiles.toFixed(1)}/{w.longRunMi.toFixed(0)} mi
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
-                <div className="flex items-center gap-2 border-t border-border pt-3">
-                  <Input
-                    value={planName}
-                    onChange={(e) => setPlanName(e.target.value)}
-                    placeholder="Plan name"
-                    className="flex-1"
-                    data-testid="plan-builder-name"
-                  />
-                  <Button onClick={accept} disabled={accepting} data-testid="plan-builder-accept">
-                    {accepting ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Check className="mr-2 h-4 w-4" />
-                    )}
-                    Accept &amp; apply
-                  </Button>
+                <div className="space-y-2 border-t border-border pt-3">
+                  {appliedOnce && (
+                    <p className="text-xs text-muted-foreground">
+                      Applied. Keep chatting to adjust, then re-apply to update the
+                      same plan — or{" "}
+                      <button
+                        type="button"
+                        className="underline hover:text-foreground"
+                        onClick={() => navigate("/plan")}
+                        data-testid="plan-builder-open-plan"
+                      >
+                        open your plan
+                      </button>
+                      .
+                    </p>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={planName}
+                      onChange={(e) => setPlanName(e.target.value)}
+                      placeholder="Plan name"
+                      className="flex-1"
+                      data-testid="plan-builder-name"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={startOver}
+                      disabled={busy || accepting}
+                      title="Clear this draft and start fresh"
+                      data-testid="plan-builder-start-over"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                    </Button>
+                    <Button onClick={accept} disabled={accepting} data-testid="plan-builder-accept">
+                      {accepting ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Check className="mr-2 h-4 w-4" />
+                      )}
+                      {appliedOnce ? "Re-apply" : "Accept & apply"}
+                    </Button>
+                  </div>
                 </div>
               </>
             )}
