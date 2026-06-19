@@ -8,7 +8,6 @@ import {
   getGetDashboardBootstrapQueryKey,
   type Measurement,
 } from "@workspace/api-client-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -171,73 +170,75 @@ export default function Measurements() {
         </Button>
       </div>
 
-      {/* Per-site baseline → latest deltas */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-bold uppercase tracking-[0.12em]">Since baseline</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loadingMs ? (
-            <Skeleton className="h-20 w-full" />
-          ) : !hasMeasurements ? (
-            <p className="text-sm text-muted-foreground">
-              Log your first measurement to see your baseline → latest change
-              per site.
-            </p>
-          ) : (
-            <div
-              className="grid grid-cols-2 md:grid-cols-4 gap-4"
-              data-testid="measurements-site-deltas"
-            >
-              {siteDeltas.map(({ def, baseline, latest, delta }) => {
-                const grew = delta != null && delta < 0;
-                const shrank = delta != null && delta > 0;
-                const good = def.muscleProxy ? grew : shrank;
-                const magnitude = delta == null ? null : Math.abs(delta);
-                return (
-                  <div
-                    key={def.key}
-                    data-testid={`measurements-site-delta-${def.key}`}
-                  >
-                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-                      {def.label}
-                    </p>
-                    <div className="text-4xl font-extrabold mt-1 tabular-nums leading-none">
-                      {latest != null ? latest.toFixed(1) : "—"}
-                      <span className="text-lg text-muted-foreground font-bold">"</span>
-                    </div>
-                    <p className="text-xs mt-1">
-                      {magnitude != null && magnitude > 0 ? (
-                        <span
-                          className={`font-mono font-bold ${good ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}
-                        >
-                          {def.muscleProxy
-                            ? `${grew ? "+" : "-"}${magnitude.toFixed(1)}"`
-                            : `-${magnitude.toFixed(1)}"`}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground font-mono">no change</span>
-                      )}
-                      <span className="text-muted-foreground">
-                        {" "}
-                        from {baseline != null ? `${baseline.toFixed(1)}"` : "—"}
-                      </span>
-                    </p>
+      {/* Phase 6: the recomp deltas ARE the hero of this screen — large
+          numbers straight on the page (no card), one quiet label above,
+          separated by a hairline rather than boxed. */}
+      <section className="border-t border-border pt-6">
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground mb-5">
+          Since baseline
+        </p>
+        {loadingMs ? (
+          <Skeleton className="h-20 w-full" />
+        ) : !hasMeasurements ? (
+          <p className="text-sm text-muted-foreground">
+            Log your first measurement to see your baseline → latest change
+            per site.
+          </p>
+        ) : (
+          <div
+            className="grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-6"
+            data-testid="measurements-site-deltas"
+          >
+            {siteDeltas.map(({ def, baseline, latest, delta }) => {
+              const grew = delta != null && delta < 0;
+              const shrank = delta != null && delta > 0;
+              const good = def.muscleProxy ? grew : shrank;
+              const magnitude = delta == null ? null : Math.abs(delta);
+              return (
+                <div
+                  key={def.key}
+                  data-testid={`measurements-site-delta-${def.key}`}
+                >
+                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                    {def.label}
+                  </p>
+                  <div className="text-5xl font-extrabold mt-1.5 tabular-nums leading-none">
+                    {latest != null ? latest.toFixed(1) : "—"}
+                    <span className="text-xl text-muted-foreground font-bold">"</span>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  <p className="text-xs mt-1.5">
+                    {magnitude != null && magnitude > 0 ? (
+                      <span
+                        className={`font-mono font-bold ${good ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}
+                      >
+                        {def.muscleProxy
+                          ? `${grew ? "+" : "-"}${magnitude.toFixed(1)}"`
+                          : `-${magnitude.toFixed(1)}"`}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground font-mono">no change</span>
+                    )}
+                    <span className="text-muted-foreground">
+                      {" "}
+                      from {baseline != null ? `${baseline.toFixed(1)}"` : "—"}
+                    </span>
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-bold uppercase tracking-[0.12em]">Weight trend</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loadingMs ? <Skeleton className="h-64 w-full" /> : (
-            <div className="h-64">
+      {/* Phase 6: weight is secondary on the Body screen — a flat, de-boxed
+          trend section, not a competing card. */}
+      <section className="border-t border-border pt-6">
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground mb-4">
+          Weight trend
+        </p>
+        <div>
+          {loadingMs ? <Skeleton className="h-56 w-full" /> : (
+            <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={weightData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
                   <defs>
@@ -255,14 +256,14 @@ export default function Measurements() {
               </ResponsiveContainer>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-bold uppercase tracking-[0.12em]">Tape measurements</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <section className="border-t border-border pt-6">
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground mb-4">
+          Tape measurements
+        </p>
+        <div>
           {loadingMs ? <Skeleton className="h-64 w-full" /> : (
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
@@ -289,8 +290,8 @@ export default function Measurements() {
               </ResponsiveContainer>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       <div className="bg-card border border-card-border shadow-card overflow-hidden">
         {loadingMs ? (
