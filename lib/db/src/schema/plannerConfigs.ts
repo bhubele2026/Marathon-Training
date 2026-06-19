@@ -28,10 +28,25 @@ import {
 // Structural copy of @workspace/plan-knowledge's AiPlan, inlined so this
 // package stays dependency-free (db depends only on drizzle/pg/zod). Kept in
 // sync with lib/plan-knowledge/src/types.ts.
+type StrengthBlockJson = {
+  movement: string;
+  pattern: string;
+  sets: number;
+  reps: string;
+  loadType: string;
+  loadValue?: number | null;
+  tempo?: string | null;
+  restSec?: number | null;
+  equipment?: string | null;
+  tonalMode?: string | null;
+  cue?: string | null;
+};
 type AiPlanJson = {
   summary: string;
   name: string;
-  raceKind: "marathon" | "half" | "10k" | "5k" | "none";
+  goalKind?: string | null;
+  raceKind?: "marathon" | "half" | "10k" | "5k" | "none" | null;
+  tonalProgram?: string | null;
   startDate: string;
   weeks: Array<{
     week: number;
@@ -43,6 +58,7 @@ type AiPlanJson = {
       strengthMin: number;
       cardioMin: number;
       runMin: number;
+      strengthBlocks?: StrengthBlockJson[] | null;
       distanceMi?: number | null;
       pace?: string | null;
       equipmentList: string[];

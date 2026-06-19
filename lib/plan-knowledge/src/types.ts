@@ -15,10 +15,73 @@ import type { DayName } from "./dates";
 
 export type RaceKind = "marathon" | "half" | "10k" | "5k" | "none";
 
+/** What the whole plan builds toward. Recomp (lose fat + build muscle) is the
+ * DEFAULT — this is a strength app, not a running coach. "race" is the only
+ * value that turns the plan into a run campaign; everything else is a
+ * strength/body-composition plan where running is optional conditioning. */
+export type GoalKind =
+  | "recomp"
+  | "strength"
+  | "hypertrophy"
+  | "fat_loss"
+  | "general"
+  | "race";
+
+/** The movement patterns a balanced week should cover. Used by the coach to
+ * program real lifts and by the guardrails to check weekly balance (not all
+ * push, includes a hinge / pull / legs / core across the week). */
+export type MovementPattern =
+  | "squat"
+  | "hinge"
+  | "horizontal_push"
+  | "horizontal_pull"
+  | "vertical_push"
+  | "vertical_pull"
+  | "lunge"
+  | "carry"
+  | "core";
+
+/** How a movement's working load is prescribed. A real strength block targets
+ * load one of three ways: a % of estimated 1RM, reps-in-reserve (RIR, an
+ * autoregulated effort cue), or an absolute weight in pounds. Bodyweight
+ * movements carry no numeric load. */
+export type StrengthLoadType = "percent_1rm" | "rir" | "lb" | "bodyweight";
+
+/** One movement within a strength day — the unit the old model was missing.
+ * A "strength workout" is an ordered list of these, not "30 min of Tonal". */
+export interface AiStrengthBlock {
+  /** Movement name, e.g. "Back Squat", "Bench Press", "Goblet Squat". */
+  movement: string;
+  /** Primary movement pattern, for weekly-balance checks + Tonal anchoring. */
+  pattern: MovementPattern;
+  /** Working sets. */
+  sets: number;
+  /** Reps as a number or range string, e.g. "5", "8-10", "12-15". */
+  reps: string;
+  /** How the working load is targeted (% 1RM / RIR / absolute lb / bodyweight). */
+  loadType: StrengthLoadType;
+  /** The numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for
+   * bodyweight, or when the coach is leaving it to the runner. */
+  loadValue?: number | null;
+  /** Optional tempo notation, e.g. "3-1-1" (ecc-pause-con). */
+  tempo?: string | null;
+  /** Optional rest between sets, seconds. */
+  restSec?: number | null;
+  /** Equipment for THIS movement, e.g. "Tonal", "Tonal + bench". Falls back to
+   * the day's equipmentList when omitted. */
+  equipment?: string | null;
+  /** Free-text Tonal mode the coach names (e.g. "eccentric", "chains",
+   * "burnout", "spotter", "smart flex"). Not an API value — Tonal has no public
+   * API — just the named mode to run on the unit. */
+  tonalMode?: string | null;
+  /** Short coaching cue / note, e.g. "brace, knees out, full depth". */
+  cue?: string | null;
+}
+
 export interface AiDay {
   day: DayName;
   isRest: boolean;
-  /** e.g. "Rest", "Long Run", "Strength + Cardio", "Run + Accessory". */
+  /** e.g. "Rest", "Lower A", "Upper Pull", "Conditioning", "Long Run". */
   sessionType: string;
   /** Tonal / lifting minutes. */
   strengthMin: number;
@@ -26,6 +89,11 @@ export interface AiDay {
   cardioMin: number;
   /** Treadmill or outdoor running minutes. */
   runMin: number;
+  /** Ordered real strength movements for this day — the actual workout. Empty /
+   * omitted on rest, pure-conditioning, or pure-run days. Week-over-week change
+   * in these blocks (load up, reps up, or volume up) is how progression is
+   * expressed: week 1's Back Squat differs from week 8's. */
+  strengthBlocks?: AiStrengthBlock[] | null;
   /** Run distance in miles (omit/null for non-run days). */
   distanceMi?: number | null;
   /** Pace target, "mm:ss" per mile (omit/null when not a run). */
@@ -69,10 +137,19 @@ export interface AiPlan {
   summary: string;
   /** Suggested config name (the runner can override). */
   name: string;
-  /** What the plan builds toward; gates race-week framing. */
-  raceKind: RaceKind;
-  /** Campaign start — must be a Monday (week 1, day Mon). */
+  /** What the plan builds toward. Defaults to "recomp"; "race" turns it into a
+   * run campaign. Optional for back-compat — derived from raceKind when absent. */
+  goalKind?: GoalKind | null;
+  /** What the plan builds toward for run framing; "none" = no race (the default
+   * for a strength/recomp plan). Optional — defaults to "none". */
+  raceKind?: RaceKind | null;
+  /** Week-1 start. Monday is the rest day, so the server snaps this to the
+   * Monday on/before it; the runner no longer has to pick a "campaign" Monday. */
   startDate: string;
+  /** When the coach anchored the plan to a real Tonal program, its name (for the
+   * UI "built around <X>" note + honesty line). Structure-only — Tonal has no
+   * public API, so this is a replicated structure, not a live import. */
+  tonalProgram?: string | null;
   weeks: AiWeek[];
   /** Daily nutrition targets tied to the plan's goal + a safe deficit. On accept
    * these become the persisted nutrition baseline. Optional. */

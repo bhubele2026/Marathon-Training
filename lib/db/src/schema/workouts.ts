@@ -1,4 +1,5 @@
-import { pgTable, serial, integer, text, date, doublePrecision, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, date, doublePrecision, timestamp, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
+import type { StrengthBlockJson } from "./planDays";
 
 export const workoutsTable = pgTable("workouts", {
   id: serial("id").primaryKey(),
@@ -33,6 +34,11 @@ export const workoutsTable = pgTable("workouts", {
   rpe: integer("rpe"),
   strengthLoad: doublePrecision("strength_load"),
   totalLoad: doublePrecision("total_load"),
+  // Phase 1: the actual strength movements performed (same shape as
+  // plan_days.strength_blocks), so a logged lifting session records real
+  // movements/sets/reps/load, not just minutes. Null for non-strength or
+  // quick-logged sessions.
+  strengthBlocks: jsonb("strength_blocks").$type<StrengthBlockJson[]>(),
   notes: text("notes"),
   // Optional tag for ordering and labeling same-day sessions ("AM" / "PM" /
   // "Other"). Nullable so existing rows logged before this column existed

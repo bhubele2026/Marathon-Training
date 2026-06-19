@@ -1,4 +1,21 @@
-import { pgTable, serial, integer, text, date, doublePrecision, boolean, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, date, doublePrecision, boolean, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
+
+// Structural copy of @workspace/plan-knowledge's AiStrengthBlock, inlined so
+// this package stays dependency-free. Kept in sync with
+// lib/plan-knowledge/src/types.ts.
+export type StrengthBlockJson = {
+  movement: string;
+  pattern: string;
+  sets: number;
+  reps: string;
+  loadType: string;
+  loadValue?: number | null;
+  tempo?: string | null;
+  restSec?: number | null;
+  equipment?: string | null;
+  tonalMode?: string | null;
+  cue?: string | null;
+};
 
 export const planDaysTable = pgTable("plan_days", {
   id: serial("id").primaryKey(),
@@ -34,6 +51,13 @@ export const planDaysTable = pgTable("plan_days", {
   // by parsing the description for known machine names. Renderers fall
   // back to `[equipment]` when the column is null.
   equipmentList: text("equipment_list").array(),
+  // Phase 1: ordered real strength movements for the day (movement, pattern,
+  // sets, reps, load target, optional tempo/rest/equipment/tonalMode/cue). This
+  // is the actual workout — the old model only had strength_min. Null on rest,
+  // pure-conditioning, or pure-run days. Week-over-week change in these blocks
+  // expresses progression. Renderers fall back to the prose `description` when
+  // null (legacy rows / engine-generated plans).
+  strengthBlocks: jsonb("strength_blocks").$type<StrengthBlockJson[]>(),
   description: text("description").notNull(),
   // Three-bucket minute breakdown for the prescribed session. Pre-task #74
   // the schema only carried `cardio_min`, which the generator overloaded as
@@ -79,6 +103,9 @@ export const planDaysTable = pgTable("plan_days", {
   // and lazily on first edit so /reset can restore the original chip rail
   // even after the runner has edited it.
   seedEquipmentList: text("seed_equipment_list").array(),
+  // Phase 1: snapshot of the originally-seeded strength blocks for "reset to
+  // original" parity with the other seed_* mirrors.
+  seedStrengthBlocks: jsonb("seed_strength_blocks").$type<StrengthBlockJson[]>(),
   seedDescription: text("seed_description"),
   seedDistanceMi: doublePrecision("seed_distance_mi"),
   seedStrengthMin: doublePrecision("seed_strength_min"),

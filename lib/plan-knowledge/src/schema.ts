@@ -4,6 +4,73 @@
 
 export const PROPOSE_PLAN_TOOL_NAME = "propose_plan";
 
+// One real movement inside a strength day. The model's missing piece: a
+// strength workout is an ordered list of these, not just a minute count.
+const STRENGTH_BLOCK_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["movement", "pattern", "sets", "reps", "loadType"],
+  properties: {
+    movement: {
+      type: "string",
+      description: 'Movement name, e.g. "Back Squat", "Bench Press".',
+    },
+    pattern: {
+      type: "string",
+      enum: [
+        "squat",
+        "hinge",
+        "horizontal_push",
+        "horizontal_pull",
+        "vertical_push",
+        "vertical_pull",
+        "lunge",
+        "carry",
+        "core",
+      ],
+      description:
+        "Primary movement pattern — used to balance the week (cover squat, hinge, pushes, pulls, legs, core).",
+    },
+    sets: { type: "number", description: "Working sets." },
+    reps: {
+      type: "string",
+      description: 'Reps as a number or range, e.g. "5", "8-10", "12-15".',
+    },
+    loadType: {
+      type: "string",
+      enum: ["percent_1rm", "rir", "lb", "bodyweight"],
+      description:
+        "How the working load is targeted: % of 1RM, reps-in-reserve (RIR), absolute pounds, or bodyweight.",
+    },
+    loadValue: {
+      type: ["number", "null"],
+      description:
+        "Numeric load for loadType: 75 (percent_1rm), 2 (rir), 135 (lb). Null for bodyweight.",
+    },
+    tempo: {
+      type: ["string", "null"],
+      description: 'Optional tempo, e.g. "3-1-1" (ecc-pause-con).',
+    },
+    restSec: {
+      type: ["number", "null"],
+      description: "Optional rest between sets, seconds.",
+    },
+    equipment: {
+      type: ["string", "null"],
+      description: 'Equipment for this movement, e.g. "Tonal", "Tonal + bench".',
+    },
+    tonalMode: {
+      type: ["string", "null"],
+      description:
+        'Named Tonal mode to run (e.g. "eccentric", "chains", "burnout", "spotter"). Free text — Tonal has no public API.',
+    },
+    cue: {
+      type: ["string", "null"],
+      description: "Short coaching cue / note.",
+    },
+  },
+} as const;
+
 const DAY_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -26,7 +93,17 @@ const DAY_SCHEMA = {
     sessionType: {
       type: "string",
       description:
-        'Short label, e.g. "Rest", "Long Run", "Strength + Cardio", "Run + Accessory".',
+        'Short label, e.g. "Rest", "Lower A", "Upper Pull", "Conditioning", "Long Run".',
+    },
+    strengthBlocks: {
+      type: "array",
+      items: STRENGTH_BLOCK_SCHEMA,
+      description:
+        "Ordered real strength movements for this day — the ACTUAL workout. " +
+        "Required on every strength/lifting day (do NOT emit a lifting day as " +
+        "minutes only). Omit / empty on rest, pure-conditioning, or pure-run " +
+        "days. Express PROGRESSION by changing these week to week (load up, reps " +
+        "up, or volume up) so week 1 differs from week 8 for the same movement.",
     },
     strengthMin: { type: "number", description: "Tonal / lifting minutes." },
     cardioMin: {
@@ -111,7 +188,7 @@ const NUTRITION_SCHEMA = {
 export const PROPOSE_PLAN_INPUT_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["summary", "name", "raceKind", "startDate", "weeks"],
+  required: ["summary", "name", "goalKind", "startDate", "weeks"],
   properties: {
     summary: {
       type: "string",
@@ -120,18 +197,34 @@ export const PROPOSE_PLAN_INPUT_SCHEMA = {
     },
     name: {
       type: "string",
-      description: 'Suggested config name, e.g. "12-Week Lift + 10K Build".',
+      description: 'Suggested config name, e.g. "12-Week Tonal Recomp".',
+    },
+    goalKind: {
+      type: "string",
+      enum: ["recomp", "strength", "hypertrophy", "fat_loss", "general", "race"],
+      description:
+        'What the plan builds toward. DEFAULT "recomp" (lose fat + build muscle). ' +
+        'Use "race" ONLY when the client set a run race; everything else is a ' +
+        "strength/body-composition plan where running is optional conditioning.",
     },
     raceKind: {
-      type: "string",
-      enum: ["marathon", "half", "10k", "5k", "none"],
+      type: ["string", "null"],
+      enum: ["marathon", "half", "10k", "5k", "none", null],
       description:
-        'What the plan builds toward. Use "none" for a pure workout/strength plan with no race.',
+        'The race distance when goalKind is "race"; otherwise "none"/null. Do not ' +
+        "set a race on a strength/recomp plan the client didn't ask to race.",
+    },
+    tonalProgram: {
+      type: ["string", "null"],
+      description:
+        "When you anchored this plan to a real Tonal program, its name (for the " +
+        '"built around <X>" note). Structure replicated, not imported.',
     },
     startDate: {
       type: "string",
       description:
-        'Campaign start as ISO yyyy-mm-dd. MUST be a Monday (week 1, day Mon).',
+        "Week-1 start as ISO yyyy-mm-dd. Monday is the rest day; the server snaps " +
+        "this to the Monday on/before it, so any date is fine.",
     },
     weeks: {
       type: "array",
@@ -147,6 +240,7 @@ export const PROPOSE_PLAN_TOOL = {
   description:
     "Emit the complete training plan as structured data. Call this whenever you " +
     "want to show the runner a plan or an updated plan. Always emit the FULL plan " +
-    "(every week, every day) — not a diff.",
+    "(every week, every day) — not a diff. Every lifting day MUST carry real " +
+    "strengthBlocks (movements, sets, reps, load), not just minutes.",
   input_schema: PROPOSE_PLAN_INPUT_SCHEMA,
 } as const;

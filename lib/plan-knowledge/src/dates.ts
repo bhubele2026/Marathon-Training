@@ -48,6 +48,14 @@ export function isMonday(iso: string): boolean {
   return weekdayIndex(iso) === 0;
 }
 
+/** The Monday on or before the given ISO date. Week 1 always aligns to a real
+ * Monday (the rest day) for the fixed cadence, but the runner no longer has to
+ * hand-pick a "campaign" Monday — the server snaps whatever start they give. */
+export function mondayOnOrBefore(iso: string): string {
+  const back = weekdayIndex(iso); // 0=Mon … already the offset back to Monday
+  return back === 0 ? iso : addDaysISO(iso, -back);
+}
+
 /** True when the ISO date falls on a Sunday. */
 export function isSunday(iso: string): boolean {
   return weekdayIndex(iso) === 6;

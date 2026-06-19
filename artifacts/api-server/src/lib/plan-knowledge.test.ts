@@ -125,6 +125,95 @@ describe("materializeAiPlan", () => {
   });
 });
 
+describe("materializeAiPlan — Phase 1 (real strength model)", () => {
+  it("carries strength blocks through onto the materialized day", () => {
+    const plan: AiPlan = {
+      summary: "s",
+      name: "Recomp",
+      goalKind: "recomp",
+      startDate: MON,
+      weeks: [
+        {
+          week: 1,
+          phase: "Lower",
+          days: [
+            day({ day: "Mon", isRest: true, strengthMin: 0, equipmentList: [] }),
+            day({
+              day: "Tue",
+              sessionType: "Lower A",
+              strengthMin: 40,
+              strengthBlocks: [
+                {
+                  movement: "Back Squat",
+                  pattern: "squat",
+                  sets: 4,
+                  reps: "6",
+                  loadType: "percent_1rm",
+                  loadValue: 75,
+                },
+                {
+                  movement: "Romanian Deadlift",
+                  pattern: "hinge",
+                  sets: 3,
+                  reps: "8-10",
+                  loadType: "rir",
+                  loadValue: 2,
+                },
+              ],
+            }),
+            day({ day: "Wed", strengthMin: 35 }),
+            day({ day: "Thu", strengthMin: 35 }),
+            day({ day: "Fri", strengthMin: 60 }),
+            day({ day: "Sat", strengthMin: 60 }),
+            day({ day: "Sun", strengthMin: 60 }),
+          ],
+        },
+      ],
+    };
+    const out = materializeAiPlan(plan);
+    const tue = out.days.find((d) => d.day === "Tue")!;
+    expect(tue.strengthBlocks).toHaveLength(2);
+    expect(tue.strengthBlocks![0].movement).toBe("Back Squat");
+    // A day with no blocks normalizes to null (not an empty array).
+    const wed = out.days.find((d) => d.day === "Wed")!;
+    expect(wed.strengthBlocks).toBeNull();
+  });
+
+  it("snaps a non-Monday start to the Monday on/before", () => {
+    const plan: AiPlan = {
+      summary: "s",
+      name: "Recomp",
+      goalKind: "recomp",
+      startDate: "2026-05-06", // a Wednesday
+      weeks: [cleanWeek(1)],
+    };
+    const out = materializeAiPlan(plan);
+    expect(out.startDate).toBe(MON); // 2026-05-04, the Monday before
+    expect(out.days[0].date).toBe(MON);
+  });
+
+  it("a recomp plan (no race) has a null marathonDate", () => {
+    const plan: AiPlan = {
+      summary: "s",
+      name: "Recomp",
+      goalKind: "recomp",
+      startDate: MON,
+      weeks: [cleanWeek(1), cleanWeek(2)],
+    };
+    expect(materializeAiPlan(plan).marathonDate).toBeNull();
+  });
+});
+
+describe("planIncludesRunning — Phase 1 goalKind", () => {
+  it("is false for a recomp plan with no raceKind set", () => {
+    expect(planIncludesRunning({ goalKind: "recomp" })).toBe(false);
+    expect(planIncludesRunning({ goalKind: "strength", raceKind: null })).toBe(false);
+  });
+  it("is true when goalKind is race", () => {
+    expect(planIncludesRunning({ goalKind: "race", raceKind: "5k" })).toBe(true);
+  });
+});
+
 describe("planIncludesRunning (R1)", () => {
   it("is false for a no-race (recomp default) plan and true for a run race", () => {
     expect(planIncludesRunning({ raceKind: "none" })).toBe(false);
@@ -149,12 +238,12 @@ describe("runGuardrails", () => {
     expect(runGuardrails(plan, {})).toHaveLength(0);
   });
 
-  it("flags start-not-Monday, Monday work, rest-with-work, over-budget, bad pace", () => {
+  it("flags Monday work, rest-with-work, over-budget, bad pace", () => {
     const plan: AiPlan = {
       summary: "s",
       name: "Dirty",
       raceKind: "none",
-      startDate: "2026-05-05", // a Tuesday
+      startDate: "2026-05-05", // a Tuesday (no longer flagged — server snaps it)
       weeks: [
         {
           week: 1,
@@ -173,7 +262,9 @@ describe("runGuardrails", () => {
       ],
     };
     const codes = new Set(runGuardrails(plan, {}).map((g) => g.code));
-    expect(codes.has("start_not_monday")).toBe(true);
+    // start_not_monday was removed: startDate need not be a Monday; the server
+    // snaps it to the Monday on/before, so a non-Monday start is not a finding.
+    expect(codes.has("start_not_monday")).toBe(false);
     expect(codes.has("monday_not_rest")).toBe(true);
     expect(codes.has("rest_not_rest")).toBe(true);
     expect(codes.has("over_budget")).toBe(true);

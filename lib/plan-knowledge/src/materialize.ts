@@ -1,5 +1,6 @@
-import { DAY_ORDER, addDaysISO } from "./dates";
-import type { AiPlan } from "./types";
+import { DAY_ORDER, addDaysISO, mondayOnOrBefore } from "./dates";
+import { planIncludesRunning } from "./guardrails";
+import type { AiPlan, AiStrengthBlock } from "./types";
 
 // Turn an AiPlan into rows shaped for plan_weeks / plan_days. The server maps
 // these straight onto Drizzle columns in the Apply path, so AI-authored plans
@@ -20,6 +21,9 @@ export interface MaterializedDay {
   equipment: string; // scalar == equipmentList[0] (the plan_days contract)
   equipmentList: string[];
   description: string;
+  /** Ordered real strength movements for the day (Phase 1). Null when the day
+   * carries no lifting (rest / pure conditioning / pure run). */
+  strengthBlocks: AiStrengthBlock[] | null;
   strengthLoad: number;
   totalLoad: number;
   sourceEntryIndex: number;
@@ -42,6 +46,9 @@ export interface MaterializedPlan {
   weekly: MaterializedWeek[];
   days: MaterializedDay[];
   marathonDate: string | null;
+  /** The start actually used — snapped to the Monday on/before plan.startDate so
+   * week 1 aligns to the rest day regardless of what the coach emitted. */
+  startDate: string;
   totalWeeks: number;
 }
 
@@ -49,8 +56,11 @@ export function materializeAiPlan(plan: AiPlan): MaterializedPlan {
   const days: MaterializedDay[] = [];
   const weekly: MaterializedWeek[] = [];
 
+  // Snap to the Monday on/before so any start date works; cadence stays aligned.
+  const startDate = mondayOnOrBefore(plan.startDate);
+
   for (const week of plan.weeks) {
-    const weekStart = addDaysISO(plan.startDate, (week.week - 1) * 7);
+    const weekStart = addDaysISO(startDate, (week.week - 1) * 7);
     let plannedStrength = 0;
     let plannedCardio = 0;
     let plannedTotalLoad = 0;
@@ -59,11 +69,15 @@ export function materializeAiPlan(plan: AiPlan): MaterializedPlan {
 
     week.days.forEach((d, i) => {
       const dayIdx = DAY_ORDER.indexOf(d.day) === -1 ? i : DAY_ORDER.indexOf(d.day);
-      const date = addDaysISO(plan.startDate, (week.week - 1) * 7 + dayIdx);
+      const date = addDaysISO(startDate, (week.week - 1) * 7 + dayIdx);
       const distanceMi = d.distanceMi ?? null;
       const strengthLoad = d.strengthMin; // minute-proxy load (AI plans)
       const totalLoad = d.strengthMin + d.cardioMin + d.runMin;
       const equipment = d.equipmentList[0] ?? (d.isRest ? "Off / Rest" : "Tonal");
+      const strengthBlocks =
+        Array.isArray(d.strengthBlocks) && d.strengthBlocks.length > 0
+          ? d.strengthBlocks
+          : null;
 
       days.push({
         week: week.week,
@@ -80,6 +94,7 @@ export function materializeAiPlan(plan: AiPlan): MaterializedPlan {
         equipment,
         equipmentList: d.equipmentList,
         description: d.description,
+        strengthBlocks,
         strengthLoad,
         totalLoad,
         sourceEntryIndex: 0,
@@ -110,9 +125,9 @@ export function materializeAiPlan(plan: AiPlan): MaterializedPlan {
 
   const lastWeek = plan.weeks[plan.weeks.length - 1];
   const marathonDate =
-    plan.raceKind !== "none" && lastWeek
-      ? addDaysISO(plan.startDate, (lastWeek.week - 1) * 7 + 6)
+    planIncludesRunning(plan) && lastWeek
+      ? addDaysISO(startDate, (lastWeek.week - 1) * 7 + 6)
       : null;
 
-  return { weekly, days, marathonDate, totalWeeks: plan.weeks.length };
+  return { weekly, days, marathonDate, startDate, totalWeeks: plan.weeks.length };
 }

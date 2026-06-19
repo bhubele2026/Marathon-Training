@@ -34,6 +34,7 @@ import { QuickLogActivity } from "@/components/quick-log-activity";
 import { EatToday } from "@/components/eat-today";
 import { TimeOfDayBadge } from "@/components/time-of-day-badge";
 import { PlannedBreakdown } from "@/components/planned-breakdown";
+import { StrengthBlocks } from "@/components/strength-blocks";
 import { ActualBreakdown } from "@/components/actual-breakdown";
 import { PrimaryMetricDisplay } from "@/components/primary-metric-display";
 import { SessionDetailDisclosure } from "@/components/session-detail-disclosure";
@@ -361,6 +362,13 @@ export default function Today() {
               {today.firstSession.description && (
                 <p className="text-sm text-muted-foreground mt-2">{today.firstSession.description}</p>
               )}
+              {/* Phase 1: the real strength workout for the first session. */}
+              <div className="mt-3">
+                <StrengthBlocks
+                  blocks={today.firstSession.strengthBlocks}
+                  testIdPrefix="first-session"
+                />
+              </div>
               {/* Task #238: mirror the Mission Brief race-day badge +
                   personalized vs catalog chip pair onto the pre-launch
                   First Scheduled Session preview for the rare campaign-
@@ -865,6 +873,14 @@ export default function Today() {
                       {plan.description && (
                         <p className="text-foreground text-lg leading-relaxed">{plan.description}</p>
                       )}
+
+                      {/* Phase 1: the real strength workout (movements ×
+                          sets/reps + load) for today's session. */}
+                      <StrengthBlocks
+                        blocks={plan.strengthBlocks}
+                        variant="prominent"
+                        testIdPrefix={`today-plan-${plan.sourceEntryIndex}`}
+                      />
 
                       <PrimaryMetricDisplay
                         metric={getPrimaryMetric(plan)}

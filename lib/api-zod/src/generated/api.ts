@@ -378,6 +378,65 @@ export const GetPlanWeekResponse = zod
                 'Ordered chip rail of every machine the runner will use that day. The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". Per the task #77 contract the scalar `equipment` field above always equals `equipmentList[0]` (the \*primary\* machine for the day) so any back-compat code path that still reads the scalar — dashboard equipment usage, suggestions pairKey, `\/equipment` page — agrees with the chip rail\'s lead chip. Nullable to match the underlying DB column on legacy rows that predate the task #77 backfill, but in practice the server normalizes both NULL and empty arrays to `[equipment]` before responding so this field is always present and non-empty in API responses; clients should still tolerate `null` defensively (e.g. `equipmentList ?? [equipment]`).\n',
               ),
             description: zod.string(),
+            strengthBlocks: zod
+              .array(
+                zod
+                  .object({
+                    movement: zod
+                      .string()
+                      .describe('e.g. \"Back Squat\", \"Bench Press\".'),
+                    pattern: zod
+                      .enum([
+                        "squat",
+                        "hinge",
+                        "horizontal_push",
+                        "horizontal_pull",
+                        "vertical_push",
+                        "vertical_pull",
+                        "lunge",
+                        "carry",
+                        "core",
+                      ])
+                      .describe(
+                        "Primary movement pattern, used for weekly-balance checks.",
+                      ),
+                    sets: zod.number(),
+                    reps: zod
+                      .string()
+                      .describe('Number or range, e.g. \"5\", \"8-10\".'),
+                    loadType: zod
+                      .enum(["percent_1rm", "rir", "lb", "bodyweight"])
+                      .describe("How the working load is targeted."),
+                    loadValue: zod
+                      .number()
+                      .nullish()
+                      .describe(
+                        "Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight.",
+                      ),
+                    tempo: zod.string().nullish(),
+                    restSec: zod.number().nullish(),
+                    equipment: zod
+                      .string()
+                      .nullish()
+                      .describe(
+                        'Per-movement equipment, e.g. \"Tonal + bench\".',
+                      ),
+                    tonalMode: zod
+                      .string()
+                      .nullish()
+                      .describe(
+                        "Named Tonal mode (eccentric, chains, burnout, spotter). Free text; Tonal has no public API.",
+                      ),
+                    cue: zod.string().nullish().describe("Short coaching cue."),
+                  })
+                  .describe(
+                    "Phase 1. One real movement within a strength day — the unit the day model\nused to lack. A strength workout is an ordered list of these (movement,\npattern, sets, reps, load target), not just a minute count. Persisted on\nplan_days.strength_blocks (and workouts.strength_blocks for actuals).\n",
+                  ),
+              )
+              .nullish()
+              .describe(
+                "Phase 1. Ordered real strength movements prescribed for this day — the\nactual lifting workout (movements, sets, reps, load). Null on rest,\npure-conditioning, pure-run days, and on legacy \/ engine-generated rows\nthat only carry minute buckets; the UI falls back to the prose\n`description` + minute breakdown when null. Week-over-week change in\nthese blocks is how progression is expressed.\n",
+              ),
             strengthMin: zod
               .number()
               .nullish()
@@ -604,6 +663,61 @@ export const UpdatePlanDayResponse = zod.object({
       'Ordered chip rail of every machine the runner will use that day. The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". Per the task #77 contract the scalar `equipment` field above always equals `equipmentList[0]` (the \*primary\* machine for the day) so any back-compat code path that still reads the scalar — dashboard equipment usage, suggestions pairKey, `\/equipment` page — agrees with the chip rail\'s lead chip. Nullable to match the underlying DB column on legacy rows that predate the task #77 backfill, but in practice the server normalizes both NULL and empty arrays to `[equipment]` before responding so this field is always present and non-empty in API responses; clients should still tolerate `null` defensively (e.g. `equipmentList ?? [equipment]`).\n',
     ),
   description: zod.string(),
+  strengthBlocks: zod
+    .array(
+      zod
+        .object({
+          movement: zod
+            .string()
+            .describe('e.g. \"Back Squat\", \"Bench Press\".'),
+          pattern: zod
+            .enum([
+              "squat",
+              "hinge",
+              "horizontal_push",
+              "horizontal_pull",
+              "vertical_push",
+              "vertical_pull",
+              "lunge",
+              "carry",
+              "core",
+            ])
+            .describe(
+              "Primary movement pattern, used for weekly-balance checks.",
+            ),
+          sets: zod.number(),
+          reps: zod.string().describe('Number or range, e.g. \"5\", \"8-10\".'),
+          loadType: zod
+            .enum(["percent_1rm", "rir", "lb", "bodyweight"])
+            .describe("How the working load is targeted."),
+          loadValue: zod
+            .number()
+            .nullish()
+            .describe(
+              "Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight.",
+            ),
+          tempo: zod.string().nullish(),
+          restSec: zod.number().nullish(),
+          equipment: zod
+            .string()
+            .nullish()
+            .describe('Per-movement equipment, e.g. \"Tonal + bench\".'),
+          tonalMode: zod
+            .string()
+            .nullish()
+            .describe(
+              "Named Tonal mode (eccentric, chains, burnout, spotter). Free text; Tonal has no public API.",
+            ),
+          cue: zod.string().nullish().describe("Short coaching cue."),
+        })
+        .describe(
+          "Phase 1. One real movement within a strength day — the unit the day model\nused to lack. A strength workout is an ordered list of these (movement,\npattern, sets, reps, load target), not just a minute count. Persisted on\nplan_days.strength_blocks (and workouts.strength_blocks for actuals).\n",
+        ),
+    )
+    .nullish()
+    .describe(
+      "Phase 1. Ordered real strength movements prescribed for this day — the\nactual lifting workout (movements, sets, reps, load). Null on rest,\npure-conditioning, pure-run days, and on legacy \/ engine-generated rows\nthat only carry minute buckets; the UI falls back to the prose\n`description` + minute breakdown when null. Week-over-week change in\nthese blocks is how progression is expressed.\n",
+    ),
   strengthMin: zod
     .number()
     .nullish()
@@ -794,6 +908,63 @@ export const SwapPlanDayResponse = zod.object({
         'Ordered chip rail of every machine the runner will use that day. The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". Per the task #77 contract the scalar `equipment` field above always equals `equipmentList[0]` (the \*primary\* machine for the day) so any back-compat code path that still reads the scalar — dashboard equipment usage, suggestions pairKey, `\/equipment` page — agrees with the chip rail\'s lead chip. Nullable to match the underlying DB column on legacy rows that predate the task #77 backfill, but in practice the server normalizes both NULL and empty arrays to `[equipment]` before responding so this field is always present and non-empty in API responses; clients should still tolerate `null` defensively (e.g. `equipmentList ?? [equipment]`).\n',
       ),
     description: zod.string(),
+    strengthBlocks: zod
+      .array(
+        zod
+          .object({
+            movement: zod
+              .string()
+              .describe('e.g. \"Back Squat\", \"Bench Press\".'),
+            pattern: zod
+              .enum([
+                "squat",
+                "hinge",
+                "horizontal_push",
+                "horizontal_pull",
+                "vertical_push",
+                "vertical_pull",
+                "lunge",
+                "carry",
+                "core",
+              ])
+              .describe(
+                "Primary movement pattern, used for weekly-balance checks.",
+              ),
+            sets: zod.number(),
+            reps: zod
+              .string()
+              .describe('Number or range, e.g. \"5\", \"8-10\".'),
+            loadType: zod
+              .enum(["percent_1rm", "rir", "lb", "bodyweight"])
+              .describe("How the working load is targeted."),
+            loadValue: zod
+              .number()
+              .nullish()
+              .describe(
+                "Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight.",
+              ),
+            tempo: zod.string().nullish(),
+            restSec: zod.number().nullish(),
+            equipment: zod
+              .string()
+              .nullish()
+              .describe('Per-movement equipment, e.g. \"Tonal + bench\".'),
+            tonalMode: zod
+              .string()
+              .nullish()
+              .describe(
+                "Named Tonal mode (eccentric, chains, burnout, spotter). Free text; Tonal has no public API.",
+              ),
+            cue: zod.string().nullish().describe("Short coaching cue."),
+          })
+          .describe(
+            "Phase 1. One real movement within a strength day — the unit the day model\nused to lack. A strength workout is an ordered list of these (movement,\npattern, sets, reps, load target), not just a minute count. Persisted on\nplan_days.strength_blocks (and workouts.strength_blocks for actuals).\n",
+          ),
+      )
+      .nullish()
+      .describe(
+        "Phase 1. Ordered real strength movements prescribed for this day — the\nactual lifting workout (movements, sets, reps, load). Null on rest,\npure-conditioning, pure-run days, and on legacy \/ engine-generated rows\nthat only carry minute buckets; the UI falls back to the prose\n`description` + minute breakdown when null. Week-over-week change in\nthese blocks is how progression is expressed.\n",
+      ),
     strengthMin: zod
       .number()
       .nullish()
@@ -970,6 +1141,63 @@ export const SwapPlanDayResponse = zod.object({
         'Ordered chip rail of every machine the runner will use that day. The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". Per the task #77 contract the scalar `equipment` field above always equals `equipmentList[0]` (the \*primary\* machine for the day) so any back-compat code path that still reads the scalar — dashboard equipment usage, suggestions pairKey, `\/equipment` page — agrees with the chip rail\'s lead chip. Nullable to match the underlying DB column on legacy rows that predate the task #77 backfill, but in practice the server normalizes both NULL and empty arrays to `[equipment]` before responding so this field is always present and non-empty in API responses; clients should still tolerate `null` defensively (e.g. `equipmentList ?? [equipment]`).\n',
       ),
     description: zod.string(),
+    strengthBlocks: zod
+      .array(
+        zod
+          .object({
+            movement: zod
+              .string()
+              .describe('e.g. \"Back Squat\", \"Bench Press\".'),
+            pattern: zod
+              .enum([
+                "squat",
+                "hinge",
+                "horizontal_push",
+                "horizontal_pull",
+                "vertical_push",
+                "vertical_pull",
+                "lunge",
+                "carry",
+                "core",
+              ])
+              .describe(
+                "Primary movement pattern, used for weekly-balance checks.",
+              ),
+            sets: zod.number(),
+            reps: zod
+              .string()
+              .describe('Number or range, e.g. \"5\", \"8-10\".'),
+            loadType: zod
+              .enum(["percent_1rm", "rir", "lb", "bodyweight"])
+              .describe("How the working load is targeted."),
+            loadValue: zod
+              .number()
+              .nullish()
+              .describe(
+                "Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight.",
+              ),
+            tempo: zod.string().nullish(),
+            restSec: zod.number().nullish(),
+            equipment: zod
+              .string()
+              .nullish()
+              .describe('Per-movement equipment, e.g. \"Tonal + bench\".'),
+            tonalMode: zod
+              .string()
+              .nullish()
+              .describe(
+                "Named Tonal mode (eccentric, chains, burnout, spotter). Free text; Tonal has no public API.",
+              ),
+            cue: zod.string().nullish().describe("Short coaching cue."),
+          })
+          .describe(
+            "Phase 1. One real movement within a strength day — the unit the day model\nused to lack. A strength workout is an ordered list of these (movement,\npattern, sets, reps, load target), not just a minute count. Persisted on\nplan_days.strength_blocks (and workouts.strength_blocks for actuals).\n",
+          ),
+      )
+      .nullish()
+      .describe(
+        "Phase 1. Ordered real strength movements prescribed for this day — the\nactual lifting workout (movements, sets, reps, load). Null on rest,\npure-conditioning, pure-run days, and on legacy \/ engine-generated rows\nthat only carry minute buckets; the UI falls back to the prose\n`description` + minute breakdown when null. Week-over-week change in\nthese blocks is how progression is expressed.\n",
+      ),
     strengthMin: zod
       .number()
       .nullish()
@@ -1174,6 +1402,61 @@ export const ResetPlanDayResponse = zod.object({
       'Ordered chip rail of every machine the runner will use that day. The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". Per the task #77 contract the scalar `equipment` field above always equals `equipmentList[0]` (the \*primary\* machine for the day) so any back-compat code path that still reads the scalar — dashboard equipment usage, suggestions pairKey, `\/equipment` page — agrees with the chip rail\'s lead chip. Nullable to match the underlying DB column on legacy rows that predate the task #77 backfill, but in practice the server normalizes both NULL and empty arrays to `[equipment]` before responding so this field is always present and non-empty in API responses; clients should still tolerate `null` defensively (e.g. `equipmentList ?? [equipment]`).\n',
     ),
   description: zod.string(),
+  strengthBlocks: zod
+    .array(
+      zod
+        .object({
+          movement: zod
+            .string()
+            .describe('e.g. \"Back Squat\", \"Bench Press\".'),
+          pattern: zod
+            .enum([
+              "squat",
+              "hinge",
+              "horizontal_push",
+              "horizontal_pull",
+              "vertical_push",
+              "vertical_pull",
+              "lunge",
+              "carry",
+              "core",
+            ])
+            .describe(
+              "Primary movement pattern, used for weekly-balance checks.",
+            ),
+          sets: zod.number(),
+          reps: zod.string().describe('Number or range, e.g. \"5\", \"8-10\".'),
+          loadType: zod
+            .enum(["percent_1rm", "rir", "lb", "bodyweight"])
+            .describe("How the working load is targeted."),
+          loadValue: zod
+            .number()
+            .nullish()
+            .describe(
+              "Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight.",
+            ),
+          tempo: zod.string().nullish(),
+          restSec: zod.number().nullish(),
+          equipment: zod
+            .string()
+            .nullish()
+            .describe('Per-movement equipment, e.g. \"Tonal + bench\".'),
+          tonalMode: zod
+            .string()
+            .nullish()
+            .describe(
+              "Named Tonal mode (eccentric, chains, burnout, spotter). Free text; Tonal has no public API.",
+            ),
+          cue: zod.string().nullish().describe("Short coaching cue."),
+        })
+        .describe(
+          "Phase 1. One real movement within a strength day — the unit the day model\nused to lack. A strength workout is an ordered list of these (movement,\npattern, sets, reps, load target), not just a minute count. Persisted on\nplan_days.strength_blocks (and workouts.strength_blocks for actuals).\n",
+        ),
+    )
+    .nullish()
+    .describe(
+      "Phase 1. Ordered real strength movements prescribed for this day — the\nactual lifting workout (movements, sets, reps, load). Null on rest,\npure-conditioning, pure-run days, and on legacy \/ engine-generated rows\nthat only carry minute buckets; the UI falls back to the prose\n`description` + minute breakdown when null. Week-over-week change in\nthese blocks is how progression is expressed.\n",
+    ),
   strengthMin: zod
     .number()
     .nullish()
@@ -1508,6 +1791,63 @@ export const GetTodayPlanResponse = zod.object({
           'Ordered chip rail of every machine the runner will use that day. The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". Per the task #77 contract the scalar `equipment` field above always equals `equipmentList[0]` (the \*primary\* machine for the day) so any back-compat code path that still reads the scalar — dashboard equipment usage, suggestions pairKey, `\/equipment` page — agrees with the chip rail\'s lead chip. Nullable to match the underlying DB column on legacy rows that predate the task #77 backfill, but in practice the server normalizes both NULL and empty arrays to `[equipment]` before responding so this field is always present and non-empty in API responses; clients should still tolerate `null` defensively (e.g. `equipmentList ?? [equipment]`).\n',
         ),
       description: zod.string(),
+      strengthBlocks: zod
+        .array(
+          zod
+            .object({
+              movement: zod
+                .string()
+                .describe('e.g. \"Back Squat\", \"Bench Press\".'),
+              pattern: zod
+                .enum([
+                  "squat",
+                  "hinge",
+                  "horizontal_push",
+                  "horizontal_pull",
+                  "vertical_push",
+                  "vertical_pull",
+                  "lunge",
+                  "carry",
+                  "core",
+                ])
+                .describe(
+                  "Primary movement pattern, used for weekly-balance checks.",
+                ),
+              sets: zod.number(),
+              reps: zod
+                .string()
+                .describe('Number or range, e.g. \"5\", \"8-10\".'),
+              loadType: zod
+                .enum(["percent_1rm", "rir", "lb", "bodyweight"])
+                .describe("How the working load is targeted."),
+              loadValue: zod
+                .number()
+                .nullish()
+                .describe(
+                  "Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight.",
+                ),
+              tempo: zod.string().nullish(),
+              restSec: zod.number().nullish(),
+              equipment: zod
+                .string()
+                .nullish()
+                .describe('Per-movement equipment, e.g. \"Tonal + bench\".'),
+              tonalMode: zod
+                .string()
+                .nullish()
+                .describe(
+                  "Named Tonal mode (eccentric, chains, burnout, spotter). Free text; Tonal has no public API.",
+                ),
+              cue: zod.string().nullish().describe("Short coaching cue."),
+            })
+            .describe(
+              "Phase 1. One real movement within a strength day — the unit the day model\nused to lack. A strength workout is an ordered list of these (movement,\npattern, sets, reps, load target), not just a minute count. Persisted on\nplan_days.strength_blocks (and workouts.strength_blocks for actuals).\n",
+            ),
+        )
+        .nullish()
+        .describe(
+          "Phase 1. Ordered real strength movements prescribed for this day — the\nactual lifting workout (movements, sets, reps, load). Null on rest,\npure-conditioning, pure-run days, and on legacy \/ engine-generated rows\nthat only carry minute buckets; the UI falls back to the prose\n`description` + minute breakdown when null. Week-over-week change in\nthese blocks is how progression is expressed.\n",
+        ),
       strengthMin: zod
         .number()
         .nullish()
@@ -1690,6 +2030,63 @@ export const GetTodayPlanResponse = zod.object({
             'Ordered chip rail of every machine the runner will use that day. The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". Per the task #77 contract the scalar `equipment` field above always equals `equipmentList[0]` (the \*primary\* machine for the day) so any back-compat code path that still reads the scalar — dashboard equipment usage, suggestions pairKey, `\/equipment` page — agrees with the chip rail\'s lead chip. Nullable to match the underlying DB column on legacy rows that predate the task #77 backfill, but in practice the server normalizes both NULL and empty arrays to `[equipment]` before responding so this field is always present and non-empty in API responses; clients should still tolerate `null` defensively (e.g. `equipmentList ?? [equipment]`).\n',
           ),
         description: zod.string(),
+        strengthBlocks: zod
+          .array(
+            zod
+              .object({
+                movement: zod
+                  .string()
+                  .describe('e.g. \"Back Squat\", \"Bench Press\".'),
+                pattern: zod
+                  .enum([
+                    "squat",
+                    "hinge",
+                    "horizontal_push",
+                    "horizontal_pull",
+                    "vertical_push",
+                    "vertical_pull",
+                    "lunge",
+                    "carry",
+                    "core",
+                  ])
+                  .describe(
+                    "Primary movement pattern, used for weekly-balance checks.",
+                  ),
+                sets: zod.number(),
+                reps: zod
+                  .string()
+                  .describe('Number or range, e.g. \"5\", \"8-10\".'),
+                loadType: zod
+                  .enum(["percent_1rm", "rir", "lb", "bodyweight"])
+                  .describe("How the working load is targeted."),
+                loadValue: zod
+                  .number()
+                  .nullish()
+                  .describe(
+                    "Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight.",
+                  ),
+                tempo: zod.string().nullish(),
+                restSec: zod.number().nullish(),
+                equipment: zod
+                  .string()
+                  .nullish()
+                  .describe('Per-movement equipment, e.g. \"Tonal + bench\".'),
+                tonalMode: zod
+                  .string()
+                  .nullish()
+                  .describe(
+                    "Named Tonal mode (eccentric, chains, burnout, spotter). Free text; Tonal has no public API.",
+                  ),
+                cue: zod.string().nullish().describe("Short coaching cue."),
+              })
+              .describe(
+                "Phase 1. One real movement within a strength day — the unit the day model\nused to lack. A strength workout is an ordered list of these (movement,\npattern, sets, reps, load target), not just a minute count. Persisted on\nplan_days.strength_blocks (and workouts.strength_blocks for actuals).\n",
+              ),
+          )
+          .nullish()
+          .describe(
+            "Phase 1. Ordered real strength movements prescribed for this day — the\nactual lifting workout (movements, sets, reps, load). Null on rest,\npure-conditioning, pure-run days, and on legacy \/ engine-generated rows\nthat only carry minute buckets; the UI falls back to the prose\n`description` + minute breakdown when null. Week-over-week change in\nthese blocks is how progression is expressed.\n",
+          ),
         strengthMin: zod
           .number()
           .nullish()
@@ -1986,6 +2383,63 @@ export const GetTodayPlanResponse = zod.object({
           'Ordered chip rail of every machine the runner will use that day. The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". Per the task #77 contract the scalar `equipment` field above always equals `equipmentList[0]` (the \*primary\* machine for the day) so any back-compat code path that still reads the scalar — dashboard equipment usage, suggestions pairKey, `\/equipment` page — agrees with the chip rail\'s lead chip. Nullable to match the underlying DB column on legacy rows that predate the task #77 backfill, but in practice the server normalizes both NULL and empty arrays to `[equipment]` before responding so this field is always present and non-empty in API responses; clients should still tolerate `null` defensively (e.g. `equipmentList ?? [equipment]`).\n',
         ),
       description: zod.string(),
+      strengthBlocks: zod
+        .array(
+          zod
+            .object({
+              movement: zod
+                .string()
+                .describe('e.g. \"Back Squat\", \"Bench Press\".'),
+              pattern: zod
+                .enum([
+                  "squat",
+                  "hinge",
+                  "horizontal_push",
+                  "horizontal_pull",
+                  "vertical_push",
+                  "vertical_pull",
+                  "lunge",
+                  "carry",
+                  "core",
+                ])
+                .describe(
+                  "Primary movement pattern, used for weekly-balance checks.",
+                ),
+              sets: zod.number(),
+              reps: zod
+                .string()
+                .describe('Number or range, e.g. \"5\", \"8-10\".'),
+              loadType: zod
+                .enum(["percent_1rm", "rir", "lb", "bodyweight"])
+                .describe("How the working load is targeted."),
+              loadValue: zod
+                .number()
+                .nullish()
+                .describe(
+                  "Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight.",
+                ),
+              tempo: zod.string().nullish(),
+              restSec: zod.number().nullish(),
+              equipment: zod
+                .string()
+                .nullish()
+                .describe('Per-movement equipment, e.g. \"Tonal + bench\".'),
+              tonalMode: zod
+                .string()
+                .nullish()
+                .describe(
+                  "Named Tonal mode (eccentric, chains, burnout, spotter). Free text; Tonal has no public API.",
+                ),
+              cue: zod.string().nullish().describe("Short coaching cue."),
+            })
+            .describe(
+              "Phase 1. One real movement within a strength day — the unit the day model\nused to lack. A strength workout is an ordered list of these (movement,\npattern, sets, reps, load target), not just a minute count. Persisted on\nplan_days.strength_blocks (and workouts.strength_blocks for actuals).\n",
+            ),
+        )
+        .nullish()
+        .describe(
+          "Phase 1. Ordered real strength movements prescribed for this day — the\nactual lifting workout (movements, sets, reps, load). Null on rest,\npure-conditioning, pure-run days, and on legacy \/ engine-generated rows\nthat only carry minute buckets; the UI falls back to the prose\n`description` + minute breakdown when null. Week-over-week change in\nthese blocks is how progression is expressed.\n",
+        ),
       strengthMin: zod
         .number()
         .nullish()
@@ -2959,6 +3413,65 @@ export const GetDashboardBootstrapResponse = zod
               'Ordered chip rail of every machine the runner will use that day. The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". Per the task #77 contract the scalar `equipment` field above always equals `equipmentList[0]` (the \*primary\* machine for the day) so any back-compat code path that still reads the scalar — dashboard equipment usage, suggestions pairKey, `\/equipment` page — agrees with the chip rail\'s lead chip. Nullable to match the underlying DB column on legacy rows that predate the task #77 backfill, but in practice the server normalizes both NULL and empty arrays to `[equipment]` before responding so this field is always present and non-empty in API responses; clients should still tolerate `null` defensively (e.g. `equipmentList ?? [equipment]`).\n',
             ),
           description: zod.string(),
+          strengthBlocks: zod
+            .array(
+              zod
+                .object({
+                  movement: zod
+                    .string()
+                    .describe('e.g. \"Back Squat\", \"Bench Press\".'),
+                  pattern: zod
+                    .enum([
+                      "squat",
+                      "hinge",
+                      "horizontal_push",
+                      "horizontal_pull",
+                      "vertical_push",
+                      "vertical_pull",
+                      "lunge",
+                      "carry",
+                      "core",
+                    ])
+                    .describe(
+                      "Primary movement pattern, used for weekly-balance checks.",
+                    ),
+                  sets: zod.number(),
+                  reps: zod
+                    .string()
+                    .describe('Number or range, e.g. \"5\", \"8-10\".'),
+                  loadType: zod
+                    .enum(["percent_1rm", "rir", "lb", "bodyweight"])
+                    .describe("How the working load is targeted."),
+                  loadValue: zod
+                    .number()
+                    .nullish()
+                    .describe(
+                      "Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight.",
+                    ),
+                  tempo: zod.string().nullish(),
+                  restSec: zod.number().nullish(),
+                  equipment: zod
+                    .string()
+                    .nullish()
+                    .describe(
+                      'Per-movement equipment, e.g. \"Tonal + bench\".',
+                    ),
+                  tonalMode: zod
+                    .string()
+                    .nullish()
+                    .describe(
+                      "Named Tonal mode (eccentric, chains, burnout, spotter). Free text; Tonal has no public API.",
+                    ),
+                  cue: zod.string().nullish().describe("Short coaching cue."),
+                })
+                .describe(
+                  "Phase 1. One real movement within a strength day — the unit the day model\nused to lack. A strength workout is an ordered list of these (movement,\npattern, sets, reps, load target), not just a minute count. Persisted on\nplan_days.strength_blocks (and workouts.strength_blocks for actuals).\n",
+                ),
+            )
+            .nullish()
+            .describe(
+              "Phase 1. Ordered real strength movements prescribed for this day — the\nactual lifting workout (movements, sets, reps, load). Null on rest,\npure-conditioning, pure-run days, and on legacy \/ engine-generated rows\nthat only carry minute buckets; the UI falls back to the prose\n`description` + minute breakdown when null. Week-over-week change in\nthese blocks is how progression is expressed.\n",
+            ),
           strengthMin: zod
             .number()
             .nullish()
@@ -3141,6 +3654,65 @@ export const GetDashboardBootstrapResponse = zod
                 'Ordered chip rail of every machine the runner will use that day. The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". Per the task #77 contract the scalar `equipment` field above always equals `equipmentList[0]` (the \*primary\* machine for the day) so any back-compat code path that still reads the scalar — dashboard equipment usage, suggestions pairKey, `\/equipment` page — agrees with the chip rail\'s lead chip. Nullable to match the underlying DB column on legacy rows that predate the task #77 backfill, but in practice the server normalizes both NULL and empty arrays to `[equipment]` before responding so this field is always present and non-empty in API responses; clients should still tolerate `null` defensively (e.g. `equipmentList ?? [equipment]`).\n',
               ),
             description: zod.string(),
+            strengthBlocks: zod
+              .array(
+                zod
+                  .object({
+                    movement: zod
+                      .string()
+                      .describe('e.g. \"Back Squat\", \"Bench Press\".'),
+                    pattern: zod
+                      .enum([
+                        "squat",
+                        "hinge",
+                        "horizontal_push",
+                        "horizontal_pull",
+                        "vertical_push",
+                        "vertical_pull",
+                        "lunge",
+                        "carry",
+                        "core",
+                      ])
+                      .describe(
+                        "Primary movement pattern, used for weekly-balance checks.",
+                      ),
+                    sets: zod.number(),
+                    reps: zod
+                      .string()
+                      .describe('Number or range, e.g. \"5\", \"8-10\".'),
+                    loadType: zod
+                      .enum(["percent_1rm", "rir", "lb", "bodyweight"])
+                      .describe("How the working load is targeted."),
+                    loadValue: zod
+                      .number()
+                      .nullish()
+                      .describe(
+                        "Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight.",
+                      ),
+                    tempo: zod.string().nullish(),
+                    restSec: zod.number().nullish(),
+                    equipment: zod
+                      .string()
+                      .nullish()
+                      .describe(
+                        'Per-movement equipment, e.g. \"Tonal + bench\".',
+                      ),
+                    tonalMode: zod
+                      .string()
+                      .nullish()
+                      .describe(
+                        "Named Tonal mode (eccentric, chains, burnout, spotter). Free text; Tonal has no public API.",
+                      ),
+                    cue: zod.string().nullish().describe("Short coaching cue."),
+                  })
+                  .describe(
+                    "Phase 1. One real movement within a strength day — the unit the day model\nused to lack. A strength workout is an ordered list of these (movement,\npattern, sets, reps, load target), not just a minute count. Persisted on\nplan_days.strength_blocks (and workouts.strength_blocks for actuals).\n",
+                  ),
+              )
+              .nullish()
+              .describe(
+                "Phase 1. Ordered real strength movements prescribed for this day — the\nactual lifting workout (movements, sets, reps, load). Null on rest,\npure-conditioning, pure-run days, and on legacy \/ engine-generated rows\nthat only carry minute buckets; the UI falls back to the prose\n`description` + minute breakdown when null. Week-over-week change in\nthese blocks is how progression is expressed.\n",
+              ),
             strengthMin: zod
               .number()
               .nullish()
@@ -3437,6 +4009,65 @@ export const GetDashboardBootstrapResponse = zod
               'Ordered chip rail of every machine the runner will use that day. The UI renders one chip per element so a Tue strength + cardio day shows \"TONAL · PELOTON BIKE\" instead of just \"TONAL\". Per the task #77 contract the scalar `equipment` field above always equals `equipmentList[0]` (the \*primary\* machine for the day) so any back-compat code path that still reads the scalar — dashboard equipment usage, suggestions pairKey, `\/equipment` page — agrees with the chip rail\'s lead chip. Nullable to match the underlying DB column on legacy rows that predate the task #77 backfill, but in practice the server normalizes both NULL and empty arrays to `[equipment]` before responding so this field is always present and non-empty in API responses; clients should still tolerate `null` defensively (e.g. `equipmentList ?? [equipment]`).\n',
             ),
           description: zod.string(),
+          strengthBlocks: zod
+            .array(
+              zod
+                .object({
+                  movement: zod
+                    .string()
+                    .describe('e.g. \"Back Squat\", \"Bench Press\".'),
+                  pattern: zod
+                    .enum([
+                      "squat",
+                      "hinge",
+                      "horizontal_push",
+                      "horizontal_pull",
+                      "vertical_push",
+                      "vertical_pull",
+                      "lunge",
+                      "carry",
+                      "core",
+                    ])
+                    .describe(
+                      "Primary movement pattern, used for weekly-balance checks.",
+                    ),
+                  sets: zod.number(),
+                  reps: zod
+                    .string()
+                    .describe('Number or range, e.g. \"5\", \"8-10\".'),
+                  loadType: zod
+                    .enum(["percent_1rm", "rir", "lb", "bodyweight"])
+                    .describe("How the working load is targeted."),
+                  loadValue: zod
+                    .number()
+                    .nullish()
+                    .describe(
+                      "Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight.",
+                    ),
+                  tempo: zod.string().nullish(),
+                  restSec: zod.number().nullish(),
+                  equipment: zod
+                    .string()
+                    .nullish()
+                    .describe(
+                      'Per-movement equipment, e.g. \"Tonal + bench\".',
+                    ),
+                  tonalMode: zod
+                    .string()
+                    .nullish()
+                    .describe(
+                      "Named Tonal mode (eccentric, chains, burnout, spotter). Free text; Tonal has no public API.",
+                    ),
+                  cue: zod.string().nullish().describe("Short coaching cue."),
+                })
+                .describe(
+                  "Phase 1. One real movement within a strength day — the unit the day model\nused to lack. A strength workout is an ordered list of these (movement,\npattern, sets, reps, load target), not just a minute count. Persisted on\nplan_days.strength_blocks (and workouts.strength_blocks for actuals).\n",
+                ),
+            )
+            .nullish()
+            .describe(
+              "Phase 1. Ordered real strength movements prescribed for this day — the\nactual lifting workout (movements, sets, reps, load). Null on rest,\npure-conditioning, pure-run days, and on legacy \/ engine-generated rows\nthat only carry minute buckets; the UI falls back to the prose\n`description` + minute breakdown when null. Week-over-week change in\nthese blocks is how progression is expressed.\n",
+            ),
           strengthMin: zod
             .number()
             .nullish()

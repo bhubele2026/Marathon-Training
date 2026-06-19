@@ -68,6 +68,7 @@ import { TimeOfDayBadge } from "@/components/time-of-day-badge";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { UndoCountdownAction } from "@/components/undo-countdown-action";
 import { PlannedBreakdown } from "@/components/planned-breakdown";
+import { StrengthBlocks } from "@/components/strength-blocks";
 import { ActualBreakdown } from "@/components/actual-breakdown";
 import { PrimaryMetricDisplay } from "@/components/primary-metric-display";
 import { SessionDetailDisclosure } from "@/components/session-detail-disclosure";
@@ -1225,6 +1226,14 @@ export default function WeekDetail() {
                       })()}
                       <h4 className="text-xl font-black tracking-tight">{day.sessionType}</h4>
                       <p className="text-sm text-muted-foreground line-clamp-2">{day.description}</p>
+                      {/* Phase 1: the real strength workout (movements ×
+                          sets/reps + load). Renders nothing when the day has no
+                          lifting, so rest / conditioning / run days fall back to
+                          the prose above + breakdown below. */}
+                      <StrengthBlocks
+                        blocks={day.strengthBlocks}
+                        testIdPrefix={`day-${day.date}`}
+                      />
                       {/* Slim day card (Task #133): show just the one
                           headline number for the planned session.
                           PlannedBreakdown, distance and total load tiles

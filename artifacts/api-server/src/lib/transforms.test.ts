@@ -51,6 +51,7 @@ function makeWorkoutRow(overrides: Partial<WorkoutRow> = {}): WorkoutRow {
     seedNotes: null,
     seedTimeOfDay: null,
     seedModality: null,
+    strengthBlocks: null,
     createdAt: new Date("2026-05-05T12:00:00Z"),
     ...overrides,
   };
@@ -66,6 +67,7 @@ function makeRow(overrides: Partial<PlanDayRow> = {}): PlanDayRow {
     strengthLoad: 60,
     equipment: "Tonal",
     equipmentList: ["Tonal", "Peloton Bike"],
+    strengthBlocks: null,
     description: "Heavy upper-body Tonal",
     strengthMin: 45,
     cardioMin: 25,
@@ -79,6 +81,7 @@ function makeRow(overrides: Partial<PlanDayRow> = {}): PlanDayRow {
     seedSessionType: null,
     seedEquipment: null,
     seedEquipmentList: null,
+    seedStrengthBlocks: null,
     seedDescription: null,
     seedDistanceMi: null,
     seedStrengthMin: null,

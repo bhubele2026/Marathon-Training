@@ -170,6 +170,10 @@ export function toPlanDay(
     // somehow ended up with an empty array in the DB.
     equipmentList: normalizeEquipmentList(r.equipmentList, r.equipment),
     description: r.description,
+    // Phase 1: real strength movements for the day (null on rest / conditioning
+    // / run / legacy rows). Passed through row-pure; renderers fall back to the
+    // prose description + minute breakdown when null.
+    strengthBlocks: r.strengthBlocks ?? null,
     strengthMin: r.strengthMin,
     cardioMin: r.cardioMin,
     runMin: r.runMin,

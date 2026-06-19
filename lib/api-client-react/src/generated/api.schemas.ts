@@ -30,6 +30,66 @@ export interface ValidationError {
   error: ValidationErrorError;
 }
 
+/**
+ * Primary movement pattern, used for weekly-balance checks.
+ */
+export type StrengthBlockPattern =
+  (typeof StrengthBlockPattern)[keyof typeof StrengthBlockPattern];
+
+export const StrengthBlockPattern = {
+  squat: "squat",
+  hinge: "hinge",
+  horizontal_push: "horizontal_push",
+  horizontal_pull: "horizontal_pull",
+  vertical_push: "vertical_push",
+  vertical_pull: "vertical_pull",
+  lunge: "lunge",
+  carry: "carry",
+  core: "core",
+} as const;
+
+/**
+ * How the working load is targeted.
+ */
+export type StrengthBlockLoadType =
+  (typeof StrengthBlockLoadType)[keyof typeof StrengthBlockLoadType];
+
+export const StrengthBlockLoadType = {
+  percent_1rm: "percent_1rm",
+  rir: "rir",
+  lb: "lb",
+  bodyweight: "bodyweight",
+} as const;
+
+/**
+ * Phase 1. One real movement within a strength day — the unit the day model
+used to lack. A strength workout is an ordered list of these (movement,
+pattern, sets, reps, load target), not just a minute count. Persisted on
+plan_days.strength_blocks (and workouts.strength_blocks for actuals).
+
+ */
+export interface StrengthBlock {
+  /** e.g. "Back Squat", "Bench Press". */
+  movement: string;
+  /** Primary movement pattern, used for weekly-balance checks. */
+  pattern: StrengthBlockPattern;
+  sets: number;
+  /** Number or range, e.g. "5", "8-10". */
+  reps: string;
+  /** How the working load is targeted. */
+  loadType: StrengthBlockLoadType;
+  /** Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight. */
+  loadValue?: number | null;
+  tempo?: string | null;
+  restSec?: number | null;
+  /** Per-movement equipment, e.g. "Tonal + bench". */
+  equipment?: string | null;
+  /** Named Tonal mode (eccentric, chains, burnout, spotter). Free text; Tonal has no public API. */
+  tonalMode?: string | null;
+  /** Short coaching cue. */
+  cue?: string | null;
+}
+
 export type PlanDayCustomizedDiffItem = {
   field: string;
   before: string | null;
@@ -132,6 +192,14 @@ export interface PlanDay {
    */
   equipmentList?: string[] | null;
   description: string;
+  /** Phase 1. Ordered real strength movements prescribed for this day — the
+actual lifting workout (movements, sets, reps, load). Null on rest,
+pure-conditioning, pure-run days, and on legacy / engine-generated rows
+that only carry minute buckets; the UI falls back to the prose
+`description` + minute breakdown when null. Week-over-week change in
+these blocks is how progression is expressed.
+ */
+  strengthBlocks?: StrengthBlock[] | null;
   /** Prescribed Tonal / lift minutes for this day (heavy block plus accessory work). Null on rows that pre-date the breakdown columns and have not yet been backfilled. */
   strengthMin?: number | null;
   /** Prescribed non-running cross-train minutes (bike, row, spin). Does NOT include treadmill or outdoor running minutes — those live in `runMin`. */

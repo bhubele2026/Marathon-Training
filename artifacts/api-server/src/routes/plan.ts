@@ -840,6 +840,9 @@ async function fetchRecentWorkoutsByPair(
       rpe: r.rpe,
       strengthLoad: r.strength_load,
       totalLoad: r.total_load,
+      // Phase 1: real strength movements — not selected for this
+      // suggestion/plan-vs-actual sample, so leave it null.
+      strengthBlocks: null,
       notes: r.notes,
       timeOfDay: r.time_of_day,
       modality: r.modality,

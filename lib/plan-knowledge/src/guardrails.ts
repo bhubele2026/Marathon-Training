@@ -1,4 +1,4 @@
-import { DAY_ORDER, isMonday } from "./dates";
+import { DAY_ORDER } from "./dates";
 import { dayBudgetForDayName } from "./types";
 import type { AiPlan, DailyBudget, Guardrail } from "./types";
 
@@ -23,13 +23,17 @@ function dayTotal(d: { strengthMin: number; cardioMin: number; runMin: number })
 // a scheduled race) can pass it explicitly via `opts.includesRunning` to
 // override the raceKind-derived default.
 export function planIncludesRunning(
-  plan: Pick<AiPlan, "raceKind">,
+  plan: Pick<AiPlan, "raceKind" | "goalKind">,
   opts?: { includesRunning?: boolean },
 ): boolean {
   if (opts && typeof opts.includesRunning === "boolean") {
     return opts.includesRunning;
   }
-  return plan.raceKind !== "none";
+  // Recomp-first: running is OPT-IN. A plan includes running only when it is
+  // anchored on a run race (goalKind "race", or a concrete raceKind). A null /
+  // undefined / "none" raceKind on a recomp/strength plan is NOT running.
+  if (plan.goalKind === "race") return true;
+  return Boolean(plan.raceKind && plan.raceKind !== "none");
 }
 
 export function runGuardrails(
@@ -40,13 +44,8 @@ export function runGuardrails(
   const out: Guardrail[] = [];
   const includesRunning = planIncludesRunning(plan, opts);
 
-  if (!isMonday(plan.startDate)) {
-    out.push({
-      level: "warn",
-      code: "start_not_monday",
-      message: `startDate ${plan.startDate} is not a Monday; week 1 must start on Monday.`,
-    });
-  }
+  // startDate is no longer required to be a Monday — the server snaps it to the
+  // Monday on/before (week 1's rest day). So we don't flag a non-Monday start.
 
   let prevWeeklyMiles: number | null = null;
 

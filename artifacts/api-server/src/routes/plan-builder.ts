@@ -314,7 +314,9 @@ router.post("/plan-builder/accept", async (req, res): Promise<void> => {
       id: newId,
       name,
       isActive: true,
-      startDate: plan.startDate,
+      // Use the snapped Monday so the stored campaign start aligns to week 1's
+      // rest day regardless of what the coach emitted.
+      startDate: materialized.startDate,
       marathonDate: materialized.marathonDate,
       blocks: [], // engine blocks unused for ai-source configs
       entries: null,
@@ -322,7 +324,7 @@ router.post("/plan-builder/accept", async (req, res): Promise<void> => {
       aiPlan: plan,
       // Snapshot immediately — this config IS being applied right now.
       lastAppliedAt: now,
-      appliedStartDate: plan.startDate,
+      appliedStartDate: materialized.startDate,
       appliedMarathonDate: materialized.marathonDate,
       appliedBlocks: [],
       appliedEntries: null,
@@ -367,6 +369,7 @@ router.post("/plan-builder/accept", async (req, res): Promise<void> => {
           strengthLoad: d.strengthLoad,
           equipment: d.equipment,
           equipmentList: d.equipmentList,
+          strengthBlocks: d.strengthBlocks,
           description: d.description,
           strengthMin: d.strengthMin,
           cardioMin: d.cardioMin,
@@ -388,6 +391,7 @@ router.post("/plan-builder/accept", async (req, res): Promise<void> => {
           seedSessionType: d.sessionType,
           seedEquipment: d.equipment,
           seedEquipmentList: d.equipmentList,
+          seedStrengthBlocks: d.strengthBlocks,
           seedDescription: d.description,
           seedDistanceMi: d.distanceMi,
           seedStrengthMin: d.strengthMin,

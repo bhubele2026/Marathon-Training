@@ -1306,6 +1306,36 @@ components:
                 type: array
                 items: { type: string }
 
+    StrengthBlock:
+      type: object
+      description: |
+        Phase 1. One real movement within a strength day — the unit the day model
+        used to lack. A strength workout is an ordered list of these (movement,
+        pattern, sets, reps, load target), not just a minute count. Persisted on
+        plan_days.strength_blocks (and workouts.strength_blocks for actuals).
+      required: [movement, pattern, sets, reps, loadType]
+      properties:
+        movement: { type: string, description: 'e.g. "Back Squat", "Bench Press".' }
+        pattern:
+          type: string
+          enum: [squat, hinge, horizontal_push, horizontal_pull, vertical_push, vertical_pull, lunge, carry, core]
+          description: Primary movement pattern, used for weekly-balance checks.
+        sets: { type: number }
+        reps: { type: string, description: 'Number or range, e.g. "5", "8-10".' }
+        loadType:
+          type: string
+          enum: [percent_1rm, rir, lb, bodyweight]
+          description: How the working load is targeted.
+        loadValue:
+          type: number
+          nullable: true
+          description: 'Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight.'
+        tempo: { type: string, nullable: true }
+        restSec: { type: number, nullable: true }
+        equipment: { type: string, nullable: true, description: 'Per-movement equipment, e.g. "Tonal + bench".' }
+        tonalMode: { type: string, nullable: true, description: 'Named Tonal mode (eccentric, chains, burnout, spotter). Free text; Tonal has no public API.' }
+        cue: { type: string, nullable: true, description: Short coaching cue. }
+
     PlanDay:
       type: object
       required:
@@ -1343,6 +1373,17 @@ components:
           description: |
             Ordered chip rail of every machine the runner will use that day. The UI renders one chip per element so a Tue strength + cardio day shows "TONAL · PELOTON BIKE" instead of just "TONAL". Per the task #77 contract the scalar `equipment` field above always equals `equipmentList[0]` (the *primary* machine for the day) so any back-compat code path that still reads the scalar — dashboard equipment usage, suggestions pairKey, `/equipment` page — agrees with the chip rail's lead chip. Nullable to match the underlying DB column on legacy rows that predate the task #77 backfill, but in practice the server normalizes both NULL and empty arrays to `[equipment]` before responding so this field is always present and non-empty in API responses; clients should still tolerate `null` defensively (e.g. `equipmentList ?? [equipment]`).
         description: { type: string }
+        strengthBlocks:
+          type: array
+          nullable: true
+          items: { $ref: "#/components/schemas/StrengthBlock" }
+          description: |
+            Phase 1. Ordered real strength movements prescribed for this day — the
+            actual lifting workout (movements, sets, reps, load). Null on rest,
+            pure-conditioning, pure-run days, and on legacy / engine-generated rows
+            that only carry minute buckets; the UI falls back to the prose
+            `description` + minute breakdown when null. Week-over-week change in
+            these blocks is how progression is expressed.
         strengthMin:
           type: number
           nullable: true
