@@ -26,6 +26,8 @@ import {
   type TemplateEntry,
 } from "@workspace/plan-generator";
 import { backfillPaceTargetCards } from "@workspace/scripts/backfill-pace-target-cards";
+import { computePlannedLoad } from "../lib/nutrition-engine";
+import { computeAndPersistBaselineBestEffort } from "./goals";
 
 const router: IRouter = Router();
 
@@ -1004,6 +1006,15 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
           const sessionType = d.session_type ?? "Rest";
           const isRest = !!d.is_rest;
           const totalLoad = d.total_load ?? 0;
+          // R4: normalized training-intensity score the reactive nutrition
+          // engine reacts against (strength weighted heaviest, run, then
+          // cardio; rest = 0).
+          const plannedLoad = computePlannedLoad({
+            isRest,
+            strengthMin: d.strength_min,
+            cardioMin: d.cardio_min,
+            runMin: d.run_min,
+          });
           return {
             week: d.week,
             phase: d.phase,
@@ -1023,6 +1034,7 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
             sessionType,
             isRest,
             totalLoad,
+            plannedLoad,
             seedSessionType: sessionType,
             seedEquipment: equipment,
             seedEquipmentList: equipmentList,
@@ -1089,6 +1101,12 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
     };
   });
 
+  // R4: applying a plan auto-produces the recomp nutrition baseline so the
+  // runner never has to make a separate Goals trip. Best-effort — a missing
+  // stat or an AI outage must NOT fail the apply; we just surface whether it
+  // ran in the response.
+  const nutrition = await computeAndPersistBaselineBestEffort();
+
   req.log.warn(
     {
       configId: row.id,
@@ -1098,10 +1116,16 @@ router.post("/planner/apply", async (req, res): Promise<void> => {
       workoutsPreserved: result.workoutsPreserved,
       measurementsPreserved: result.measurementsPreserved,
       undoSnapshotsWiped: result.undoSnapshotsWiped,
+      nutritionBaseline: nutrition.ok ? "computed" : nutrition.reason,
     },
     "planner config applied — plan_weeks/plan_days regenerated",
   );
-  res.json(result);
+  res.json({
+    ...result,
+    nutritionBaseline: nutrition.ok
+      ? { computed: true, ...nutrition.targets }
+      : { computed: false, reason: nutrition.reason, message: nutrition.message },
+  });
 });
 
 export default router;

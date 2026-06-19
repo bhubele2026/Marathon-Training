@@ -57,6 +57,16 @@ export const planDaysTable = pgTable("plan_days", {
   sessionType: text("session_type").notNull(),
   isRest: boolean("is_rest").notNull().default(false),
   totalLoad: doublePrecision("total_load").notNull(),
+  // Reactive Nutrition Engine (R4). Normalized training-intensity score for
+  // this prescribed day, derived from the minute buckets via
+  // computePlannedLoad() (strength minutes weighted heaviest, run next,
+  // cardio lightest; rest = 0). Seeded whenever the plan is generated/applied
+  // (planner apply + AI plan accept). The per-day nutrition target endpoint
+  // (R5) reads this as the "planned" training value to react against BEFORE a
+  // workout is logged for the date. Nullable so rows pushed before this column
+  // existed stay valid; the day endpoint recomputes from the plan minutes when
+  // it's null.
+  plannedLoad: doublePrecision("planned_load"),
   // Snapshot of the originally-seeded prescription, written either at seed time
   // or lazily the first time the row is edited. Used by the "Reset to original"
   // action so a user can revert a plan day to its pristine prescription.

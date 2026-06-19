@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import {
   db,
   userPreferencesTable,
@@ -115,6 +115,24 @@ async function latestWeightLb(): Promise<number | null> {
     .orderBy(desc(measurementsTable.date))
     .limit(1);
   return rows[0]?.weight ?? null;
+}
+
+// R3. The essential inputs computeBaselineTargets() depends on. When any are
+// missing the baseline can't be computed and the UI is asked to prompt for
+// JUST the missing one(s) via a `needs` array rather than a generic 400.
+function missingEssentialInputs(
+  row: UserPreferencesRow,
+  weight: number | null,
+): { key: string; label: string }[] {
+  const missing: { key: string; label: string }[] = [];
+  if (row.heightIn == null) missing.push({ key: "height", label: "your height" });
+  if (row.age == null) missing.push({ key: "age", label: "your age" });
+  if (!row.sex) missing.push({ key: "sex", label: "your sex" });
+  if (!row.activityLevel)
+    missing.push({ key: "activity", label: "your activity level" });
+  if (weight == null)
+    missing.push({ key: "weight", label: "your current weight (log a measurement)" });
+  return missing;
 }
 
 // Coerce an incoming numeric field to a clamped integer or validation error.
@@ -318,31 +336,45 @@ async function extractTargets(text: string): Promise<ComputedTargets | null> {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-// POST /api/goals/compute-targets — research + persist personalized targets.
-router.post("/goals/compute-targets", async (req, res) => {
-  if (!isConfigured()) {
-    res.status(503).json({
-      error:
-        "AI is not configured. Add ANTHROPIC_API_KEY as a Replit secret (Tools → Secrets) to calculate targets.",
-    });
-    return;
-  }
+// R3. Result of computeBaselineTargets(): either a ready-to-persist set of
+// recomp BASELINE targets, or a structured `needs` signal naming the missing
+// essential inputs so the UI can prompt for just those fields.
+export type BaselineResult =
+  | { ok: true; targets: ComputedTargets }
+  | { ok: false; reason: "needs"; needs: string[]; message: string }
+  | { ok: false; reason: "ai_unavailable"; message: string }
+  | { ok: false; reason: "ai_error"; message: string }
+  | { ok: false; reason: "implausible"; message: string };
 
-  const row = await readOrSeed();
-  const weight = await latestWeightLb();
-
-  // Require the inputs the calculation depends on.
-  const missing: string[] = [];
-  if (row.heightIn == null) missing.push("height");
-  if (row.age == null) missing.push("age");
-  if (!row.sex) missing.push("sex");
-  if (!row.activityLevel) missing.push("activity level");
-  if (weight == null) missing.push("current weight (log a measurement)");
+// R3. The reusable, server-side recomp BASELINE target service. Computes a
+// FIXED baseline (Mifflin-St Jeor × activity → recomp strategy: protein-priority
+// ~0.8–1.0 g/lb, modest deficit / near-maintenance for "lose fat + build
+// muscle") grounded with Opus + web_search, clamped to plausibility. These four
+// numbers ARE the baseline that R5 adjusts daily. Returns a `needs` result
+// (not an exception) when a required input is missing so callers can prompt for
+// just that field. Best-effort callers (plan apply) can ignore non-`ok`
+// results without breaking their own flow.
+export async function computeBaselineTargets(
+  row: UserPreferencesRow,
+  weight: number | null,
+): Promise<BaselineResult> {
+  const missing = missingEssentialInputs(row, weight);
   if (missing.length > 0) {
-    res.status(400).json({
-      error: `Fill in your stats first — missing: ${missing.join(", ")}.`,
-    });
-    return;
+    const labels = missing.map((m) => m.label).join(", ");
+    return {
+      ok: false,
+      reason: "needs",
+      needs: missing.map((m) => m.key),
+      message: `Enter ${labels} to compute your nutrition baseline.`,
+    };
+  }
+  if (!isConfigured()) {
+    return {
+      ok: false,
+      reason: "ai_unavailable",
+      message:
+        "AI is not configured. Add ANTHROPIC_API_KEY as a Replit secret (Tools → Secrets) to calculate targets.",
+    };
   }
 
   const goalLabel =
@@ -358,8 +390,12 @@ router.post("/goals/compute-targets", async (req, res) => {
   const system = [
     "You are a sports-nutrition assistant. Use the web_search tool to ground your",
     "recommendation in current, evidence-based guidance (e.g. Mifflin-St Jeor BMR,",
-    "activity TDEE multipliers, protein intake for muscle retention/gain ~0.7–1.0 g",
+    "activity TDEE multipliers, protein intake for muscle retention/gain ~0.8–1.0 g",
     "per lb of bodyweight, and the calorie strategy appropriate to the stated goal).",
+    "For a recomposition goal use a MODEST deficit to near-maintenance (lose fat",
+    "while building muscle) with protein PRIORITIZED. This is the runner's fixed",
+    "daily BASELINE — it is later nudged up or down per-day for training load, so",
+    "give the steady all-week baseline, not a single hard day's intake.",
     "Search for recent reputable sources before answering. Then give ONE daily",
     "calorie target plus a full macro split — protein, carbohydrate and fat targets",
     "(all in grams) — for THIS person. The macro grams should be roughly consistent",
@@ -370,13 +406,13 @@ router.post("/goals/compute-targets", async (req, res) => {
     "After your reasoning, end your reply with a single fenced ```json code block",
     'containing exactly: {"calorieTarget": <integer kcal>, "proteinTargetG": <integer grams>,',
     '"carbsTargetG": <integer grams>, "fatTargetG": <integer grams>,',
-    '"rationale": "<2-4 sentences: the TDEE estimate, the adjustment for the goal, the',
+    '"rationale": "<2-4 sentences: the TDEE estimate, the recomp adjustment, the',
     'protein basis, the carb/fat split rationale, and any caveat>"}. No other text after',
     "the code block.",
   ].join(" ");
 
   const userText = [
-    `Calculate my daily calorie target and full macro split (protein, carbs, fat). Goal: ${goalLabel}.`,
+    `Calculate my fixed daily BASELINE calorie target and full macro split (protein, carbs, fat). Goal: ${goalLabel}.`,
     `Stats: ${row.sex}, age ${row.age}, height ${ft}'${inch}" (${row.heightIn} in),`,
     `current weight ${weight} lb${row.goalWeightLb ? `, goal weight ${row.goalWeightLb} lb` : ""},`,
     `activity level: ${row.activityLevel}.`,
@@ -387,10 +423,12 @@ router.post("/goals/compute-targets", async (req, res) => {
   try {
     const text = await researchTargets(system, userText);
     targets = await extractTargets(text);
-  } catch (err) {
-    req.log?.error({ err }, "compute-targets failed");
-    res.status(502).json({ error: "The AI request failed. Try again." });
-    return;
+  } catch {
+    return {
+      ok: false,
+      reason: "ai_error",
+      message: "The AI request failed. Try again.",
+    };
   }
 
   if (
@@ -404,12 +442,45 @@ router.post("/goals/compute-targets", async (req, res) => {
     targets.fatTargetG < MIN_FAT_G ||
     targets.fatTargetG > MAX_FAT_G
   ) {
-    res.status(502).json({
-      error: "The AI returned an unreadable or implausible result. Try again.",
-    });
-    return;
+    return {
+      ok: false,
+      reason: "implausible",
+      message: "The AI returned an unreadable or implausible result. Try again.",
+    };
   }
 
+  return { ok: true, targets };
+}
+
+// R4 best-effort hook: compute + persist the recomp baseline as part of another
+// flow (plan apply / AI plan accept). Never throws and never returns an HTTP
+// concern — callers log the outcome and move on. Returns the persisted targets
+// on success, or a short note on why it couldn't (missing stat / AI down).
+export async function computeAndPersistBaselineBestEffort(): Promise<
+  | { ok: true; targets: ComputedTargets }
+  | { ok: false; reason: string; message: string }
+> {
+  try {
+    const row = await readOrSeed();
+    const weight = await latestWeightLb();
+    const result = await computeBaselineTargets(row, weight);
+    if (!result.ok) {
+      return { ok: false, reason: result.reason, message: result.message };
+    }
+    await persistBaseline(result.targets);
+    return { ok: true, targets: result.targets };
+  } catch (err) {
+    return {
+      ok: false,
+      reason: "error",
+      message: err instanceof Error ? err.message : "baseline compute failed",
+    };
+  }
+}
+
+// Persist the four baseline macros + rationale onto the singleton row. The
+// targetsComputedAt timestamp marks this as the current baseline R5 adjusts.
+async function persistBaseline(targets: ComputedTargets): Promise<UserPreferencesRow> {
   const updated = await db
     .update(userPreferencesTable)
     .set({
@@ -423,8 +494,45 @@ router.post("/goals/compute-targets", async (req, res) => {
     })
     .where(eq(userPreferencesTable.id, SINGLETON_ID))
     .returning();
+  return updated[0]!;
+}
 
-  res.json(toApi(updated[0]!, weight));
-});
+// Shared handler for the on-demand baseline endpoints (compute-targets +
+// recompute-targets are aliases). Runs computeBaselineTargets and persists the
+// baseline, mapping the structured result onto HTTP. A missing essential input
+// returns HTTP 200 with a { needs, message } body so the UI prompts for just
+// that field instead of treating it as a hard error.
+async function handleBaselineCompute(req: Request, res: Response): Promise<void> {
+  const row = await readOrSeed();
+  const weight = await latestWeightLb();
+  const result = await computeBaselineTargets(row, weight);
+  if (!result.ok) {
+    if (result.reason === "needs") {
+      // 200 + needs[] — not an error, a prompt for the missing field(s).
+      res.status(200).json({ needs: result.needs, message: result.message });
+      return;
+    }
+    if (result.reason === "ai_unavailable") {
+      res.status(503).json({ error: result.message });
+      return;
+    }
+    if (result.reason === "ai_error") {
+      req.log?.error("compute-targets failed");
+      res.status(502).json({ error: result.message });
+      return;
+    }
+    res.status(502).json({ error: result.message });
+    return;
+  }
+  const updated = await persistBaseline(result.targets);
+  res.json(toApi(updated, weight));
+}
+
+// POST /api/goals/compute-targets — research + persist personalized baseline.
+router.post("/goals/compute-targets", handleBaselineCompute);
+
+// POST /api/goals/recompute-targets (R3) — alias of compute-targets. Recomputes
+// the fixed recomp baseline on demand and persists baseline + targetsComputedAt.
+router.post("/goals/recompute-targets", handleBaselineCompute);
 
 export default router;

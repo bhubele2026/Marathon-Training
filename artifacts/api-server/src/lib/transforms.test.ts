@@ -75,6 +75,7 @@ function makeRow(overrides: Partial<PlanDayRow> = {}): PlanDayRow {
     sessionType: "Strength + Cardio",
     isRest: false,
     totalLoad: 85,
+    plannedLoad: null,
     seedSessionType: null,
     seedEquipment: null,
     seedEquipmentList: null,

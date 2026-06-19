@@ -26,6 +26,8 @@ import {
   type PersonalContext,
   type DailyBudget,
 } from "@workspace/plan-knowledge";
+import { computePlannedLoad } from "../lib/nutrition-engine";
+import { computeAndPersistBaselineBestEffort } from "./goals";
 
 const router: IRouter = Router();
 
@@ -374,6 +376,14 @@ router.post("/plan-builder/accept", async (req, res): Promise<void> => {
           sessionType: d.sessionType,
           isRest: d.isRest,
           totalLoad: d.totalLoad,
+          // R4: normalized training-intensity score for the reactive
+          // nutrition engine (strength heaviest, run, then cardio; rest = 0).
+          plannedLoad: computePlannedLoad({
+            isRest: d.isRest,
+            strengthMin: d.strengthMin,
+            cardioMin: d.cardioMin,
+            runMin: d.runMin,
+          }),
           // seed_* mirrors so the "reset to original" affordance works.
           seedSessionType: d.sessionType,
           seedEquipment: d.equipment,
@@ -410,11 +420,31 @@ router.post("/plan-builder/accept", async (req, res): Promise<void> => {
     };
   });
 
+  // R4: accepting an AI plan also auto-produces the recomp nutrition baseline
+  // so the runner doesn't make a separate Goals trip. Best-effort — never
+  // fail the accept on a missing stat or AI outage. The one-line note is what
+  // the builder UI surfaces ("Nutrition baseline set: …").
+  const nutrition = await computeAndPersistBaselineBestEffort();
+  const nutritionNote = nutrition.ok
+    ? `Nutrition baseline set: ${nutrition.targets.calorieTarget} kcal, ${nutrition.targets.proteinTargetG} g protein, ${nutrition.targets.carbsTargetG} g carbs, ${nutrition.targets.fatTargetG} g fat.`
+    : `Nutrition baseline not set yet — ${nutrition.message}`;
+
   req.log?.warn(
-    { configId: result.configId, weeksSeeded: result.weeksSeeded, daysSeeded: result.daysSeeded },
+    {
+      configId: result.configId,
+      weeksSeeded: result.weeksSeeded,
+      daysSeeded: result.daysSeeded,
+      nutritionBaseline: nutrition.ok ? "computed" : nutrition.reason,
+    },
     "claude-authored plan accepted — plan_weeks/plan_days seeded",
   );
-  res.json(result);
+  res.json({
+    ...result,
+    nutritionNote,
+    nutritionBaseline: nutrition.ok
+      ? { computed: true, ...nutrition.targets }
+      : { computed: false, reason: nutrition.reason, message: nutrition.message },
+  });
 });
 
 export default router;

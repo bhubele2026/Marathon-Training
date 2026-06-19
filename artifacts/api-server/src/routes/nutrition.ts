@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request } from "express";
 import { db, nutritionDaysTable, type NutritionDayRow } from "@workspace/db";
 import { desc, eq, gte } from "drizzle-orm";
+import { getDayTarget, isValidDate } from "../lib/nutrition-day-target";
 
 // Daily calories + protein synced from a food tracker (MyNetDiary → Apple
 // Health → an Apple Shortcut that POSTs here once a day). The ingest route
@@ -206,6 +207,21 @@ router.get("/nutrition/recent", async (req, res) => {
     .orderBy(desc(nutritionDaysTable.date));
 
   res.json({ days, entries: rows.map(toApi) });
+});
+
+// GET /api/nutrition/day/:date (R5) — the reactive per-day target. Returns the
+// fixed recomp baseline, the training-reactive adjusted target, the delta, the
+// AI/fallback rationale, the actual logged intake (or null), and whether the
+// signal is "planned" (pre-log) or "actual" (a workout exists for the date).
+// Hand-fetched (not in openapi.yaml), matching the goals/nutrition convention.
+router.get("/nutrition/day/:date", async (req, res): Promise<void> => {
+  const date = req.params.date;
+  if (!isValidDate(date)) {
+    res.status(400).json({ error: "date must be YYYY-MM-DD." });
+    return;
+  }
+  const result = await getDayTarget(date);
+  res.json(result);
 });
 
 export default router;

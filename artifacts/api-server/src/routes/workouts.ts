@@ -4,6 +4,7 @@ import { and, asc, desc, eq, gte, isNull, lte, sql } from "drizzle-orm";
 import { CreateWorkoutBody, UpdateWorkoutBody, ListWorkoutsQueryParams } from "@workspace/api-zod";
 import { LIFESTYLE_EQUIPMENT } from "@workspace/plan-generator";
 import { toWorkout, type PrescribedRunTargetSource } from "../lib/transforms";
+import { invalidateDayTarget } from "../lib/nutrition-day-target";
 
 const router: IRouter = Router();
 
@@ -188,6 +189,9 @@ router.post("/workouts", async (req, res): Promise<void> => {
     timeOfDay: d.timeOfDay ?? null,
     modality: d.modality ?? null,
   }).returning();
+  // R5: logging a workout reshapes that date's reactive nutrition target
+  // (planned → actual). Bust the cache so the next GET recomputes.
+  await invalidateDayTarget(inserted[0]!.date);
   const prescribed = await fetchPrescribedRunTarget(inserted[0]!.planDayId);
   res.status(201).json(toWorkout(inserted[0]!, prescribed));
 });
@@ -254,7 +258,7 @@ router.patch("/workouts/:id", async (req, res): Promise<void> => {
     // multi-machine rail.
     delete patch.equipmentList;
   }
-  const updated = await db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const existing = (
       await tx.select().from(workoutsTable).where(eq(workoutsTable.id, id)).limit(1)
     )[0];
@@ -268,12 +272,17 @@ router.patch("/workouts/:id", async (req, res): Promise<void> => {
       .set(finalPatch)
       .where(eq(workoutsTable.id, id))
       .returning();
-    return next[0]!;
+    return { updated: next[0]!, prevDate: existing.date };
   });
-  if (!updated) {
+  if (!result) {
     res.status(404).json({ error: "not found" });
     return;
   }
+  const { updated, prevDate } = result;
+  // R5: editing/skipping a workout reshapes that date's reactive nutrition
+  // target. Bust both the previous and (possibly changed) new date.
+  await invalidateDayTarget(prevDate);
+  if (updated.date !== prevDate) await invalidateDayTarget(updated.date);
   const prescribed = await fetchPrescribedRunTarget(updated.planDayId);
   res.json(toWorkout(updated, prescribed));
 });
@@ -401,6 +410,9 @@ router.post("/workouts/import", async (req, res): Promise<void> => {
 
   let imported = 0;
   let skipped = 0;
+  // R5: dates touched by this import whose reactive nutrition target must be
+  // recomputed (a logged actual changed the day's training signal).
+  const touchedDates = new Set<string>();
   for (const item of items) {
     const rawType = typeof item.type === "string" ? item.type : "";
     const startRaw = typeof item.start === "string" ? item.start : "";
@@ -476,7 +488,11 @@ router.post("/workouts/import", async (req, res): Promise<void> => {
         },
       });
     imported++;
+    touchedDates.add(date);
   }
+
+  // Bust the reactive nutrition target cache for every date this import wrote.
+  for (const d of touchedDates) await invalidateDayTarget(d);
 
   res.json({ imported, skipped });
 });
@@ -487,7 +503,17 @@ router.delete("/workouts/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: "invalid id" });
     return;
   }
+  const existing = (
+    await db
+      .select({ date: workoutsTable.date })
+      .from(workoutsTable)
+      .where(eq(workoutsTable.id, id))
+      .limit(1)
+  )[0];
   await db.delete(workoutsTable).where(eq(workoutsTable.id, id));
+  // R5: removing a logged workout reverts that date toward its planned
+  // target — bust the cache so the next GET recomputes.
+  if (existing) await invalidateDayTarget(existing.date);
   res.status(204).send();
 });
 
