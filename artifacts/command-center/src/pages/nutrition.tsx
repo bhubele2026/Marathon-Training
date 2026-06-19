@@ -54,6 +54,31 @@ function todayUtc(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Build a fixed N-day calendar axis ending today (oldest → newest), filling each
+// day from `entries` (or a null-value placeholder). Without this, the trend only
+// renders bars for days that HAVE data, so 1-2 logged days stretch into giant
+// half-width blocks. A fixed axis makes one day read as one thin bar.
+function buildTrendAxis(entries: NutritionDay[], days: number): NutritionDay[] {
+  const byDate = new Map(entries.map((e) => [e.date, e]));
+  const today = new Date(`${todayUtc()}T12:00:00Z`).getTime();
+  const out: NutritionDay[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const iso = new Date(today - i * 86400000).toISOString().slice(0, 10);
+    out.push(
+      byDate.get(iso) ?? {
+        date: iso,
+        calories: null,
+        proteinG: null,
+        carbsG: null,
+        fatG: null,
+        sodiumMg: null,
+        updatedAt: null,
+      },
+    );
+  }
+  return out;
+}
+
 function fmt(n: number): string {
   return n.toLocaleString();
 }
@@ -187,10 +212,15 @@ function MacroTrendRow({
   pick: (e: NutritionDay) => number | null;
   goal: number | null;
 }) {
-  const peak = Math.max(goal ?? 0, 1, ...entries.map((e) => pick(e) ?? 0));
-  const latest = entries[0] ? pick(entries[0]) : null;
+  // `entries` is the fixed oldest → newest axis (buildTrendAxis); some days have
+  // no data (null). Peak scales the bars off real values + the goal line.
+  const values = entries.map((e) => pick(e));
+  const peak = Math.max(goal ?? 0, 1, ...values.map((v) => v ?? 0));
+  const loggedCount = values.filter((v) => v != null).length;
+  // Newest day = last in the axis.
+  const latest = values.length ? values[values.length - 1] : null;
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
           <Icon className="h-3.5 w-3.5 text-primary" />
@@ -209,26 +239,38 @@ function MacroTrendRow({
           )}
         </span>
       </div>
-      {/* Oldest → newest left to right (entries arrive newest-first). */}
-      <div className="flex items-end gap-0.5 h-10">
-        {[...entries].reverse().map((e) => {
+      {/* Fixed-width daily strip, oldest → newest. Days with no data show as a
+          faint empty slot rather than stretching the logged days into blocks. */}
+      <div className="flex items-end gap-px h-9">
+        {entries.map((e) => {
           const v = pick(e);
-          const h = v == null ? 0 : Math.max(2, (v / peak) * 100);
+          const h = v == null ? 0 : Math.max(6, (v / peak) * 100);
           const hitGoal = goal != null && v != null && v >= goal;
           return (
             <div
               key={e.date}
-              className="flex-1 bg-muted/60 h-full flex items-end"
+              className="flex-1 h-full flex items-end rounded-sm bg-muted/40"
               title={`${formatDayLabel(e.date)}: ${v != null ? `${v} ${unit}` : "no data"}`}
             >
-              <div
-                className={hitGoal ? "w-full bg-primary" : "w-full bg-primary/40"}
-                style={{ height: `${h}%` }}
-              />
+              {v != null && (
+                <div
+                  className={
+                    "w-full rounded-sm " + (hitGoal ? "bg-primary" : "bg-primary/45")
+                  }
+                  style={{ height: `${h}%` }}
+                />
+              )}
             </div>
           );
         })}
       </div>
+      {loggedCount < 3 && (
+        <p className="text-[10px] text-muted-foreground">
+          {loggedCount === 0
+            ? "No data yet — your trend builds as you sync each day."
+            : `${loggedCount} day${loggedCount === 1 ? "" : "s"} logged · the trend fills in over the next couple of weeks.`}
+        </p>
+      )}
     </div>
   );
 }
@@ -343,6 +385,8 @@ export default function Nutrition() {
   ];
 
   const entries = recentQuery.data?.entries ?? [];
+  // Fixed 14-day axis so sparse data renders as thin daily bars, not blocks.
+  const trendAxis = buildTrendAxis(entries, 14);
   const loadingRings =
     todayQuery.isLoading || goalsQuery.isLoading || dayQuery.isLoading;
 
@@ -447,7 +491,7 @@ export default function Nutrition() {
                 label="Calories"
                 Icon={Flame}
                 unit="kcal"
-                entries={entries}
+                entries={trendAxis}
                 pick={(e) => e.calories}
                 goal={target?.cal ?? null}
               />
@@ -455,7 +499,7 @@ export default function Nutrition() {
                 label="Protein"
                 Icon={Beef}
                 unit="g"
-                entries={entries}
+                entries={trendAxis}
                 pick={(e) => e.proteinG}
                 goal={target?.protein ?? null}
               />
@@ -463,7 +507,7 @@ export default function Nutrition() {
                 label="Carbs"
                 Icon={Wheat}
                 unit="g"
-                entries={entries}
+                entries={trendAxis}
                 pick={(e) => e.carbsG}
                 goal={target?.carbs ?? null}
               />
@@ -471,7 +515,7 @@ export default function Nutrition() {
                 label="Fat"
                 Icon={Droplet}
                 unit="g"
-                entries={entries}
+                entries={trendAxis}
                 pick={(e) => e.fatG}
                 goal={target?.fat ?? null}
               />
