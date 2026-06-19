@@ -4,76 +4,6 @@
 
 export const PROPOSE_PLAN_TOOL_NAME = "propose_plan";
 
-// One real movement inside a strength day. The model's missing piece: a
-// strength workout is an ordered list of these, not just a minute count.
-const STRENGTH_BLOCK_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["movement", "pattern", "sets"],
-  properties: {
-    movement: {
-      type: "string",
-      description: 'Movement name, e.g. "Back Squat", "Bench Press".',
-    },
-    pattern: {
-      type: "string",
-      enum: [
-        "squat",
-        "hinge",
-        "horizontal_push",
-        "horizontal_pull",
-        "vertical_push",
-        "vertical_pull",
-        "lunge",
-        "carry",
-        "core",
-      ],
-      description:
-        "Primary movement pattern — used to balance the week (cover squat, hinge, pushes, pulls, legs, core).",
-    },
-    sets: { type: "number", description: "Working sets." },
-    reps: {
-      type: ["string", "null"],
-      description:
-        'OPTIONAL. Leave empty by default — on Tonal the program + digital ' +
-        'auto-weight DRIVE the reps, so do NOT prescribe them. Only set as light ' +
-        'guidance (e.g. "8-10") when it genuinely helps.',
-    },
-    loadType: {
-      type: ["string", "null"],
-      enum: ["percent_1rm", "rir", "lb", "bodyweight", null],
-      description:
-        "OPTIONAL. Tonal's auto-calibrating weight owns the load, so usually leave null. Only set as guidance.",
-    },
-    loadValue: {
-      type: ["number", "null"],
-      description:
-        "Numeric load for loadType when given. Usually null — Tonal auto-loads.",
-    },
-    tempo: {
-      type: ["string", "null"],
-      description: 'Optional tempo, e.g. "3-1-1" (ecc-pause-con).',
-    },
-    restSec: {
-      type: ["number", "null"],
-      description: "Optional rest between sets, seconds.",
-    },
-    equipment: {
-      type: ["string", "null"],
-      description: 'Equipment for this movement, e.g. "Tonal", "Tonal + bench".',
-    },
-    tonalMode: {
-      type: ["string", "null"],
-      description:
-        'Named Tonal mode to run (e.g. "eccentric", "chains", "burnout", "spotter"). Free text — Tonal has no public API.',
-    },
-    cue: {
-      type: ["string", "null"],
-      description: "Short coaching cue / note.",
-    },
-  },
-} as const;
-
 const DAY_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -96,17 +26,8 @@ const DAY_SCHEMA = {
     sessionType: {
       type: "string",
       description:
-        'Short label, e.g. "Rest", "Lower A", "Upper Pull", "Conditioning", "Long Run".',
-    },
-    strengthBlocks: {
-      type: "array",
-      items: STRENGTH_BLOCK_SCHEMA,
-      description:
-        "Ordered real strength movements for this day — the ACTUAL workout. " +
-        "Required on every strength/lifting day (do NOT emit a lifting day as " +
-        "minutes only). Omit / empty on rest, pure-conditioning, or pure-run " +
-        "days. Express PROGRESSION by changing these week to week (load up, reps " +
-        "up, or volume up) so week 1 differs from week 8 for the same movement.",
+        'The session focus label, from the anchored Tonal program\'s split — ' +
+        'e.g. "Rest", "Lower Strength", "Upper Pull", "Full Body", "Conditioning", "Long Run".',
     },
     strengthMin: { type: "number", description: "Tonal / lifting minutes." },
     cardioMin: {
@@ -133,7 +54,11 @@ const DAY_SCHEMA = {
     },
     description: {
       type: "string",
-      description: "One-sentence prescription shown on the day card.",
+      description:
+        "One line shown on the day card: which Tonal program (and roughly which " +
+        'week/day of it) this session follows, plus any conditioning — e.g. ' +
+        '"Tonal — Making Muscle, Week 3 lower day; + 10 min Peloton Bike intervals." ' +
+        "Do NOT list individual exercises/sets — Tonal coaches those.",
     },
   },
 } as const;
@@ -245,8 +170,9 @@ export const PROPOSE_PLAN_TOOL = {
   description:
     "Emit the complete training plan as structured data. Call this whenever you " +
     "want to show the runner a plan or an updated plan. Always emit the FULL plan " +
-    "(every week, every day) — not a diff. Every lifting day MUST carry real " +
-    "strengthBlocks (movements + sets), not just minutes. Do NOT prescribe reps " +
-    "or weight — Tonal's program and auto-weight drive those.",
+    "(every week, every day) — not a diff. Each training day is a SESSION (focus " +
+    "+ minutes + machines + which Tonal program/week it follows in the " +
+    "description). Do NOT list individual exercises, sets, reps or weight — Tonal " +
+    "coaches those when the client runs the session.",
   input_schema: PROPOSE_PLAN_INPUT_SCHEMA,
 } as const;

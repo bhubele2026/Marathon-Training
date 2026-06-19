@@ -2,14 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { Send, Loader2, Check, AlertTriangle, Info, SlidersHorizontal, RotateCcw } from "lucide-react";
-import type { StrengthBlock } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { StrengthBlocks } from "@/components/strength-blocks";
 
 // ---------------------------------------------------------------------------
 // Local copies of the plan shapes returned by /api/plan-builder. Kept inline so
@@ -25,7 +23,6 @@ interface AiDay {
   strengthMin: number;
   cardioMin: number;
   runMin: number;
-  strengthBlocks?: StrengthBlock[] | null;
   distanceMi?: number | null;
   pace?: string | null;
   equipmentList: string[];
@@ -633,11 +630,9 @@ export default function PlanBuilder() {
                                   ))}
                                 </div>
                               )}
-                              <StrengthBlocks blocks={d.strengthBlocks} />
-                              {(!d.strengthBlocks || d.strengthBlocks.length === 0) &&
-                                d.description && (
-                                  <p className="text-xs text-muted-foreground">{d.description}</p>
-                                )}
+                              {d.description && (
+                                <p className="text-xs text-muted-foreground">{d.description}</p>
+                              )}
                             </div>
                           );
                         })}
