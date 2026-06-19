@@ -77,45 +77,45 @@
      teal accent. Light token set; kept in sync with the `studio`
      palette in `@workspace/visual-themes` so first paint matches. */
   --background: 210 20% 98%;
-  --foreground: 220 18% 14%;
+  --foreground: 20 12% 12%;
   --border: 220 14% 90%;
   --card: 0 0% 100%;
-  --card-foreground: 220 18% 14%;
+  --card-foreground: 20 12% 12%;
   --card-border: 220 14% 91%;
 
   --sidebar: 220 16% 13%;
   --sidebar-foreground: 220 12% 82%;
   --sidebar-border: 220 12% 20%;
-  --sidebar-primary: 222 82% 52%;
+  --sidebar-primary: 22 92% 50%;
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 220 12% 20%;
   --sidebar-accent-foreground: 0 0% 98%;
-  --sidebar-ring: 222 82% 52%;
+  --sidebar-ring: 22 92% 50%;
 
   --popover: 0 0% 100%;
-  --popover-foreground: 220 18% 14%;
+  --popover-foreground: 20 12% 12%;
   --popover-border: 220 14% 91%;
 
-  --primary: 222 84% 50%;
+  --primary: 22 92% 52%;
   --primary-foreground: 0 0% 100%;
   --secondary: 220 16% 95%;
   --secondary-foreground: 220 18% 18%;
   --muted: 220 16% 96%;
   --muted-foreground: 220 9% 45%;
-  --accent: 222 84% 50%;
+  --accent: 22 92% 52%;
   --accent-foreground: 0 0% 100%;
   --destructive: 0 60% 48%;
   --destructive-foreground: 0 0% 100%;
   --input: 220 14% 89%;
-  --ring: 222 84% 50%;
+  --ring: 22 92% 52%;
 
   /* Single teal accent. Legacy `brand-orange` / `brand-purple` token
      NAMES preserved for downstream components; both map to the teal.
      Charts: chart-1 = accent, chart-2..5 = a graded neutral gray ramp
      (no second hue). */
-  --brand-orange: 222 84% 50%;
-  --brand-purple: 222 84% 50%;
-  --chart-1: 222 84% 52%;
+  --brand-orange: 22 92% 52%;
+  --brand-purple: 22 92% 52%;
+  --chart-1: 22 92% 52%;
   --chart-2: 220 10% 38%;
   --chart-3: 220 9% 52%;
   --chart-4: 220 8% 66%;
@@ -125,8 +125,8 @@
      rainbow). The active visual theme can still re-skin them. */
   --phase-foundation: hsl(220 9% 56%);
   --phase-aerobic: hsl(220 9% 46%);
-  --phase-tempo: hsl(222 70% 54%);
-  --phase-race-specific: hsl(222 88% 60%);
+  --phase-tempo: hsl(22 85% 53%);
+  --phase-race-specific: hsl(24 95% 58%);
   --phase-taper: hsl(220 9% 66%);
 
   --app-font-sans: 'Inter', sans-serif;
@@ -167,32 +167,32 @@
   --sidebar: 220 16% 6%;
   --sidebar-foreground: 210 12% 84%;
   --sidebar-border: 220 10% 14%;
-  --sidebar-primary: 222 88% 60%;
+  --sidebar-primary: 24 95% 58%;
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 220 10% 15%;
   --sidebar-accent-foreground: 210 16% 94%;
-  --sidebar-ring: 222 88% 60%;
+  --sidebar-ring: 24 95% 58%;
 
   --popover: 220 12% 12%;
   --popover-foreground: 210 16% 94%;
   --popover-border: 220 10% 18%;
 
-  --primary: 222 88% 60%;
+  --primary: 24 95% 58%;
   --primary-foreground: 0 0% 100%;
   --secondary: 220 10% 16%;
   --secondary-foreground: 210 16% 94%;
   --muted: 220 10% 14%;
   --muted-foreground: 215 10% 62%;
-  --accent: 222 88% 60%;
+  --accent: 24 95% 58%;
   --accent-foreground: 0 0% 100%;
   --destructive: 0 62% 52%;
   --destructive-foreground: 0 0% 100%;
   --input: 220 10% 16%;
-  --ring: 222 88% 60%;
+  --ring: 24 95% 58%;
 
-  --brand-orange: 222 88% 60%;
-  --brand-purple: 222 88% 60%;
-  --chart-1: 222 90% 64%;
+  --brand-orange: 24 95% 58%;
+  --brand-purple: 24 95% 58%;
+  --chart-1: 24 95% 60%;
   --chart-2: 220 10% 70%;
   --chart-3: 220 9% 56%;
   --chart-4: 220 8% 42%;
@@ -200,8 +200,8 @@
 
   --phase-foundation: hsl(220 9% 56%);
   --phase-aerobic: hsl(220 9% 46%);
-  --phase-tempo: hsl(222 70% 54%);
-  --phase-race-specific: hsl(222 88% 60%);
+  --phase-tempo: hsl(22 85% 53%);
+  --phase-race-specific: hsl(24 95% 58%);
   --phase-taper: hsl(220 9% 66%);
 }
 
