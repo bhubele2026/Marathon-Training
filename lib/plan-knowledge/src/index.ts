@@ -4,3 +4,4 @@ export * from "./schema";
 export * from "./briefing";
 export * from "./guardrails";
 export * from "./materialize";
+export * from "./programs";

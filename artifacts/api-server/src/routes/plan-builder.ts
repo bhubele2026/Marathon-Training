@@ -201,26 +201,43 @@ router.post("/plan-builder/chat", async (req, res): Promise<void> => {
   req.on("close", () => controller.abort());
 
   try {
-    // Params cast to any: `output_config.effort` and adaptive `thinking` are
-    // GA on the API but may not be in the installed SDK's static types yet.
-    // The wire shape is correct; the cast just keeps the build green.
-    const params = {
-      model: MODEL,
-      max_tokens: 64000,
-      thinking: { type: "adaptive" as const },
-      // Interactive use — balance reasoning quality with latency.
-      output_config: { effort: "medium" as const },
-      system,
-      tools: [PROPOSE_PLAN_TOOL],
-      messages,
-    };
-    const stream = getAnthropic().messages.stream(params as never, {
-      signal: controller.signal,
-    });
-
-    stream.on("text", (delta: string) => send({ type: "text", text: delta }));
-
-    const final = await stream.finalMessage();
+    // Params cast to any: `output_config.effort`, adaptive `thinking`, and the
+    // server-side `web_search` tool are GA on the API but may not be in the
+    // installed SDK's static types yet. The wire shape is correct; the cast just
+    // keeps the build green.
+    //
+    // web_search lets the coach confirm a real Tonal program's structure at
+    // runtime when the client names one that isn't in the built-in catalog
+    // (Phase 2). Server-side tools run inside the same turn; a long turn can
+    // come back with stop_reason "pause_turn", which we drain by re-streaming
+    // with the assistant turn echoed back (bounded loop).
+    const conv: Anthropic.MessageParam[] = [...messages];
+    let final!: Anthropic.Message;
+    for (let i = 0; i < 5; i++) {
+      const params = {
+        model: MODEL,
+        max_tokens: 64000,
+        thinking: { type: "adaptive" as const },
+        // Interactive use — balance reasoning quality with latency.
+        output_config: { effort: "medium" as const },
+        system,
+        tools: [
+          PROPOSE_PLAN_TOOL,
+          { type: "web_search_20260209", name: "web_search" },
+        ],
+        messages: conv,
+      };
+      const stream = getAnthropic().messages.stream(params as never, {
+        signal: controller.signal,
+      });
+      stream.on("text", (delta: string) => send({ type: "text", text: delta }));
+      final = await stream.finalMessage();
+      if (final.stop_reason === "pause_turn") {
+        conv.push({ role: "assistant", content: final.content });
+        continue;
+      }
+      break;
+    }
 
     // Pull the proposed plan out of the tool_use block, if any.
     const toolBlock = final.content.find(

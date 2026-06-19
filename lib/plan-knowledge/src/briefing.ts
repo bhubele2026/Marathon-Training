@@ -1,5 +1,6 @@
 import { normalizeDailyBudget } from "./types";
 import type { PersonalContext } from "./types";
+import { programCatalogForPrompt, TONAL_DYNAMIC_MODES } from "./programs";
 
 // The trainer knowledge base. This is the system prompt Claude reasons from when
 // it authors a plan. It is deliberately EQUIPMENT-FIRST and STRENGTH-FIRST — this
@@ -82,6 +83,34 @@ client):
   + being able to cover the distance comfortably — not junk mileage.
 - Easy pace is conversational; quality days faster. Use run/walk on the Tread for
   newer or heavier clients.
+
+## Tonal programs — build AROUND a real program when asked
+You know a library of real, named Tonal programs (listed under "Available Tonal
+programs" below). Use it like a real coach:
+- The client can ask you to LIST programs or RECOMMEND one. For recomp, lean
+  toward the recomp- and hypertrophy-emphasis programs; say why one fits.
+- When the client NAMES a program ("build around Tonal's <X> program"), anchor
+  the plan to that program's STRUCTURE: its split, its day-to-day movement-
+  pattern skeleton, its progression style, and its dynamic-weight modes. If the
+  named program isn't in the library below, use the \`web_search\` tool to find
+  its real structure, then CONFIRM what you found with the client before
+  building (cite what you saw). Don't invent a program that doesn't exist.
+- TAILOR the program to THIS client: fit its sessions into the fixed cadence
+  (Mon rest; Tue–Thu 30–50 min; Fri–Sun 60–90 min), the recomp goal, the
+  available equipment, and the client's measurements / strength level. Most Tonal
+  programs are 4 weeks — to fill a longer plan, repeat the block with progression
+  (more load/volume) or chain a beginner→intermediate phase. Add Bike/Row
+  conditioning on the longer days for the recomp calorie burn.
+- HONESTY (say this when you anchor a plan): Studio replicates the program's
+  STRUCTURE — there is no Tonal account connection and no live import (Tonal has
+  no public API). The client should run the official program in the Tonal app
+  itself for the in-app coaching; Studio schedules and tracks around it. Set the
+  \`tonalProgram\` field on \`propose_plan\` to the program's name when you anchor.
+- Tonal's load progression is the MACHINE's auto-calibrating digital weight (1 lb
+  increments), not a % table — so program PROGRESSION over the plan via the
+  structural scheme (volume accumulation, ABAB rotation, wave/ascending/burnout,
+  max/dynamic effort) and name the relevant dynamic mode on a movement's
+  \`tonalMode\` when it applies (${TONAL_DYNAMIC_MODES.join(", ")}).
 
 ## Conditioning (Peloton Bike / Row)
 - Your primary aerobic + calorie-burn tool — low impact, joint-friendly. Use it
@@ -262,5 +291,8 @@ export function buildSystemBriefing(ctx: PersonalContext): string {
     lines.push(`Client notes: ${ctx.notes}`);
   }
 
-  return `${TRAINING_SCIENCE}\n\n## This client\n${lines.join("\n")}`;
+  return (
+    `${TRAINING_SCIENCE}\n\n## This client\n${lines.join("\n")}` +
+    `\n\n## Available Tonal programs (replicate STRUCTURE, not a live import)\n${programCatalogForPrompt()}`
+  );
 }

@@ -33,10 +33,14 @@ interface AiWeek {
   phase: string;
   days: AiDay[];
 }
+type GoalKind = "recomp" | "strength" | "hypertrophy" | "fat_loss" | "general" | "race";
 interface AiPlan {
   summary: string;
   name: string;
-  raceKind: RaceKind;
+  goalKind?: GoalKind | null;
+  raceKind?: RaceKind | null;
+  /** Set when the coach anchored the plan to a real Tonal program. */
+  tonalProgram?: string | null;
   startDate: string;
   weeks: AiWeek[];
 }
@@ -406,10 +410,28 @@ export default function PlanBuilder() {
                 <div className="flex flex-wrap gap-2 text-xs">
                   <Badge variant="secondary">{totalWeeks} weeks</Badge>
                   <Badge variant="secondary">
-                    {plan.raceKind === "none" ? "Workout plan" : plan.raceKind.toUpperCase()}
+                    {plan.raceKind && plan.raceKind !== "none"
+                      ? plan.raceKind.toUpperCase()
+                      : plan.goalKind
+                        ? plan.goalKind.replace("_", " ")
+                        : "Workout plan"}
                   </Badge>
                   <Badge variant="secondary">Starts {plan.startDate}</Badge>
                 </div>
+
+                {/* Phase 2: Tonal-program anchoring honesty note. Structure is
+                    replicated — there is no Tonal account connection / live
+                    import (Tonal has no public API). */}
+                {plan.tonalProgram && (
+                  <p className="text-xs text-muted-foreground">
+                    Built around the structure of{" "}
+                    <span className="font-medium text-foreground">{plan.tonalProgram}</span>.
+                    Studio replicates the program's structure (split, progression,
+                    movement focus) and schedules around it — it doesn't connect to
+                    your Tonal account or import your live program. Run the official
+                    program in the Tonal app for the in-app coaching.
+                  </p>
+                )}
 
                 {(warnings.length > 0 || infos.length > 0) && (
                   <div className="space-y-1">
