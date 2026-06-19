@@ -99,6 +99,9 @@ export default function Goals() {
   const [goalWeight, setGoalWeight] = useState("");
   const [scoreNow, setScoreNow] = useState("");
   const [scoreGoal, setScoreGoal] = useState("");
+  // When compute returns a structured "needs" (e.g. no weight logged yet), we
+  // surface this instead of overwriting the goals cache (which blanked the form).
+  const [needsMsg, setNeedsMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (!data) return;
@@ -146,8 +149,40 @@ export default function Goals() {
   });
 
   const computeTargets = useMutation({
-    mutationFn: () => sendJson<Goals>("/api/goals/compute-targets", "POST", {}),
-    onSuccess: (g) => qc.setQueryData(["/api/goals"], g),
+    mutationFn: async (): Promise<Goals | { needs: string[]; message: string }> => {
+      // Persist whatever the user just typed FIRST, so they don't have to click
+      // "Save stats" separately before calculating.
+      const f = numOrNull(ft);
+      const i = numOrNull(inch);
+      const heightIn = f != null ? f * 12 + (i ?? 0) : null;
+      await sendJson<Goals>("/api/goals", "PUT", {
+        heightIn,
+        age: numOrNull(age),
+        sex: sex || null,
+        activityLevel: activity || null,
+        bodyGoal,
+        goalWeightLb: numOrNull(goalWeight),
+      });
+      return sendJson<Goals | { needs: string[]; message: string }>(
+        "/api/goals/compute-targets",
+        "POST",
+        {},
+      );
+    },
+    onSuccess: (res) => {
+      // A "needs" result (HTTP 200 with {needs,message}) is a prompt for a
+      // missing input — show it, refresh from the server (keeping the saved
+      // stats), and do NOT overwrite the goals cache with this non-Goals shape.
+      if (res && typeof res === "object" && "needs" in res) {
+        setNeedsMsg(
+          res.message || "Add the missing info, then calculate again.",
+        );
+        qc.invalidateQueries({ queryKey: ["/api/goals"] });
+        return;
+      }
+      setNeedsMsg(null);
+      qc.setQueryData(["/api/goals"], res);
+    },
   });
 
   const protein = data?.proteinTargetG ?? null;
@@ -375,6 +410,9 @@ export default function Goals() {
               <span className="text-xs text-destructive">
                 {(computeTargets.error as Error).message}
               </span>
+            )}
+            {needsMsg && !computeTargets.isPending && (
+              <span className="text-xs text-amber-600">{needsMsg}</span>
             )}
             {data?.targetsComputedAt && (
               <span className="text-xs text-muted-foreground">
