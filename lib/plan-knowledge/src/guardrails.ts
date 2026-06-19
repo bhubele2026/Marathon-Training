@@ -1,5 +1,6 @@
 import { DAY_ORDER } from "./dates";
 import { dayBudgetForDayName } from "./types";
+import { findProgramByName } from "./programs";
 import type {
   AiPlan,
   AiStrengthBlock,
@@ -8,6 +9,13 @@ import type {
   Guardrail,
   MovementPattern,
 } from "./types";
+
+/** A "lifting day" = a non-rest day that uses Tonal for strength. A
+ * conditioning-only day (Bike/Row, no Tonal) does NOT count toward the
+ * program's lifting frequency. */
+function isLiftingDay(d: { isRest: boolean; strengthMin: number }): boolean {
+  return !d.isRest && d.strengthMin > 0;
+}
 
 // Movement-pattern groups for weekly-balance checks.
 const PULL_PATTERNS: MovementPattern[] = ["horizontal_pull", "vertical_pull"];
@@ -70,7 +78,7 @@ export function planIncludesRunning(
 export function runGuardrails(
   plan: AiPlan,
   budget: DailyBudget,
-  opts?: { includesRunning?: boolean },
+  opts?: { includesRunning?: boolean; liftDaysPerWeek?: number | null },
 ): Guardrail[] {
   const out: Guardrail[] = [];
   const includesRunning = planIncludesRunning(plan, opts);
@@ -82,6 +90,17 @@ export function runGuardrails(
   const planUsesBlocks = plan.weeks.some((w) =>
     w.days.some((d) => (d.strengthBlocks?.length ?? 0) > 0),
   );
+
+  // Expected Tonal lifting days per week: an explicit client-stated frequency
+  // (opts) wins; otherwise derive it from the anchored library program's
+  // daysPerWeek. Drives the lifting_frequency_mismatch check so a 4-day program
+  // can't be padded out to 5–6 Tonal days.
+  const expectedLiftDays =
+    typeof opts?.liftDaysPerWeek === "number" && opts.liftDaysPerWeek > 0
+      ? opts.liftDaysPerWeek
+      : plan.tonalProgram
+        ? (findProgramByName(plan.tonalProgram)?.daysPerWeek ?? null)
+        : null;
 
   // startDate is no longer required to be a Monday — the server snaps it to the
   // Monday on/before (week 1's rest day). So we don't flag a non-Monday start.
@@ -188,7 +207,10 @@ export function runGuardrails(
             message: `Week ${week.week} ${d.day} totals ${total} min, over the ${win.max} min ${bucket}-day ceiling.`,
           });
         }
-        if (total < win.min) {
+        // The day-floor only applies to LIFTING days. An optional, light
+        // conditioning-only day (no Tonal) is the client's add-on and is not
+        // held to the window's floor.
+        if (total < win.min && d.strengthMin > 0) {
           out.push({
             level: "info",
             code: "under_budget",
@@ -320,6 +342,26 @@ export function runGuardrails(
             message: `Week ${week.week} is unbalanced (${missing.join(", ")}) — spread the week across push, pull, legs and core.`,
           });
         }
+      }
+    }
+
+    // Lifting-frequency match: when the plan is anchored to a program with a
+    // known days/week (or a client-stated frequency), the week's Tonal lifting
+    // days must equal it — this catches the coach padding a 4-day program out to
+    // 5–6 Tonal days. Conditioning-only days (no Tonal) don't count.
+    if (expectedLiftDays != null) {
+      const liftDays = week.days.filter(isLiftingDay).length;
+      if (liftDays !== expectedLiftDays) {
+        out.push({
+          level: "warn",
+          code: "lifting_frequency_mismatch",
+          week: week.week,
+          message: `Week ${week.week} has ${liftDays} Tonal lifting day${
+            liftDays === 1 ? "" : "s"
+          }, but the program is ${expectedLiftDays} day${
+            expectedLiftDays === 1 ? "" : "s"
+          }/week — schedule exactly ${expectedLiftDays} Tonal days and rest the others.`,
+        });
       }
     }
 

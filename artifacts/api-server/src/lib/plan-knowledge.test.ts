@@ -334,6 +334,75 @@ describe("runGuardrails — Phase 5 strength model", () => {
   });
 });
 
+describe("runGuardrails — lifting frequency (program days/week)", () => {
+  const ORDER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+  function weekWith(liftDays: string[]): AiWeek {
+    return {
+      week: 1,
+      phase: "Accumulation",
+      days: ORDER.map((dn) =>
+        dn !== "Mon" && liftDays.includes(dn)
+          ? day({ day: dn, sessionType: "Lift", strengthMin: 40 })
+          : day({ day: dn, isRest: true, sessionType: "Rest", strengthMin: 0, equipmentList: [] }),
+      ),
+    };
+  }
+  // House of Volume = 4 days/week in the library.
+  const anchored = (week: AiWeek): AiPlan => ({
+    summary: "s",
+    name: "x",
+    goalKind: "recomp",
+    tonalProgram: "House of Volume",
+    startDate: MON,
+    weeks: [week],
+  });
+
+  it("flags a week with MORE Tonal days than the program's frequency (the padding bug)", () => {
+    const codes = runGuardrails(
+      anchored(weekWith(["Tue", "Wed", "Thu", "Fri", "Sat", "Sun"])),
+      {},
+    ).map((g) => g.code);
+    expect(codes).toContain("lifting_frequency_mismatch");
+  });
+
+  it("passes when the lifting-day count matches the program frequency (4)", () => {
+    const codes = runGuardrails(
+      anchored(weekWith(["Tue", "Thu", "Sat", "Sun"])),
+      {},
+    ).map((g) => g.code);
+    expect(codes).not.toContain("lifting_frequency_mismatch");
+  });
+
+  it("does NOT count a conditioning-only day toward the lifting frequency", () => {
+    const w = weekWith(["Tue", "Thu", "Sat", "Sun"]); // 4 lift days
+    // Add a Bike conditioning day on Wed (no Tonal) — still 4 lifting days.
+    w.days = w.days.map((d) =>
+      d.day === "Wed"
+        ? day({ day: "Wed", sessionType: "Conditioning", strengthMin: 0, cardioMin: 40, equipmentList: ["Peloton Bike"] })
+        : d,
+    );
+    const codes = runGuardrails(anchored(w), {}).map((g) => g.code);
+    expect(codes).not.toContain("lifting_frequency_mismatch");
+  });
+
+  it("ignores frequency when no program is anchored", () => {
+    const w = weekWith(["Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
+    const plan: AiPlan = { summary: "s", name: "x", goalKind: "recomp", startDate: MON, weeks: [w] };
+    expect(runGuardrails(plan, {}).map((g) => g.code)).not.toContain(
+      "lifting_frequency_mismatch",
+    );
+  });
+
+  it("honors an explicit client-stated frequency via opts", () => {
+    const w = weekWith(["Tue", "Thu", "Sat", "Sun"]); // 4 lift days
+    const plan: AiPlan = { summary: "s", name: "x", goalKind: "recomp", startDate: MON, weeks: [w] };
+    // Client said 3 days/week — 4 scheduled should flag.
+    expect(
+      runGuardrails(plan, {}, { liftDaysPerWeek: 3 }).map((g) => g.code),
+    ).toContain("lifting_frequency_mismatch");
+  });
+});
+
 describe("planIncludesRunning — Phase 1 goalKind", () => {
   it("is false for a recomp plan with no raceKind set", () => {
     expect(planIncludesRunning({ goalKind: "recomp" })).toBe(false);
