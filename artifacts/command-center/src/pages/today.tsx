@@ -229,7 +229,7 @@ export default function Today() {
               />
             </div>
           )}
-          <h2 className="text-4xl font-extrabold tracking-tight text-primary">Today</h2>
+          <h2 className="text-4xl font-extrabold tracking-tight text-foreground">Today</h2>
           <p className="text-muted-foreground font-medium tracking-widest">{today.date}</p>
         </div>
         <div className="flex items-center gap-2">

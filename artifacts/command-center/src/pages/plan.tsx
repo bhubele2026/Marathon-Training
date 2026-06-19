@@ -431,7 +431,7 @@ export default function Plan() {
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1600px] mx-auto">
         <div>
           <h2
-            className="text-4xl font-extrabold tracking-tight text-primary"
+            className="text-4xl font-extrabold tracking-tight text-foreground"
             data-testid="plan-header-title"
             data-race-kind=""
           >
@@ -529,7 +529,7 @@ export default function Plan() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h2
-            className="text-4xl font-extrabold tracking-tight text-primary"
+            className="text-4xl font-extrabold tracking-tight text-foreground"
             data-testid="plan-header-title"
             data-race-kind={raceKind ?? ""}
           >

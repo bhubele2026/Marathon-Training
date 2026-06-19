@@ -153,7 +153,7 @@ export default function Measurements() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1600px] mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-4xl font-extrabold tracking-tight text-primary">Body</h2>
+          <h2 className="text-4xl font-extrabold tracking-tight text-foreground">Body</h2>
           <p className="text-muted-foreground font-medium tracking-widest mt-1">
             Lose inches, gain muscle
           </p>

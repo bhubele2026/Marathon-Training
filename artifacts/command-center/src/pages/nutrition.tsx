@@ -436,7 +436,7 @@ export default function Nutrition() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-4xl font-extrabold tracking-tight text-primary">
+        <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
           Nutrition
         </h1>
         <p className="text-sm text-muted-foreground mt-1">

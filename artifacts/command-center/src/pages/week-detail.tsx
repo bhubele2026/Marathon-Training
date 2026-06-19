@@ -492,7 +492,7 @@ export default function WeekDetail() {
               {weekEyebrow}
             </p>
           )}
-          <h2 className="text-2xl font-black tracking-tight text-primary">Week {week.week}</h2>
+          <h2 className="text-2xl font-black tracking-tight text-foreground">Week {week.week}</h2>
           <p className="text-xs text-muted-foreground font-bold tracking-widest mt-1">{formatDate(week.startDate)} - {formatDate(week.endDate)}</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => setLocation(`/plan/${weekNum + 1}`)}>

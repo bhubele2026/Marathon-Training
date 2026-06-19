@@ -43,7 +43,7 @@ function Wordmark() {
       <span className="text-xl font-black uppercase italic tracking-tight text-primary leading-none">
         BH
       </span>
-      <span className="text-xl font-black uppercase italic tracking-tight text-foreground leading-none">
+      <span className="text-xl font-black uppercase italic tracking-tight text-white leading-none">
         Studio
       </span>
     </Link>
@@ -64,9 +64,11 @@ export function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
-      {/* Slim, sticky, quiet top bar. Subtle bottom hairline. */}
-      <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-        <div className="mx-auto max-w-[1600px] px-4 md:px-6 h-14 flex items-center gap-6">
+      {/* Pro top bar: matte-black chrome, white text, one orange accent —
+          a dark header over light content (Amazon/Linear-style). Always dark
+          regardless of theme. */}
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#19140f] text-white">
+        <div className="mx-auto max-w-[1600px] px-4 md:px-6 h-14 flex items-center gap-7">
           <Wordmark />
 
           {/* Primary nav — exactly four destinations (desktop). */}
@@ -78,13 +80,16 @@ export function Layout({ children }: LayoutProps) {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "px-3 py-1.5 rounded-md text-sm transition-colors",
+                    "relative px-3 py-1.5 text-sm font-medium tracking-tight transition-colors",
                     active
-                      ? "text-primary font-medium"
-                      : "text-muted-foreground hover:text-foreground",
+                      ? "text-primary"
+                      : "text-white/55 hover:text-white",
                   )}
                 >
                   {item.label}
+                  {active && (
+                    <span className="absolute inset-x-3 -bottom-[10px] h-0.5 rounded-full bg-primary" />
+                  )}
                 </Link>
               );
             })}
@@ -93,7 +98,7 @@ export function Layout({ children }: LayoutProps) {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="px-3 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
+                  className="px-3 py-1.5 text-sm font-medium text-white/55 hover:text-white transition-colors inline-flex items-center gap-1"
                   data-testid="nav-more"
                 >
                   More
@@ -125,7 +130,7 @@ export function Layout({ children }: LayoutProps) {
             <Button
               asChild
               size="sm"
-              className="h-8 gap-1.5"
+              className="h-8 gap-1.5 font-semibold"
               data-testid="button-log"
             >
               <Link href="/log">
@@ -137,11 +142,13 @@ export function Layout({ children }: LayoutProps) {
               onClick={togglePalette}
               data-testid="button-command-palette"
               aria-label="Open command palette"
-              className="hidden sm:inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="hidden sm:inline-flex items-center gap-1 rounded-md border border-white/15 px-2 py-1 text-xs text-white/55 hover:text-white hover:bg-white/10 transition-colors"
             >
               <span className="font-mono">{isMac ? "⌘" : "Ctrl"} K</span>
             </button>
-            <ThemeToggle />
+            <div className="text-white/70">
+              <ThemeToggle />
+            </div>
           </div>
         </div>
       </header>
@@ -163,8 +170,9 @@ export function Layout({ children }: LayoutProps) {
         </div>
       </main>
 
-      {/* Mobile bottom tab bar: same four + a More entry. */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background/95 backdrop-blur flex items-stretch justify-around">
+      {/* Mobile bottom tab bar: same four + a More entry. Matches the dark
+          matte-black chrome of the top bar. */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-[#19140f] text-white flex items-stretch justify-around">
         {PRIMARY_NAV.map((item) => {
           const active = isActivePath(location, item.href);
           const Icon = item.icon;
@@ -177,13 +185,13 @@ export function Layout({ children }: LayoutProps) {
               <Icon
                 className={cn(
                   "h-5 w-5",
-                  active ? "text-primary" : "text-muted-foreground",
+                  active ? "text-primary" : "text-white/50",
                 )}
               />
               <span
                 className={cn(
                   "text-[10px]",
-                  active ? "text-primary font-medium" : "text-muted-foreground",
+                  active ? "text-primary font-medium" : "text-white/50",
                 )}
               >
                 {item.short ?? item.label}
@@ -195,7 +203,7 @@ export function Layout({ children }: LayoutProps) {
         <Sheet open={moreSheetOpen} onOpenChange={setMoreSheetOpen}>
           <SheetTrigger asChild>
             <button
-              className="flex flex-col items-center justify-center gap-0.5 py-2 flex-1 text-muted-foreground"
+              className="flex flex-col items-center justify-center gap-0.5 py-2 flex-1 text-white/50"
               data-testid="nav-more-mobile"
             >
               <MoreHorizontal className="h-5 w-5" />

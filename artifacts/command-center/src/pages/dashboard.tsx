@@ -231,7 +231,7 @@ export default function Dashboard() {
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div data-testid="dashboard-header" className="flex flex-col gap-2">
           <h2
-            className="text-4xl font-extrabold tracking-tight text-primary"
+            className="text-4xl font-extrabold tracking-tight text-foreground"
             data-testid="dashboard-header-title"
             data-race-kind=""
           >
@@ -328,7 +328,7 @@ export default function Dashboard() {
           />
         )}
         <h2
-          className="text-4xl font-extrabold tracking-tight text-primary"
+          className="text-4xl font-extrabold tracking-tight text-foreground"
           data-testid="dashboard-header-title"
           data-race-kind={raceKind ?? ""}
         >

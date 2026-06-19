@@ -374,7 +374,7 @@ export default function PlanBuilder() {
     <div className="space-y-4 p-4">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-primary">Build with Claude</h1>
+          <h1 className="text-2xl font-bold text-foreground">Build with Claude</h1>
           <p className="text-sm text-muted-foreground">
             Describe the plan you want. Keep chatting to adjust it until it's
             right — then apply. You can re-apply as you refine.
