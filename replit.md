@@ -8,6 +8,28 @@ UI: a calm, professional "Studio" theme — neutral charcoals + a single muted-t
 
 ## How it works now (post-overhaul)
 
+- **Recomp-first engine; running is opt-in.** The generator DEFAULTS to a strength
+  + body-recomposition program (Tonal-led lifting + Peloton Bike/Row conditioning,
+  zero miles, no Long Run). Running only appears when the plan has a run goal or a
+  scheduled race. A single authoritative flag `includesRunning` is derived in the
+  generator (`configIncludesRunning`) / plan-knowledge (`planIncludesRunning`) and
+  exposed on the `PlanOverview` API (`computePlanOverview`); every UI surface gates
+  miles/pace/Long-Run/campaign language on it. `briefing.ts` frames the trainer as
+  a strength + recomp coach first; the marathon/pace/long-run generator paths stay
+  intact but reachable only when `includesRunning` is true. A `running_without_run_goal`
+  guardrail flags a running plan with no run goal.
+- **Reactive nutrition (baseline + daily adjustment).** A fixed **baseline**
+  (Mifflin × activity → recomp strategy, protein-priority) is computed by
+  `computeBaselineTargets()` (Claude + web search) from real weight + stats; missing
+  an essential stat returns a structured `needs:[field]` prompt, not a bad number.
+  **Applying any plan auto-computes + persists the baseline** (planner `/apply` and
+  builder `/accept`, best-effort, never blocks apply) and seeds `plan_days.planned_load`.
+  Each day's **adjusted** target = baseline ± an AI-decided delta from that day's
+  training (planned load before logging, actual after) with a one-sentence rationale,
+  protein kept ~steady; cached in `nutrition_day_targets`, recomputed when a workout
+  is logged/edited/skipped. Surfaced via `GET /api/nutrition/day/:date`, an "Eat today"
+  block on Today, and the four nutrition rings (target = adjusted ?? baseline, fill =
+  actual; no "No goal set" when targets exist).
 - **Cadence (hard invariant):** Monday is always full rest (0 min); Tue–Thu are short days (30–50 min); Fri–Sun are long days (60–90 min). Enforced in `briefing.ts`, the generator (`lib/plan-generator`), and `guardrails.ts`; editable in the planner. `DailyBudget` carries `shortDayMin/Max` + `longDayMin/Max` (legacy `weekday*/weekend*` kept for back-compat).
 - **Recomp dashboard:** the home dashboard leads with **inches lost** (sum of circumference reductions across belly/chest/arms/legs, baseline→latest) + a muscle/strength **proxy** (Tonal Strength Score current→goal and arm/leg growth). Weight is secondary. Computed server-side in `routes/dashboard.ts` (`computeRecompSummary`).
 - **Full macros:** `nutrition_days` tracks calories + protein + **carbs + fat**; `user_preferences` holds AI-computed targets for all four. The Nutrition page shows four rings vs target. AI targets come from `POST /api/goals/compute-targets` (Claude + web search).
