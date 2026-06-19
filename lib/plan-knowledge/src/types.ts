@@ -56,12 +56,16 @@ export interface AiStrengthBlock {
   pattern: MovementPattern;
   /** Working sets. */
   sets: number;
-  /** Reps as a number or range string, e.g. "5", "8-10", "12-15". */
-  reps: string;
-  /** How the working load is targeted (% 1RM / RIR / absolute lb / bodyweight). */
-  loadType: StrengthLoadType;
+  /** OPTIONAL rep guidance ("8-10"). On Tonal, REPS ARE THE MACHINE'S JOB — the
+   * program + digital auto-weight drive reps and load — so the coach normally
+   * leaves this empty and just schedules the movement + sets + emphasis. */
+  reps?: string | null;
+  /** OPTIONAL load target. Like reps, Tonal's auto-calibrating digital weight
+   * owns the actual load, so this is usually left null; set only as light
+   * guidance. (% 1RM / RIR / absolute lb / bodyweight.) */
+  loadType?: StrengthLoadType | null;
   /** The numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for
-   * bodyweight, or when the coach is leaving it to the runner. */
+   * bodyweight, or (usually) left to Tonal's auto-weight. */
   loadValue?: number | null;
   /** Optional tempo notation, e.g. "3-1-1" (ecc-pause-con). */
   tempo?: string | null;

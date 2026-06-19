@@ -49,10 +49,11 @@ export const StrengthBlockPattern = {
 } as const;
 
 /**
- * How the working load is targeted.
+ * OPTIONAL. Usually null — Tonal''s auto-weight owns the load.
  */
 export type StrengthBlockLoadType =
-  (typeof StrengthBlockLoadType)[keyof typeof StrengthBlockLoadType];
+  | (typeof StrengthBlockLoadType)[keyof typeof StrengthBlockLoadType]
+  | null;
 
 export const StrengthBlockLoadType = {
   percent_1rm: "percent_1rm",
@@ -74,11 +75,11 @@ export interface StrengthBlock {
   /** Primary movement pattern, used for weekly-balance checks. */
   pattern: StrengthBlockPattern;
   sets: number;
-  /** Number or range, e.g. "5", "8-10". */
-  reps: string;
-  /** How the working load is targeted. */
-  loadType: StrengthBlockLoadType;
-  /** Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight. */
+  /** OPTIONAL rep guidance ("8-10"). Usually null — Tonal drives reps. */
+  reps?: string | null;
+  /** OPTIONAL. Usually null — Tonal''s auto-weight owns the load. */
+  loadType?: StrengthBlockLoadType;
+  /** OPTIONAL numeric load when given. Usually null — Tonal auto-loads. */
   loadValue?: number | null;
   tempo?: string | null;
   restSec?: number | null;

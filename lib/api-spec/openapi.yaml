@@ -1313,7 +1313,7 @@ components:
         used to lack. A strength workout is an ordered list of these (movement,
         pattern, sets, reps, load target), not just a minute count. Persisted on
         plan_days.strength_blocks (and workouts.strength_blocks for actuals).
-      required: [movement, pattern, sets, reps, loadType]
+      required: [movement, pattern, sets]
       properties:
         movement: { type: string, description: 'e.g. "Back Squat", "Bench Press".' }
         pattern:
@@ -1321,15 +1321,19 @@ components:
           enum: [squat, hinge, horizontal_push, horizontal_pull, vertical_push, vertical_pull, lunge, carry, core]
           description: Primary movement pattern, used for weekly-balance checks.
         sets: { type: number }
-        reps: { type: string, description: 'Number or range, e.g. "5", "8-10".' }
+        reps:
+          type: string
+          nullable: true
+          description: 'OPTIONAL rep guidance ("8-10"). Usually null — Tonal drives reps.'
         loadType:
           type: string
+          nullable: true
           enum: [percent_1rm, rir, lb, bodyweight]
-          description: How the working load is targeted.
+          description: OPTIONAL. Usually null — Tonal''s auto-weight owns the load.
         loadValue:
           type: number
           nullable: true
-          description: 'Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight.'
+          description: 'OPTIONAL numeric load when given. Usually null — Tonal auto-loads.'
         tempo: { type: string, nullable: true }
         restSec: { type: number, nullable: true }
         equipment: { type: string, nullable: true, description: 'Per-movement equipment, e.g. "Tonal + bench".' }

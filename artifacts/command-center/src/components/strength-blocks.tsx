@@ -8,7 +8,9 @@
 import type { StrengthBlock } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
 
-// Human label for a load target, e.g. "75% 1RM", "RIR 2", "135 lb", "BW".
+// Human label for an OPTIONAL load target, e.g. "75% 1RM", "RIR 2", "135 lb",
+// "BW". Usually null — Tonal's auto-weight owns the load, so the coach leaves it
+// empty and we render nothing.
 function formatLoad(b: StrengthBlock): string | null {
   switch (b.loadType) {
     case "percent_1rm":
@@ -24,9 +26,11 @@ function formatLoad(b: StrengthBlock): string | null {
   }
 }
 
-// "4 × 6", "3 × 8-10".
+// The set scheme. Reps are OPTIONAL — Tonal drives them — so by default we show
+// just "4 sets"; if the coach added a rep note we show "4 × 8-10".
 function formatScheme(b: StrengthBlock): string {
-  return `${b.sets} × ${b.reps}`;
+  if (b.reps != null && b.reps !== "") return `${b.sets} × ${b.reps}`;
+  return `${b.sets} ${b.sets === 1 ? "set" : "sets"}`;
 }
 
 export interface StrengthBlocksProps {

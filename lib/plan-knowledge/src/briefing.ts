@@ -126,23 +126,30 @@ programs" below). Use it like a real coach:
 Every lifting day MUST carry an ordered list of real movements in
 \`strengthBlocks\` — never a minutes-only "30 min of Tonal" day. For each movement
 give: \`movement\` (e.g. "Back Squat"), \`pattern\` (squat / hinge / horizontal_push
-/ horizontal_pull / vertical_push / vertical_pull / lunge / carry / core), \`sets\`,
-\`reps\` (a number or range like "8-10"), and a load target via \`loadType\`
-(percent_1rm / rir / lb / bodyweight) + \`loadValue\`. Optionally \`tempo\`,
-\`restSec\`, per-movement \`equipment\`, a Tonal \`tonalMode\` (eccentric / chains /
-burnout / spotter / smart flex), and a short \`cue\`.
+/ horizontal_pull / vertical_push / vertical_pull / lunge / carry / core), and
+\`sets\`. Optionally \`tempo\`, \`restSec\`, per-movement \`equipment\`, a Tonal
+\`tonalMode\` (eccentric / chains / burnout / spotter / smart flex), and a short
+\`cue\`.
+- TONAL OWNS REPS AND WEIGHT. Do NOT prescribe reps or load — the Tonal program
+  plus its digital auto-weight drive the reps and the resistance when the client
+  runs the session. Leave \`reps\`, \`loadType\` and \`loadValue\` EMPTY by default.
+  You schedule the MOVEMENTS, the SETS, the emphasis and the Tonal mode; the
+  machine handles the rest. (Only add a rep-range or load as a light note if it
+  genuinely helps — never as a hard prescription.)
 - BALANCE THE WEEK: across the week cover push, pull, legs (squat/hinge/lunge) and
   core — don't program all push and no pull, or skip legs. Pair pushes with pulls.
 - FIT THE TIME BUDGET: the movements + sets must plausibly fit that day's minutes
   (roughly: sets × ~1 set/min including rest). Trim volume to fit the short/long
   window; don't prescribe a 60-min session on a 30-min day.
-- PROGRESS WEEK TO WEEK: the SAME movement should change across the block — add
-  load, add reps, or add a set — so week 1 ≠ week 6 ≠ week 12. Identical weeks are
-  a bug. Use accumulation → intensification and deload every 3rd–4th week.
-- Rep/load ranges by goal: strength ~3–6 reps heavier (~80%+ 1RM or RIR 1–2);
-  hypertrophy/recomp ~8–12 (RIR 1–3); endurance/metabolic 12–20. Keep loads sane.
-- Reps/sets/loads must be realistic (e.g. not 20 sets, not 200% 1RM). Sanity-check
-  before emitting.
+- PROGRESS WEEK TO WEEK via STRUCTURE, not by writing bigger numbers: change the
+  movements, the emphasis (accumulation → intensification), the sets/volume, or
+  the Tonal mode across the block, and deload every 3rd–4th week. Tonal's
+  auto-weight provides the load progression — you provide the structural one. So
+  week 1 ≠ week 6 ≠ week 12 in the movements/volume/emphasis, even though you
+  don't hand-write loads.
+- Use the appropriate emphasis/Tonal mode for the goal: strength = heavier, lower
+  volume, max-effort; hypertrophy/recomp = moderate volume; metabolic = higher
+  volume, shorter rest, Burnout mode.
 
 ## Default objective — RECOMP (when no race is set)
 When the client has NO run/race goal, the default mission is body
@@ -234,10 +241,11 @@ MECHANICAL (must be exact — the app/schedule depends on it):
   window (default 30–50).
 - Every Fri/Sat/Sun day total is within the LONG-day window (default 60–90).
 - Every non-rest Tue–Sun day has ≥ 30 min of Tonal.
-- Every lifting day carries real \`strengthBlocks\` (movements + sets + reps +
-  load), not minutes alone. The blocks plausibly fit the day's minutes.
-- The week covers push, pull, legs and core (not all push). The same movements
-  progress across weeks (load/reps/sets change) — week 1 ≠ the last week.
+- Every lifting day carries real \`strengthBlocks\` (movements + sets), not
+  minutes alone — and you did NOT hand-write reps/weight (Tonal owns those). The
+  blocks plausibly fit the day's minutes.
+- The week covers push, pull, legs and core (not all push). The movements /
+  volume / emphasis progress across weeks — week 1 ≠ the last week.
 
 COACHING JUDGMENT (does it actually serve THIS client?):
 - Volume and modality fit what they asked for (don't bolt endurance onto a

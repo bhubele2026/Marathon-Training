@@ -9,7 +9,7 @@ export const PROPOSE_PLAN_TOOL_NAME = "propose_plan";
 const STRENGTH_BLOCK_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["movement", "pattern", "sets", "reps", "loadType"],
+  required: ["movement", "pattern", "sets"],
   properties: {
     movement: {
       type: "string",
@@ -33,19 +33,22 @@ const STRENGTH_BLOCK_SCHEMA = {
     },
     sets: { type: "number", description: "Working sets." },
     reps: {
-      type: "string",
-      description: 'Reps as a number or range, e.g. "5", "8-10", "12-15".',
+      type: ["string", "null"],
+      description:
+        'OPTIONAL. Leave empty by default — on Tonal the program + digital ' +
+        'auto-weight DRIVE the reps, so do NOT prescribe them. Only set as light ' +
+        'guidance (e.g. "8-10") when it genuinely helps.',
     },
     loadType: {
-      type: "string",
-      enum: ["percent_1rm", "rir", "lb", "bodyweight"],
+      type: ["string", "null"],
+      enum: ["percent_1rm", "rir", "lb", "bodyweight", null],
       description:
-        "How the working load is targeted: % of 1RM, reps-in-reserve (RIR), absolute pounds, or bodyweight.",
+        "OPTIONAL. Tonal's auto-calibrating weight owns the load, so usually leave null. Only set as guidance.",
     },
     loadValue: {
       type: ["number", "null"],
       description:
-        "Numeric load for loadType: 75 (percent_1rm), 2 (rir), 135 (lb). Null for bodyweight.",
+        "Numeric load for loadType when given. Usually null — Tonal auto-loads.",
     },
     tempo: {
       type: ["string", "null"],
@@ -243,6 +246,7 @@ export const PROPOSE_PLAN_TOOL = {
     "Emit the complete training plan as structured data. Call this whenever you " +
     "want to show the runner a plan or an updated plan. Always emit the FULL plan " +
     "(every week, every day) — not a diff. Every lifting day MUST carry real " +
-    "strengthBlocks (movements, sets, reps, load), not just minutes.",
+    "strengthBlocks (movements + sets), not just minutes. Do NOT prescribe reps " +
+    "or weight — Tonal's program and auto-weight drive those.",
   input_schema: PROPOSE_PLAN_INPUT_SCHEMA,
 } as const;

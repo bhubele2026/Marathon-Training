@@ -403,15 +403,21 @@ export const GetPlanWeekResponse = zod
                     sets: zod.number(),
                     reps: zod
                       .string()
-                      .describe('Number or range, e.g. \"5\", \"8-10\".'),
+                      .nullish()
+                      .describe(
+                        'OPTIONAL rep guidance (\"8-10\"). Usually null — Tonal drives reps.',
+                      ),
                     loadType: zod
                       .enum(["percent_1rm", "rir", "lb", "bodyweight"])
-                      .describe("How the working load is targeted."),
+                      .nullish()
+                      .describe(
+                        "OPTIONAL. Usually null — Tonal''s auto-weight owns the load.",
+                      ),
                     loadValue: zod
                       .number()
                       .nullish()
                       .describe(
-                        "Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight.",
+                        "OPTIONAL numeric load when given. Usually null — Tonal auto-loads.",
                       ),
                     tempo: zod.string().nullish(),
                     restSec: zod.number().nullish(),
@@ -686,15 +692,23 @@ export const UpdatePlanDayResponse = zod.object({
               "Primary movement pattern, used for weekly-balance checks.",
             ),
           sets: zod.number(),
-          reps: zod.string().describe('Number or range, e.g. \"5\", \"8-10\".'),
+          reps: zod
+            .string()
+            .nullish()
+            .describe(
+              'OPTIONAL rep guidance (\"8-10\"). Usually null — Tonal drives reps.',
+            ),
           loadType: zod
             .enum(["percent_1rm", "rir", "lb", "bodyweight"])
-            .describe("How the working load is targeted."),
+            .nullish()
+            .describe(
+              "OPTIONAL. Usually null — Tonal''s auto-weight owns the load.",
+            ),
           loadValue: zod
             .number()
             .nullish()
             .describe(
-              "Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight.",
+              "OPTIONAL numeric load when given. Usually null — Tonal auto-loads.",
             ),
           tempo: zod.string().nullish(),
           restSec: zod.number().nullish(),
@@ -933,15 +947,21 @@ export const SwapPlanDayResponse = zod.object({
             sets: zod.number(),
             reps: zod
               .string()
-              .describe('Number or range, e.g. \"5\", \"8-10\".'),
+              .nullish()
+              .describe(
+                'OPTIONAL rep guidance (\"8-10\"). Usually null — Tonal drives reps.',
+              ),
             loadType: zod
               .enum(["percent_1rm", "rir", "lb", "bodyweight"])
-              .describe("How the working load is targeted."),
+              .nullish()
+              .describe(
+                "OPTIONAL. Usually null — Tonal''s auto-weight owns the load.",
+              ),
             loadValue: zod
               .number()
               .nullish()
               .describe(
-                "Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight.",
+                "OPTIONAL numeric load when given. Usually null — Tonal auto-loads.",
               ),
             tempo: zod.string().nullish(),
             restSec: zod.number().nullish(),
@@ -1166,15 +1186,21 @@ export const SwapPlanDayResponse = zod.object({
             sets: zod.number(),
             reps: zod
               .string()
-              .describe('Number or range, e.g. \"5\", \"8-10\".'),
+              .nullish()
+              .describe(
+                'OPTIONAL rep guidance (\"8-10\"). Usually null — Tonal drives reps.',
+              ),
             loadType: zod
               .enum(["percent_1rm", "rir", "lb", "bodyweight"])
-              .describe("How the working load is targeted."),
+              .nullish()
+              .describe(
+                "OPTIONAL. Usually null — Tonal''s auto-weight owns the load.",
+              ),
             loadValue: zod
               .number()
               .nullish()
               .describe(
-                "Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight.",
+                "OPTIONAL numeric load when given. Usually null — Tonal auto-loads.",
               ),
             tempo: zod.string().nullish(),
             restSec: zod.number().nullish(),
@@ -1425,15 +1451,23 @@ export const ResetPlanDayResponse = zod.object({
               "Primary movement pattern, used for weekly-balance checks.",
             ),
           sets: zod.number(),
-          reps: zod.string().describe('Number or range, e.g. \"5\", \"8-10\".'),
+          reps: zod
+            .string()
+            .nullish()
+            .describe(
+              'OPTIONAL rep guidance (\"8-10\"). Usually null — Tonal drives reps.',
+            ),
           loadType: zod
             .enum(["percent_1rm", "rir", "lb", "bodyweight"])
-            .describe("How the working load is targeted."),
+            .nullish()
+            .describe(
+              "OPTIONAL. Usually null — Tonal''s auto-weight owns the load.",
+            ),
           loadValue: zod
             .number()
             .nullish()
             .describe(
-              "Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight.",
+              "OPTIONAL numeric load when given. Usually null — Tonal auto-loads.",
             ),
           tempo: zod.string().nullish(),
           restSec: zod.number().nullish(),
@@ -1816,15 +1850,21 @@ export const GetTodayPlanResponse = zod.object({
               sets: zod.number(),
               reps: zod
                 .string()
-                .describe('Number or range, e.g. \"5\", \"8-10\".'),
+                .nullish()
+                .describe(
+                  'OPTIONAL rep guidance (\"8-10\"). Usually null — Tonal drives reps.',
+                ),
               loadType: zod
                 .enum(["percent_1rm", "rir", "lb", "bodyweight"])
-                .describe("How the working load is targeted."),
+                .nullish()
+                .describe(
+                  "OPTIONAL. Usually null — Tonal''s auto-weight owns the load.",
+                ),
               loadValue: zod
                 .number()
                 .nullish()
                 .describe(
-                  "Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight.",
+                  "OPTIONAL numeric load when given. Usually null — Tonal auto-loads.",
                 ),
               tempo: zod.string().nullish(),
               restSec: zod.number().nullish(),
@@ -2055,15 +2095,21 @@ export const GetTodayPlanResponse = zod.object({
                 sets: zod.number(),
                 reps: zod
                   .string()
-                  .describe('Number or range, e.g. \"5\", \"8-10\".'),
+                  .nullish()
+                  .describe(
+                    'OPTIONAL rep guidance (\"8-10\"). Usually null — Tonal drives reps.',
+                  ),
                 loadType: zod
                   .enum(["percent_1rm", "rir", "lb", "bodyweight"])
-                  .describe("How the working load is targeted."),
+                  .nullish()
+                  .describe(
+                    "OPTIONAL. Usually null — Tonal''s auto-weight owns the load.",
+                  ),
                 loadValue: zod
                   .number()
                   .nullish()
                   .describe(
-                    "Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight.",
+                    "OPTIONAL numeric load when given. Usually null — Tonal auto-loads.",
                   ),
                 tempo: zod.string().nullish(),
                 restSec: zod.number().nullish(),
@@ -2408,15 +2454,21 @@ export const GetTodayPlanResponse = zod.object({
               sets: zod.number(),
               reps: zod
                 .string()
-                .describe('Number or range, e.g. \"5\", \"8-10\".'),
+                .nullish()
+                .describe(
+                  'OPTIONAL rep guidance (\"8-10\"). Usually null — Tonal drives reps.',
+                ),
               loadType: zod
                 .enum(["percent_1rm", "rir", "lb", "bodyweight"])
-                .describe("How the working load is targeted."),
+                .nullish()
+                .describe(
+                  "OPTIONAL. Usually null — Tonal''s auto-weight owns the load.",
+                ),
               loadValue: zod
                 .number()
                 .nullish()
                 .describe(
-                  "Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight.",
+                  "OPTIONAL numeric load when given. Usually null — Tonal auto-loads.",
                 ),
               tempo: zod.string().nullish(),
               restSec: zod.number().nullish(),
@@ -3438,15 +3490,21 @@ export const GetDashboardBootstrapResponse = zod
                   sets: zod.number(),
                   reps: zod
                     .string()
-                    .describe('Number or range, e.g. \"5\", \"8-10\".'),
+                    .nullish()
+                    .describe(
+                      'OPTIONAL rep guidance (\"8-10\"). Usually null — Tonal drives reps.',
+                    ),
                   loadType: zod
                     .enum(["percent_1rm", "rir", "lb", "bodyweight"])
-                    .describe("How the working load is targeted."),
+                    .nullish()
+                    .describe(
+                      "OPTIONAL. Usually null — Tonal''s auto-weight owns the load.",
+                    ),
                   loadValue: zod
                     .number()
                     .nullish()
                     .describe(
-                      "Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight.",
+                      "OPTIONAL numeric load when given. Usually null — Tonal auto-loads.",
                     ),
                   tempo: zod.string().nullish(),
                   restSec: zod.number().nullish(),
@@ -3679,15 +3737,21 @@ export const GetDashboardBootstrapResponse = zod
                     sets: zod.number(),
                     reps: zod
                       .string()
-                      .describe('Number or range, e.g. \"5\", \"8-10\".'),
+                      .nullish()
+                      .describe(
+                        'OPTIONAL rep guidance (\"8-10\"). Usually null — Tonal drives reps.',
+                      ),
                     loadType: zod
                       .enum(["percent_1rm", "rir", "lb", "bodyweight"])
-                      .describe("How the working load is targeted."),
+                      .nullish()
+                      .describe(
+                        "OPTIONAL. Usually null — Tonal''s auto-weight owns the load.",
+                      ),
                     loadValue: zod
                       .number()
                       .nullish()
                       .describe(
-                        "Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight.",
+                        "OPTIONAL numeric load when given. Usually null — Tonal auto-loads.",
                       ),
                     tempo: zod.string().nullish(),
                     restSec: zod.number().nullish(),
@@ -4034,15 +4098,21 @@ export const GetDashboardBootstrapResponse = zod
                   sets: zod.number(),
                   reps: zod
                     .string()
-                    .describe('Number or range, e.g. \"5\", \"8-10\".'),
+                    .nullish()
+                    .describe(
+                      'OPTIONAL rep guidance (\"8-10\"). Usually null — Tonal drives reps.',
+                    ),
                   loadType: zod
                     .enum(["percent_1rm", "rir", "lb", "bodyweight"])
-                    .describe("How the working load is targeted."),
+                    .nullish()
+                    .describe(
+                      "OPTIONAL. Usually null — Tonal''s auto-weight owns the load.",
+                    ),
                   loadValue: zod
                     .number()
                     .nullish()
                     .describe(
-                      "Numeric load for loadType: 75 (%1RM), 2 (RIR), 135 (lb). Null for bodyweight.",
+                      "OPTIONAL numeric load when given. Usually null — Tonal auto-loads.",
                     ),
                   tempo: zod.string().nullish(),
                   restSec: zod.number().nullish(),

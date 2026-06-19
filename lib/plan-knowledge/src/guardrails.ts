@@ -226,8 +226,12 @@ export function runGuardrails(
         for (const b of blocks) {
           const reasons: string[] = [];
           if (!(b.sets >= 1 && b.sets <= 12)) reasons.push(`${b.sets} sets`);
-          const tr = topReps(b.reps);
-          if (tr == null || tr < 1 || tr > 50) reasons.push(`reps "${b.reps}"`);
+          // Reps are OPTIONAL (Tonal owns them); only sanity-check when the coach
+          // chose to add a rep note.
+          if (b.reps != null && b.reps !== "") {
+            const tr = topReps(b.reps);
+            if (tr == null || tr < 1 || tr > 50) reasons.push(`reps "${b.reps}"`);
+          }
           if (b.loadType === "percent_1rm" && b.loadValue != null && (b.loadValue < 30 || b.loadValue > 100)) {
             reasons.push(`${b.loadValue}% 1RM`);
           }

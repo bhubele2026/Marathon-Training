@@ -7,8 +7,8 @@ export type StrengthBlockJson = {
   movement: string;
   pattern: string;
   sets: number;
-  reps: string;
-  loadType: string;
+  reps?: string | null;
+  loadType?: string | null;
   loadValue?: number | null;
   tempo?: string | null;
   restSec?: number | null;
