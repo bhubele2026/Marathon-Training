@@ -333,7 +333,45 @@ router.post("/plan-builder/chat", async (req, res): Promise<void> => {
         b.type === "tool_use" && b.name === PROPOSE_PLAN_TOOL_NAME,
     );
     if (toolBlock) {
-      const plan = toolBlock.input as AiPlan;
+      let plan = toolBlock.input as AiPlan;
+
+      // Guard against an under-filled plan: the coach sometimes writes a great
+      // summary + nutrition but leaves the `weeks` array empty (so it shows
+      // "0 weeks" and can't be applied). When that happens, force ONE focused
+      // re-emit with NO other tools (web_search done) so the model spends its
+      // whole budget populating every week.
+      if (!Array.isArray(plan.weeks) || plan.weeks.length === 0) {
+        send({ type: "text", text: "\n\n(filling in the full week-by-week plan…)\n" });
+        const retryMessages: Anthropic.MessageParam[] = [
+          ...conv,
+          { role: "assistant", content: final.content },
+          {
+            role: "user",
+            content:
+              "Your propose_plan call had an EMPTY weeks array, so nothing was " +
+              "scheduled. Call propose_plan again RIGHT NOW with the COMPLETE plan " +
+              "— every single week, each with all 7 days (Mon–Sun) populated as " +
+              "sessions (Mon = rest). Keep the same summary, nutrition, goal and " +
+              "Tonal program. Do not describe it in prose; just emit the full tool call.",
+          },
+        ];
+        const retry = (await getAnthropic().messages.create(
+          {
+            model: MODEL,
+            max_tokens: 64000,
+            thinking: { type: "adaptive" as const },
+            tools: [PROPOSE_PLAN_TOOL],
+            messages: retryMessages,
+          } as never,
+          { signal: controller.signal },
+        )) as Anthropic.Message;
+        const retryTool = retry.content.find(
+          (b): b is Anthropic.ToolUseBlock =>
+            b.type === "tool_use" && b.name === PROPOSE_PLAN_TOOL_NAME,
+        );
+        if (retryTool) plan = retryTool.input as AiPlan;
+      }
+
       const materialized = materializeAiPlan(plan);
       const guardrails = runGuardrails(plan, ctx.budget);
       send({
