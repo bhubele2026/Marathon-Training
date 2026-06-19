@@ -1,0 +1,226 @@
+import { Router, type IRouter } from "express";
+import {
+  db,
+  coachDailyNotesTable,
+  nutritionDaysTable,
+  planDaysTable,
+  workoutsTable,
+  userPreferencesTable,
+} from "@workspace/db";
+import { and, eq, sql } from "drizzle-orm";
+import { getAnthropic, isConfigured, MODEL } from "@workspace/integrations-anthropic";
+import { COACH_PERSONA } from "@workspace/plan-knowledge";
+import { calorieFloor } from "../lib/nutrition-safety";
+
+const router: IRouter = Router();
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Compact, stable content hash of the day's inputs. When this changes (food
+// synced, workout logged/skipped), the cached note is stale and regenerated.
+function hashInputs(obj: unknown): string {
+  const s = JSON.stringify(obj);
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(16);
+}
+
+type DayInputs = {
+  date: string;
+  target: { calories: number | null; protein: number | null; carbs: number | null; fat: number | null };
+  actual: { calories: number | null; protein: number | null; carbs: number | null; fat: number | null } | null;
+  planned: { sessionType: string; isRest: boolean; minutes: number; lifting: boolean; description: string } | null;
+  loggedWorkouts: number;
+  loggedMinutes: number;
+  sex: string | null;
+};
+
+async function gatherDay(date: string): Promise<DayInputs> {
+  const prefsRows = await db
+    .select({
+      calorieTarget: userPreferencesTable.calorieTarget,
+      proteinTargetG: userPreferencesTable.proteinTargetG,
+      carbsTargetG: userPreferencesTable.carbsTargetG,
+      fatTargetG: userPreferencesTable.fatTargetG,
+      sex: userPreferencesTable.sex,
+    })
+    .from(userPreferencesTable)
+    .where(eq(userPreferencesTable.id, 1))
+    .limit(1);
+  const prefs = prefsRows[0];
+
+  const nutRows = await db
+    .select()
+    .from(nutritionDaysTable)
+    .where(eq(nutritionDaysTable.date, date))
+    .limit(1);
+  const nut = nutRows[0];
+
+  const planRows = await db
+    .select({
+      sessionType: planDaysTable.sessionType,
+      isRest: planDaysTable.isRest,
+      strengthMin: planDaysTable.strengthMin,
+      cardioMin: planDaysTable.cardioMin,
+      runMin: planDaysTable.runMin,
+      description: planDaysTable.description,
+    })
+    .from(planDaysTable)
+    .where(eq(planDaysTable.date, date))
+    .limit(1);
+  const pd = planRows[0];
+
+  const wkAgg = await db.execute<{ cnt: number; mins: number }>(sql`
+    SELECT COUNT(*)::int AS cnt,
+           COALESCE(SUM(COALESCE(duration_min,
+             COALESCE(strength_min,0)+COALESCE(cardio_min,0)+COALESCE(run_min,0))), 0)::int AS mins
+    FROM workouts WHERE date = ${date}
+  `);
+
+  return {
+    date,
+    target: {
+      calories: prefs?.calorieTarget ?? null,
+      protein: prefs?.proteinTargetG ?? null,
+      carbs: prefs?.carbsTargetG ?? null,
+      fat: prefs?.fatTargetG ?? null,
+    },
+    actual: nut
+      ? { calories: nut.calories, protein: nut.proteinG, carbs: nut.carbsG, fat: nut.fatG }
+      : null,
+    planned: pd
+      ? {
+          sessionType: pd.sessionType,
+          isRest: pd.isRest,
+          minutes: (pd.strengthMin ?? 0) + (pd.cardioMin ?? 0) + (pd.runMin ?? 0),
+          lifting: (pd.strengthMin ?? 0) > 0,
+          description: pd.description,
+        }
+      : null,
+    loggedWorkouts: wkAgg.rows[0]?.cnt ?? 0,
+    loggedMinutes: wkAgg.rows[0]?.mins ?? 0,
+    sex: prefs?.sex ?? null,
+  };
+}
+
+// True when there's nothing worth reacting to (no plan, no food, no workout).
+function isEmptyDay(d: DayInputs): boolean {
+  return d.planned == null && d.actual == null && d.loggedWorkouts === 0;
+}
+
+function buildDataSummary(d: DayInputs): string {
+  const lines: string[] = [`Date: ${d.date} (react to TODAY only).`];
+  if (d.planned) {
+    lines.push(
+      d.planned.isRest
+        ? `Planned: REST day.`
+        : `Planned session: ${d.planned.sessionType} (~${d.planned.minutes} min${d.planned.lifting ? ", a Tonal lifting day" : ""}). ${d.planned.description}`,
+    );
+  } else {
+    lines.push(`Planned: nothing on the plan today.`);
+  }
+  lines.push(
+    `Workouts logged today: ${d.loggedWorkouts}${d.loggedWorkouts ? ` (${d.loggedMinutes} min)` : ""}.` +
+      (d.planned && !d.planned.isRest && d.loggedWorkouts === 0
+        ? " The planned session has NOT been logged."
+        : ""),
+  );
+
+  if (d.actual) {
+    const t = d.target;
+    const a = d.actual;
+    lines.push(
+      `Food today — calories ${a.calories ?? "—"} (target ${t.calories ?? "—"}), ` +
+        `protein ${a.protein ?? "—"} g (target ${t.protein ?? "—"}), ` +
+        `carbs ${a.carbs ?? "—"} g, fat ${a.fat ?? "—"} g.`,
+    );
+    // Safety signals for the supportive-flip rail.
+    const floor = calorieFloor(d.sex);
+    if (a.calories != null && a.calories > 0 && a.calories < floor) {
+      lines.push(
+        `SAFETY SIGNAL: today's calories (${a.calories}) are BELOW the safe floor of ${floor}. ` +
+          `If this is a real day's intake, DROP the sarcasm and be warm — encourage eating enough.`,
+      );
+    }
+  } else {
+    lines.push(`Food today: nothing synced yet.`);
+  }
+  return lines.join("\n");
+}
+
+// Generate the persona daily line. Returns null when AI is unconfigured or
+// errors (caller treats as "no note"). `any`-typed SDK call like the rest.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+async function generateDailyNote(d: DayInputs): Promise<string | null> {
+  if (!isConfigured()) return null;
+  const system =
+    `${COACH_PERSONA}\n\n## Your task right now\n` +
+    `Write the DAILY line shown on the client's Today screen. React to TODAY only, ` +
+    `in 1-3 short, sharp sentences, fully in your voice. Reference the real numbers. ` +
+    `Obey the wellbeing rails above without exception — if a SAFETY SIGNAL appears or ` +
+    `the day shows under-eating, drop the sarcasm and be genuinely warm. Output ONLY ` +
+    `the line itself: no preamble, no quotation marks, no sign-off.`;
+  try {
+    const client: any = getAnthropic();
+    const resp: any = await client.messages.create({
+      model: MODEL,
+      max_tokens: 400,
+      thinking: { type: "adaptive" },
+      output_config: { effort: "low" },
+      system,
+      messages: [{ role: "user", content: buildDataSummary(d) }],
+    });
+    let text = "";
+    for (const block of resp.content ?? []) {
+      if (block?.type === "text") text += block.text;
+    }
+    text = text.trim().replace(/^["']|["']$/g, "");
+    return text || null;
+  } catch {
+    return null;
+  }
+}
+
+// GET /api/coach/daily/:date — the persona daily reaction. Cached per day;
+// regenerated when the day's inputs change (hash mismatch).
+router.get("/coach/daily/:date", async (req, res): Promise<void> => {
+  const date = req.params.date;
+  if (!ISO_DATE.test(date)) {
+    res.status(400).json({ error: "date must be an ISO date (YYYY-MM-DD)." });
+    return;
+  }
+
+  const inputs = await gatherDay(date);
+  if (isEmptyDay(inputs)) {
+    res.json({ date, note: null });
+    return;
+  }
+  const inputHash = hashInputs(inputs);
+
+  const cached = await db
+    .select()
+    .from(coachDailyNotesTable)
+    .where(eq(coachDailyNotesTable.date, date))
+    .limit(1);
+  if (cached[0] && cached[0].inputHash === inputHash) {
+    res.json({ date, note: cached[0].note, generatedAt: cached[0].generatedAt });
+    return;
+  }
+
+  const note = await generateDailyNote(inputs);
+  if (note == null) {
+    // AI unavailable — don't cache; surface nothing.
+    res.json({ date, note: null });
+    return;
+  }
+  const now = new Date();
+  await db
+    .insert(coachDailyNotesTable)
+    .values({ date, note, inputHash, generatedAt: now })
+    .onConflictDoUpdate({
+      target: coachDailyNotesTable.date,
+      set: { note, inputHash, generatedAt: now },
+    });
+  res.json({ date, note, generatedAt: now });
+});
+
+export default router;

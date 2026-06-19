@@ -58,4 +58,10 @@ export function invalidateMissionRelatedQueries(queryClient: QueryClient) {
   queryClient.invalidateQueries({
     predicate: (query) => query.queryKey[0] === "/api/nutrition/day",
   });
+  // Phase 4: the coach's daily line reacts to logged food + workouts, so a
+  // Done/Log Actual/Skipped must refresh it (the server regenerates when the
+  // day's input hash changes).
+  queryClient.invalidateQueries({
+    predicate: (query) => query.queryKey[0] === "/api/coach/daily",
+  });
 }

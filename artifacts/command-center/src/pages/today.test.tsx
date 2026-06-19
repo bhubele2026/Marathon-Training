@@ -102,6 +102,12 @@ vi.mock("@/components/eat-today", () => ({
   ),
 }));
 
+vi.mock("@/components/coach-line", () => ({
+  CoachLine: ({ date }: { date: string }) => (
+    <div data-testid="coach-line-stub" data-date={date} />
+  ),
+}));
+
 vi.mock("@/components/race-week-banner", () => ({
   ChecklistNudge: () => null,
 }));
