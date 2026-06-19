@@ -199,14 +199,17 @@ export function runGuardrails(
         }
       }
 
-      // Strength floor on training days.
-      if (d.day !== "Mon" && d.strengthMin < STRENGTH_FLOOR_MIN) {
+      // Strength floor — only for actual LIFTING days. A day with 0 Tonal is a
+      // rest or a (client-requested) conditioning-only day, which is fine and
+      // must NOT be flagged — otherwise the coach feels pressured to put Tonal on
+      // every day and pad a 4-day program out to fill the week.
+      if (d.day !== "Mon" && d.strengthMin > 0 && d.strengthMin < STRENGTH_FLOOR_MIN) {
         out.push({
           level: "info",
           code: "below_strength_floor",
           week: week.week,
           day: d.day,
-          message: `Week ${week.week} ${d.day} has ${d.strengthMin} min lifting, under the ${STRENGTH_FLOOR_MIN} min floor.`,
+          message: `Week ${week.week} ${d.day} has only ${d.strengthMin} min of Tonal — a lifting day should be ≥ ${STRENGTH_FLOOR_MIN} min (or make it a rest/conditioning day).`,
         });
       }
 
