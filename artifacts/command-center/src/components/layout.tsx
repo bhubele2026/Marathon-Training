@@ -37,12 +37,14 @@ function Wordmark() {
   return (
     <Link
       href="/"
-      className="flex items-center gap-2.5 shrink-0"
+      className="flex items-baseline gap-0.5 shrink-0 select-none"
       aria-label="Studio home"
     >
-      <span className="h-5 w-1.5 rounded-sm bg-primary shrink-0" />
-      <span className="text-lg font-semibold tracking-tight text-foreground leading-none">
+      <span className="text-xl font-black uppercase italic tracking-tight text-foreground leading-none">
         Studio
+      </span>
+      <span className="text-xl font-black italic tracking-tight text-primary leading-none">
+        //
       </span>
     </Link>
   );
