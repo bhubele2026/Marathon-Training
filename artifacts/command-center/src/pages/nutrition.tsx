@@ -444,9 +444,11 @@ export default function Nutrition() {
         </p>
       </div>
 
-      {/* Today's four macros vs target */}
-      <Card>
-        <CardHeader className="pb-2">
+      {/* Today's four macros vs target. Phase 6: de-boxed — the rings sit on
+          the page under a quiet hairline header, not stranded in a giant
+          outlined panel. */}
+      <Card className="border-0 bg-transparent shadow-none">
+        <CardHeader className="px-0 pb-3 border-b border-border">
           <CardTitle className="flex items-center justify-between text-sm tracking-wider text-muted-foreground">
             <span>Today</span>
             <span className="flex items-center gap-1.5 text-xs font-normal normal-case">
@@ -455,7 +457,7 @@ export default function Nutrition() {
             </span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-0 pt-4">
           {loadingRings ? (
             <Skeleton className="h-40 w-full" />
           ) : noTargets ? (

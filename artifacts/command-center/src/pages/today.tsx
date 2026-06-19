@@ -320,30 +320,32 @@ export default function Today() {
               {includesRunning ? "Pre-Launch" : "Starts soon"}
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-8 text-center space-y-6">
-            <div>
+          <CardContent className="p-5 space-y-4">
+            {/* Phase 6: de-boxed + left-aligned. The number is the hero on a
+                single tight line — no centered hero panel, no empty space. */}
+            <div className="flex items-baseline gap-3">
               {includesRunning ? (
                 <>
-                  <p className="text-sm text-muted-foreground font-bold tracking-widest mb-2">
-                    Campaign Starts In
-                  </p>
                   <p
-                    className="text-6xl font-black text-primary leading-none"
+                    className="text-4xl font-black text-primary leading-none tabular-nums"
                     data-testid="text-countdown-days"
                   >
                     {today.daysUntilStart}
                   </p>
-                  <p className="text-sm text-muted-foreground font-bold tracking-widest mt-2">
-                    {today.daysUntilStart === 1 ? "Day" : "Days"}
+                  <p className="text-sm text-muted-foreground">
+                    <span className="font-medium text-foreground">
+                      {today.daysUntilStart === 1 ? "Day" : "Days"}
+                    </span>{" "}
+                    until your campaign starts
                   </p>
                 </>
               ) : (
                 <>
-                  <p className="text-sm text-muted-foreground font-bold tracking-widest mb-2">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">
                     Starts
                   </p>
                   <p
-                    className="text-3xl font-black text-primary leading-tight"
+                    className="text-2xl font-black text-primary leading-none"
                     data-testid="text-starts-date"
                   >
                     {format(parseISO(today.firstSession.date), "EEE MMM d")}
@@ -351,7 +353,9 @@ export default function Today() {
                 </>
               )}
             </div>
-            <div className="bg-background border border-border rounded-md p-6 text-left max-w-xl mx-auto">
+            {/* Phase 6: de-boxed inner section — a hairline divider, not a
+                nested bordered card. */}
+            <div className="border-t border-border pt-4">
               <p className="text-xs text-muted-foreground font-bold tracking-wider mb-2">
                 First Scheduled Session
               </p>
@@ -451,7 +455,7 @@ export default function Today() {
               {((today.firstSession.equipmentList &&
                 today.firstSession.equipmentList.length > 0) ||
                 today.firstSession.equipment) && (
-                <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
+                <div className="mt-4 flex items-center gap-2 flex-wrap">
                   <span className="text-[10px] font-bold tracking-widest text-muted-foreground">
                     EQUIPMENT
                   </span>
@@ -565,13 +569,15 @@ export default function Today() {
           testId="today-empty-plan"
         />
       ) : !today.hasPlan ? (
-        <Card className="border-dashed border-2 bg-muted/50">
-          <CardContent className="p-12 text-center text-muted-foreground">
-            <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <h3 className="text-xl font-bold tracking-wider mb-2">Rest Day</h3>
-            <p>Recover and rebuild. No planned session today.</p>
-          </CardContent>
-        </Card>
+        // Phase 6: tasteful, compact empty state — a quiet line, not a giant
+        // dashed panel.
+        <div className="flex items-center gap-3 py-6 text-muted-foreground">
+          <Activity className="h-6 w-6 opacity-60" />
+          <div>
+            <h3 className="text-base font-bold tracking-tight text-foreground">Rest Day</h3>
+            <p className="text-sm">Recover and rebuild — no planned session today.</p>
+          </div>
+        </div>
       ) : null}
 
       <QuickLogActivity testIdSuffix="today" />
