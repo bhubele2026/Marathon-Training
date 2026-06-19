@@ -5,3 +5,4 @@ export * from "./briefing";
 export * from "./guardrails";
 export * from "./materialize";
 export * from "./programs";
+export * from "./persona";

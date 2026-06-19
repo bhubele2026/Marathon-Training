@@ -12,6 +12,8 @@ import {
   type AiWeek,
   type AiStrengthBlock,
   type MovementPattern,
+  COACH_PERSONA,
+  buildSystemBriefing,
 } from "@workspace/plan-knowledge";
 
 // 2026-05-04 is the campaign-start Monday referenced in replit.md.
@@ -551,5 +553,32 @@ describe("runGuardrails", () => {
     };
     const codes = runGuardrails(plan, {}).map((g) => g.code);
     expect(codes).toContain("mileage_jump");
+  });
+});
+
+describe("COACH_PERSONA — wellbeing rails (must not be stripped)", () => {
+  it("is sardonic + British in voice", () => {
+    expect(COACH_PERSONA.toLowerCase()).toContain("british");
+    expect(COACH_PERSONA.toLowerCase()).toMatch(/sardonic|sarcas/);
+  });
+  it("keeps the meanness on EFFORT, never the body/person/worth", () => {
+    expect(COACH_PERSONA).toMatch(/EFFORT/);
+    expect(COACH_PERSONA.toLowerCase()).toMatch(/never at the client's body|body-sham|their worth/);
+  });
+  it("forbids pushing under the safe floor or faster than the safe rate", () => {
+    expect(COACH_PERSONA.toLowerCase()).toMatch(/calorie floor|1500|under-eat/);
+    expect(COACH_PERSONA.toLowerCase()).toMatch(/faster than the safe|too fast/);
+  });
+  it("flips supportive when the client is struggling / under-eating", () => {
+    expect(COACH_PERSONA.toLowerCase()).toMatch(/drop the sarcasm|drop the act/);
+    expect(COACH_PERSONA.toLowerCase()).toMatch(/professional|doctor|dietitian/);
+  });
+  it("is composed into the chat coach's system briefing", () => {
+    const sys = buildSystemBriefing({
+      todayISO: "2026-06-19",
+      equipment: ["Tonal"],
+      budget: {},
+    });
+    expect(sys).toContain("sardonic");
   });
 });

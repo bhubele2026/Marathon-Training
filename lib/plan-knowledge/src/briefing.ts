@@ -1,6 +1,7 @@
 import { normalizeDailyBudget } from "./types";
 import type { PersonalContext } from "./types";
 import { programCatalogForPrompt, TONAL_DYNAMIC_MODES } from "./programs";
+import { COACH_PERSONA } from "./persona";
 
 // The trainer knowledge base. This is the system prompt Claude reasons from when
 // it authors a plan. It is deliberately EQUIPMENT-FIRST and STRENGTH-FIRST — this
@@ -342,7 +343,7 @@ export function buildSystemBriefing(ctx: PersonalContext): string {
   }
 
   return (
-    `${TRAINING_SCIENCE}\n\n## This client\n${lines.join("\n")}` +
+    `${COACH_PERSONA}\n\n${TRAINING_SCIENCE}\n\n## This client\n${lines.join("\n")}` +
     `\n\n## Available Tonal programs (replicate STRUCTURE, not a live import)\n${programCatalogForPrompt()}`
   );
 }
