@@ -1786,6 +1786,7 @@ components:
           lastAppliedConfigId,
           coachUpgradeAvailable,
           startingPaceSec,
+          includesRunning,
         ]
       properties:
         hasPlan:
@@ -1885,6 +1886,21 @@ components:
             the /plan header so half / 10K / 5K entries-mode plans get
             the same "Weeks to Race Day" copy marathon plans do, instead
             of falling back to a generic "Workout Plan · Weeks Remaining".
+        includesRunning:
+          type: boolean
+          description: |
+            Behavior rehaul R1. The single authoritative "this plan includes
+            running" flag. Running is an OPT-IN module — the default plan is
+            strength + body-recomposition (Tonal lifting + low-impact Peloton
+            Bike/Row conditioning) with ZERO programmed miles and no Long Run.
+            True only when the runner explicitly opted into running: the
+            campaign is anchored on a run race (`raceKind` is non-null), a
+            scheduled race is upcoming (`nextScheduledRace`), or the applied
+            plan_days actually program running (any distance_mi > 0 or
+            run_min > 0). False for the default recomp / lift-primary plan and
+            on freshly seeded campaigns with no plan_days. Every running-aware
+            surface (Plan tiles, Today, dashboard) should gate on THIS flag
+            rather than re-deriving running from raceKind / miles.
         nextMissedDate:
           type: string
           nullable: true

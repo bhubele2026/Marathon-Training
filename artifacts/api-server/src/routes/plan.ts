@@ -203,6 +203,28 @@ export async function computePlanOverview() {
   const activeConfigName = await readActiveConfigName();
   const nextScheduledRace = await fetchNextScheduledRace(today);
 
+  // Behavior rehaul R1. The single authoritative "this plan includes running"
+  // flag the whole frontend reads instead of re-deriving "is there running"
+  // from raceKind / miles in five places. Running is OPT-IN; the default plan
+  // is strength + body-recomposition (lift + low-impact conditioning) with
+  // ZERO miles. A plan includes running when ANY of these explicit opt-in
+  // signals hold:
+  //   - the campaign is anchored on a run race (raceKind detected on the
+  //     trailing plan_day), OR
+  //   - the runner has a scheduled race coming up, OR
+  //   - the applied plan_days actually program running (any distance_mi > 0
+  //     or run_min > 0) — covers entries-mode run templates whose trailing
+  //     day might not classify as a race (e.g. a couch-to-5K graduating run).
+  const runRows = await db.execute<{ has_running: boolean }>(
+    sql`SELECT EXISTS (
+          SELECT 1 FROM plan_days
+          WHERE COALESCE(distance_mi, 0) > 0 OR COALESCE(run_min, 0) > 0
+        ) AS has_running`,
+  );
+  const planHasRunningDays = runRows.rows[0]?.has_running === true;
+  const includesRunning =
+    raceKind !== null || nextScheduledRace !== null || planHasRunningDays;
+
   // Task #329: derive plan-window dates from the most-recently-applied
   // planner config so the /plan header reflects whatever the runner
   // configured, instead of the legacy half-marathon defaults. Fall
@@ -270,6 +292,7 @@ export async function computePlanOverview() {
     longRunTarget: weekRow?.longRunMi ?? 0,
     programs,
     raceKind,
+    includesRunning,
     nextMissedDate: nextMissed?.date ?? null,
     nextMissedWeek: nextMissed?.week ?? null,
     nextMissedPlanDayId: nextMissed?.id ?? null,

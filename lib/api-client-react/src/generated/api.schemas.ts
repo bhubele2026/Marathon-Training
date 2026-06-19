@@ -574,6 +574,20 @@ the same "Weeks to Race Day" copy marathon plans do, instead
 of falling back to a generic "Workout Plan · Weeks Remaining".
  */
   raceKind?: PlanOverviewRaceKind;
+  /** Behavior rehaul R1. The single authoritative "this plan includes
+running" flag. Running is an OPT-IN module — the default plan is
+strength + body-recomposition (Tonal lifting + low-impact Peloton
+Bike/Row conditioning) with ZERO programmed miles and no Long Run.
+True only when the runner explicitly opted into running: the
+campaign is anchored on a run race (`raceKind` is non-null), a
+scheduled race is upcoming (`nextScheduledRace`), or the applied
+plan_days actually program running (any distance_mi > 0 or
+run_min > 0). False for the default recomp / lift-primary plan and
+on freshly seeded campaigns with no plan_days. Every running-aware
+surface (Plan tiles, Today, dashboard) should gate on THIS flag
+rather than re-deriving running from raceKind / miles.
+ */
+  includesRunning: boolean;
   /** Task #33. ISO yyyy-mm-dd of the earliest non-rest plan_day
 in the past that has no logged workout attributed to it
 (workouts.plan_day_id == plan_days.id, or a legacy

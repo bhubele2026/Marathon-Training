@@ -220,15 +220,29 @@ describe("daily time budget contract — lift-primary (every kind)", () => {
         raceWeek: null,
         label: `lift-primary:${kind}`,
       });
-      // Sanity: Mon is the only true rest day in this template (user
-      // contract 2026-05-12). Thu / Sun are short Active Recovery walks.
+      // R1 recomp shape: Mon is the only rest day; Tue-Sun are all
+      // strength + low-impact conditioning sessions (no Active Recovery
+      // walk fillers). The recomp default programs ZERO running miles and
+      // never emits a Long Run.
       const week1 = blockRows.filter((d) => d.week === 1);
       const restDays = week1.filter((d) => d.is_rest).map((d) => d.day);
       expect(restDays).toEqual(["Mon"]);
-      const activeRecoveryDays = week1
-        .filter((d) => d.session_type === "Active Recovery")
-        .map((d) => d.day);
-      expect(activeRecoveryDays.sort()).toEqual(["Sun", "Thu"]);
+      const trainingDays = week1
+        .filter((d) => !d.is_rest)
+        .map((d) => d.day)
+        .sort();
+      expect(trainingDays).toEqual(["Fri", "Sat", "Sun", "Thu", "Tue", "Wed"]);
+      // No running anywhere in a lift-primary recomp block.
+      expect(blockRows.every((d) => (d.distance_mi ?? 0) === 0)).toBe(true);
+      expect(blockRows.every((d) => d.session_type !== "Long Run")).toBe(true);
+      // Every training day pairs Tonal with low-impact Bike/Row conditioning.
+      for (const d of week1.filter((x) => !x.is_rest)) {
+        expect(d.equipment_list).toContain("Tonal");
+        expect(
+          d.equipment_list.some((m) => m === "Peloton Bike" || m === "Peloton Row"),
+        ).toBe(true);
+        expect(d.cardio_min).toBeGreaterThan(0);
+      }
     });
   }
 });
@@ -292,28 +306,21 @@ describe("daily time budget contract — per-runner dailyBudget override propaga
       dailyBudget: override,
     };
     const def = generatePlanFromConfig(cfgDefault).daily.filter(
-      (d) =>
-        d.week >= 1 &&
-        d.week <= 8 &&
-        !d.is_rest &&
-        d.session_type !== "Active Recovery",
+      (d) => d.week >= 1 && d.week <= 8 && !d.is_rest,
     );
     const ovr = generatePlanFromConfig(cfgOverride).daily.filter(
-      (d) =>
-        d.week >= 1 &&
-        d.week <= 8 &&
-        !d.is_rest &&
-        d.session_type !== "Active Recovery",
+      (d) => d.week >= 1 && d.week <= 8 && !d.is_rest,
     );
     // (1) Under the override, every non-rest day sits within the override
     // window for its bucket (short vs long).
     for (const row of ovr) {
       expectInOverrideWindow(row);
     }
-    // (2) The override actually CHANGED minutes: at least one default
-    // long-day session sits below the override long floor (70) and must
-    // be padded up. If the override were silently dropped both runs would
-    // be identical.
+    // (2) The override actually CHANGED minutes vs the defaults: at least
+    // one same-date session has a different total under the override (the
+    // short-day cap trims 50 -> 48; the long-day floor pads any day below
+    // 70 up). If the override were silently dropped both runs would be
+    // identical.
     const sameDay = (a: typeof def[number], b: typeof ovr[number]) =>
       a.date === b.date;
     let mutated = false;
@@ -321,19 +328,13 @@ describe("daily time budget contract — per-runner dailyBudget override propaga
       if (d.day === "Mon") continue;
       const o = ovr.find((x) => sameDay(d, x));
       if (!o) continue;
-      const floor = isShortDay(d.day)
-        ? override.shortDayMin
-        : override.longDayMin;
-      if (totalMin(d) < floor) {
-        // Same session under the override must have been padded up.
-        expect(totalMin(o)).toBeGreaterThanOrEqual(floor);
-        expect(totalMin(o)).toBeGreaterThan(totalMin(d));
+      if (totalMin(o) !== totalMin(d)) {
         mutated = true;
       }
     }
     expect(
       mutated,
-      "expected the override to widen at least one lift-primary day up to the override floor",
+      "expected the override to change at least one lift-primary day's minutes",
     ).toBe(true);
   });
 

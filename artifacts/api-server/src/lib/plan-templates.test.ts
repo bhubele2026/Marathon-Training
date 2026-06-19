@@ -16,6 +16,8 @@ import {
   RACE_DAY_SPECS,
   buildRaceEveSatRow,
   composeWalkRun,
+  buildDefaultSeedConfig,
+  configIncludesRunning,
   type PlannerConfig,
 } from "@workspace/plan-generator";
 
@@ -631,7 +633,7 @@ describe("STARTER_SHORTCUTS", () => {
   });
 });
 
-describe("lift-primary (Tonal-only) routing in generatePlanFromConfig (Task #95)", () => {
+describe("lift-primary (recomp: strength + conditioning) routing in generatePlanFromConfig (Task #95 / R1)", () => {
   // 2026-01-05 is a Monday. Use blocks-mode so the trailing 16-week
   // Marathon-Specific tail owns the race week and we can assert the
   // leading lift-primary Custom block in isolation. Mirrors the
@@ -659,7 +661,7 @@ describe("lift-primary (Tonal-only) routing in generatePlanFromConfig (Task #95)
   }
 
   for (const kind of ["upper", "lower", "ppl", "conditioning"] as const) {
-    it(`Tonal-only ${kind} block: lift days carry Tonal-only chips and rest days are correctly marked`, () => {
+    it(`recomp ${kind} block: strength + low-impact conditioning, zero miles, no Long Run`, () => {
       const cfg = liftOnlyBlockConfig(kind, 4);
       const { daily, weekly } = generatePlanFromConfig(cfg);
       const liftDaily = daily.filter((d) => d.week <= 4);
@@ -669,13 +671,12 @@ describe("lift-primary (Tonal-only) routing in generatePlanFromConfig (Task #95)
       expect(liftDaily).toHaveLength(28);
 
       for (const d of liftDaily) {
-        // No running mileage in any lift-primary day. (Cardio
-        // minutes are checked per-bucket below: Mon = full rest 0,
-        // Thu/Sun = ~25 min Active Recovery walk per the 2026-05-12
-        // user contract, lift days = 0.)
+        // R1: the recomp default programs ZERO running and never a Long
+        // Run — every day is strength + low-impact Bike/Row conditioning.
         expect(d.run_min, `${d.day} w${d.week} run_min`).toBe(0);
         expect(d.distance_mi, `${d.day} w${d.week} distance_mi`).toBeNull();
         expect(d.pace, `${d.day} w${d.week} pace`).toBeNull();
+        expect(d.session_type, `${d.day} w${d.week} not Long Run`).not.toBe("Long Run");
 
         if (d.day === "Mon") {
           // Mon is the only true rest day: full rest, "Off / Rest"
@@ -688,46 +689,33 @@ describe("lift-primary (Tonal-only) routing in generatePlanFromConfig (Task #95)
           expect(d.strength_min).toBe(0);
           expect(d.cardio_min, `${d.day} w${d.week} cardio_min`).toBe(0);
           expect(d.total_load).toBe(0);
-        } else if (d.day === "Thu" || d.day === "Sun") {
-          // Thu / Sun: short Active Recovery walk between lift days.
-          // ~25 min cardio, no strength stimulus, "Lifestyle" chip.
-          expect(d.is_rest, `${d.day} w${d.week} is_rest`).toBe(false);
-          expect(d.session_type).toBe("Active Recovery");
-          expect(d.equipment).toBe("Lifestyle");
-          expect(d.equipment_list).toEqual(["Lifestyle"]);
-          expect(d.strength_load).toBe(0);
-          expect(d.strength_min).toBe(0);
-          expect(d.cardio_min, `${d.day} w${d.week} cardio_min`).toBeGreaterThan(0);
         } else {
-          // Lift days (Tue/Wed/Fri/Sat): Tonal chip ONLY (no Bike/Row/
-          // Tread/Outdoor), Strength session, lift minutes > 0,
-          // zero cardio.
+          // Tue-Sun: Tonal strength PAIRED with low-impact Bike/Row
+          // conditioning. Tonal leads the chip rail; lift minutes and
+          // conditioning minutes are both > 0. No running gear.
           expect(d.is_rest, `${d.day} w${d.week} is_rest`).toBe(false);
-          expect(d.session_type).toBe("Strength");
           expect(d.equipment).toBe("Tonal");
-          expect(d.equipment_list).toEqual(["Tonal"]);
-          expect(d.cardio_min, `${d.day} w${d.week} cardio_min`).toBe(0);
+          expect(d.equipment_list[0]).toBe("Tonal");
+          expect(
+            d.equipment_list.some((m) => m === "Peloton Bike" || m === "Peloton Row"),
+            `${d.day} w${d.week} has Bike/Row conditioning`,
+          ).toBe(true);
+          expect(d.cardio_min, `${d.day} w${d.week} cardio_min`).toBeGreaterThan(0);
           expect(d.strength_min, `${d.day} w${d.week} strength_min`).toBeGreaterThan(0);
           expect(d.strength_load, `${d.day} w${d.week} strength_load`).toBeGreaterThan(0);
-          // Equipment chips must NOT include any running gear.
+          // No RUNNING gear (Bike/Row conditioning is allowed; Tread/Outdoor is not).
           expect(d.equipment_list).not.toContain("Peloton Tread");
           expect(d.equipment_list).not.toContain("Outdoor");
-          expect(d.equipment_list).not.toContain("Peloton Bike");
-          expect(d.equipment_list).not.toContain("Peloton Row");
         }
       }
 
-      // Weekly rollups for a Tonal-only block: zero miles, zero long
-      // run, lifting drives the strength bucket. Cardio rollup picks
-      // up the Thu / Sun Active Recovery walks (~50 min total) per
-      // the 2026-05-12 user contract — bounded to confirm it's only
-      // the two short walks, not a hidden cardio session.
+      // Weekly rollups for a recomp block: zero miles, zero long run,
+      // lifting drives the strength bucket, conditioning drives cardio.
       for (const wk of liftWeekly) {
         expect(wk.planned_miles, `week ${wk.week} planned_miles`).toBe(0);
         expect(wk.long_run_mi, `week ${wk.week} long_run_mi`).toBe(0);
         expect(wk.planned_strength, `week ${wk.week} planned_strength`).toBeGreaterThan(0);
         expect(wk.planned_cardio, `week ${wk.week} planned_cardio`).toBeGreaterThan(0);
-        expect(wk.planned_cardio, `week ${wk.week} planned_cardio bound`).toBeLessThanOrEqual(60);
       }
     });
   }
@@ -2049,5 +2037,93 @@ describe("walk-run on-ramp coherence (Task #361)", () => {
     // Recipe-prescribed W1 distance (1.00 mi) is preserved.
     const w1Run = runDays.filter((d) => d.week === 1);
     expect(w1Run.length, "C25K W1 run days").toBeGreaterThan(0);
+  });
+});
+
+describe("R1 — default plan is strength + recomp, running is opt-in", () => {
+  it("the default seed config generates a recomp plan: zero miles, no Long Run, Monday rest, correct cadence", () => {
+    const { name, config } = buildDefaultSeedConfig(new Date("2026-06-16T00:00:00Z"));
+    // includesRunning is FALSE for the default — running is opt-in.
+    expect(configIncludesRunning(config)).toBe(false);
+    expect(name).toMatch(/recomp|strength/i);
+
+    const { daily, weekly } = generatePlanFromConfig(config);
+
+    // Zero programmed miles, no Long Run anywhere, no Base/Aerobic mileage framing.
+    expect(daily.reduce((s, d) => s + (d.distance_mi ?? 0), 0)).toBe(0);
+    expect(daily.some((d) => d.session_type === "Long Run")).toBe(false);
+    expect(daily.some((d) => d.run_min > 0)).toBe(false);
+    expect(
+      daily.some((d) => /\bLong Run\b|Aerobic Build|Base run/.test(d.description)),
+    ).toBe(false);
+    for (const w of weekly) {
+      expect(w.planned_miles, `week ${w.week} planned_miles`).toBe(0);
+      expect(w.long_run_mi, `week ${w.week} long_run_mi`).toBe(0);
+    }
+
+    // Monday rest; Tue-Sun strength + conditioning honoring the cadence.
+    const wk1 = daily.filter((d) => d.week === 1);
+    const mon = wk1.find((d) => d.day === "Mon")!;
+    expect(mon.is_rest).toBe(true);
+    const total = (d: (typeof wk1)[number]) => d.strength_min + d.cardio_min + d.run_min;
+    for (const d of wk1.filter((x) => !x.is_rest)) {
+      // Tonal strength + low-impact Bike/Row conditioning.
+      expect(d.strength_min).toBeGreaterThan(0);
+      expect(d.cardio_min).toBeGreaterThan(0);
+      expect(d.equipment_list).toContain("Tonal");
+      expect(
+        d.equipment_list.some((m) => m === "Peloton Bike" || m === "Peloton Row"),
+      ).toBe(true);
+      // Cadence: Tue-Thu 30-50, Fri-Sun 60-90.
+      if (d.day === "Tue" || d.day === "Wed" || d.day === "Thu") {
+        expect(total(d)).toBeGreaterThanOrEqual(30);
+        expect(total(d)).toBeLessThanOrEqual(50);
+      } else {
+        expect(total(d)).toBeGreaterThanOrEqual(60);
+        expect(total(d)).toBeLessThanOrEqual(90);
+      }
+    }
+  });
+
+  it("a 5K run goal still produces a sound run plan with miles + Long Run (includesRunning true)", () => {
+    const cfg: PlannerConfig = {
+      startDate: "2026-06-22",
+      marathonDate: null,
+      blocks: [],
+      entries: [{ templateId: "higdon_5k_novice", weeks: 8 }],
+    };
+    expect(configIncludesRunning(cfg)).toBe(true);
+    const { daily } = generatePlanFromConfig(cfg);
+    expect(daily.reduce((s, d) => s + (d.distance_mi ?? 0), 0)).toBeGreaterThan(0);
+    expect(daily.some((d) => d.session_type === "Long Run")).toBe(true);
+  });
+
+  it("configIncludesRunning: true when a marathon date pins a running tail (blocks-mode)", () => {
+    const startMs = Date.parse("2026-06-22T00:00:00Z");
+    const marathonDate = new Date(startMs + (24 * 7 - 1) * 86400000)
+      .toISOString()
+      .slice(0, 10);
+    const cfg: PlannerConfig = {
+      startDate: "2026-06-22",
+      marathonDate,
+      blocks: [{ focusType: "Base", weeks: 8 }],
+    };
+    expect(configIncludesRunning(cfg)).toBe(true);
+  });
+
+  it("configIncludesRunning: false for a pure lift-primary blocks-mode config", () => {
+    const cfg: PlannerConfig = {
+      startDate: "2026-06-22",
+      marathonDate: null,
+      blocks: [
+        {
+          focusType: "Custom",
+          weeks: 8,
+          customName: "Recomp",
+          customNotes: "[lift-primary:upper]",
+        },
+      ],
+    };
+    expect(configIncludesRunning(cfg)).toBe(false);
   });
 });

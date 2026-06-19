@@ -73,6 +73,11 @@ export const GetPlanOverviewResponse = zod.object({
     .describe(
       'Task #204. Kind of race the campaign is anchored on, derived\nfrom the trailing plan_day Sunday. Populated when that final\nrow is a recognised race day (sessionType `Race` or the\ngenerator\'s \"RACE DAY — <Marathon|Half|10K|5K>\" description\nprefix); resolved from the description first so a runner who\nedits the distance still gets the right kind, then falls\nback to `distance_mi`. Null on tonal-first \/ non-race plans\n(lift_primary blocks, ad-hoc Custom blocks) and on legacy \/\nfreshly seeded campaigns with no plan_days yet. Drives the\n\"Race Campaign\" \/ per-kind (\"5K Campaign\", \"10K Campaign\",\n\"Half Marathon Campaign\", \"Marathon Campaign\") framing on\nthe \/plan header so half \/ 10K \/ 5K entries-mode plans get\nthe same \"Weeks to Race Day\" copy marathon plans do, instead\nof falling back to a generic \"Workout Plan · Weeks Remaining\".\n',
     ),
+  includesRunning: zod
+    .boolean()
+    .describe(
+      'Behavior rehaul R1. The single authoritative \"this plan includes\nrunning\" flag. Running is an OPT-IN module — the default plan is\nstrength + body-recomposition (Tonal lifting + low-impact Peloton\nBike\/Row conditioning) with ZERO programmed miles and no Long Run.\nTrue only when the runner explicitly opted into running: the\ncampaign is anchored on a run race (`raceKind` is non-null), a\nscheduled race is upcoming (`nextScheduledRace`), or the applied\nplan_days actually program running (any distance_mi > 0 or\nrun_min > 0). False for the default recomp \/ lift-primary plan and\non freshly seeded campaigns with no plan_days. Every running-aware\nsurface (Plan tiles, Today, dashboard) should gate on THIS flag\nrather than re-deriving running from raceKind \/ miles.\n',
+    ),
   nextMissedDate: zod
     .string()
     .nullish()
@@ -3687,6 +3692,11 @@ export const GetDashboardBootstrapResponse = zod
         .nullish()
         .describe(
           'Task #204. Kind of race the campaign is anchored on, derived\nfrom the trailing plan_day Sunday. Populated when that final\nrow is a recognised race day (sessionType `Race` or the\ngenerator\'s \"RACE DAY — <Marathon|Half|10K|5K>\" description\nprefix); resolved from the description first so a runner who\nedits the distance still gets the right kind, then falls\nback to `distance_mi`. Null on tonal-first \/ non-race plans\n(lift_primary blocks, ad-hoc Custom blocks) and on legacy \/\nfreshly seeded campaigns with no plan_days yet. Drives the\n\"Race Campaign\" \/ per-kind (\"5K Campaign\", \"10K Campaign\",\n\"Half Marathon Campaign\", \"Marathon Campaign\") framing on\nthe \/plan header so half \/ 10K \/ 5K entries-mode plans get\nthe same \"Weeks to Race Day\" copy marathon plans do, instead\nof falling back to a generic \"Workout Plan · Weeks Remaining\".\n',
+        ),
+      includesRunning: zod
+        .boolean()
+        .describe(
+          'Behavior rehaul R1. The single authoritative \"this plan includes\nrunning\" flag. Running is an OPT-IN module — the default plan is\nstrength + body-recomposition (Tonal lifting + low-impact Peloton\nBike\/Row conditioning) with ZERO programmed miles and no Long Run.\nTrue only when the runner explicitly opted into running: the\ncampaign is anchored on a run race (`raceKind` is non-null), a\nscheduled race is upcoming (`nextScheduledRace`), or the applied\nplan_days actually program running (any distance_mi > 0 or\nrun_min > 0). False for the default recomp \/ lift-primary plan and\non freshly seeded campaigns with no plan_days. Every running-aware\nsurface (Plan tiles, Today, dashboard) should gate on THIS flag\nrather than re-deriving running from raceKind \/ miles.\n',
         ),
       nextMissedDate: zod
         .string()

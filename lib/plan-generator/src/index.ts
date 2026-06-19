@@ -8,6 +8,7 @@
 import {
   entriesEndOnMarathonRace,
   entriesRaceKind,
+  templateRaceKindById,
   expandCustomHybrid,
   expandEntriesToBlocksWithGaps,
   getTemplateById,
@@ -28,6 +29,7 @@ import {
   type HybridMixPosition,
   type HybridMixSpec,
   type HybridPhase,
+  type LiftPrimaryStarterKind,
   type PlanRaceKind,
   type PrimaryMachineKind,
   type TemplateEntry,
@@ -2219,46 +2221,71 @@ function buildLiftPrimaryWeekDays(opts: {
     dailyBudget,
   } = opts;
 
-  // Per-kind labels for the four lift days (Mon, Wed, Fri, Sat). Each
-  // kind has a 4-day rotation; conditioning days append a finisher
-  // descriptor in place of separate cardio.
-  const rotations: Record<string, [string, string, string, string]> = {
+  // R1 recomp week shape. Six training days (Tue-Sun), Monday full rest.
+  // Each non-Mon day is Tonal strength PAIRED with low-impact Peloton
+  // Bike/Row conditioning — the recomp default's calorie-burn / fat-loss
+  // driver, joint-friendly so it never centers running. ZERO miles, no
+  // Long Run, no "Base / Aerobic Build" mileage framing. Honors the fixed
+  // cadence: Tue-Thu SHORT (~30-50, lighter conditioning), Fri-Sun LONG
+  // (~60-90, longer conditioning) — `enforceDailyTimeBudget` clamps each
+  // day into its window.
+  //
+  // Per-kind label rotation across the six lift days. `conditioning`
+  // pairs heavier full-body lifts with longer Bike/Row blocks; the other
+  // kinds rotate the body-part split. Each row gets a low-impact
+  // conditioning finisher (Bike or Row, alternating) so the session reads
+  // "<focus> strength + conditioning".
+  const rotations: Record<string, string[]> = {
     upper: [
       "Heavy push (bench, overhead press, triceps)",
       "Heavy pull (row, pull-ups, biceps, rear-delt)",
       "Push accessory (incline press, lateral raise, dips)",
       "Pull accessory (chin-ups, face-pulls, curls) + core",
+      "Heavy push v2 (close-grip bench, overhead, triceps)",
+      "Upper power-pull (heavy row, chin-ups, rear-delt) + core",
     ],
     lower: [
       "Heavy squat (back squat, split squat, quad accessory)",
       "Heavy hinge (deadlift, RDL, hamstring accessory)",
       "Lunge / unilateral (Bulgarian split squat, step-up)",
       "Posterior chain (good morning, hip thrust, calf) + core",
+      "Heavy squat v2 (front squat, tempo squat, quad accessory)",
+      "Hinge + glute (sumo deadlift, hip thrust, calf) + core",
     ],
     ppl: [
       "Push day (bench, overhead press, triceps, lateral raise)",
       "Pull day (row, pull-ups, biceps, rear-delt)",
       "Legs day (squat, RDL, lunge, calf)",
       "Push day v2 (incline press, dips, push accessory) + core",
+      "Pull day v2 (heavy row, chin-ups, rear-delt)",
+      "Legs day v2 (front squat, hip thrust, calf) + core",
     ],
     conditioning: [
-      "Heavy full-body (squat + bench) + 8-min Tonal finisher",
-      "Heavy full-body (deadlift + row) + 8-min Tonal finisher",
-      "Heavy full-body (front squat + overhead press) + 10-min finisher",
-      "Heavy full-body (RDL + pull-up) + 10-min EMOM finisher + core",
+      "Heavy full-body (squat + bench) + Tonal finisher",
+      "Heavy full-body (deadlift + row) + Tonal finisher",
+      "Heavy full-body (front squat + overhead press) + finisher",
+      "Heavy full-body (RDL + pull-up) + EMOM finisher + core",
+      "Heavy full-body (squat + overhead press) + finisher",
+      "Heavy full-body (deadlift + bench) + EMOM finisher + core",
     ],
   };
   const labels =
     rotations[liftKind] ??
-    ([
-      "Heavy full-body Tonal session",
-      "Heavy full-body Tonal session",
-      "Heavy full-body Tonal session",
-      "Heavy full-body Tonal session",
-    ] as [string, string, string, string]);
+    Array.from({ length: 6 }, () => "Heavy full-body Tonal session");
 
   const accessoryLoad = isCutback ? Math.round(heavyStrengthLoad * 0.55) : Math.round(heavyStrengthLoad * 0.7);
   const accessoryMin = Math.max(20, accessoryTonalMin + 5);
+
+  // Per-kind session-type prefix so Plan tiles / Today read the recomp
+  // intent ("Upper strength + conditioning", etc) instead of a bare
+  // "Strength". conditioning days emphasize the cardio finisher.
+  const sessionTypePrefix: Record<string, string> = {
+    upper: "Upper strength + conditioning",
+    lower: "Lower strength + conditioning",
+    ppl: "Strength + conditioning",
+    conditioning: "Full-body strength + conditioning",
+  };
+  const sessionType = sessionTypePrefix[liftKind] ?? "Strength + conditioning";
 
   function rest(dayOffset: number, day: string, copy: string): DailyRow {
     return {
@@ -2280,36 +2307,19 @@ function buildLiftPrimaryWeekDays(opts: {
       total_load: 0,
     };
   }
-  // Active Recovery: short take-it-easy walk + mobility for days that
-  // used to be rest. Mon is the only true rest day (user contract,
-  // 2026-05-12); every other day carries something, even if it's just
-  // a 25-min walk. Exempt from the strength floor and weekday budget
-  // (see BUDGET_EXEMPT_SESSION_TYPES).
-  function activeRecovery(dayOffset: number, day: string, copy: string): DailyRow {
-    return {
-      week: weekNumber,
-      phase,
-      date: fmt(addDays(wkStart, dayOffset)),
-      day,
-      strength_load: 0,
-      equipment: "Lifestyle",
-      equipment_list: ["Lifestyle"],
-      description: copy + customSuffix,
-      strength_min: 0,
-      cardio_min: 25,
-      run_min: 0,
-      distance_mi: null,
-      pace: null,
-      session_type: "Active Recovery",
-      is_rest: false,
-      total_load: 25,
-    };
-  }
-  function lift(
+
+  // Strength + low-impact conditioning. `isLongDay` (Fri-Sun) gets a
+  // longer Bike/Row block so the day reaches its 60-90 window without
+  // adding miles; short days (Tue-Thu) pair a brief 15-min spin/row.
+  // The Bike/Row machine alternates day to day. Lower-body days favor
+  // the Bike (flush the legs); upper/full-body days favor the Row.
+  function liftPlusConditioning(
     dayOffset: number,
     day: string,
     label: string,
     isAccessory: boolean,
+    isLongDay: boolean,
+    cardioMachine: "Peloton Bike" | "Peloton Row",
   ): DailyRow {
     const load = isAccessory ? accessoryLoad : heavyStrengthLoad;
     const min = isAccessory ? accessoryMin : heavyTonalMin;
@@ -2318,6 +2328,12 @@ function buildLiftPrimaryWeekDays(opts: {
       : isAccessory
         ? "moderate effort, focus on quality reps"
         : "80-85% effort, leave 1-2 reps in reserve";
+    // Conditioning minutes: short days ~15, long days enough to reach the
+    // long-day floor alongside the lift. `enforceDailyTimeBudget` is the
+    // final arbiter of the per-day window, so these are starting points.
+    const cardioMin = isLongDay ? Math.max(25, LONG_DAY_MIN_TOTAL_MIN - min) : 15;
+    const cardioVerb =
+      cardioMachine === "Peloton Bike" ? "steady Peloton Bike spin" : "steady Peloton Row";
     return {
       week: weekNumber,
       phase,
@@ -2325,35 +2341,35 @@ function buildLiftPrimaryWeekDays(opts: {
       day,
       strength_load: load,
       equipment: "Tonal",
-      equipment_list: ["Tonal"],
-      description: `${label} on Tonal (${min} min, ${intensity})` + customSuffix,
+      equipment_list: ["Tonal", cardioMachine],
+      description:
+        `${label} on Tonal (${min} min, ${intensity}), then ${cardioMin} min ${cardioVerb} (low-impact conditioning)` +
+        customSuffix,
       strength_min: min,
-      cardio_min: 0,
+      cardio_min: cardioMin,
       run_min: 0,
       distance_mi: null,
       pace: null,
-      session_type: "Strength",
+      session_type: sessionType,
       is_rest: false,
-      total_load: load,
+      total_load: load + cardioMin,
     };
   }
 
-  // Light cutback wave on every 4th week-in-block: trims the Saturday
-  // accessory session so the runner gets a true deload day after three
-  // full lift weeks.
-  // Mon is the only true rest day (user contract 2026-05-12). The four
-  // lift days slot in Tue / Wed / Fri / Sat; Thu / Sun are short
-  // active-recovery walks instead of full rest so the runner is
-  // moving every day except Mon.
+  // Light cutback wave on every 4th week-in-block: the Sat/Sun sessions
+  // run as accessory work so the runner gets a lighter wave after three
+  // full lift weeks. Mon is the only true rest day. Tue-Sun are all
+  // strength + low-impact conditioning (NO running, NO walk fillers) so
+  // the recomp default fills the whole week with lift + Bike/Row work.
   return enforceDailyTimeBudget(
     [
-      rest(0, "Mon", `Rest day. Mobility, foam roll, hydrate. Lift block week ${weekInBlock}.`),
-      lift(1, "Tue", labels[0], false),
-      lift(2, "Wed", labels[1], false),
-      activeRecovery(3, "Thu", `Active recovery — 20-30 min easy walk + mobility flow between lift days. Take it easy.`),
-      lift(4, "Fri", labels[2], false),
-      lift(5, "Sat", labels[3], true),
-      activeRecovery(6, "Sun", `Active recovery — easy walk (25-30 min), gentle mobility, hydrate. Set up next week.`),
+      rest(0, "Mon", `Rest day. Mobility, foam roll, hydrate. Recomp lift block week ${weekInBlock}.`),
+      liftPlusConditioning(1, "Tue", labels[0]!, false, false, "Peloton Bike"),
+      liftPlusConditioning(2, "Wed", labels[1]!, false, false, "Peloton Row"),
+      liftPlusConditioning(3, "Thu", labels[2]!, false, false, "Peloton Bike"),
+      liftPlusConditioning(4, "Fri", labels[3]!, false, true, "Peloton Row"),
+      liftPlusConditioning(5, "Sat", labels[4]!, isCutback, true, "Peloton Bike"),
+      liftPlusConditioning(6, "Sun", labels[5]!, isCutback, true, "Peloton Row"),
     ],
     { isRaceWeek: false, dailyBudget },
   );
@@ -4749,6 +4765,56 @@ export interface TaggedDailyRow {
 // week with the canonical projected fallback (Recovery filler from
 // expandEntriesToBlocksWithGaps) so dates between non-adjacent entries
 // still get plan rows. Legacy blocks-mode configs collapse to a single
+// ===========================================================================
+// includesRunning (behavior rehaul R1) — the single authoritative notion of
+// "this plan includes running". Running is an OPT-IN module: the default plan
+// is strength + body-recomposition (lift-primary + low-impact conditioning),
+// which programs ZERO miles and no Long Run. A plan "includes running" only
+// when the runner explicitly opts in by:
+//   - setting a marathonDate / race anchor (blocks-mode auto-pins a 16-week
+//     Marathon-Specific running tail), OR
+//   - choosing a run-race template in entries-mode (raceKind !== "none"), OR
+//   - choosing a focus / template that the generator expands into running
+//     sessions (recipe-driven Base/Speed/etc, or a hybrid mix that emits
+//     easy/quality/long runs).
+//
+// A block does NOT contribute running when it is a Tonal-only lift-primary
+// block (`[lift-primary:<kind>]`) or a Bike/Row primary-machine block
+// (`[primary-machine:...]`) — those zero out every run bucket. Mirrors the
+// `zeroRuns` predicate used by `previewWeeklyMileage` so the flag and the
+// mileage preview can never disagree about whether a block runs.
+//
+// Every downstream surface (Plan tiles, Today, dashboard, guardrails, the AI
+// briefing) should read THIS one flag (or the api `/plan/overview`
+// `includesRunning` it derives) rather than re-deriving "is there running"
+// from raceKind / miles in five places.
+export function blockIncludesRunning(block: PhaseBlock): boolean {
+  const isLiftPrimary =
+    block.focusType === "Custom" && liftPrimaryKind(block.customNotes) !== null;
+  const isPrimaryMachine = primaryMachineKind(block.customNotes) !== null;
+  // Lift-primary and Bike/Row-only blocks program zero run miles.
+  return !(isLiftPrimary || isPrimaryMachine);
+}
+
+export function configIncludesRunning(config: PlannerConfig): boolean {
+  // A pinned marathon tail (blocks-mode) is an explicit race anchor → running.
+  if (!Array.isArray(config.entries) && config.marathonDate != null) {
+    return true;
+  }
+  // Entries-mode: a trailing (or any) run-race template opts the plan in.
+  if (Array.isArray(config.entries)) {
+    for (const e of config.entries) {
+      if (templateRaceKindById(e.templateId) !== "none") return true;
+    }
+  }
+  // Otherwise inspect the expanded blocks: any block the generator turns into
+  // running sessions (recipe-driven Base/Speed/Time-on-Feet/Marathon-Specific,
+  // or a hybrid mix that emits runs) counts; pure lift-primary / Bike-Row
+  // blocks do not.
+  const expanded = expandPlannerBlocks(config);
+  return expanded.some((b) => blockIncludesRunning(b));
+}
+
 // untagged track via generatePlanFromConfigPerEntry.
 export function expandConfigToPlanRows(
   config: PlannerConfig,
@@ -4864,16 +4930,31 @@ export {
 } from "./templates.js";
 export { detectRaceKind, type RaceDayKind } from "./race-day.js";
 
-// Task #244. Default stacked planner config used by fresh installs (no
-// applied config row in `planner_configs` yet). The CLI seed script and
-// the in-app /plan/full-reset route both share this so a brand-new
-// install AND a reset-with-no-applied-config land on the same Tonal-
-// first 8-week non-running default — instead of the legacy 52-week
-// canonical campaign — keeping the task #244 contract that the active
-// config name drives every header.
-export const DEFAULT_SEED_CONFIG_NAME = "Tonal Upper 8wk";
+// Task #244 + behavior rehaul R1. Default planner config used by fresh
+// installs (no applied config row in `planner_configs` yet). The CLI seed
+// script and the in-app /plan/full-reset route both share this so a
+// brand-new install AND a reset-with-no-applied-config land on the same
+// strength + body-recomposition default — NOT a running plan.
+//
+// R1: the prior default referenced the archived `tonal_strength_upper`
+// TEMPLATE, which collapsed to a single recipe-driven Base block — i.e. a
+// RUNNING plan (Long Runs, ~100 mi over 8 weeks). That is exactly the
+// running-first default this rehaul removes. The default is now a
+// blocks-mode lift-primary recomp block (`[lift-primary:upper]`) with a
+// NULL marathonDate (no auto-pinned marathon tail), so the generator takes
+// the recomp path: Tonal strength + low-impact conditioning, zero miles,
+// no Long Run, Monday rest, on the fixed Tue-Thu / Fri-Sun cadence.
+// `configIncludesRunning` returns FALSE for this config.
+export const DEFAULT_SEED_CONFIG_NAME = "Strength + Recomp 8wk";
 export const DEFAULT_SEED_CONFIG_WEEKS = 8;
+// Retained for any out-of-band consumer that still references the template
+// id; the live default no longer routes through it (the lift-primary block
+// owns the recomp week shape directly).
 export const DEFAULT_SEED_CONFIG_TEMPLATE_ID = "tonal_strength_upper";
+// The lift-primary rotation the default recomp block uses (upper / lower /
+// ppl / conditioning all program zero miles). "upper" matches the prior
+// default's intent (Tonal Upper) while now actually producing a recomp week.
+export const DEFAULT_SEED_CONFIG_LIFT_KIND: LiftPrimaryStarterKind = "upper";
 
 function computeNextMondayISO(now: Date = new Date()): string {
   const utcMidnight = Date.UTC(
@@ -4893,25 +4974,28 @@ export interface DefaultSeedConfig {
   config: PlannerConfig;
 }
 
-// Build the default stacked planner config a fresh install lands on.
+// Build the default recomp planner config a fresh install lands on.
 // Anchored on the next Monday so the campaign starts on the canonical
-// Mon→Sun week boundary the rest of the planner assumes. The
-// `entries`-mode payload deliberately avoids triggering the legacy
-// MARATHON_TAIL auto-pin so the default plan stays a pure lift block.
+// Mon→Sun week boundary the rest of the planner assumes.
+//
+// R1: blocks-mode with a NULL marathonDate so `expandPlannerBlocks` does
+// NOT auto-pin the 16-week Marathon-Specific (running) tail. The single
+// Custom block carries the `[lift-primary:<kind>]` sentinel so
+// `buildWeekDays` routes to the recomp path (Tonal strength + low-impact
+// conditioning, zero miles, no Long Run). `configIncludesRunning` is FALSE.
 export function buildDefaultSeedConfig(now?: Date): DefaultSeedConfig {
   const startDate = computeNextMondayISO(now);
-  const startMs = Date.parse(`${startDate}T00:00:00Z`);
-  const marathonDate = new Date(
-    startMs + (DEFAULT_SEED_CONFIG_WEEKS * 7 - 1) * 86400000,
-  )
-    .toISOString()
-    .slice(0, 10);
+  const starter = getLiftPrimaryStarter(DEFAULT_SEED_CONFIG_LIFT_KIND);
   const config: PlannerConfig = {
     startDate,
-    marathonDate,
-    blocks: [],
-    entries: [
-      { templateId: DEFAULT_SEED_CONFIG_TEMPLATE_ID, weeks: DEFAULT_SEED_CONFIG_WEEKS },
+    marathonDate: null,
+    blocks: [
+      {
+        focusType: "Custom",
+        weeks: DEFAULT_SEED_CONFIG_WEEKS,
+        customName: starter.customName,
+        customNotes: `[lift-primary:${starter.kind}]`,
+      },
     ],
   };
   return { name: DEFAULT_SEED_CONFIG_NAME, config };

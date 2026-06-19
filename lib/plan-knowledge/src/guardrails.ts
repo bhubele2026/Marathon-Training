@@ -16,8 +16,29 @@ function dayTotal(d: { strengthMin: number; cardioMin: number; runMin: number })
   return d.strengthMin + d.cardioMin + d.runMin;
 }
 
-export function runGuardrails(plan: AiPlan, budget: DailyBudget): Guardrail[] {
+// Behavior rehaul R1. The single authoritative "this plan includes running"
+// notion, as seen by the guardrails. Running is OPT-IN: a plan includes
+// running only when it is anchored on a run race (`raceKind !== "none"`).
+// Callers that have already derived the flag (e.g. from the planner config /
+// a scheduled race) can pass it explicitly via `opts.includesRunning` to
+// override the raceKind-derived default.
+export function planIncludesRunning(
+  plan: Pick<AiPlan, "raceKind">,
+  opts?: { includesRunning?: boolean },
+): boolean {
+  if (opts && typeof opts.includesRunning === "boolean") {
+    return opts.includesRunning;
+  }
+  return plan.raceKind !== "none";
+}
+
+export function runGuardrails(
+  plan: AiPlan,
+  budget: DailyBudget,
+  opts?: { includesRunning?: boolean },
+): Guardrail[] {
   const out: Guardrail[] = [];
+  const includesRunning = planIncludesRunning(plan, opts);
 
   if (!isMonday(plan.startDate)) {
     out.push({
@@ -57,6 +78,35 @@ export function runGuardrails(plan: AiPlan, budget: DailyBudget): Guardrail[] {
     for (const d of week.days) {
       const total = dayTotal(d);
       if (d.distanceMi) weeklyMiles += d.distanceMi;
+
+      // R1: a recomp/strength default plan (includesRunning === false) must
+      // NOT center running. Flag any programmed running — a "Long Run"
+      // session, programmed mileage, or run minutes — so a plan that drifts
+      // back to a mileage program when the runner never opted in surfaces
+      // loudly. Running is an opt-in module; without a run goal there should
+      // be zero miles and no Long Run (default = lift + low-impact
+      // conditioning).
+      if (!includesRunning) {
+        const isLongRun = d.sessionType === "Long Run";
+        const hasMiles = (d.distanceMi ?? 0) > 0;
+        const hasRunMin = (d.runMin ?? 0) > 0;
+        if (isLongRun || hasMiles || hasRunMin) {
+          const parts: string[] = [];
+          if (isLongRun) parts.push("Long Run");
+          if (hasMiles) parts.push(`${d.distanceMi} mi`);
+          if (hasRunMin) parts.push(`${d.runMin} run min`);
+          out.push({
+            level: "warn",
+            code: "running_without_run_goal",
+            week: week.week,
+            day: d.day,
+            message:
+              `Week ${week.week} ${d.day} programs running (${parts.join(", ")}) ` +
+              `but no run goal is set; the default plan is strength + low-impact ` +
+              `conditioning with zero miles.`,
+          });
+        }
+      }
 
       // Rest-day integrity.
       if (d.isRest && total > 0) {

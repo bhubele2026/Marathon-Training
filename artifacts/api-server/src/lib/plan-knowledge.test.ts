@@ -6,6 +6,7 @@ import {
   weekdayIndex,
   materializeAiPlan,
   runGuardrails,
+  planIncludesRunning,
   type AiPlan,
   type AiDay,
   type AiWeek,
@@ -124,6 +125,18 @@ describe("materializeAiPlan", () => {
   });
 });
 
+describe("planIncludesRunning (R1)", () => {
+  it("is false for a no-race (recomp default) plan and true for a run race", () => {
+    expect(planIncludesRunning({ raceKind: "none" })).toBe(false);
+    expect(planIncludesRunning({ raceKind: "5k" })).toBe(true);
+    expect(planIncludesRunning({ raceKind: "marathon" })).toBe(true);
+  });
+  it("honors an explicit includesRunning override", () => {
+    expect(planIncludesRunning({ raceKind: "5k" }, { includesRunning: false })).toBe(false);
+    expect(planIncludesRunning({ raceKind: "none" }, { includesRunning: true })).toBe(true);
+  });
+});
+
 describe("runGuardrails", () => {
   it("passes a contract-respecting plan with no findings", () => {
     const plan: AiPlan = {
@@ -165,6 +178,73 @@ describe("runGuardrails", () => {
     expect(codes.has("rest_not_rest")).toBe(true);
     expect(codes.has("over_budget")).toBe(true);
     expect(codes.has("bad_pace_format")).toBe(true);
+  });
+
+  it("R1: flags running on a no-run-goal (recomp default) plan", () => {
+    // raceKind "none" => includesRunning is false (the recomp default).
+    // A week that programs a Long Run / miles / run minutes must be flagged.
+    const plan: AiPlan = {
+      summary: "s",
+      name: "Recomp drifting to running",
+      raceKind: "none",
+      startDate: MON,
+      weeks: [
+        {
+          week: 1,
+          phase: "Strength",
+          days: [
+            day({ day: "Mon", isRest: true, sessionType: "Rest", strengthMin: 0, equipmentList: [] }),
+            day({ day: "Tue", strengthMin: 35, cardioMin: 15 }),
+            day({ day: "Wed", strengthMin: 35, cardioMin: 15 }),
+            day({ day: "Thu", strengthMin: 35, cardioMin: 15 }),
+            day({ day: "Fri", strengthMin: 40, cardioMin: 30 }),
+            // A stray Long Run with miles — should be flagged.
+            day({
+              day: "Sat",
+              sessionType: "Long Run",
+              strengthMin: 30,
+              runMin: 50,
+              distanceMi: 5,
+              pace: "13:00",
+            }),
+            day({ day: "Sun", strengthMin: 40, cardioMin: 30 }),
+          ],
+        },
+      ],
+    };
+    const findings = runGuardrails(plan, {});
+    const codes = findings.map((g) => g.code);
+    expect(codes).toContain("running_without_run_goal");
+    const flagged = findings.find((g) => g.code === "running_without_run_goal")!;
+    expect(flagged.level).toBe("warn");
+    expect(flagged.day).toBe("Sat");
+  });
+
+  it("R1: does NOT flag running when a run goal IS set", () => {
+    // raceKind "5k" => includesRunning is true; a Long Run is expected.
+    const plan: AiPlan = {
+      summary: "s",
+      name: "5K plan",
+      raceKind: "5k",
+      startDate: MON,
+      weeks: [cleanWeek(1)],
+    };
+    const codes = runGuardrails(plan, {}).map((g) => g.code);
+    expect(codes).not.toContain("running_without_run_goal");
+  });
+
+  it("R1: includesRunning override forces the running flag off even with miles", () => {
+    // A run-race plan whose flag is explicitly overridden to false would be
+    // flagged — proves the override is honored (single authoritative flag).
+    const plan: AiPlan = {
+      summary: "s",
+      name: "Overridden",
+      raceKind: "5k",
+      startDate: MON,
+      weeks: [cleanWeek(1)],
+    };
+    const codes = runGuardrails(plan, {}, { includesRunning: false }).map((g) => g.code);
+    expect(codes).toContain("running_without_run_goal");
   });
 
   it("flags a too-aggressive week-to-week mileage jump", () => {
