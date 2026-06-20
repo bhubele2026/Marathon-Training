@@ -31,6 +31,7 @@ import { phaseColor } from "@/lib/phase-colors";
 import { programColor } from "@/lib/program-colors";
 import { EmptyPlanState } from "@/components/empty-plan-state";
 import { NextScheduledRaceChip } from "@/components/next-scheduled-race-chip";
+import { DashboardTracking } from "@/components/dashboard-tracking";
 import { useFirstRunRedirect } from "@/hooks/use-first-run-redirect";
 import { useListPlannerConfigs } from "@workspace/api-client-react";
 
@@ -356,6 +357,11 @@ export default function Dashboard() {
           the hero's secondary line, so the old Body Mass tile is gone
           from the stats row below. */}
       <RecompHero recomp={summary.recomp} weightGoal={summary.weightGoal} />
+
+      {/* "Keep track" hub — recomp progress, training consistency, nutrition
+          adherence, and machine mix over a rolling window, all from the synced
+          workout + nutrition data. */}
+      <DashboardTracking />
 
       {/* Top Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

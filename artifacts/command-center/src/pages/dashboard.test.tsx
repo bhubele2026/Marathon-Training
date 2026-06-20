@@ -63,6 +63,13 @@ vi.mock("@/components/quick-log-activity", () => ({
   QuickLogActivity: () => null,
 }));
 
+// The tracking hub runs its own /api/dashboard/tracking useQuery; stub it so the
+// Dashboard tests keep rendering without a QueryClientProvider (its own logic is
+// covered in dashboard-tracking lib tests).
+vi.mock("@/components/dashboard-tracking", () => ({
+  DashboardTracking: () => <div data-testid="dashboard-tracking-stub" />,
+}));
+
 // Recharts' ResponsiveContainer renders a 0×0 box in jsdom which causes
 // every child <BarChart> to bail out. Clone the chart child with explicit
 // width/height so the ReferenceDot markers actually render.
