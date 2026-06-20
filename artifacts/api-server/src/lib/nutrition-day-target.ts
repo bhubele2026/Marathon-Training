@@ -47,13 +47,27 @@ export type DayTargetResult = {
   // route the runner to compute targets / apply a plan instead of showing a
   // wrong number.
   needsBaseline?: boolean;
+  // The normalized training load that drove today's adjustment (0 = rest).
+  trainingLoad: number;
+  // Human-facing "what drove today's target" insight for the logged session(s).
+  // Null until a workout is logged. `summary` is a short machine+minutes recap
+  // ("Tonal 45 min, Peloton Row 10 min") so the UI can show WHY intake moved —
+  // and make clear the bump tracks training load, NOT calories burned.
+  training: {
+    source: "planned" | "actual";
+    load: number;
+    skipped: boolean;
+    summary: string | null;
+  } | null;
 };
 
-// One workout for the date, reduced to the fields the load + skip logic needs.
+// One workout for the date, reduced to the fields the load + skip logic needs,
+// plus a short human recap of the machine(s) + minutes for the UI insight.
 type ActualDay = {
   load: number;
   skipped: boolean;
   count: number;
+  summary: string | null;
 };
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -133,6 +147,7 @@ async function readActualLoad(date: string): Promise<ActualDay | null> {
   const rows = await db
     .select({
       sessionType: workoutsTable.sessionType,
+      equipment: workoutsTable.equipment,
       strengthMin: workoutsTable.strengthMin,
       cardioMin: workoutsTable.cardioMin,
       runMin: workoutsTable.runMin,
@@ -145,6 +160,7 @@ async function readActualLoad(date: string): Promise<ActualDay | null> {
   let load = 0;
   let anyMinutes = false;
   let allSkipped = true;
+  const summaryParts: string[] = [];
   for (const r of rows) {
     const st = (r.sessionType ?? "").toLowerCase();
     const isSkipMarker = /skip|rest|off/.test(st);
@@ -178,11 +194,20 @@ async function readActualLoad(date: string): Promise<ActualDay | null> {
       allSkipped = allSkipped && false;
     }
     load += dayLoad;
+    // Recap line: "<machine> <minutes> min" (e.g. "Tonal 45 min"). Falls back
+    // to the session type when no equipment is recorded; skip markers get no
+    // line so a rest/skip day reads cleanly.
+    if (!isSkipMarker) {
+      const mins = r.durationMin ?? strengthMin + cardioMin + runMin;
+      const label = r.equipment ?? r.sessionType ?? "Session";
+      summaryParts.push(mins > 0 ? `${label} ${Math.round(mins)} min` : label);
+    }
   }
   return {
     load: Math.round(load * 10) / 10,
     skipped: allSkipped && !anyMinutes,
     count: rows.length,
+    summary: summaryParts.length ? summaryParts.join(", ") : null,
   };
 }
 
@@ -243,7 +268,11 @@ async function aiAdjustment(
     "nudge. Move calories mostly through CARBS. A rest/skip or much-lighter day",
     "means a small REDUCTION; a heavier-than-typical day a small INCREASE; a",
     "typical day ~0. Keep the calorie change within about ±400 kcal and carbs",
-    "within about ±100 g. Reply with ONLY a JSON object, no prose, no code fence:",
+    "within about ±100 g. The training load reflects session DURATION and",
+    "intensity, NOT calories burned. Never 'eat back' estimated calories burned —",
+    "wearable/equipment burn figures overestimate, so even a hard day earns only a",
+    "small carb-led fuel bump, never a 1:1 calorie refund.",
+    "Reply with ONLY a JSON object, no prose, no code fence:",
     '{"calDelta": <integer kcal, signed>, "carbDelta": <integer g, signed>,',
     '"proteinDelta": <integer g, signed, near 0>, "rationale": "<ONE sentence>"}',
   ].join(" ");
@@ -312,6 +341,7 @@ function rowToResult(
   date: string,
   row: NutritionDayTargetRow,
   actual: DayTargetResult["actual"],
+  training: DayTargetResult["training"],
 ): DayTargetResult {
   return {
     date,
@@ -336,6 +366,8 @@ function rowToResult(
     rationale: row.rationale,
     actual,
     source: row.source === "actual" ? "actual" : "planned",
+    trainingLoad: row.trainingLoad,
+    training,
   };
 }
 
@@ -354,6 +386,8 @@ export async function getDayTarget(date: string): Promise<DayTargetResult> {
       actual: actualIntake,
       source: "planned",
       needsBaseline: true,
+      trainingLoad: 0,
+      training: null,
     };
   }
 
@@ -362,6 +396,16 @@ export async function getDayTarget(date: string): Promise<DayTargetResult> {
   const source: "planned" | "actual" = actual ? "actual" : "planned";
   const load = actual ? actual.load : planned.load;
   const fingerprint = stateFingerprint(baseline, planned.load, actual);
+  // The "what drove today's target" insight surfaces only once a workout is
+  // logged — that's when the runner is deciding whether to fuel for it.
+  const training: DayTargetResult["training"] = actual
+    ? {
+        source: "actual",
+        load: actual.load,
+        skipped: actual.skipped,
+        summary: actual.summary,
+      }
+    : null;
 
   // Serve a fresh cached row when the state fingerprint still matches.
   const cachedRows = await db
@@ -371,7 +415,7 @@ export async function getDayTarget(date: string): Promise<DayTargetResult> {
     .limit(1);
   const cached = cachedRows[0];
   if (cached && cached.sourceState === fingerprint) {
-    return rowToResult(date, cached, actualIntake);
+    return rowToResult(date, cached, actualIntake, training);
   }
 
   // Build a short human description of planned-vs-actual for the model.
@@ -429,7 +473,7 @@ export async function getDayTarget(date: string): Promise<DayTargetResult> {
     })
     .returning();
 
-  return rowToResult(date, persisted[0]!, actualIntake);
+  return rowToResult(date, persisted[0]!, actualIntake, training);
 }
 
 // Invalidate the cached day target for a date so the next GET recomputes.

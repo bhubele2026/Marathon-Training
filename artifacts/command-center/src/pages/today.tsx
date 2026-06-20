@@ -49,6 +49,7 @@ import {
   getPrimaryMetricCompare,
 } from "@/lib/primary-metric";
 import { RunTargetLine } from "@/components/run-target-line";
+import { sessionVerdict, type VerdictBucket } from "@/lib/session-verdict";
 import { raceDayLabel } from "@/lib/race-day-label";
 import { ChecklistNudge } from "@/components/race-week-banner";
 import { EmptyPlanState } from "@/components/empty-plan-state";
@@ -1196,6 +1197,33 @@ export default function Today() {
                   variant="prominent"
                   testIdPrefix={`session-today-${session.id}`}
                 />
+                {/* The coach's verdict on what you did vs the plan — did-it-all
+                    / close / fell-short / overdelivered, in the same sardonic
+                    voice as the daily line. Pure client-side from the
+                    planned-vs-actual minutes already on this card. */}
+                {(() => {
+                  const v = sessionVerdict({
+                    plannedMin: matchedPlan?.totalMin ?? null,
+                    actualMin: session.totalMin ?? session.durationMin ?? null,
+                    seed: session.id,
+                  });
+                  if (!v) return null;
+                  return (
+                    <div
+                      className={cn(
+                        "rounded-md border-l-4 px-4 py-3 flex items-start gap-3",
+                        VERDICT_TONE[v.bucket],
+                      )}
+                      data-testid={`session-verdict-${session.id}`}
+                      data-verdict-bucket={v.bucket}
+                    >
+                      <span className="text-[10px] font-black uppercase tracking-widest mt-0.5 shrink-0">
+                        {v.headline}
+                      </span>
+                      <span className="text-sm leading-snug">{v.line}</span>
+                    </div>
+                  );
+                })()}
                 <SessionDetailDisclosure
                   testId={`toggle-today-session-detail-${session.id}`}
                 >
@@ -1425,6 +1453,18 @@ export default function Today() {
     </div>
   );
 }
+
+// Tone per verdict bucket for the post-log coach verdict strip — praise reads
+// green, a near miss amber, a real shortfall/skip in the destructive tone, and
+// an off-plan bonus in the brand primary.
+const VERDICT_TONE: Record<VerdictBucket, string> = {
+  over: "border-l-emerald-500 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300",
+  complete: "border-l-emerald-500 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300",
+  close: "border-l-amber-500 bg-amber-500/10 text-amber-800 dark:text-amber-300",
+  short: "border-l-destructive bg-destructive/10 text-destructive",
+  skipped: "border-l-destructive bg-destructive/10 text-destructive",
+  bonus: "border-l-primary bg-primary/10 text-primary",
+};
 
 // Task #306: per-kind eyebrow above the "Today's Mission" header so the
 // Today page mirrors the dashboard / plan / week-detail framing

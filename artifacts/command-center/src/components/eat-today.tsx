@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Beef, Flame, Sparkles, Wheat, Droplet } from "lucide-react";
+import { Activity, Beef, Flame, Sparkles, Wheat, Droplet } from "lucide-react";
 
 // R6. The reactive "Eat today" block on the Today page. Surfaces the AI's
 // per-day ADJUSTED calorie + macro target (which reacts to the day's planned
@@ -24,6 +24,13 @@ export type DayTarget = {
   actual: Macros | null;
   source: "planned" | "actual";
   needsBaseline?: boolean;
+  trainingLoad?: number;
+  training?: {
+    source: "planned" | "actual";
+    load: number;
+    skipped: boolean;
+    summary: string | null;
+  } | null;
 };
 
 type Macros = { cal: number; protein: number; carbs: number; fat: number };
@@ -199,6 +206,31 @@ export function EatToday({ date }: { date: string }) {
           >
             <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
             <span>{data.rationale}</span>
+          </p>
+        )}
+
+        {/* What drove today's target — the logged session + load, plus the
+            explicit reassurance that the bump tracks training load, NOT the
+            (inflated) calories your devices say you burned. */}
+        {data.training && data.training.summary && data.training.load > 0 && (
+          <p
+            className="text-xs text-muted-foreground flex items-start gap-2"
+            data-testid="text-eat-today-training"
+          >
+            <Activity className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
+            <span>
+              Today's training: {data.training.summary} ·{" "}
+              <span className="font-bold text-foreground tabular-nums">
+                load {data.training.load}
+              </span>
+              .{" "}
+              {calDelta > 0 && (
+                <span>
+                  This bump fuels the work — based on training load, not the
+                  calories you burned (device estimates run high).
+                </span>
+              )}
+            </span>
           </p>
         )}
       </CardContent>
