@@ -254,7 +254,7 @@ export default function Equipment() {
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1600px] mx-auto">
       <div>
-        <h2 className="text-3xl font-black tracking-tight text-foreground">Arsenal</h2>
+        <h2 className="text-4xl font-extrabold tracking-tight text-foreground">Arsenal</h2>
         <p className="text-muted-foreground font-medium tracking-widest mt-1">
           Equipment Mileage & Usage
         </p>

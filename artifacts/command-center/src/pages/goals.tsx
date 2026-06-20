@@ -236,7 +236,7 @@ export default function Goals() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">
+        <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
           Goals
         </h1>
         <p className="text-sm text-muted-foreground mt-1">

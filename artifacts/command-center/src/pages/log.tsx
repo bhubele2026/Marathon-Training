@@ -154,7 +154,7 @@ export default function Log() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-black tracking-tight text-foreground">Training Log</h2>
+          <h2 className="text-4xl font-extrabold tracking-tight text-foreground">Training Log</h2>
           <p className="text-muted-foreground font-medium tracking-widest mt-1">Activity History</p>
         </div>
         <div className="flex items-center gap-2">

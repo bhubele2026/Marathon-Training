@@ -216,7 +216,7 @@ export default function Settings() {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-3xl mx-auto">
       <div>
-        <h2 className="text-3xl font-black tracking-tight text-foreground">Settings</h2>
+        <h2 className="text-4xl font-extrabold tracking-tight text-foreground">Settings</h2>
         <p className="text-muted-foreground font-medium tracking-widest text-xs mt-1">
           App-wide preferences
         </p>

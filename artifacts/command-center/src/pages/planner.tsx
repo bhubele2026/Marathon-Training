@@ -2573,7 +2573,7 @@ export default function Planner() {
     return (
       <div className="space-y-6 pb-12" data-testid="planner-page-empty">
         <header>
-          <h1 className="text-3xl font-bold tracking-tight">
+          <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
             Phase Planner
           </h1>
           <p className="text-muted-foreground mt-1">
@@ -2613,7 +2613,7 @@ export default function Planner() {
   return (
     <div className="space-y-6 pb-12" data-testid="planner-page">
       <header>
-        <h1 className="text-3xl font-bold tracking-tight">
+        <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
           Phase Planner
         </h1>
         <p className="text-muted-foreground mt-1">
