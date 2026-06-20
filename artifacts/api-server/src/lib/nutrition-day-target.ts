@@ -372,7 +372,7 @@ function rowToResult(
     rationale: row.rationale,
     actual,
     source: row.source === "actual" ? "actual" : "planned",
-    trainingLoad: row.trainingLoad,
+    trainingLoad: row.trainingLoad ?? 0,
     training,
   };
 }
