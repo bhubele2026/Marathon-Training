@@ -58,12 +58,14 @@ function MacroLine({
   target,
   actual,
   unit,
+  glow = false,
 }: {
   Icon: typeof Flame;
   label: string;
   target: number;
   actual: number | null;
   unit: string;
+  glow?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-1">
@@ -71,7 +73,12 @@ function MacroLine({
         <Icon className="h-3.5 w-3.5 text-primary" />
         {label}
       </div>
-      <div className="text-2xl font-extrabold tabular-nums leading-none">
+      <div
+        className={
+          "text-2xl font-extrabold tabular-nums leading-none" +
+          (glow ? " glow-primary" : "")
+        }
+      >
         {actual != null ? (
           <>
             <span className="text-primary">{fmt(actual)}</span>
@@ -175,6 +182,7 @@ export function EatToday({ date }: { date: string }) {
             target={adjusted.cal}
             actual={actual?.cal ?? null}
             unit="kcal"
+            glow
           />
           <MacroLine
             Icon={Beef}

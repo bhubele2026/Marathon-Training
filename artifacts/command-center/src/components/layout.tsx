@@ -131,7 +131,7 @@ export function Layout({ children }: LayoutProps) {
             <Button
               asChild
               size="sm"
-              className="h-8 gap-1.5 font-semibold"
+              className="h-8 gap-1.5 font-semibold gradient-primary shadow-sm hover:brightness-110"
               data-testid="button-log"
             >
               <Link href="/log">

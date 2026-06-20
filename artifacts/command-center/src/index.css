@@ -154,15 +154,16 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
 
-  /* BH Studio dark — near-black charcoal canvas, a touch lighter cards,
-     hairline borders, off-white text, and the BH Studio orange accent
-     (premium on dark). Mirrors the `studio.dark` token set. */
-  --background: 220 14% 8%;
-  --foreground: 210 16% 94%;
-  --border: 220 10% 18%;
+  /* BH Studio dark — a deep, near-black charcoal canvas with cards lifted a
+     clear step above it for premium layered depth, hairline borders, off-white
+     text, and the BH Studio orange accent (orange reads premium on dark).
+     Mirrors the `studio.dark` token set. */
+  --background: 222 16% 6%;
+  --foreground: 210 16% 95%;
+  --border: 220 10% 17%;
 
-  --card: 220 12% 12%;
-  --card-foreground: 210 16% 94%;
+  --card: 220 12% 11%;
+  --card-foreground: 210 16% 95%;
   --card-border: 220 10% 18%;
 
   --sidebar: 220 16% 6%;
@@ -213,6 +214,43 @@
 
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    /* Tabular figures everywhere so stats stay column-aligned — a small
+       signal of a considered, premium product. */
+    font-feature-settings: "tnum" 1, "cv01" 1;
+  }
+
+  /* Premium feel: smooth, restrained transitions on every interactive
+     element (color/elevation/transform), so hovers and presses never snap. */
+  button,
+  a,
+  [role="button"] {
+    transition:
+      color 0.15s ease,
+      background-color 0.15s ease,
+      border-color 0.15s ease,
+      box-shadow 0.18s ease,
+      opacity 0.15s ease,
+      transform 0.15s ease;
+  }
+
+  /* Refined, unobtrusive scrollbars (a detail that reads as crafted). */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 9999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+    background-clip: content-box;
   }
 }
 
@@ -241,6 +279,25 @@
     box-shadow:
       0 2px 6px -2px rgba(0, 0, 0, 0.55),
       0 12px 30px -6px rgba(0, 0, 0, 0.5);
+  }
+  /* Premium accents (opt-in): an orange glow for the single hero number or
+     ring on a screen, and a restrained orange gradient for the primary CTA.
+     Used sparingly — premium = a few hero moments, not effects everywhere. */
+  .glow-primary {
+    text-shadow: 0 0 16px hsl(var(--primary) / 0.4);
+  }
+  .dark .glow-primary {
+    text-shadow: 0 0 22px hsl(var(--primary) / 0.55);
+  }
+  .ring-glow-primary {
+    filter: drop-shadow(0 0 5px hsl(var(--primary) / 0.45));
+  }
+  .gradient-primary {
+    background-image: linear-gradient(
+      135deg,
+      hsl(var(--primary)) 0%,
+      hsl(from hsl(var(--primary)) h s calc(l - 9)) 100%
+    );
   }
   /* Thicker, confident accent progress fill on a muted track. */
   input[type="search"]::-webkit-search-cancel-button {
