@@ -73,9 +73,10 @@
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
 
-  /* Studio palette (Phase 2 overhaul) — neutral charcoals + ONE muted
-     teal accent. Light token set; kept in sync with the `studio`
-     palette in `@workspace/visual-themes` so first paint matches. */
+  /* BH Studio palette — neutral charcoals + ONE accent: BH Studio orange.
+     Light token set; kept in sync with the `studio` palette in
+     `@workspace/visual-themes` so first paint matches. (Earlier comments
+     said "teal"; the shipped identity is orange — do not reintroduce teal.) */
   --background: 210 20% 98%;
   --foreground: 20 12% 12%;
   --border: 220 14% 90%;
@@ -109,10 +110,10 @@
   --input: 220 14% 89%;
   --ring: 22 92% 52%;
 
-  /* Single teal accent. Legacy `brand-orange` / `brand-purple` token
-     NAMES preserved for downstream components; both map to the teal.
-     Charts: chart-1 = accent, chart-2..5 = a graded neutral gray ramp
-     (no second hue). */
+  /* Single accent: BH Studio orange. `brand-orange` is the real identity;
+     `brand-purple` is a legacy alias kept for downstream components and maps
+     to the same orange. Charts: chart-1 = orange accent, chart-2..5 = a graded
+     neutral gray ramp (no second hue). */
   --brand-orange: 22 92% 52%;
   --brand-purple: 22 92% 52%;
   --chart-1: 22 92% 52%;
@@ -153,9 +154,9 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
 
-  /* Studio dark (default theme) — near-black charcoal canvas, a touch
-     lighter cards, hairline borders, off-white text, one muted teal
-     accent. Mirrors the `studio.dark` token set. */
+  /* BH Studio dark — near-black charcoal canvas, a touch lighter cards,
+     hairline borders, off-white text, and the BH Studio orange accent
+     (premium on dark). Mirrors the `studio.dark` token set. */
   --background: 220 14% 8%;
   --foreground: 210 16% 94%;
   --border: 220 10% 18%;

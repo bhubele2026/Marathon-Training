@@ -35,32 +35,32 @@ export type SessionVerdict = {
 // one so it doesn't reshuffle on every render.
 const LINES: Record<VerdictBucket, string[]> = {
   over: [
-    "Showing off, are we? Blew clean past the plan — cracking work, genuinely, now don't ruin it.",
-    "Did far more than asked. Steady on, hero, you'll make the rest of us look bad. Brilliant.",
-    "Smashed the target into next week. Look at you actually grafting. Suspicious, but I'll take it.",
+    "Blew clean past the plan and kept going. Showing off — and I'm into it. Don't you dare ruin it.",
+    "Did far more than asked. Steady on, hero, you'll put the rest of us out of a job. Magnificent.",
+    "Smashed the target into next week. Actual grafting. Suspicious behaviour, but I'll allow it.",
   ],
   complete: [
-    "Spot on — did the lot. Gold star. Don't let it go to your head, there's tomorrow yet.",
-    "Every minute done and dusted, plan followed like a grown-up. Lovely. Astonishing, even.",
-    "Nailed it. Textbook. I'm impressed, and you know it costs me to say so.",
+    "Did the absolute lot. Gold star. Don't let it go to your head — there's a tomorrow, you know.",
+    "Every minute done, plan followed like a grown adult. Lovely. Frankly astonishing.",
+    "Nailed it. Textbook. I'm impressed, and you know exactly what that costs me to admit.",
   ],
   close: [
-    "Close enough to smell it — a smidge short, but you turned up, so I'll allow it.",
-    "Nearly the full set. Nearly, love. The last bit's where it counts, mind.",
-    "A touch under the plan, but you showed your face and did the work. Respectable-ish.",
+    "Close enough to smell it — a smidge short, but you turned up, so I'll allow it. Just.",
+    "Nearly the full set. Nearly, love. It's the last bit that counts and you know it.",
+    "A whisker under the plan, but you showed your face and did the work. Respectable-ish.",
   ],
   short: [
-    "That was a warm-up wearing a workout's coat. Miles off the plan, that.",
-    "Blink and you'd have missed it. The plan's over there, pointing and laughing.",
-    "Half a session and a full excuse. Go on — give me the real thing tomorrow, eh?",
+    "That was a warm-up wearing a workout's coat and a fake moustache. Miles off, that.",
+    "Blink and you'd have missed it. The plan's over there, pointing and laughing at you.",
+    "Half a session and a full excuse. Magnificent. Give me the real thing tomorrow, eh?",
   ],
   skipped: [
-    "Planned and ghosted. The sofa won again, did it? Bold strategy, that.",
-    "The session sat there, all dressed up, waiting. You never turned up. Tragic.",
+    "Planned and ghosted. The sofa won again, did it? Bold strategy. Cowardly, but bold.",
+    "The session sat there, all dressed up, waiting by the door. You never turned up. Tragic.",
   ],
   bonus: [
-    "Nothing on the plan and you trained anyway. Teacher's pet. Absolutely love it.",
-    "Off-script and still grafting while no one's watching. I see you. Cracking.",
+    "Nothing on the plan and you trained anyway. Teacher's pet. Absolutely love to see it.",
+    "Off-script and grafting while nobody's watching. That's the real stuff. Cracking.",
   ],
 };
 

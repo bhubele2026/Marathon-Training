@@ -68,12 +68,13 @@ export interface PaletteDefinition {
 }
 
 export const PALETTES: Record<string, PaletteDefinition> = {
-  // Phase 2 overhaul: a single, calm, professional palette. Neutral
-  // charcoal/gray base + exactly ONE accent (a muted, desaturated
-  // teal). No red/orange. The accent is reserved for active nav,
-  // primary buttons, focus rings, and the single most important number
-  // on a screen. chart-1 is the accent; chart-2..5 are a graded neutral
-  // gray ramp so charts never go multi-hue / rainbow.
+  // BH Studio palette: a single, confident, professional look. Neutral
+  // charcoal/gray base + exactly ONE accent — BH Studio orange (hue ~22).
+  // The accent is reserved for active nav, primary buttons, focus rings,
+  // and the single most important number on a screen. chart-1 is the orange
+  // accent; chart-2..5 are a graded neutral gray ramp so charts never go
+  // multi-hue / rainbow. (Earlier comments said "teal" — that drift is
+  // fixed; the identity is orange. Do not reintroduce teal.)
   studio: {
     key: "studio",
     name: "Studio",
@@ -110,7 +111,7 @@ export const PALETTES: Record<string, PaletteDefinition> = {
       input: "220 14% 89%",
       ring: "22 92% 52%",
       // Legacy token NAMES preserved so downstream components keep
-      // working; both now map to the single teal accent.
+      // working; both map to the single BH Studio orange accent.
       brandOrange: "22 92% 52%",
       brandPurple: "22 92% 52%",
       chart1: "22 92% 52%",
