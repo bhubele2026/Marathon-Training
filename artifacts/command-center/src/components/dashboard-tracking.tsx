@@ -1,7 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip as RTooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Scale, Dumbbell, Flame, Beef, Activity, CheckCircle2 } from "lucide-react";
+import { Scale, Dumbbell, Flame, Beef, Activity, CheckCircle2, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // The dashboard "keep track" hub — recomp progress, training consistency,
@@ -46,6 +56,24 @@ type Tracking = {
     proteinHitRate: number | null;
   };
   machineMix: Mix[];
+  progress: {
+    weeks: number;
+    weightSeries: { date: string; lb: number }[];
+    targetCurve: { date: string; lb: number }[];
+    inchesSeries: { date: string; totalIn: number }[];
+    weightStatus: {
+      currentWeekTargetLb: number;
+      varianceLb: number | null;
+      onTrack: boolean | null;
+      rateLb: number;
+      goalWeightLb: number | null;
+    } | null;
+    adherence: {
+      caloriePct: number | null;
+      proteinPct: number | null;
+      consistencyPct: number | null;
+    };
+  };
 };
 
 async function getJson<T>(url: string): Promise<T> {
@@ -82,10 +110,11 @@ function ProgressBar({ pct, tone = "bg-primary" }: { pct: number; tone?: string 
   );
 }
 
-export function DashboardTracking({ days = 28 }: { days?: number }) {
+export function DashboardTracking() {
+  const [weeks, setWeeks] = useState(8);
   const { data, isLoading } = useQuery({
-    queryKey: ["/api/dashboard/tracking", days],
-    queryFn: () => getJson<Tracking>(`/api/dashboard/tracking?days=${days}`),
+    queryKey: ["/api/dashboard/tracking", "weeks", weeks],
+    queryFn: () => getJson<Tracking>(`/api/dashboard/tracking?weeks=${weeks}`),
   });
 
   if (isLoading) {
@@ -120,13 +149,166 @@ export function DashboardTracking({ days = 28 }: { days?: number }) {
     { label: "Bonus", count: c.verdicts.bonus, tone: "bg-primary/15 text-primary" },
   ].filter((v) => v.count > 0);
 
+  const p = data.progress;
+  // Merge the actual weight trend and the target-weight curve onto one date axis
+  // so they overlay in a single chart (recharts connects across the gaps).
+  const byDate = new Map<string, { date: string; weight?: number; target?: number }>();
+  for (const w of p.weightSeries)
+    byDate.set(w.date, { ...(byDate.get(w.date) ?? { date: w.date }), weight: w.lb });
+  for (const t of p.targetCurve)
+    byDate.set(t.date, { ...(byDate.get(t.date) ?? { date: t.date }), target: t.lb });
+  const weightChart = [...byDate.values()].sort((a, b) =>
+    a.date.localeCompare(b.date),
+  );
+  const inchesFirst = p.inchesSeries[0]?.totalIn ?? null;
+  const inchesLast = p.inchesSeries[p.inchesSeries.length - 1]?.totalIn ?? null;
+  const inchesChange =
+    inchesFirst != null && inchesLast != null
+      ? Math.round((inchesLast - inchesFirst) * 10) / 10
+      : null;
+  const ws = p.weightStatus;
+  const pct = (v: number | null) => (v == null ? "—" : `${Math.round(v * 100)}%`);
+
   return (
     <section className="space-y-3" data-testid="dashboard-tracking">
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="text-sm font-bold uppercase tracking-[0.14em] text-primary">
           Tracking
         </h2>
-        <span className="text-xs text-muted-foreground">last {data.window.days} days</span>
+        <div className="flex items-center gap-1" data-testid="tracking-window-toggle">
+          {[4, 8, 12].map((w) => (
+            <button
+              key={w}
+              type="button"
+              onClick={() => setWeeks(w)}
+              className={cn(
+                "text-xs font-bold px-2 py-1 rounded tracking-wider transition-colors",
+                weeks === w
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              data-testid={`tracking-window-${w}w`}
+              aria-pressed={weeks === w}
+            >
+              {w}w
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Progress picture — weight vs the goal curve, the inches/strength recomp
+          signals, and adherence over the window. */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2" data-testid="tracking-weight-curve">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-bold uppercase tracking-[0.12em] flex items-center gap-2">
+              <TrendingDown className="h-4 w-4 text-primary" /> Weight vs goal curve
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {weightChart.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Log a few weigh-ins to see your trend against the goal.
+              </p>
+            ) : (
+              <>
+                {ws && (
+                  <p
+                    className={cn(
+                      "text-xs font-bold mb-2",
+                      ws.onTrack === false
+                        ? "text-amber-600 dark:text-amber-400"
+                        : "text-emerald-600 dark:text-emerald-400",
+                    )}
+                    data-testid="tracking-weight-status"
+                  >
+                    {ws.varianceLb == null
+                      ? "Set a weigh-in to compare to your curve"
+                      : ws.onTrack
+                        ? `On track — ${Math.abs(ws.varianceLb)} lb ${ws.varianceLb <= 0 ? "ahead of" : "from"} this week's target`
+                        : `${Math.abs(ws.varianceLb)} lb ${ws.varianceLb > 0 ? "above" : "below"} this week's target (${ws.currentWeekTargetLb} lb)`}
+                  </p>
+                )}
+                <ResponsiveContainer width="100%" height={200}>
+                  <LineChart data={weightChart} margin={{ top: 5, right: 8, bottom: 0, left: -16 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+                    <XAxis
+                      dataKey="date"
+                      tickFormatter={(d: string) => d.slice(5)}
+                      tick={{ fontSize: 10 }}
+                      minTickGap={24}
+                    />
+                    <YAxis domain={["auto", "auto"]} tick={{ fontSize: 10 }} width={40} />
+                    <RTooltip />
+                    <Line
+                      type="monotone"
+                      dataKey="target"
+                      name="Target"
+                      stroke="hsl(var(--muted-foreground))"
+                      strokeDasharray="4 4"
+                      strokeWidth={2}
+                      dot={false}
+                      connectNulls
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="weight"
+                      name="Actual"
+                      stroke="hsl(var(--primary))"
+                      strokeWidth={2.5}
+                      dot={{ r: 2 }}
+                      connectNulls
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card data-testid="tracking-recomp-signals">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-bold uppercase tracking-[0.12em] flex items-center gap-2">
+              <Dumbbell className="h-4 w-4 text-primary" /> Recomp signals
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Stat
+              label="Inches (sum)"
+              value={inchesLast != null ? `${inchesLast} in` : "—"}
+              sub={
+                inchesChange != null
+                  ? `${inchesChange <= 0 ? "" : "+"}${inchesChange} in over window`
+                  : "log circumferences to track"
+              }
+            />
+            <Stat
+              label="Strength Score"
+              value={
+                r.strengthCurrent != null
+                  ? `${r.strengthCurrent}${r.strengthGoal != null ? ` / ${r.strengthGoal}` : ""}`
+                  : "—"
+              }
+              sub="flat scale + inches down + strength up = winning"
+            />
+            <div className="space-y-1.5 pt-1">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                Adherence
+              </p>
+              <div className="flex flex-wrap gap-1.5 text-[10px] font-bold tracking-wider">
+                <span className="px-2 py-1 rounded bg-primary/10 text-primary" data-testid="tracking-adherence-cal">
+                  {pct(p.adherence.caloriePct)} cals
+                </span>
+                <span className="px-2 py-1 rounded bg-primary/10 text-primary" data-testid="tracking-adherence-protein">
+                  {pct(p.adherence.proteinPct)} protein
+                </span>
+                <span className="px-2 py-1 rounded bg-primary/10 text-primary" data-testid="tracking-adherence-consistency">
+                  {pct(p.adherence.consistencyPct)} sessions
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

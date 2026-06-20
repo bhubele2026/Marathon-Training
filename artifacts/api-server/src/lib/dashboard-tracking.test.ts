@@ -4,6 +4,8 @@ import {
   summarizeMachineMix,
   summarizeConsistency,
   summarizeRecomp,
+  totalInches,
+  calorieHitRate,
   type TrainingRow,
 } from "./dashboard-tracking";
 
@@ -74,6 +76,29 @@ describe("summarizeConsistency", () => {
     ]);
     expect(c.sessionsDone).toBe(0);
     expect(c.daysTrained).toBe(0);
+  });
+});
+
+describe("totalInches", () => {
+  it("sums available circumferences, ignoring nulls", () => {
+    expect(
+      totalInches({ belly: 38, chest: 44, lArm: 15, rArm: 15, lLeg: 24, rLeg: 24 }),
+    ).toBe(160);
+  });
+  it("returns null when nothing was recorded", () => {
+    expect(
+      totalInches({ belly: null, chest: null, lArm: null, rArm: null, lLeg: null, rLeg: null }),
+    ).toBeNull();
+  });
+});
+
+describe("calorieHitRate", () => {
+  it("counts days within tolerance of target", () => {
+    expect(calorieHitRate([2400, 2500, 2900], 2450, 150)).toBe(0.67);
+  });
+  it("returns null with no target or no days", () => {
+    expect(calorieHitRate([2400], null)).toBeNull();
+    expect(calorieHitRate([], 2400)).toBeNull();
   });
 });
 

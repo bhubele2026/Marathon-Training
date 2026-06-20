@@ -148,6 +148,36 @@ function round1(n: number): number {
   return Math.round(n * 10) / 10;
 }
 
+// Sum of available circumference measurements for one entry — the "total
+// inches" recomp signal. Null when no circumference was recorded that day so
+// the trend skips blank entries rather than plotting a fake 0.
+export function totalInches(m: {
+  belly: number | null;
+  chest: number | null;
+  lArm: number | null;
+  rArm: number | null;
+  lLeg: number | null;
+  rLeg: number | null;
+}): number | null {
+  const parts = [m.belly, m.chest, m.lArm, m.rArm, m.lLeg, m.rLeg].filter(
+    (v): v is number => v != null,
+  );
+  if (parts.length === 0) return null;
+  return Math.round(parts.reduce((a, b) => a + b, 0) * 10) / 10;
+}
+
+// Fraction of logged days whose calories landed within `tolerance` of the
+// target (0..1). Null when no target or no logged days.
+export function calorieHitRate(
+  cals: number[],
+  target: number | null,
+  tolerance = 150,
+): number | null {
+  if (target == null || cals.length === 0) return null;
+  const hits = cals.filter((c) => Math.abs(c - target) <= tolerance).length;
+  return Math.round((hits / cals.length) * 100) / 100;
+}
+
 export function summarizeRecomp(input: {
   currentWeightLb: number | null;
   startWeightLb: number | null;
