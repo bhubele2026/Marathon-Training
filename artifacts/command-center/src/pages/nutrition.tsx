@@ -212,64 +212,81 @@ function MacroTrendRow({
   pick: (e: NutritionDay) => number | null;
   goal: number | null;
 }) {
-  // `entries` is the fixed oldest → newest axis (buildTrendAxis); some days have
-  // no data (null). Peak scales the bars off real values + the goal line.
+  // `entries` is the fixed oldest → newest axis (buildTrendAxis); only days with
+  // data count toward the average. The hero is "average per logged day vs goal"
+  // as a single readable progress bar; the day-by-day strip only appears once
+  // there's enough data for it to read as a trend rather than empty cells.
   const values = entries.map((e) => pick(e));
-  const peak = Math.max(goal ?? 0, 1, ...values.map((v) => v ?? 0));
-  const loggedCount = values.filter((v) => v != null).length;
-  // Newest day = last in the axis.
-  const latest = values.length ? values[values.length - 1] : null;
+  const logged = values.filter((v): v is number => v != null);
+  const loggedCount = logged.length;
+  const avg = loggedCount
+    ? Math.round(logged.reduce((a, b) => a + b, 0) / loggedCount)
+    : null;
+  const pct =
+    goal != null && goal > 0 && avg != null ? Math.round((avg / goal) * 100) : null;
+  // 90–110% of goal reads as "on target" (green); otherwise the brand accent.
+  const onTarget = pct != null && pct >= 90 && pct <= 110;
+  const barPct = pct == null ? 0 : Math.max(0, Math.min(100, pct));
+  const peak = Math.max(goal ?? 0, 1, ...logged);
+  const SHOW_STRIP_AT = 5; // enough days that the daily bars read as a trend
+
   return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between">
+    <div className="space-y-2">
+      <div className="flex items-end justify-between gap-3">
         <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
           <Icon className="h-3.5 w-3.5 text-primary" />
           {label}
         </div>
-        <span className="text-xs tabular-nums text-muted-foreground">
-          {latest != null ? (
-            <>
-              <span className="font-bold text-foreground">{fmt(latest)}</span> {unit}
-            </>
-          ) : (
-            <span>—</span>
-          )}
-          {goal != null && (
-            <span className="text-muted-foreground"> · goal {fmt(goal)}</span>
-          )}
+        <div className="text-right leading-none">
+          <div className="text-lg font-extrabold tabular-nums">
+            {avg != null ? fmt(avg) : "—"}
+            <span className="text-sm font-bold text-muted-foreground">
+              {goal != null ? ` / ${fmt(goal)}` : ""} {unit}
+            </span>
+          </div>
+          <div className="text-[10px] text-muted-foreground tracking-wider mt-0.5">
+            avg / day
+          </div>
+        </div>
+      </div>
+
+      {/* Progress toward the daily goal — the at-a-glance read. */}
+      <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
+        <div
+          className={"h-full rounded-full " + (onTarget ? "bg-emerald-500" : "bg-primary")}
+          style={{ width: `${barPct}%` }}
+        />
+      </div>
+      <div className="flex items-center justify-between text-[10px] text-muted-foreground tabular-nums">
+        <span>{pct != null ? `${pct}% of goal` : "set a goal to track"}</span>
+        <span>
+          {loggedCount} of {entries.length} days logged
         </span>
       </div>
-      {/* Fixed-width daily strip, oldest → newest. Days with no data show as a
-          faint empty slot rather than stretching the logged days into blocks. */}
-      <div className="flex items-end gap-px h-9">
-        {entries.map((e) => {
-          const v = pick(e);
-          const h = v == null ? 0 : Math.max(6, (v / peak) * 100);
-          const hitGoal = goal != null && v != null && v >= goal;
-          return (
-            <div
-              key={e.date}
-              className="flex-1 h-full flex items-end rounded-sm bg-muted/40"
-              title={`${formatDayLabel(e.date)}: ${v != null ? `${v} ${unit}` : "no data"}`}
-            >
-              {v != null && (
-                <div
-                  className={
-                    "w-full rounded-sm " + (hitGoal ? "bg-primary" : "bg-primary/45")
-                  }
-                  style={{ height: `${h}%` }}
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
-      {loggedCount < 3 && (
-        <p className="text-[10px] text-muted-foreground">
-          {loggedCount === 0
-            ? "No data yet — your trend builds as you sync each day."
-            : `${loggedCount} day${loggedCount === 1 ? "" : "s"} logged · the trend fills in over the next couple of weeks.`}
-        </p>
+
+      {/* Day-by-day trend — only once there's enough data to be worth reading. */}
+      {loggedCount >= SHOW_STRIP_AT && (
+        <div className="flex items-end gap-px h-8 pt-1">
+          {entries.map((e) => {
+            const v = pick(e);
+            const h = v == null ? 0 : Math.max(6, (v / peak) * 100);
+            const hitGoal = goal != null && v != null && v >= goal;
+            return (
+              <div
+                key={e.date}
+                className="flex-1 h-full flex items-end rounded-sm bg-muted/40"
+                title={`${formatDayLabel(e.date)}: ${v != null ? `${v} ${unit}` : "no data"}`}
+              >
+                {v != null && (
+                  <div
+                    className={"w-full rounded-sm " + (hitGoal ? "bg-primary" : "bg-primary/45")}
+                    style={{ height: `${h}%` }}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
@@ -476,6 +493,9 @@ export default function Nutrition() {
           <CardTitle className="text-sm tracking-wider text-muted-foreground">
             Last 14 days
           </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Your average per logged day vs your daily goal.
+          </p>
         </CardHeader>
         <CardContent>
           {recentQuery.isLoading ? (
