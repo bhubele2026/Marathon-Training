@@ -291,12 +291,19 @@ router.patch("/workouts/:id", async (req, res): Promise<void> => {
 // Apple Health import (Tonal + Peloton Bike/Row/Tread + treadmill runs)
 // ---------------------------------------------------------------------------
 //
-// An Apple Shortcut reads each day's HealthKit Workouts and POSTs them here, so
-// machine actuals land in the same workouts log + planned-vs-actual views as
-// hand-logged sessions. Gated by the shared NUTRITION_TOKEN ingest secret
-// (same one the nutrition sync uses). Idempotent on `source_key` so re-running
-// the daily Shortcut — and Health/Strava double-exports of the same session —
-// collapse to one row.
+// HealthKit Workouts are POSTed here so machine actuals land in the same
+// workouts log + planned-vs-actual views as hand-logged sessions. Two payload
+// shapes are accepted, because iOS Shortcuts has NO action that can read past
+// Workouts (only quantity samples), so the real-world feed is the Health Auto
+// Export app's scheduled REST export:
+//   1. Simple:  { workouts: [{ type, start, durationMin, distanceMi, ... }] }
+//   2. Health Auto Export: { data: { workouts: [{ name, start, duration(sec),
+//        distance: {qty,units}, activeEnergyBurned: {qty}, avgHeartRate: {qty},
+//        id, ... }] } }
+// `coerceItem` normalizes either into the canonical ImportItem below. Gated by
+// the shared NUTRITION_TOKEN ingest secret (same one the nutrition sync uses).
+// Idempotent on `source_key` — re-running the export, and Health/Strava
+// double-exports of the same session, collapse to one row.
 
 type ImportItem = {
   type?: unknown;
@@ -386,7 +393,102 @@ function num(value: unknown): number | null {
   return typeof n === "number" && Number.isFinite(n) ? n : null;
 }
 
-// POST /api/workouts/import — body: { token, workouts: ImportItem[] }
+// Health Auto Export wraps each measurement as { qty, units }. Pull a scalar
+// number out of either that wrapper or a bare value so the importer accepts
+// both payload shapes from the same helper.
+function qtyOf(value: unknown): { qty: number | null; units: string | null } {
+  if (value && typeof value === "object" && "qty" in (value as Record<string, unknown>)) {
+    const o = value as { qty?: unknown; units?: unknown };
+    return { qty: num(o.qty), units: typeof o.units === "string" ? o.units : null };
+  }
+  return { qty: num(value), units: null };
+}
+
+// Parse an import item's start timestamp. Date.parse handles ISO 8601 directly;
+// HAE sends "yyyy-MM-dd HH:mm:ss ±HHmm", which we normalize to canonical ISO as
+// a fallback so the importer never depends on JS-engine date leniency.
+function parseStartMs(raw: string): number {
+  const direct = Date.parse(raw);
+  if (!Number.isNaN(direct)) return direct;
+  const m = raw.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})\s*([+-]\d{2}):?(\d{2})$/);
+  return m ? Date.parse(`${m[1]}T${m[2]}${m[3]}:${m[4]}`) : NaN;
+}
+
+// Normalize one raw import item — simple Shortcut shape OR Health Auto Export
+// shape — into the canonical ImportItem the import loop consumes. Every field
+// prefers the simple/explicit form and falls back to the HAE equivalent.
+function coerceItem(raw: Record<string, unknown>): ImportItem {
+  // Activity label: simple payload uses `type`, HAE uses `name`.
+  const type =
+    (typeof raw.type === "string" && raw.type) ||
+    (typeof raw.name === "string" ? raw.name : "");
+
+  // Duration: simple payload sends minutes; HAE sends `duration` in seconds.
+  let durationMin = num(raw.durationMin);
+  if (durationMin == null) {
+    const secs = num(raw.duration);
+    if (secs != null) durationMin = Math.round((secs / 60) * 10) / 10;
+  }
+
+  // Distance: bare miles, or HAE's { qty, units } (mi|km → mi).
+  let distanceMi = num(raw.distanceMi);
+  if (distanceMi == null) {
+    const d = qtyOf(raw.distance);
+    if (d.qty != null) {
+      distanceMi = d.units === "km" ? Math.round(d.qty * 0.621371 * 100) / 100 : d.qty;
+    }
+  }
+
+  // Calories: bare number, or HAE active/total energy { qty, units }.
+  let calories = num(raw.calories);
+  if (calories == null) {
+    calories = qtyOf(raw.activeEnergyBurned).qty ?? qtyOf(raw.totalEnergy).qty ?? null;
+  }
+
+  // Average HR: bare number, HAE's avgHeartRate { qty }, or heartRate.avg { qty }.
+  let avgHr = num(raw.avgHr);
+  if (avgHr == null) {
+    avgHr = qtyOf(raw.avgHeartRate).qty;
+    if (avgHr == null && raw.heartRate && typeof raw.heartRate === "object") {
+      avgHr = qtyOf((raw.heartRate as Record<string, unknown>).avg).qty;
+    }
+  }
+
+  // Indoor/outdoor: simple payload sends a boolean. Apple Health records both
+  // indoor and outdoor runs as plain "Running", so the activity name can't
+  // distinguish them — but HAE exposes a `location` of "Indoor"/"Outdoor"
+  // (derived from HealthKit's indoor-workout metadata). Read that first, then
+  // fall back to any indoor/outdoor hint in the name. Only used to route runs
+  // between the treadmill (default) and Outdoor.
+  let indoor: boolean | undefined =
+    typeof raw.indoor === "boolean" ? (raw.indoor as boolean) : undefined;
+  if (indoor === undefined) {
+    const hints = `${typeof raw.location === "string" ? raw.location : ""} ${type}`.toLowerCase();
+    if (hints.includes("outdoor")) indoor = false;
+    else if (hints.includes("indoor")) indoor = true;
+  }
+
+  // Dedup key: prefer HAE's stable workout `id` so re-exports of the same
+  // session collapse; otherwise honor an explicit sourceKey.
+  const sourceKey =
+    (typeof raw.sourceKey === "string" && raw.sourceKey) ||
+    (typeof raw.id === "string" ? raw.id : undefined);
+
+  return {
+    type,
+    start: typeof raw.start === "string" ? raw.start : undefined,
+    durationMin: durationMin ?? undefined,
+    distanceMi: distanceMi ?? undefined,
+    calories: calories ?? undefined,
+    avgHr: avgHr ?? undefined,
+    indoor,
+    equipment: typeof raw.equipment === "string" ? raw.equipment : undefined,
+    sourceKey,
+  };
+}
+
+// POST /api/workouts/import — body: { workouts: [...] } OR Health Auto
+// Export's { data: { workouts: [...] } }; bearer/`token` auth.
 router.post("/workouts/import", async (req, res): Promise<void> => {
   const required = process.env.NUTRITION_TOKEN;
   if (!required) {
@@ -401,12 +503,27 @@ router.post("/workouts/import", async (req, res): Promise<void> => {
     return;
   }
 
-  const body = (req.body ?? {}) as { workouts?: unknown };
-  const items = Array.isArray(body.workouts) ? (body.workouts as ImportItem[]) : null;
-  if (!items) {
-    res.status(400).json({ error: "Send a workouts[] array." });
+  // Accept the simple { workouts: [...] } shape and Health Auto Export's
+  // nested { data: { workouts: [...] } } shape, then normalize each item.
+  const body = (req.body ?? {}) as {
+    workouts?: unknown;
+    data?: { workouts?: unknown };
+  };
+  const rawArray = Array.isArray(body.workouts)
+    ? body.workouts
+    : Array.isArray(body.data?.workouts)
+      ? (body.data as { workouts: unknown[] }).workouts
+      : null;
+  if (!rawArray) {
+    res.status(400).json({
+      error:
+        "Send a workouts[] array (or Health Auto Export's { data: { workouts: [...] } }).",
+    });
     return;
   }
+  const items: ImportItem[] = rawArray.map((it) =>
+    coerceItem((it ?? {}) as Record<string, unknown>),
+  );
 
   let imported = 0;
   let skipped = 0;
@@ -416,7 +533,7 @@ router.post("/workouts/import", async (req, res): Promise<void> => {
   for (const item of items) {
     const rawType = typeof item.type === "string" ? item.type : "";
     const startRaw = typeof item.start === "string" ? item.start : "";
-    const startMs = Date.parse(startRaw);
+    const startMs = parseStartMs(startRaw);
     if (!rawType || Number.isNaN(startMs)) {
       skipped++;
       continue;

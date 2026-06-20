@@ -873,3 +873,219 @@ describe("DELETE /api/workouts/:id", () => {
     expect(res.body).toEqual({ error: "invalid id" });
   });
 });
+
+describe("POST /api/workouts/import (HealthKit machine actuals)", () => {
+  // The importer is the ONLY automatic path for Tonal/Peloton/treadmill
+  // sessions, because iOS Shortcuts can't read past Workouts. The real feed
+  // is the Health Auto Export app's scheduled REST export, so the route must
+  // accept HAE's nested `{ data: { workouts: [...] } }` shape with {qty,units}
+  // wrappers and second-based durations — as well as the simple Shortcut
+  // shape — gated by the shared NUTRITION_TOKEN. Dates stay in the 2099 test
+  // band so cleanTestData scrubs the (real-named) imported rows.
+  const TOKEN = "__test_import_token__";
+  let prevToken: string | undefined;
+
+  beforeEach(() => {
+    prevToken = process.env.NUTRITION_TOKEN;
+    process.env.NUTRITION_TOKEN = TOKEN;
+  });
+  afterEach(() => {
+    if (prevToken === undefined) delete process.env.NUTRITION_TOKEN;
+    else process.env.NUTRITION_TOKEN = prevToken;
+  });
+
+  async function listImported() {
+    const res = await request(app)
+      .get("/api/workouts")
+      .query({ from: "2099-01-01", to: "2099-12-31" });
+    expect(res.status).toBe(200);
+    return res.body as Array<{
+      date: string;
+      equipment: string;
+      equipmentList: string[] | null;
+      sessionType: string;
+      durationMin: number | null;
+      strengthMin: number | null;
+      cardioMin: number | null;
+      runMin: number | null;
+      distanceMi: number | null;
+      avgHr: number | null;
+      modality: string | null;
+    }>;
+  }
+
+  it("ingests Health Auto Export's nested payload and maps each machine", async () => {
+    const res = await request(app)
+      .post("/api/workouts/import")
+      .set("Authorization", `Bearer ${TOKEN}`)
+      .send({
+        data: {
+          workouts: [
+            {
+              id: "hae-strength-1",
+              name: "Traditional Strength Training",
+              start: "2099-04-10 06:30:00 -0500",
+              duration: 2700, // 45 min in seconds
+              activeEnergyBurned: { qty: 420, units: "kcal" },
+              avgHeartRate: { qty: 119.6, units: "bpm" },
+            },
+            {
+              id: "hae-bike-1",
+              name: "Cycling",
+              start: "2099-04-10 12:00:00 -0500",
+              duration: 1800, // 30 min
+              distance: { qty: 8, units: "km" }, // → ~4.97 mi
+            },
+            {
+              id: "hae-run-1",
+              name: "Outdoor Run",
+              start: "2099-04-11 07:00:00 -0500",
+              duration: 1500, // 25 min
+              distance: { qty: 3.1, units: "mi" },
+            },
+          ],
+        },
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ imported: 3, skipped: 0 });
+
+    const rows = await listImported();
+    expect(rows).toHaveLength(3);
+    const byEquip = new Map(rows.map((r) => [r.equipment, r]));
+
+    // Strength → Tonal, duration bucketed to strengthMin, HR rounded.
+    expect(byEquip.get("Tonal")).toEqual(
+      expect.objectContaining({
+        equipment: "Tonal",
+        equipmentList: ["Tonal"],
+        sessionType: "Strength",
+        modality: "Strength",
+        durationMin: 45,
+        strengthMin: 45,
+        avgHr: 120,
+      }),
+    );
+    // Cycling → Peloton Bike, km converted to miles.
+    expect(byEquip.get("Peloton Bike")).toEqual(
+      expect.objectContaining({
+        sessionType: "Ride",
+        durationMin: 30,
+        cardioMin: 30,
+        distanceMi: 4.97,
+      }),
+    );
+    // "Outdoor Run" name routes the run to Outdoor (not the tread default).
+    expect(byEquip.get("Outdoor")).toEqual(
+      expect.objectContaining({
+        sessionType: "Run",
+        durationMin: 25,
+        runMin: 25,
+        distanceMi: 3.1,
+      }),
+    );
+  });
+
+  it("routes a plain 'Running' workout by HAE's location field (Apple names indoor+outdoor runs identically)", async () => {
+    const res = await request(app)
+      .post("/api/workouts/import")
+      .set("Authorization", `Bearer ${TOKEN}`)
+      .send({
+        data: {
+          workouts: [
+            // Outdoor run: name is just "Running", only `location` says outdoor.
+            {
+              id: "hae-run-outdoor",
+              name: "Running",
+              location: "Outdoor",
+              start: "2099-07-01 07:00:00 -0500",
+              duration: 1800,
+              distance: { qty: 3, units: "mi" },
+            },
+            // Tread run: location indoor → Peloton Tread.
+            {
+              id: "hae-run-indoor",
+              name: "Running",
+              location: "Indoor",
+              start: "2099-07-02 07:00:00 -0500",
+              duration: 1500,
+            },
+            // No location at all → defaults to the tread (the runner's only
+            // running surface).
+            {
+              id: "hae-run-noloc",
+              name: "Running",
+              start: "2099-07-03 07:00:00 -0500",
+              duration: 1200,
+            },
+          ],
+        },
+      });
+    expect(res.body).toEqual({ imported: 3, skipped: 0 });
+
+    const rows = await listImported();
+    const byDate = new Map(rows.map((r) => [r.date, r.equipment]));
+    expect(byDate.get("2099-07-01")).toBe("Outdoor");
+    expect(byDate.get("2099-07-02")).toBe("Peloton Tread");
+    expect(byDate.get("2099-07-03")).toBe("Peloton Tread");
+  });
+
+  it("is idempotent on the workout id across re-exports", async () => {
+    const payload = {
+      data: {
+        workouts: [
+          {
+            id: "hae-dup-1",
+            name: "Functional Strength Training",
+            start: "2099-05-01 06:00:00 -0500",
+            duration: 3000,
+          },
+        ],
+      },
+    };
+    const first = await request(app)
+      .post("/api/workouts/import")
+      .set("Authorization", `Bearer ${TOKEN}`)
+      .send(payload);
+    expect(first.body).toEqual({ imported: 1, skipped: 0 });
+
+    const second = await request(app)
+      .post("/api/workouts/import")
+      .set("Authorization", `Bearer ${TOKEN}`)
+      .send(payload);
+    expect(second.body).toEqual({ imported: 1, skipped: 0 });
+
+    // Re-export must collapse to ONE row, not duplicate.
+    const rows = await listImported();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.equipment).toBe("Tonal");
+  });
+
+  it("still accepts the simple Shortcut payload shape", async () => {
+    const res = await request(app)
+      .post("/api/workouts/import")
+      .set("Authorization", `Bearer ${TOKEN}`)
+      .send({
+        workouts: [
+          {
+            type: "Indoor Cycle",
+            start: "2099-06-01T06:00:00-05:00",
+            durationMin: 28,
+          },
+        ],
+      });
+    expect(res.body).toEqual({ imported: 1, skipped: 0 });
+    const rows = await listImported();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.equipment).toBe("Peloton Bike");
+    expect(rows[0]!.durationMin).toBe(28);
+  });
+
+  it("rejects a bad token with 401", async () => {
+    const res = await request(app)
+      .post("/api/workouts/import")
+      .set("Authorization", "Bearer wrong-token")
+      .send({ data: { workouts: [] } });
+    expect(res.status).toBe(401);
+  });
+});

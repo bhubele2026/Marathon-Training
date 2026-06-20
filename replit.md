@@ -134,15 +134,22 @@ The honest sync story, surfaced in Settings → Connections. There are NO OAuth
 "connect your Tonal/Peloton" flows because those devices have no public API.
 
 - **Workouts (automatic):** Tonal, Peloton (Bike/Row/Tread) and the treadmill
-  all write workouts to **Apple Health**. An **Apple Shortcut** on the runner's
-  iPhone reads recent Health workouts and `POST`s them to
-  `POST /api/workouts/import` as `{ token, workouts: [...] }`. The route maps
-  Apple Health activity types → equipment/modality, dedupes on `source_key`
-  (idempotent — safe to re-run), and links each session to the matching
-  `plan_day`. Auth is the bearer `NUTRITION_TOKEN` secret (shared with the
-  nutrition ingest). This is THE sync — there is no server-side device fetch.
-- **Nutrition (automatic):** the same Apple-Health-Shortcut pattern feeds the
-  nutrition ingest with the shared `NUTRITION_TOKEN`.
+  all write workouts to **Apple Health**. iOS Shortcuts has **no action that
+  reads past Workouts** (only quantity samples like steps/weight), so the feed
+  is the **Health Auto Export** app's scheduled REST export, which `POST`s to
+  `POST /api/workouts/import`. The route accepts BOTH HAE's nested
+  `{ data: { workouts: [{ name, start, duration(sec), distance:{qty,units}, … }] } }`
+  shape and a simple `{ workouts: [{ type, start, durationMin, … }] }` shape
+  (normalized by `coerceItem`), maps activity name → equipment/modality,
+  dedupes on `source_key` (idempotent — HAE's stable workout `id` is the key),
+  and links each session to the matching `plan_day`. Auth is the bearer
+  `NUTRITION_TOKEN` secret. This is THE sync — there is no server-side device
+  fetch. **HAE setup:** Automations → REST API → URL
+  `https://<app>/api/workouts/import`, Method POST, Format JSON, header
+  `Authorization: Bearer <NUTRITION_TOKEN>`, data type Workouts.
+- **Nutrition (automatic):** an Apple-Health Shortcut (nutrition IS a quantity
+  sample, so Shortcuts can read it) feeds the nutrition ingest with the shared
+  `NUTRITION_TOKEN`.
 - **Tonal Strength Score (manual):** app-only, not exposed by Apple Health or
   any API. Entered by hand (current + goal) on `/goals`; the recomp dashboard
   tracks it toward the target. Surfaced in Settings → Connections as the manual
