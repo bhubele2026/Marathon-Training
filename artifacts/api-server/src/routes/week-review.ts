@@ -4,6 +4,7 @@ import {
   nutritionDaysTable,
   userPreferencesTable,
   coachWeeklySummariesTable,
+  progressDiagnosisTable,
 } from "@workspace/db";
 import { and, gte, lte, eq, sql } from "drizzle-orm";
 import { addDaysISO, COACH_PERSONA } from "@workspace/plan-knowledge";
@@ -188,6 +189,7 @@ function hashReview(obj: unknown): string {
 async function generateWeeklySummary(
   review: WeekReview,
   sex: string | null,
+  diagnosisNote: string | null,
 ): Promise<string | null> {
   if (!isConfigured()) return null;
   const system =
@@ -196,9 +198,13 @@ async function generateWeeklySummary(
     `voice and in 3-6 sentences: the key numbers (food vs targets, sessions done vs ` +
     `planned, weight change vs the weekly goal), a blunt VERDICT on the week, the ONE ` +
     `or TWO things to fix next week, and a line on whether they're on pace for the ` +
-    `weight goal. Obey the wellbeing rails — if a SAFETY SIGNAL appears, drop the ` +
+    `weight goal. If a PROGRESS DIAGNOSIS is provided, work its top finding + fix into ` +
+    `the recap. Obey the wellbeing rails — if a SAFETY SIGNAL appears, drop the ` +
     `sarcasm and be genuinely warm + concerned. Output ONLY the recap prose: no ` +
     `headings, no preamble, no quotes.`;
+  const userContent =
+    buildSummaryData(review, sex) +
+    (diagnosisNote ? `\n\nPROGRESS DIAGNOSIS: ${diagnosisNote}` : "");
   try {
     const client: any = getAnthropic();
     const resp: any = await client.messages.create({
@@ -207,7 +213,7 @@ async function generateWeeklySummary(
       thinking: { type: "adaptive" },
       output_config: { effort: "low" },
       system,
-      messages: [{ role: "user", content: buildSummaryData(review, sex) }],
+      messages: [{ role: "user", content: userContent }],
     });
     let text = "";
     for (const block of resp.content ?? []) {
@@ -246,7 +252,26 @@ router.get("/week-review/:weekStart/summary", async (req, res): Promise<void> =>
     .where(eq(userPreferencesTable.id, 1))
     .limit(1);
 
-  const summary = await generateWeeklySummary(review, sexRows[0]?.sex ?? null);
+  // Fold the latest persisted progress diagnosis (if any) into the recap so the
+  // weekly summary and the dashboard "what's going on" panel tell one story.
+  const diagRows = await db
+    .select({
+      headline: progressDiagnosisTable.headline,
+      findings: progressDiagnosisTable.findings,
+    })
+    .from(progressDiagnosisTable)
+    .where(eq(progressDiagnosisTable.id, 1))
+    .limit(1);
+  const topFix = diagRows[0]?.findings?.[0]?.fix ?? null;
+  const diagnosisNote = diagRows[0]
+    ? `${diagRows[0].headline}${topFix ? ` — ${topFix}` : ""}`
+    : null;
+
+  const summary = await generateWeeklySummary(
+    review,
+    sexRows[0]?.sex ?? null,
+    diagnosisNote,
+  );
   if (summary == null) {
     res.json({ weekStart, review, summary: null });
     return;

@@ -32,6 +32,7 @@ import { programColor } from "@/lib/program-colors";
 import { EmptyPlanState } from "@/components/empty-plan-state";
 import { NextScheduledRaceChip } from "@/components/next-scheduled-race-chip";
 import { DashboardTracking } from "@/components/dashboard-tracking";
+import { ProgressDiagnosis } from "@/components/progress-diagnosis";
 import { useFirstRunRedirect } from "@/hooks/use-first-run-redirect";
 import { useListPlannerConfigs } from "@workspace/api-client-react";
 
@@ -362,6 +363,10 @@ export default function Dashboard() {
           adherence, and machine mix over a rolling window, all from the synced
           workout + nutrition data. */}
       <DashboardTracking />
+
+      {/* "What's going on" — on-demand diagnosis of where progress is stuck (or
+          working) with safe, specific fixes in the coach's voice. */}
+      <ProgressDiagnosis />
 
       {/* Top Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

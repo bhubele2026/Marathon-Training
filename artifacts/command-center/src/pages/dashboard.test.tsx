@@ -70,6 +70,10 @@ vi.mock("@/components/dashboard-tracking", () => ({
   DashboardTracking: () => <div data-testid="dashboard-tracking-stub" />,
 }));
 
+vi.mock("@/components/progress-diagnosis", () => ({
+  ProgressDiagnosis: () => <div data-testid="progress-diagnosis-stub" />,
+}));
+
 // Recharts' ResponsiveContainer renders a 0×0 box in jsdom which causes
 // every child <BarChart> to bail out. Clone the chart child with explicit
 // width/height so the ReferenceDot markers actually render.
