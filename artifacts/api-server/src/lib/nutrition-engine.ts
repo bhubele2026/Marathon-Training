@@ -58,6 +58,10 @@ export type DayAdjustment = {
 // fallback can move a recomp target into nonsense territory.
 export const MAX_CAL_DELTA = 500;
 export const MAX_CARB_DELTA = 120;
+// Protein is anchored to the recomp floor (~0.8-1.0 g/lb) EVERY day; this caps
+// the only allowed movement — a small bump on the heaviest training days. It is
+// never reduced below the floor, so protein can't swing wildly day to day.
+export const MAX_PROTEIN_BUMP = 20;
 
 // A "typical" training day's load — the pivot the fallback reacts around. A
 // day notably above this nudges intake up; a rest/skip day or a much lighter
@@ -67,6 +71,22 @@ export const REFERENCE_LOAD = 60;
 
 function clampInt(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, Math.round(n)));
+}
+
+// Fat is the BALANCER in the macro model: protein is anchored, carbs are the
+// load-driven lever, and fat fills whatever calories remain so the three macros
+// always sum to the day's calorie target. 4 kcal/g protein + carb, 9 kcal/g fat.
+export function balanceFatG(cal: number, proteinG: number, carbsG: number): number {
+  const fatKcal = cal - proteinG * 4 - carbsG * 4;
+  return Math.max(0, Math.round(fatKcal / 9));
+}
+
+// The small, load-scaled protein bump for a heavier-than-typical day. Zero on
+// rest/typical/light days; ramps to MAX_PROTEIN_BUMP as load climbs above the
+// reference. Protein is never pushed below the floor.
+export function proteinBumpForLoad(load: number, noTraining: boolean): number {
+  if (noTraining || load <= REFERENCE_LOAD) return 0;
+  return clampInt(((load - REFERENCE_LOAD) / REFERENCE_LOAD) * MAX_PROTEIN_BUMP, 0, MAX_PROTEIN_BUMP);
 }
 
 // Deterministic baseline ± delta from the day's effective training load.
@@ -97,41 +117,39 @@ export function computeFallbackAdjustment(
     calDelta = clampInt(ratio * 300, -MAX_CAL_DELTA, MAX_CAL_DELTA);
     if (calDelta > 20) {
       reason =
-        "Heavier-than-typical training today, so a small fuel bump in calories and carbs supports the work; protein unchanged.";
+        "Heavier-than-typical training today — carbs up to fuel the work, protein nudged a touch higher, fat fills the rest.";
     } else if (calDelta < -20) {
       reason =
-        "Lighter session than a typical day, so calories and carbs dialed back slightly with protein held steady.";
+        "Lighter session than a typical day, so carbs dial back; protein stays anchored and fat balances the calories.";
     } else {
       reason =
-        "Training load is about typical, so today's target sits at your baseline with protein held steady.";
+        "Training load is about typical, so carbs sit near baseline with protein anchored and fat balancing the rest.";
     }
   }
 
   calDelta = clampInt(calDelta, -MAX_CAL_DELTA, MAX_CAL_DELTA);
-  // Move ~all of the calorie swing through carbs (4 kcal/g), leave fat + protein
-  // alone so the recomp protein floor never drifts.
+  // Carbs are the lever — they carry ~all of the calorie swing (4 kcal/g).
   const carbDelta = clampInt(calDelta / 4, -MAX_CARB_DELTA, MAX_CARB_DELTA);
+  // Protein is anchored to the recomp floor; only a small bump on heavy days.
+  const proteinDelta = proteinBumpForLoad(load, noTraining);
 
-  const delta: BaselineMacros = {
-    cal: calDelta,
-    protein: 0,
-    carbs: carbDelta,
-    fat: 0,
-  };
-  const adjusted: BaselineMacros = {
-    cal: Math.max(800, baseline.cal + delta.cal),
-    protein: baseline.protein,
-    carbs: Math.max(0, baseline.carbs + delta.carbs),
-    fat: baseline.fat,
-  };
-  // Recompute the realized delta after the calorie/carb floors clamp it.
+  const cal = Math.max(800, baseline.cal + calDelta);
+  const protein = Math.max(0, baseline.protein + proteinDelta);
+  const carbs = Math.max(0, baseline.carbs + carbDelta);
+  // Fat balances: it fills whatever calories remain after protein + carbs, so
+  // the macros always add up to the day's calorie target.
+  const fat = balanceFatG(cal, protein, carbs);
+  const adjusted: BaselineMacros = { cal, protein, carbs, fat };
+  if (proteinDelta > 0) {
+    reason = reason.replace("protein nudged a touch higher", `protein +${proteinDelta} g for the heavy day`);
+  }
   return {
     adjusted,
     delta: {
       cal: adjusted.cal - baseline.cal,
-      protein: 0,
+      protein: adjusted.protein - baseline.protein,
       carbs: adjusted.carbs - baseline.carbs,
-      fat: 0,
+      fat: adjusted.fat - baseline.fat,
     },
     rationale: reason,
   };
@@ -146,21 +164,21 @@ export function clampAdjustment(
 ): { adjusted: BaselineMacros; delta: BaselineMacros } {
   const calDelta = clampInt(proposed.calDelta, -MAX_CAL_DELTA, MAX_CAL_DELTA);
   const carbDelta = clampInt(proposed.carbDelta, -MAX_CARB_DELTA, MAX_CARB_DELTA);
-  // Protein may nudge a little but is held tight to protect the recomp floor.
-  const proteinDelta = clampInt(proposed.proteinDelta ?? 0, -15, 15);
-  const adjusted: BaselineMacros = {
-    cal: Math.max(800, baseline.cal + calDelta),
-    protein: Math.max(0, baseline.protein + proteinDelta),
-    carbs: Math.max(0, baseline.carbs + carbDelta),
-    fat: baseline.fat,
-  };
+  // Protein is anchored: never below the floor, at most a small heavy-day bump.
+  const proteinDelta = clampInt(proposed.proteinDelta ?? 0, 0, MAX_PROTEIN_BUMP);
+  const cal = Math.max(800, baseline.cal + calDelta);
+  const protein = Math.max(0, baseline.protein + proteinDelta);
+  const carbs = Math.max(0, baseline.carbs + carbDelta);
+  // Fat balances to the calorie target (same model as the fallback).
+  const fat = balanceFatG(cal, protein, carbs);
+  const adjusted: BaselineMacros = { cal, protein, carbs, fat };
   return {
     adjusted,
     delta: {
       cal: adjusted.cal - baseline.cal,
       protein: adjusted.protein - baseline.protein,
       carbs: adjusted.carbs - baseline.carbs,
-      fat: 0,
+      fat: adjusted.fat - baseline.fat,
     },
   };
 }

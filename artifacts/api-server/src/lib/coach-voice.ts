@@ -15,6 +15,16 @@ export type DayInputs = {
   loggedWorkouts: number;
   loggedMinutes: number;
   sex: string | null;
+  // The reactive per-day macro target the engine produced (carbs scaled to the
+  // day's load, protein anchored, fat balanced) so the coach can reference the
+  // macro logic — "big day, more carbs, protein stays high." Null pre-baseline.
+  dayTarget?: {
+    cal: number;
+    protein: number;
+    carbs: number;
+    load: number;
+    summary: string | null;
+  } | null;
 };
 
 export function buildDataSummary(d: DayInputs): string {
@@ -34,6 +44,17 @@ export function buildDataSummary(d: DayInputs): string {
         ? " The planned session has NOT been logged."
         : ""),
   );
+
+  if (d.dayTarget) {
+    const t = d.dayTarget;
+    lines.push(
+      `Today's fuel target (carbs scale with training load ${t.load}, protein anchored, fat balances): ` +
+        `${t.protein} g protein, ${t.carbs} g carbs, ${t.cal} kcal` +
+        `${t.summary ? ` — drove by: ${t.summary}` : ""}. ` +
+        `You may reference this macro logic (e.g. a big day means more carbs to fuel it while protein stays high). ` +
+        `This is LOAD-based fuelling, never calories burned.`,
+    );
+  }
 
   if (d.actual) {
     const t = d.target;

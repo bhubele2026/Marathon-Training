@@ -11,6 +11,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { getAnthropic, isConfigured, MODEL } from "@workspace/integrations-anthropic";
 import { COACH_PERSONA } from "@workspace/plan-knowledge";
 import { buildDataSummary, type DayInputs } from "../lib/coach-voice";
+import { getDayTarget } from "../lib/nutrition-day-target";
 
 const router: IRouter = Router();
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -90,7 +91,26 @@ async function gatherDay(date: string): Promise<DayInputs> {
     loggedWorkouts: wkAgg.rows[0]?.cnt ?? 0,
     loggedMinutes: wkAgg.rows[0]?.mins ?? 0,
     sex: prefs?.sex ?? null,
+    dayTarget: await readDayTarget(date),
   };
+}
+
+// The reactive macro target for the day (best-effort; null if no baseline yet)
+// so the coach can reference the carb/protein logic in its line.
+async function readDayTarget(date: string): Promise<DayInputs["dayTarget"]> {
+  try {
+    const t = await getDayTarget(date);
+    if (!t.adjusted) return null;
+    return {
+      cal: t.adjusted.cal,
+      protein: t.adjusted.protein,
+      carbs: t.adjusted.carbs,
+      load: t.trainingLoad,
+      summary: t.training?.summary ?? null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 // True when there's nothing worth reacting to (no plan, no food, no workout).
@@ -107,6 +127,9 @@ async function generateDailyNote(d: DayInputs): Promise<string | null> {
     `${COACH_PERSONA}\n\n## Your task right now\n` +
     `Write the DAILY line shown on the client's Today screen. React to TODAY only, ` +
     `in 1-3 short, sharp sentences, fully in your voice. Reference the real numbers. ` +
+    `When a fuel target is given, work the macro logic in (big day → more carbs to ` +
+    `fuel it, protein stays high; rest day → carbs ease back) — it's load-based ` +
+    `fuelling, never calories burned. ` +
     `Obey the wellbeing rails above without exception — if a SAFETY SIGNAL appears or ` +
     `the day shows under-eating, drop the sarcasm and be genuinely warm. Output ONLY ` +
     `the line itself: no preamble, no quotation marks, no sign-off.`;

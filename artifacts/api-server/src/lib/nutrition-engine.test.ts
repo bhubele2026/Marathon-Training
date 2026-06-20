@@ -3,8 +3,11 @@ import {
   computePlannedLoad,
   computeFallbackAdjustment,
   clampAdjustment,
+  balanceFatG,
+  proteinBumpForLoad,
   MAX_CAL_DELTA,
   MAX_CARB_DELTA,
+  MAX_PROTEIN_BUMP,
   type BaselineMacros,
 } from "./nutrition-engine";
 
@@ -57,14 +60,35 @@ describe("computeFallbackAdjustment", () => {
     expect(skip.rationale).toMatch(/skip/i);
   });
 
-  it("a heavy lift day is HIGHER calories than a rest day", () => {
+  it("a heavy lift day is HIGHER calories + carbs than a rest day, with a small protein bump", () => {
     const rest = computeFallbackAdjustment(BASE, 0, { source: "planned" });
     const heavy = computeFallbackAdjustment(BASE, 120, { source: "planned" });
     expect(heavy.adjusted.cal).toBeGreaterThan(rest.adjusted.cal);
     expect(heavy.delta.cal).toBeGreaterThan(0);
-    // Protein never drifts in either case.
-    expect(heavy.delta.protein).toBe(0);
+    // Carbs are the lever — heavier day carries more carbs than a rest day.
+    expect(heavy.adjusted.carbs).toBeGreaterThan(rest.adjusted.carbs);
+    // Protein is anchored: rest day never drops it; heavy day gets only a small
+    // bump, never a wild swing.
     expect(rest.delta.protein).toBe(0);
+    expect(heavy.delta.protein).toBeGreaterThan(0);
+    expect(heavy.delta.protein).toBeLessThanOrEqual(MAX_PROTEIN_BUMP);
+  });
+
+  it("balances fat so macros sum to the calorie target", () => {
+    const day = computeFallbackAdjustment(BASE, 120, { source: "planned" });
+    const kcalFromMacros =
+      day.adjusted.protein * 4 + day.adjusted.carbs * 4 + day.adjusted.fat * 9;
+    // Within rounding of a gram of fat.
+    expect(Math.abs(kcalFromMacros - day.adjusted.cal)).toBeLessThanOrEqual(9);
+  });
+
+  it("protein does not swing wildly across rest / typical / heavy days", () => {
+    const rest = computeFallbackAdjustment(BASE, 0, { source: "planned" });
+    const typical = computeFallbackAdjustment(BASE, 60, { source: "planned" });
+    const heavy = computeFallbackAdjustment(BASE, 130, { source: "planned" });
+    const proteins = [rest, typical, heavy].map((d) => d.adjusted.protein);
+    const spread = Math.max(...proteins) - Math.min(...proteins);
+    expect(spread).toBeLessThanOrEqual(MAX_PROTEIN_BUMP);
   });
 
   it("a lighter-than-typical logged session lowers calories vs the planned heavy day", () => {
@@ -92,7 +116,43 @@ describe("clampAdjustment", () => {
     });
     expect(delta.cal).toBeLessThanOrEqual(MAX_CAL_DELTA);
     expect(delta.carbs).toBeLessThanOrEqual(MAX_CARB_DELTA);
-    // Protein clamp keeps the recomp floor intact (≤15 g nudge).
-    expect(adjusted.protein - BASE.protein).toBeLessThanOrEqual(15);
+    // Protein is anchored: never below the floor, at most a small bump.
+    expect(adjusted.protein).toBeGreaterThanOrEqual(BASE.protein);
+    expect(adjusted.protein - BASE.protein).toBeLessThanOrEqual(MAX_PROTEIN_BUMP);
+  });
+
+  it("never reduces protein below the floor even if the AI proposes a cut", () => {
+    const { adjusted } = clampAdjustment(BASE, {
+      calDelta: -300,
+      carbDelta: -75,
+      proteinDelta: -50,
+    });
+    expect(adjusted.protein).toBe(BASE.protein);
+  });
+
+  it("balances fat to the calorie target", () => {
+    const { adjusted } = clampAdjustment(BASE, { calDelta: 300, carbDelta: 70 });
+    const kcal = adjusted.protein * 4 + adjusted.carbs * 4 + adjusted.fat * 9;
+    expect(Math.abs(kcal - adjusted.cal)).toBeLessThanOrEqual(9);
+  });
+});
+
+describe("balanceFatG", () => {
+  it("fills the remaining calories as fat", () => {
+    // 2000 - 200*4 - 200*4 = 400 kcal → 44 g fat
+    expect(balanceFatG(2000, 200, 200)).toBe(44);
+  });
+  it("never goes negative", () => {
+    expect(balanceFatG(1000, 200, 200)).toBe(0);
+  });
+});
+
+describe("proteinBumpForLoad", () => {
+  it("is zero on rest/typical/light days and ramps on heavy days", () => {
+    expect(proteinBumpForLoad(0, true)).toBe(0);
+    expect(proteinBumpForLoad(60, false)).toBe(0);
+    expect(proteinBumpForLoad(40, false)).toBe(0);
+    expect(proteinBumpForLoad(120, false)).toBeGreaterThan(0);
+    expect(proteinBumpForLoad(100000, false)).toBe(MAX_PROTEIN_BUMP);
   });
 });
