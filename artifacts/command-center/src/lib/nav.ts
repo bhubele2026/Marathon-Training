@@ -6,12 +6,9 @@ import {
   CalendarDays,
   Scale,
   Beef,
-  LayoutDashboard,
   Target,
   ListOrdered,
-  Dumbbell,
   Trophy,
-  SlidersHorizontal,
   Sparkles,
   CalendarCheck,
   Settings as SettingsIcon,
@@ -34,16 +31,15 @@ export const PRIMARY_NAV: NavDestination[] = [
   { href: "/nutrition", label: "Nutrition", icon: Beef, short: "Nutrition" },
 ];
 
-// Everything else lives behind the single "More" menu.
+// Everything else lives behind the single "More" menu. Ordered for cohesion:
+// review surfaces (this week, training log, goals), then races, then the
+// planner, then settings.
 export const MORE_NAV: NavDestination[] = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/recap", label: "This week", icon: CalendarCheck },
-  { href: "/goals", label: "Goals", icon: Target },
   { href: "/log", label: "Training log", icon: ListOrdered },
-  { href: "/equipment", label: "Equipment", icon: Dumbbell },
+  { href: "/goals", label: "Goals", icon: Target },
   { href: "/races", label: "Races", icon: Trophy },
-  { href: "/planner/manual", label: "Phase planner", icon: SlidersHorizontal },
-  { href: "/planner", label: "AI plan builder", icon: Sparkles },
+  { href: "/planner", label: "Planner", icon: Sparkles },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
 ];
 
