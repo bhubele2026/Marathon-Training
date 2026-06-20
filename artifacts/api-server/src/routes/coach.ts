@@ -197,4 +197,96 @@ router.get("/coach/daily/:date", async (req, res): Promise<void> => {
   res.json({ date, note, generatedAt: now });
 });
 
+// ---------------------------------------------------------------------------
+// Always-on coach presence (Phase 1): a short, screen-contextual line for the
+// persistent dock in the app shell. Reuses the same day inputs + persona as the
+// daily note; the `context` only steers WHAT the line reacts to. Hand-fetched
+// (not in openapi.yaml), matching the rest of the coach slice. Cheap: short
+// line, low tokens, deduped in-process by context + input hash so we don't
+// re-call the model until the day's data changes.
+const COACH_CONTEXTS = new Set([
+  "today",
+  "nutrition",
+  "body",
+  "plan",
+  "dashboard",
+  "general",
+]);
+const contextLineCache = new Map<string, string>();
+
+function contextInstruction(ctx: string): string {
+  switch (ctx) {
+    case "nutrition":
+      return "The client is on the NUTRITION screen — react to TODAY's food vs targets (protein, calories, carbs) right now.";
+    case "today":
+      return "The client is on TODAY — react to today's planned/logged session and food.";
+    case "body":
+      return "The client is on the BODY / measurements screen — tie today's training + fuelling to recomp progress and consistency.";
+    case "plan":
+      return "The client is on the PLAN screen — react to whether they're hitting planned sessions; ride them about skips, credit consistency.";
+    case "dashboard":
+      return "The client is on the DASHBOARD — give the overall 'where are you at' read from today's data.";
+    default:
+      return "Give a short, contextual nudge from today's data.";
+  }
+}
+
+async function generateContextLine(d: DayInputs, ctx: string): Promise<string | null> {
+  if (!isConfigured()) return null;
+  const system =
+    `${COACH_PERSONA}\n\n## Your task right now\n` +
+    `Write ONE short line (max ~20 words) for a persistent coach strip shown on ` +
+    `the client's screen. ${contextInstruction(ctx)} Fully in your voice, ` +
+    `reference a real number when you can, max sass — but obey the wellbeing ` +
+    `rails without exception: if a SAFETY SIGNAL appears or the day shows ` +
+    `under-eating, DROP the sarcasm and be genuinely warm. Output ONLY the line: ` +
+    `no preamble, no quotation marks, no sign-off.`;
+  try {
+    const client: any = getAnthropic();
+    const resp: any = await client.messages.create({
+      model: MODEL,
+      max_tokens: 200,
+      system,
+      messages: [{ role: "user", content: buildDataSummary(d) }],
+    });
+    let text = "";
+    for (const block of resp.content ?? []) {
+      if (block?.type === "text") text += block.text;
+    }
+    text = text.trim().replace(/^["']|["']$/g, "");
+    return text || null;
+  } catch {
+    return null;
+  }
+}
+
+// GET /api/coach/line?context=nutrition — the persistent dock line.
+router.get("/coach/line", async (req, res): Promise<void> => {
+  const raw = req.query.context;
+  const ctx =
+    typeof raw === "string" && COACH_CONTEXTS.has(raw) ? raw : "general";
+  const date = new Date().toISOString().slice(0, 10);
+
+  const inputs = await gatherDay(date);
+  if (isEmptyDay(inputs)) {
+    res.json({ context: ctx, line: null });
+    return;
+  }
+
+  const key = `${ctx}:${hashInputs(inputs)}`;
+  const cached = contextLineCache.get(key);
+  if (cached) {
+    res.json({ context: ctx, line: cached });
+    return;
+  }
+
+  const line = await generateContextLine(inputs, ctx);
+  if (line) {
+    // Bound the in-process cache so it can't grow without limit across days.
+    if (contextLineCache.size > 60) contextLineCache.clear();
+    contextLineCache.set(key, line);
+  }
+  res.json({ context: ctx, line });
+});
+
 export default router;

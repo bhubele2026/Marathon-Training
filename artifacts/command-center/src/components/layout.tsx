@@ -22,6 +22,7 @@ import {
   CommandPalette,
   useCommandPaletteHotkey,
 } from "./command-palette";
+import { CoachDock } from "./coach-dock";
 import { PRIMARY_NAV, MORE_NAV } from "@/lib/nav";
 
 interface LayoutProps {
@@ -155,6 +156,10 @@ export function Layout({ children }: LayoutProps) {
 
       <main className="flex-1 px-4 md:px-6 py-6 md:py-10 pb-24 md:pb-10">
         <div className="mx-auto max-w-[1600px]">
+          {/* Always-on, dismissible coach presence — sits above the page and
+              reacts to the current screen. Outside the route transition so it
+              persists across navigation. */}
+          <CoachDock />
           {/* Restrained route-change transition: gentle fade + slide. */}
           <AnimatePresence mode="wait">
             <motion.div

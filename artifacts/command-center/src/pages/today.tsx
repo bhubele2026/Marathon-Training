@@ -32,7 +32,6 @@ import { CheckCircle2, Activity, Trash2, Edit, Zap, Pencil, XCircle, Rocket, Spa
 import { useMissionActions } from "@/hooks/use-mission-actions";
 import { QuickLogActivity } from "@/components/quick-log-activity";
 import { EatToday } from "@/components/eat-today";
-import { CoachLine } from "@/components/coach-line";
 import { TimeOfDayBadge } from "@/components/time-of-day-badge";
 import { PlannedBreakdown } from "@/components/planned-breakdown";
 import { ActualBreakdown } from "@/components/actual-breakdown";
@@ -266,8 +265,6 @@ export default function Today() {
         </div>
       </div>
 
-      {/* The coach's daily line — sardonic British reaction to what you logged. */}
-      <CoachLine date={today.date} />
 
       {/* R6: reactive "Eat today" block — today's AI-adjusted calorie + macro
           target, the one-line rationale, and progress vs actual intake. Lives
