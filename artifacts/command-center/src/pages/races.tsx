@@ -367,8 +367,8 @@ export default function Races() {
       <div className="flex items-end justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-4xl font-extrabold tracking-tight text-foreground">Race History</h2>
-          <p className="text-muted-foreground font-medium tracking-widest mt-1">
-            Every Finish Line, Every Campaign
+          <p className="text-sm text-muted-foreground mt-1">
+            Every finish line, every campaign
           </p>
         </div>
         <Button

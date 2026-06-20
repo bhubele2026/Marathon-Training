@@ -155,7 +155,7 @@ export default function Log() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-4xl font-extrabold tracking-tight text-foreground">Training Log</h2>
-          <p className="text-muted-foreground font-medium tracking-widest mt-1">Activity History</p>
+          <p className="text-sm text-muted-foreground mt-1">Activity history</p>
         </div>
         <div className="flex items-center gap-2">
           {/* Task #294: surface the count of legacy workouts the
