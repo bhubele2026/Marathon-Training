@@ -243,7 +243,9 @@ function stateFingerprint(
   plannedLoad: number,
   actual: ActualDay | null,
 ): string {
-  const base = `${baseline.cal}/${baseline.protein}/${baseline.carbs}/${baseline.fat}`;
+  // v2: the macro model changed (carbs scale / protein bump / fat balances), so
+  // bump the version so any pre-change cached rows recompute on next read.
+  const base = `v2:${baseline.cal}/${baseline.protein}/${baseline.carbs}/${baseline.fat}`;
   if (actual) {
     return `actual:${actual.load}:skip=${actual.skipped}:n=${actual.count}:base=${base}`;
   }
