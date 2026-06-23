@@ -144,7 +144,7 @@ export function PaceCurveChart({
             data={data}
             margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="hsl(var(--border))" />
             {phaseBands.map((b, i) => (
               <ReferenceArea
                 key={`${b.phase}-${i}`}
@@ -161,6 +161,9 @@ export function PaceCurveChart({
               type="number"
               domain={[1, Math.max(1, totalWeeks)]}
               tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+              tickLine={false}
+              axisLine={false}
+              className="font-mono"
               tickFormatter={(v) => `W${v}`}
               allowDecimals={false}
             />
@@ -168,6 +171,9 @@ export function PaceCurveChart({
               domain={[yMin, yMax]}
               reversed
               tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+              tickLine={false}
+              axisLine={false}
+              className="font-mono"
               tickFormatter={fmtPaceTick}
               width={48}
             />
@@ -175,6 +181,9 @@ export function PaceCurveChart({
               contentStyle={{
                 background: "hsl(var(--popover))",
                 border: "1px solid hsl(var(--border))",
+                borderRadius: 10,
+                boxShadow: "var(--shadow-pop)",
+                color: "hsl(var(--popover-foreground))",
                 fontSize: 12,
               }}
               labelFormatter={(label, payload) => {
@@ -219,14 +228,14 @@ export function PaceCurveChart({
       </div>
       <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] tracking-wider text-muted-foreground">
         <span>
-          Start W1: <span className="text-foreground font-bold">{fmtPaceTick(data[0]?.easy ?? 0)}/mi</span>
+          Start W1: <span className="text-foreground font-bold font-mono tabular-nums">{fmtPaceTick(data[0]?.easy ?? 0)}/mi</span>
         </span>
         <span>
-          End W{totalWeeks}: <span className="text-foreground font-bold">{fmtPaceTick(data[data.length - 1]?.easy ?? 0)}/mi</span>
+          End W{totalWeeks}: <span className="text-foreground font-bold font-mono tabular-nums">{fmtPaceTick(data[data.length - 1]?.easy ?? 0)}/mi</span>
         </span>
         {raceKind ? (
           <span>
-            Race offset: <span className="text-foreground font-bold">+{easyOffset}s easy / +{easyOffset + longExtra}s long</span>
+            Race offset: <span className="text-foreground font-bold font-mono tabular-nums">+{easyOffset}s easy / +{easyOffset + longExtra}s long</span>
           </span>
         ) : null}
         {startSec === null ? (
