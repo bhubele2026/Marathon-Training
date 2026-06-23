@@ -16,8 +16,13 @@ import {
   LineChart, Line, Legend,
 } from "recharts";
 import { formatDate } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { Plus, Edit, Trash2 } from "lucide-react";
 import { MeasurementForm } from "@/components/measurement-form";
+import { StatReadout } from "@/components/studio/stat-readout";
+import { TrendArea } from "@/components/studio/trend-area";
+import { EmptyState } from "@/components/studio/empty-state";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
@@ -168,6 +173,35 @@ export default function Measurements() {
 
   const hasMeasurements = (measurements?.length ?? 0) > 0;
 
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+
+  // Weight hero: latest weigh-in + change vs the prior one. On a cut, a drop is
+  // the good direction (success); a gain is off-direction; equal reads Flat.
+  const latestWeight =
+    weightData.length > 0 ? (weightData[weightData.length - 1]!.weight as number | null) : null;
+  const prevWeight =
+    weightData.length > 1 ? (weightData[weightData.length - 2]!.weight as number | null) : null;
+  const weightDelta =
+    latestWeight != null && prevWeight != null ? round1(latestWeight - prevWeight) : null;
+  const cutGoal = (weekly?.rateLb ?? -1) <= 0; // default to a cut when no goal set
+
+  // Latest logged body-fat % (newest non-null), for the body-comp hero / seed.
+  const latestBodyFat = useMemo(() => {
+    for (let i = chrono.length - 1; i >= 0; i--) {
+      if (chrono[i]!.bodyFatPct != null) return chrono[i]!.bodyFatPct as number;
+    }
+    return null;
+  }, [chrono]);
+
+  // Selected tape series for the chart — accent the chosen one, neutral the rest.
+  const [selectedSite, setSelectedSite] = useState<string>(SITE_DEFS[0]!.key);
+  const NEUTRAL_RAMP = [
+    "hsl(var(--chart-3))",
+    "hsl(var(--chart-4))",
+    "hsl(var(--chart-5))",
+    "hsl(var(--chart-2))",
+  ];
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1600px] mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -188,6 +222,55 @@ export default function Measurements() {
           <Plus className="h-5 w-5 mr-2" /> Log measurement
         </Button>
       </div>
+
+      {/* Weight is the hero of the Body screen — the single oversized readout,
+          with the change vs the last weigh-in as a semantic delta chip. */}
+      <section className="flex flex-wrap items-end justify-between gap-x-12 gap-y-6 pt-2">
+        <div className="flex flex-col gap-2">
+          <span className="font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            Weight
+          </span>
+          <div className="flex items-end gap-3">
+            <span className="font-mono text-[clamp(2.25rem,5vw,3.75rem)] font-semibold leading-none tabular-nums tracking-[-0.02em] text-primary">
+              {latestWeight != null ? latestWeight.toFixed(1) : "—"}
+            </span>
+            <span className="pb-1.5 text-base font-medium text-muted-foreground">lb</span>
+            {weightDelta != null && weightDelta !== 0 && (
+              <Badge
+                variant={
+                  (weightDelta < 0) === cutGoal ? "success" : "neutral"
+                }
+                className="mb-1.5"
+              >
+                {weightDelta < 0 ? "▼" : "▲"}{" "}
+                <span className="font-mono tabular-nums">{Math.abs(weightDelta).toFixed(1)}</span>{" "}
+                lb vs last
+              </Badge>
+            )}
+            {weightDelta === 0 && (
+              <Badge variant="neutral" className="mb-1.5">
+                Flat · <span className="font-mono tabular-nums">{latestWeight?.toFixed(1)}</span> lb
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        {/* Body-fat: a stat when logged, an invitation (never a dash) when not. */}
+        {latestBodyFat != null ? (
+          <StatReadout label="Body fat" value={latestBodyFat.toFixed(1)} unit="%" />
+        ) : (
+          <EmptyState
+            title="Body fat not logged"
+            hint="Log body-fat % (or your neck + waist) to split fat loss from muscle."
+            action={
+              <Button variant="outline" size="sm" onClick={handleCreate}>
+                Log it
+              </Button>
+            }
+            className="p-0"
+          />
+        )}
+      </section>
 
       {/* Weekly weight goal — quiet target-vs-actual for the current week. Set
           it on Goals; read-only here. De-boxed to match the rest of the page. */}
@@ -231,9 +314,7 @@ export default function Measurements() {
               <span
                 className={
                   "text-sm font-bold self-center " +
-                  (weekly.onTrack
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-amber-600 dark:text-amber-400")
+                  (weekly.onTrack ? "text-success" : "text-destructive")
                 }
               >
                 {weekly.onTrack ? "On track" : "Off track"}
@@ -268,40 +349,25 @@ export default function Measurements() {
             className="grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-6"
             data-testid="measurements-site-deltas"
           >
-            {siteDeltas.map(({ def, baseline, latest, delta }) => {
-              const grew = delta != null && delta < 0;
-              const shrank = delta != null && delta > 0;
-              const good = def.muscleProxy ? grew : shrank;
+            {siteDeltas.map(({ def, latest, delta }) => {
               const magnitude = delta == null ? null : Math.abs(delta);
+              const up = delta != null && delta < 0; // latest > baseline (grew)
+              const good = def.muscleProxy ? up : !up;
+              const deltaChip =
+                magnitude != null && magnitude > 0
+                  ? {
+                      value: `${up ? "▲" : "▼"} ${magnitude.toFixed(1)}"`,
+                      tone: (good ? "success" : "neutral") as "success" | "neutral",
+                    }
+                  : undefined;
               return (
-                <div
-                  key={def.key}
-                  data-testid={`measurements-site-delta-${def.key}`}
-                >
-                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-                    {def.label}
-                  </p>
-                  <div className="text-5xl font-extrabold mt-1.5 tabular-nums leading-none">
-                    {latest != null ? latest.toFixed(1) : "—"}
-                    <span className="text-xl text-muted-foreground font-bold">"</span>
-                  </div>
-                  <p className="text-xs mt-1.5">
-                    {magnitude != null && magnitude > 0 ? (
-                      <span
-                        className={`font-mono font-bold ${good ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}
-                      >
-                        {def.muscleProxy
-                          ? `${grew ? "+" : "-"}${magnitude.toFixed(1)}"`
-                          : `-${magnitude.toFixed(1)}"`}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground font-mono">no change</span>
-                    )}
-                    <span className="text-muted-foreground">
-                      {" "}
-                      from {baseline != null ? `${baseline.toFixed(1)}"` : "—"}
-                    </span>
-                  </p>
+                <div key={def.key} data-testid={`measurements-site-delta-${def.key}`}>
+                  <StatReadout
+                    label={def.label}
+                    value={latest != null ? latest.toFixed(1) : "—"}
+                    unit={'"'}
+                    delta={deltaChip}
+                  />
                 </div>
               );
             })}
@@ -316,55 +382,94 @@ export default function Measurements() {
           Weight trend
         </p>
         <div>
-          {loadingMs ? <Skeleton className="h-56 w-full" /> : (
-            <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={weightData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorWeightMain" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-                  <XAxis dataKey="date" tickFormatter={(str) => format(parseISO(str), 'MMM d')} />
-                  <YAxis domain={["dataMin - 5", "dataMax + 5"]} />
-                  <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }} />
-                  <Area type="monotone" dataKey="weight" name="Weight" stroke="hsl(var(--chart-1))" strokeWidth={3} fillOpacity={1} fill="url(#colorWeightMain)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
+          {loadingMs ? (
+            <Skeleton className="h-56 w-full" />
+          ) : (
+            <TrendArea
+              data={weightData}
+              xKey="date"
+              yKey="weight"
+              unit="lb"
+              height={224}
+              valueFormatter={(n) => n.toFixed(1)}
+              xTickFormatter={(v) => format(parseISO(String(v)), "MMM d")}
+              sparseFallback={
+                <EmptyState
+                  title="Not enough weigh-ins yet"
+                  hint="One weigh-in down. Two more and your trend line shows up."
+                />
+              }
+            />
           )}
         </div>
       </section>
 
       <section className="border-t border-border pt-6">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground mb-4">
-          Tape measurements
-        </p>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
+            Tape measurements
+          </p>
+          {/* Pill toggles instead of a dotted legend — the selected site is the
+              accent line, the rest fade into the neutral ramp. */}
+          <div className="flex flex-wrap gap-1.5">
+            {SITE_DEFS.map((def) => (
+              <button
+                key={def.key}
+                type="button"
+                onClick={() => setSelectedSite(def.key)}
+                aria-pressed={selectedSite === def.key}
+                className={cn(
+                  "rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  selectedSite === def.key
+                    ? "border-primary/30 bg-primary/10 text-primary"
+                    : "border-border bg-muted/40 text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {def.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <div>
           {loadingMs ? <Skeleton className="h-64 w-full" /> : (
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={tapeData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-                  <XAxis dataKey="date" tickFormatter={(str) => format(parseISO(str), 'MMM d')} />
-                  <YAxis />
-                  <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }} />
-                  <Legend />
-                  {/* Single accent (chart-1 = belly) + neutral-gray ramp; no rainbow. */}
-                  {SITE_DEFS.map((def) => (
-                    <Line
-                      key={def.key}
-                      type="monotone"
-                      dataKey={def.key}
-                      name={def.label}
-                      stroke={def.stroke}
-                      strokeWidth={2}
-                      dot={{ r: 3 }}
-                      connectNulls
-                    />
-                  ))}
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(str) => format(parseISO(str), 'MMM d')}
+                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                    className="font-mono"
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                    className="font-mono"
+                    tickLine={false}
+                    axisLine={false}
+                    width={36}
+                  />
+                  <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: 12 }} />
+                  {/* Selected site = accent; the rest recede into the neutral ramp. */}
+                  {SITE_DEFS.map((def, i) => {
+                    const isSel = def.key === selectedSite;
+                    return (
+                      <Line
+                        key={def.key}
+                        type="monotone"
+                        dataKey={def.key}
+                        name={def.label}
+                        stroke={isSel ? "hsl(var(--primary))" : NEUTRAL_RAMP[i % NEUTRAL_RAMP.length]}
+                        strokeWidth={isSel ? 2.5 : 1.25}
+                        strokeOpacity={isSel ? 1 : 0.5}
+                        dot={false}
+                        activeDot={isSel ? { r: 3 } : false}
+                        connectNulls
+                      />
+                    );
+                  })}
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -372,7 +477,7 @@ export default function Measurements() {
         </div>
       </section>
 
-      <div className="bg-card border border-card-border shadow-card overflow-hidden">
+      <div className="bg-card border border-card-border shadow-card rounded-lg overflow-hidden">
         {loadingMs ? (
           <div className="p-8"><Skeleton className="h-64 w-full" /></div>
         ) : (
