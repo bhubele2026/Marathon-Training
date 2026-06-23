@@ -13,3 +13,4 @@ export * from "./nutritionDayTargets";
 export * from "./planDrafts";
 export * from "./coachNotes";
 export * from "./progressDiagnosis";
+export * from "./nutritionistReports";

@@ -1,0 +1,381 @@
+import { Router, type IRouter } from "express";
+import {
+  db,
+  userPreferencesTable,
+  measurementsTable,
+  nutritionDaysTable,
+  workoutsTable,
+  planDaysTable,
+  nutritionistReportsTable,
+  type NutritionistReport,
+} from "@workspace/db";
+import { and, asc, desc, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
+import { getAnthropic, isConfigured, MODEL } from "@workspace/integrations-anthropic";
+import { COACH_PERSONA } from "@workspace/plan-knowledge";
+import { diagnose, type DiagnosisInput } from "../lib/progress-diagnosis";
+import { totalInches } from "../lib/dashboard-tracking";
+import { summarizeFood, type FoodDay } from "../lib/week-review";
+import { weeklyWeightStatus } from "../lib/weekly-weight";
+import { calorieFloor, safeWeeklyRateLb, PROTEIN_FLOOR_G_PER_LB } from "../lib/nutrition-safety";
+import { computePlannedLoad } from "../lib/nutrition-engine";
+import {
+  type AnalysisInput,
+  computeBodyComp,
+  proteinGPerLb,
+  buildNutritionistSystem,
+  buildNutritionistUser,
+  fallbackReport,
+  NUTRITIONIST_TOOL,
+  NUTRITIONIST_TOOL_NAME,
+} from "../lib/nutritionist";
+
+const router: IRouter = Router();
+const DAY_MS = 86_400_000;
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+function hashInputs(obj: unknown): string {
+  const s = JSON.stringify(obj);
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(16);
+}
+
+// Build the comprehensive nutritionist input from the trailing `weeks` window.
+async function gather(weeks: number): Promise<AnalysisInput> {
+  const now = new Date();
+  const to = now.toISOString().slice(0, 10);
+  const from = new Date(now.getTime() - weeks * 7 * DAY_MS).toISOString().slice(0, 10);
+
+  const prefsRows = await db
+    .select({
+      goalWeightLb: userPreferencesTable.goalWeightLb,
+      calorieTarget: userPreferencesTable.calorieTarget,
+      proteinTargetG: userPreferencesTable.proteinTargetG,
+      carbsTargetG: userPreferencesTable.carbsTargetG,
+      fatTargetG: userPreferencesTable.fatTargetG,
+      sex: userPreferencesTable.sex,
+      age: userPreferencesTable.age,
+      heightIn: userPreferencesTable.heightIn,
+      activityLevel: userPreferencesTable.activityLevel,
+      bodyGoal: userPreferencesTable.bodyGoal,
+      weeklyRateLb: userPreferencesTable.weeklyRateLb,
+      weeklyGoalStartWeightLb: userPreferencesTable.weeklyGoalStartWeightLb,
+      weeklyGoalAnchorDate: userPreferencesTable.weeklyGoalAnchorDate,
+    })
+    .from(userPreferencesTable)
+    .where(eq(userPreferencesTable.id, 1))
+    .limit(1);
+  const prefs = prefsRows[0];
+
+  // Weight: latest overall + earliest in window.
+  const latest = await db
+    .select({ weight: measurementsTable.weight, date: measurementsTable.date })
+    .from(measurementsTable)
+    .where(isNotNull(measurementsTable.weight))
+    .orderBy(desc(measurementsTable.date))
+    .limit(1);
+  const earliest = await db
+    .select({ weight: measurementsTable.weight, date: measurementsTable.date })
+    .from(measurementsTable)
+    .where(and(isNotNull(measurementsTable.weight), gte(measurementsTable.date, from)))
+    .orderBy(asc(measurementsTable.date))
+    .limit(1);
+
+  const currentW = latest[0]?.weight ?? null;
+  const startW = earliest[0]?.weight ?? null;
+  const weightChangeLb =
+    currentW != null && startW != null ? round1(currentW - startW) : null;
+  let weeksElapsed = 0;
+  if (earliest[0]?.date && latest[0]?.date) {
+    const span = Date.parse(`${latest[0].date}T00:00:00Z`) - Date.parse(`${earliest[0].date}T00:00:00Z`);
+    weeksElapsed = Math.min(weeks, Math.max(0, Math.round(span / (7 * DAY_MS))));
+  }
+
+  // Body-fat %: latest overall + earliest in window → lean/fat mass trend.
+  const bfLatest = await db
+    .select({ bodyFatPct: measurementsTable.bodyFatPct, weight: measurementsTable.weight })
+    .from(measurementsTable)
+    .where(isNotNull(measurementsTable.bodyFatPct))
+    .orderBy(desc(measurementsTable.date))
+    .limit(1);
+  const bfEarliest = await db
+    .select({ bodyFatPct: measurementsTable.bodyFatPct, weight: measurementsTable.weight })
+    .from(measurementsTable)
+    .where(and(isNotNull(measurementsTable.bodyFatPct), gte(measurementsTable.date, from)))
+    .orderBy(asc(measurementsTable.date))
+    .limit(1);
+
+  const bodyFatPct = bfLatest[0]?.bodyFatPct ?? null;
+  const startBodyFatPct = bfEarliest[0]?.bodyFatPct ?? null;
+  const nowComp = computeBodyComp(currentW, bodyFatPct);
+  // Use each reading's own paired weight for the start composition so the lean/fat
+  // delta reflects real readings, not today's weight applied to an old bf%.
+  const startComp = computeBodyComp(bfEarliest[0]?.weight ?? startW, startBodyFatPct);
+  const leanMassChangeLb =
+    nowComp.leanMassLb != null && startComp.leanMassLb != null
+      ? round1(nowComp.leanMassLb - startComp.leanMassLb)
+      : null;
+  const fatMassChangeLb =
+    nowComp.fatMassLb != null && startComp.fatMassLb != null
+      ? round1(nowComp.fatMassLb - startComp.fatMassLb)
+      : null;
+
+  // Tape inches (sum of circumferences) first vs last in window.
+  const measRows = await db
+    .select({
+      belly: measurementsTable.belly,
+      chest: measurementsTable.chest,
+      lArm: measurementsTable.lArm,
+      rArm: measurementsTable.rArm,
+      lLeg: measurementsTable.lLeg,
+      rLeg: measurementsTable.rLeg,
+      date: measurementsTable.date,
+    })
+    .from(measurementsTable)
+    .where(gte(measurementsTable.date, from))
+    .orderBy(asc(measurementsTable.date));
+  const inches = measRows
+    .map((m) => totalInches(m))
+    .filter((v): v is number => v != null);
+  const inchesChange =
+    inches.length >= 2 ? round1(inches[inches.length - 1]! - inches[0]!) : null;
+
+  // Nutrition adherence + full macro averages.
+  const nutRows = await db
+    .select({
+      calories: nutritionDaysTable.calories,
+      proteinG: nutritionDaysTable.proteinG,
+      carbsG: nutritionDaysTable.carbsG,
+      fatG: nutritionDaysTable.fatG,
+    })
+    .from(nutritionDaysTable)
+    .where(and(gte(nutritionDaysTable.date, from), lte(nutritionDaysTable.date, to)));
+  const food = summarizeFood(nutRows as FoodDay[], {
+    calories: prefs?.calorieTarget ?? null,
+    protein: prefs?.proteinTargetG ?? null,
+    carbs: prefs?.carbsTargetG ?? null,
+    fat: prefs?.fatTargetG ?? null,
+  });
+  const safeFloorKcal = calorieFloor(prefs?.sex ?? null);
+  const daysUnderFloor = nutRows.filter(
+    (r) => r.calories != null && r.calories > 0 && r.calories < safeFloorKcal,
+  ).length;
+
+  // Training consistency + average load.
+  const doneRows = await db
+    .select({
+      strengthMin: workoutsTable.strengthMin,
+      cardioMin: workoutsTable.cardioMin,
+      runMin: workoutsTable.runMin,
+    })
+    .from(workoutsTable)
+    .where(and(gte(workoutsTable.date, from), lte(workoutsTable.date, to)));
+  const loads = doneRows.map((w) =>
+    computePlannedLoad({
+      strengthMin: w.strengthMin ?? 0,
+      cardioMin: w.cardioMin ?? 0,
+      runMin: w.runMin ?? 0,
+    }),
+  );
+  const avgTrainingLoad =
+    loads.length > 0 ? round1(loads.reduce((a, b) => a + b, 0) / loads.length) : null;
+  const plannedRows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(planDaysTable)
+    .where(and(gte(planDaysTable.date, from), lte(planDaysTable.date, to), eq(planDaysTable.isRest, false)));
+
+  // Weight-goal status (on-track) when a weekly goal exists.
+  let onTrack: boolean | null = null;
+  const rate = prefs?.weeklyRateLb ?? null;
+  if (rate != null && prefs?.weeklyGoalStartWeightLb != null && prefs?.weeklyGoalAnchorDate) {
+    const st = weeklyWeightStatus({
+      startWeightLb: prefs.weeklyGoalStartWeightLb,
+      rateLb: rate,
+      goalWeightLb: prefs.goalWeightLb ?? null,
+      anchorDateISO: prefs.weeklyGoalAnchorDate,
+      todayISO: to,
+      latestActualLb: currentW,
+    });
+    onTrack = st.onTrack;
+  }
+
+  const goalDirection: AnalysisInput["goalDirection"] =
+    rate == null ? "none" : rate < 0 ? "loss" : rate > 0 ? "gain" : "maintain";
+  const safeRateLbPerWk = safeWeeklyRateLb(currentW ?? 200);
+
+  // Reuse the deterministic diagnosis engine for ground-truth flag titles, so
+  // Claude can't contradict the hard safety findings.
+  const diagInput: DiagnosisInput = {
+    weeks,
+    weeksElapsed,
+    goalDirection,
+    weightChangeLb,
+    goalRateLbPerWk: rate,
+    onTrack,
+    varianceLb: null,
+    avgCalories: food.avgCalories,
+    calorieTarget: prefs?.calorieTarget ?? null,
+    avgProtein: food.avgProtein,
+    proteinTarget: prefs?.proteinTargetG ?? null,
+    proteinHitRate: food.proteinHitRate,
+    sessionsDone: doneRows.length,
+    plannedSessions: plannedRows[0]?.count ?? 0,
+    inchesChange,
+    safeFloorKcal,
+    safeRateLbPerWk,
+  };
+  const groundTruthFlags = diagnose(diagInput).findings.map((f) => f.title);
+
+  return {
+    weeks,
+    weeksElapsed,
+    sex: prefs?.sex ?? null,
+    age: prefs?.age ?? null,
+    heightIn: prefs?.heightIn ?? null,
+    activityLevel: prefs?.activityLevel ?? null,
+    bodyGoal: prefs?.bodyGoal ?? "recomp",
+    goalWeightLb: prefs?.goalWeightLb ?? null,
+    weeklyRateLb: rate,
+    goalDirection,
+    onTrack,
+    currentWeightLb: currentW,
+    startWeightLb: startW,
+    weightChangeLb,
+    bodyFatPct,
+    startBodyFatPct,
+    leanMassLb: nowComp.leanMassLb,
+    fatMassLb: nowComp.fatMassLb,
+    leanMassChangeLb,
+    fatMassChangeLb,
+    inchesChange,
+    daysLogged: food.daysLogged,
+    avgCalories: food.avgCalories,
+    calorieTarget: prefs?.calorieTarget ?? null,
+    avgProtein: food.avgProtein,
+    proteinTarget: prefs?.proteinTargetG ?? null,
+    proteinHitRate: food.proteinHitRate,
+    proteinGPerLb: proteinGPerLb(food.avgProtein, currentW),
+    avgCarbs: food.avgCarbs,
+    carbsTarget: prefs?.carbsTargetG ?? null,
+    avgFat: food.avgFat,
+    fatTarget: prefs?.fatTargetG ?? null,
+    daysUnderFloor,
+    sessionsDone: doneRows.length,
+    plannedSessions: plannedRows[0]?.count ?? 0,
+    avgTrainingLoad,
+    safeFloorKcal,
+    safeRateLbPerWk,
+    proteinFloorGPerLb: PROTEIN_FLOOR_G_PER_LB,
+    groundTruthFlags,
+  };
+}
+
+// Build the full report: Claude reasons via the structured-output tool; on any
+// failure we fall back to the deterministic report so the feature never breaks.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+async function buildReport(input: AnalysisInput): Promise<NutritionistReport> {
+  const fb = fallbackReport(input);
+  if (!isConfigured()) return fb;
+  try {
+    const client: any = getAnthropic();
+    const resp: any = await client.messages.create({
+      model: MODEL,
+      max_tokens: 4000,
+      // Adaptive thinking for a deeper "why" diagnosis. tool_choice is left at
+      // the default ("auto") on purpose — the API disallows FORCED tool use
+      // together with extended thinking; the strong system instruction plus the
+      // deterministic fallback below cover the rare turn that skips the tool.
+      thinking: { type: "adaptive" } as any,
+      system: buildNutritionistSystem(COACH_PERSONA),
+      tools: [NUTRITIONIST_TOOL as any],
+      messages: [{ role: "user", content: buildNutritionistUser(input) }],
+    });
+    const tool = (resp.content ?? []).find(
+      (b: any) => b?.type === "tool_use" && b.name === NUTRITIONIST_TOOL_NAME,
+    );
+    if (!tool) return fb;
+    const out = tool.input as Partial<NutritionistReport> & {
+      protein?: any;
+      bodyComp?: any;
+      deficit?: any;
+    };
+
+    // Merge Claude's narrative + verdicts with the server-computed numbers
+    // (numbers are ground truth; Claude owns the words). Fall back per-field.
+    return {
+      weeks: input.weeks,
+      weeksElapsed: input.weeksElapsed,
+      headline: out.headline ?? fb.headline,
+      protein: {
+        status: out.protein?.status ?? fb.protein.status,
+        avgProteinG: input.avgProtein,
+        targetProteinG: input.proteinTarget,
+        gPerLb: input.proteinGPerLb,
+        hitRate: input.proteinHitRate,
+        detail: out.protein?.detail ?? fb.protein.detail,
+        distributionTip: out.protein?.distributionTip ?? fb.protein.distributionTip,
+      },
+      bodyComp: {
+        currentWeightLb: input.currentWeightLb,
+        bodyFatPct: input.bodyFatPct,
+        leanMassLb: input.leanMassLb,
+        fatMassLb: input.fatMassLb,
+        leanMassChangeLb: input.leanMassChangeLb,
+        fatMassChangeLb: input.fatMassChangeLb,
+        weightChangeLb: input.weightChangeLb,
+        inchesChange: input.inchesChange,
+        trend: out.bodyComp?.trend ?? fb.bodyComp.trend,
+        whatYouShouldSee: out.bodyComp?.whatYouShouldSee ?? fb.bodyComp.whatYouShouldSee,
+        whyYouMayNotBe: out.bodyComp?.whyYouMayNotBe ?? fb.bodyComp.whyYouMayNotBe,
+      },
+      deficit: {
+        status: out.deficit?.status ?? fb.deficit.status,
+        avgCalories: input.avgCalories,
+        calorieTarget: input.calorieTarget,
+        safeFloorKcal: input.safeFloorKcal,
+        detail: out.deficit?.detail ?? fb.deficit.detail,
+      },
+      keyMoves: Array.isArray(out.keyMoves) && out.keyMoves.length ? out.keyMoves.slice(0, 4) : fb.keyMoves,
+      confidence: out.confidence ?? fb.confidence,
+      dataGaps: Array.isArray(out.dataGaps) ? out.dataGaps.slice(0, 4) : fb.dataGaps,
+      narrative: out.narrative ?? fb.narrative,
+    };
+  } catch {
+    return fb;
+  }
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+// GET /api/nutritionist/analysis?weeks=8 — the AI Nutritionist report. Persists
+// the latest (singleton id=1), regenerating only when the metrics change.
+router.get("/nutritionist/analysis", async (req, res): Promise<void> => {
+  const rawWeeks = Number(req.query.weeks);
+  const weeks = Number.isFinite(rawWeeks) ? Math.min(26, Math.max(2, Math.round(rawWeeks))) : 8;
+
+  const input = await gather(weeks);
+  const inputHash = hashInputs({ weeks, input });
+
+  const cachedRows = await db
+    .select()
+    .from(nutritionistReportsTable)
+    .where(eq(nutritionistReportsTable.id, 1))
+    .limit(1);
+  const cached = cachedRows[0];
+  if (cached && cached.inputHash === inputHash) {
+    res.json({ ...cached.report, generatedAt: cached.generatedAt, cached: true });
+    return;
+  }
+
+  const report = await buildReport(input);
+  const now = new Date();
+  await db
+    .insert(nutritionistReportsTable)
+    .values({ id: 1, weeks, report, inputHash, generatedAt: now })
+    .onConflictDoUpdate({
+      target: nutritionistReportsTable.id,
+      set: { weeks, report, inputHash, generatedAt: now },
+    });
+  res.json({ ...report, generatedAt: now, cached: false });
+});
+
+export default router;
