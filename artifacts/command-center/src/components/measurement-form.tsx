@@ -45,6 +45,7 @@ const formSchema = z.object({
   rLeg: z.coerce.number().optional().nullable(),
   belly: z.coerce.number().optional().nullable(),
   chest: z.coerce.number().optional().nullable(),
+  bodyFatPct: z.coerce.number().optional().nullable(),
   notes: z.string().optional().nullable(),
 });
 
@@ -59,6 +60,7 @@ const KNOWN_FIELDS = [
   "rLeg",
   "belly",
   "chest",
+  "bodyFatPct",
   "notes",
 ] as const satisfies ReadonlyArray<Path<FormValues>>;
 
@@ -85,6 +87,7 @@ export function MeasurementForm({ open, onOpenChange, initial, measurementId }: 
     rLeg: initial?.rLeg ?? null,
     belly: initial?.belly ?? null,
     chest: initial?.chest ?? null,
+    bodyFatPct: initial?.bodyFatPct ?? null,
     notes: initial?.notes || "",
   });
 
@@ -197,6 +200,19 @@ export function MeasurementForm({ open, onOpenChange, initial, measurementId }: 
                     <FormLabel>Weight (lbs)</FormLabel>
                     <FormControl>
                       <Input type="number" step="0.1" placeholder="180.0" {...field} value={field.value ?? ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="bodyFatPct"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Body Fat (%)</FormLabel>
+                    <FormControl>
+                      <Input type="number" step="0.1" placeholder="22.5" {...field} value={field.value ?? ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

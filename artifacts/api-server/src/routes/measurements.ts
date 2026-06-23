@@ -27,6 +27,7 @@ router.post("/measurements", async (req, res): Promise<void> => {
     rLeg: d.rLeg ?? null,
     belly: d.belly ?? null,
     chest: d.chest ?? null,
+    bodyFatPct: d.bodyFatPct ?? null,
     notes: d.notes ?? null,
   }).returning();
   res.status(201).json(toMeasurement(inserted[0]!));
