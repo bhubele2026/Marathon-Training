@@ -21,6 +21,7 @@ type NutritionDay = {
   fatG: number | null;
   sodiumMg: number | null;
   waterMl: number | null;
+  closedAt: string | null;
   updatedAt: string | null;
 };
 type RecentResponse = { days: number; entries: NutritionDay[] };
