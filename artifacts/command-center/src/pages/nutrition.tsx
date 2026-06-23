@@ -77,6 +77,8 @@ function buildTrendAxis(entries: NutritionDay[], days: number): NutritionDay[] {
         carbsG: null,
         fatG: null,
         sodiumMg: null,
+        waterMl: null,
+        closedAt: null,
         updatedAt: null,
       },
     );
