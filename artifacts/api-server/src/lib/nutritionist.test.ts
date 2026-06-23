@@ -42,9 +42,15 @@ function base(over: Partial<AnalysisInput> = {}): AnalysisInput {
     avgFat: 65,
     fatTarget: 68,
     avgWaterMl: 3000,
+    avgSodiumMg: 2800,
+    sodiumLimitMg: 2300,
     todayOpen: false,
     todayCaloriesSoFar: null,
     todayProteinSoFar: null,
+    todayCarbsSoFar: null,
+    todayFatSoFar: null,
+    todayWaterMl: null,
+    todaySodiumMg: null,
     daysUnderFloor: 0,
     sessionsDone: 28,
     plannedSessions: 30,
@@ -112,6 +118,38 @@ describe("fallbackReport — safety-correct without AI", () => {
 
     const lowWater = fallbackReport(base({ avgWaterMl: 1000, currentWeightLb: 240 })); // ~34 oz vs ~120 aim
     expect(lowWater.hydration).toMatch(/under|more water/i);
+  });
+
+  it("coaches an open day by pace instead of 'not enough data'", () => {
+    const r = fallbackReport(
+      base({
+        daysLogged: 0,
+        avgCalories: null,
+        avgProtein: null,
+        proteinGPerLb: null,
+        avgWaterMl: null,
+        avgSodiumMg: null,
+        todayOpen: true,
+        todayCaloriesSoFar: 1430,
+        todayProteinSoFar: 172,
+        todayWaterMl: 710,
+        calorieTarget: 2480,
+        proteinTarget: 224,
+      }),
+    );
+    expect(r.today).toMatch(/1430|to go|pace/i);
+    expect(r.headline).toMatch(/pace|progress/i);
+    // Uses today's water (open day), not "not logged".
+    expect(r.hydration).not.toMatch(/isn't logged/i);
+  });
+
+  it("gives sodium advice tuned to a hard-training lifter", () => {
+    const low = fallbackReport(base({ avgSodiumMg: 900 }));
+    expect(low.sodium).toMatch(/low|cramp|flatten/i);
+    const high = fallbackReport(base({ avgSodiumMg: 4200, sodiumLimitMg: 2300 }));
+    expect(high.sodium).toMatch(/over|rein|pull it back/i);
+    const none = fallbackReport(base({ avgSodiumMg: null, todaySodiumMg: null }));
+    expect(none.sodium).toMatch(/adequate|electrolyte|mg/i);
   });
 
   it("never recommends eating below the floor", () => {

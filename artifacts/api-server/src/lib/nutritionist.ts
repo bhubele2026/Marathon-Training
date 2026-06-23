@@ -76,12 +76,19 @@ export type AnalysisInput = {
   avgFat: number | null;
   fatTarget: number | null;
   avgWaterMl: number | null; // average daily water intake (mL) over logged days
+  avgSodiumMg: number | null; // average daily sodium (mg) over logged days
+  sodiumLimitMg: number | null; // the runner's daily sodium ceiling (default 2300)
   // Today's eating isn't finished until the runner "closes the day". When open,
   // the averages/flags above EXCLUDE today; these carry today's partial numbers
-  // so the read can speak to pace without judging a half-eaten day.
+  // so the read can COACH PACE (calories/protein/water vs target) without judging
+  // a half-eaten day, and update as more food logs.
   todayOpen: boolean;
   todayCaloriesSoFar: number | null;
   todayProteinSoFar: number | null;
+  todayCarbsSoFar: number | null;
+  todayFatSoFar: number | null;
+  todayWaterMl: number | null;
+  todaySodiumMg: number | null;
   daysUnderFloor: number;
   // Training
   sessionsDone: number;
@@ -102,11 +109,16 @@ export const NUTRITIONIST_TOOL_NAME = "emit_nutrition_report";
 const REPORT_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["headline", "protein", "bodyComp", "deficit", "hydration", "keyMoves", "confidence", "dataGaps", "narrative"],
+  required: ["headline", "today", "protein", "bodyComp", "deficit", "hydration", "sodium", "keyMoves", "confidence", "dataGaps", "narrative"],
   properties: {
     headline: {
       type: "string",
-      description: "One plain-language sentence: the single most important thing about how they're doing right now.",
+      description: "One plain-language sentence: the single most important thing about how they're doing right now. If today is OPEN, make it a pace headline (where today stands), not a verdict.",
+    },
+    today: {
+      type: "string",
+      description:
+        "If today is OPEN (still eating), 1-2 sentences of PACE coaching: where today stands vs target (calories X of Y, protein X of Y, water), whether they're on pace, and what to prioritise for the REST of the day (e.g. 'protein's ahead, ~1,000 kcal and 50g protein to go — get a solid dinner in'). Never warn it's too low — the day isn't done. If today is closed or there's no today data, return an empty string.",
     },
     protein: {
       type: "object",
@@ -166,7 +178,12 @@ const REPORT_SCHEMA = {
     hydration: {
       type: "string",
       description:
-        "One sentence on hydration: how their water intake (given below, with bodyweight + training) is helping or holding back the goal — satiety/appetite control on a deficit, recovery + performance, and the extra fluid a high-protein intake needs. If water isn't logged, say so and give a simple target (~½ oz per lb bodyweight as a rough daily aim, more on training days).",
+        "One sentence on hydration: how their water intake (given below, with bodyweight + training) is helping or holding back the goal — satiety/appetite control on a deficit, recovery + performance, and the extra fluid a high-protein intake needs. If water isn't logged, say so and give a simple target (~½ oz per lb bodyweight as a rough daily aim, more on training days). If only today's (open-day) water is available, speak to that.",
+    },
+    sodium: {
+      type: "string",
+      description:
+        "One sentence on sodium, tuned to THIS runner: they're heavy (high bodyweight), training hard, and building muscle on a deficit — so they need ADEQUATE sodium (electrolytes support training performance, blood volume, muscle pumps, and offset sweat loss), not a near-zero intake, BUT they also track sodium against a ceiling (given below, default ~2300 mg) for blood-pressure safety. Read their intake vs that balance: too low can flatten training + cause cramps; chronically very high (>~3500-4000 mg without heavy sweat) is worth reining in. Give a concrete steer. If sodium isn't logged, say so and give the balanced target range.",
     },
     keyMoves: {
       type: "array",
@@ -218,7 +235,15 @@ export function buildNutritionistSystem(persona: string): string {
     `protein + resistance training, the scale lies during recomp (judge by body-fat %, ` +
     `tape, and lifts), metabolic adaptation is real after a long cut, and hydration ` +
     `matters — water blunts appetite on a deficit, supports recovery + performance, and a ` +
-    `high-protein intake raises fluid needs.\n\n` +
+    `high-protein intake raises fluid needs. Sodium is an electrolyte, not just a villain: a ` +
+    `hard-training, muscle-building athlete needs ADEQUATE sodium for performance, blood volume ` +
+    `and sweat replacement — too little flattens training and causes cramps — while chronically ` +
+    `very high intake warrants reining in for blood pressure.\n\n` +
+    `## Today may still be in progress\n` +
+    `If the data says today is OPEN, the runner is STILL EATING — coach today by PACE (where they ` +
+    `stand vs target, what to prioritise for the rest of the day) in the 'today' field, and do NOT ` +
+    `say "not enough data" or warn that today is low. Save verdicts for closed/past days. When ` +
+    `there's little closed history yet, that's fine — lead with today's pace and keep confidence low.\n\n` +
     `## Hard rules (non-negotiable)\n` +
     `- Use ONLY the numbers given. If a metric is missing (e.g. body-fat % unlogged), say ` +
     `so plainly, lower your confidence, and reason from what you have. Never fabricate.\n` +
@@ -265,6 +290,22 @@ export function buildNutritionistUser(d: AnalysisInput): string {
     `Water: avg ${d.avgWaterMl != null ? `${Math.round(d.avgWaterMl / 29.5735)} oz (${d.avgWaterMl} mL)` : "not logged"}/day` +
       `${d.currentWeightLb != null ? ` at ${d.currentWeightLb} lb bodyweight` : ""}.`,
   );
+  lines.push(
+    `Sodium: avg ${d.avgSodiumMg != null ? `${d.avgSodiumMg} mg` : "not logged"}/day, ` +
+      `ceiling ${d.sodiumLimitMg != null ? `${d.sodiumLimitMg} mg` : "~2300 mg (default)"}.`,
+  );
+  if (d.todayOpen) {
+    lines.push(
+      `\nTODAY (in progress, not closed) — coach this by PACE in the 'today' field, no warnings: ` +
+        `calories ${d.todayCaloriesSoFar ?? 0} of ${d.calorieTarget ?? "—"}, ` +
+        `protein ${d.todayProteinSoFar ?? 0} of ${d.proteinTarget ?? "—"} g, ` +
+        `carbs ${d.todayCarbsSoFar ?? 0} of ${d.carbsTarget ?? "—"} g, ` +
+        `fat ${d.todayFatSoFar ?? 0} of ${d.fatTarget ?? "—"} g, ` +
+        `water ${d.todayWaterMl != null ? `${Math.round(d.todayWaterMl / 29.5735)} oz` : "—"}, ` +
+        `sodium ${d.todaySodiumMg != null ? `${d.todaySodiumMg} mg` : "—"}. ` +
+        `Use these (not the averages) for the hydration + sodium reads while the day is open.`,
+    );
+  }
   lines.push(
     `Training: ${d.sessionsDone} of ${d.plannedSessions} planned sessions done, ` +
       `avg training load ${fmt(d.avgTrainingLoad)}.`,
@@ -328,7 +369,9 @@ export function fallbackReport(d: AnalysisInput): NutritionistReport {
   // rule of thumb), nudged up by training. Compared against logged water.
   const targetOz =
     d.currentWeightLb != null ? Math.round(d.currentWeightLb * 0.5) : null;
-  const waterOz = d.avgWaterMl != null ? Math.round(d.avgWaterMl / 29.5735) : null;
+  // Prefer today's water while the day is open, else the logged-day average.
+  const waterSrcMl = d.todayOpen ? d.todayWaterMl : d.avgWaterMl;
+  const waterOz = waterSrcMl != null ? Math.round(waterSrcMl / 29.5735) : null;
   const hydrationDetail =
     waterOz == null
       ? `Water isn't logged yet${targetOz != null ? ` — aim for roughly ${targetOz} oz a day (about ½ oz per lb), more on training days` : ""}. Staying hydrated blunts appetite on a deficit and helps recovery.`
@@ -364,17 +407,49 @@ export function fallbackReport(d: AnalysisInput): NutritionistReport {
         ? "medium"
         : "low";
 
+  // Pace coaching for an open day (and a pace headline when there's no closed
+  // history yet) so the read is useful mid-day instead of "not enough data".
+  const calToGo =
+    d.calorieTarget != null && d.todayCaloriesSoFar != null
+      ? Math.max(0, d.calorieTarget - d.todayCaloriesSoFar)
+      : null;
+  const proToGo =
+    d.proteinTarget != null && d.todayProteinSoFar != null
+      ? Math.max(0, d.proteinTarget - d.todayProteinSoFar)
+      : null;
+  const todayLine = d.todayOpen
+    ? `Today so far: ${d.todayCaloriesSoFar ?? 0}${d.calorieTarget != null ? ` of ${d.calorieTarget}` : ""} kcal, ` +
+      `protein ${d.todayProteinSoFar ?? 0}${d.proteinTarget != null ? ` of ${d.proteinTarget}` : ""} g` +
+      `${calToGo != null ? ` — about ${calToGo} kcal${proToGo != null ? ` and ${proToGo} g protein` : ""} to go` : ""}. ` +
+      `Still eating, so this is pace, not a verdict — get protein in first.`
+    : "";
+
+  // Sodium: enough for a hard-training lifter, not chronically over the ceiling.
+  const sodiumNow = d.todayOpen ? d.todaySodiumMg : d.avgSodiumMg;
+  const sodiumLimit = d.sodiumLimitMg ?? 2300;
+  const sodiumDetail =
+    sodiumNow == null
+      ? `Sodium isn't logged. Training hard at your size you want ADEQUATE sodium — roughly ${Math.round(sodiumLimit * 0.65)}–${sodiumLimit} mg most days (electrolytes fuel performance + replace sweat), more around big sweaty sessions; just don't sit chronically high for blood pressure.`
+      : sodiumNow > sodiumLimit + 800
+        ? `Sodium ~${sodiumNow} mg is well over your ${sodiumLimit} mg ceiling — fine around hard, sweaty training, but pull it back on easy/rest days for blood pressure.`
+        : sodiumNow < 1500
+          ? `Sodium ~${sodiumNow} mg is low — too little can flatten training and bring on cramps. A little salt / electrolytes around sessions helps performance and pumps.`
+          : `Sodium ~${sodiumNow} mg sits in a sensible range under your ${sodiumLimit} mg ceiling — enough to fuel training without going overboard.`;
+
   const headline =
     deficitStatus === "under_floor"
       ? "You're under-fuelling — that stalls everything."
       : proteinStatus === "too_little"
         ? "Protein's below the recomp floor."
-        : "Here's your current nutrition read.";
+        : d.todayOpen && d.daysLogged === 0
+          ? "Day's in progress — here's your pace."
+          : "Here's your current nutrition read.";
 
   return {
     weeks: d.weeks,
     weeksElapsed: d.weeksElapsed,
     headline,
+    today: todayLine,
     protein: {
       status: proteinStatus,
       avgProteinG: d.avgProtein,
@@ -418,6 +493,7 @@ export function fallbackReport(d: AnalysisInput): NutritionistReport {
       detail: deficitDetail,
     },
     hydration: hydrationDetail,
+    sodium: sodiumDetail,
     keyMoves,
     confidence,
     dataGaps,

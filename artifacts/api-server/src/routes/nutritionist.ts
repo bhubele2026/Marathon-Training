@@ -61,6 +61,7 @@ async function gather(weeks: number): Promise<AnalysisInput> {
       weeklyRateLb: userPreferencesTable.weeklyRateLb,
       weeklyGoalStartWeightLb: userPreferencesTable.weeklyGoalStartWeightLb,
       weeklyGoalAnchorDate: userPreferencesTable.weeklyGoalAnchorDate,
+      sodiumLimitMg: userPreferencesTable.sodiumLimitMg,
     })
     .from(userPreferencesTable)
     .where(eq(userPreferencesTable.id, 1))
@@ -149,6 +150,7 @@ async function gather(weeks: number): Promise<AnalysisInput> {
       carbsG: nutritionDaysTable.carbsG,
       fatG: nutritionDaysTable.fatG,
       waterMl: nutritionDaysTable.waterMl,
+      sodiumMg: nutritionDaysTable.sodiumMg,
       closedAt: nutritionDaysTable.closedAt,
     })
     .from(nutritionDaysTable)
@@ -162,6 +164,18 @@ async function gather(weeks: number): Promise<AnalysisInput> {
   const todayOpen = !!todayRow && todayRow.closedAt == null;
   const todayCaloriesSoFar = todayOpen ? (todayRow?.calories ?? null) : null;
   const todayProteinSoFar = todayOpen ? (todayRow?.proteinG ?? null) : null;
+  const todayCarbsSoFar = todayOpen ? (todayRow?.carbsG ?? null) : null;
+  const todayFatSoFar = todayOpen ? (todayRow?.fatG ?? null) : null;
+  const todayWaterMl = todayOpen ? (todayRow?.waterMl ?? null) : null;
+  const todaySodiumMg = todayOpen ? (todayRow?.sodiumMg ?? null) : null;
+
+  // Sodium average over final days (mg). The runner tracks sodium against a
+  // ceiling (sodiumLimitMg, default 2300), but training + sweat raise the need.
+  const sodiums = finalRows
+    .map((r) => r.sodiumMg)
+    .filter((v): v is number => v != null);
+  const avgSodiumMg =
+    sodiums.length > 0 ? Math.round(sodiums.reduce((a, b) => a + b, 0) / sodiums.length) : null;
 
   const waters = finalRows
     .map((r) => r.waterMl)
@@ -278,9 +292,15 @@ async function gather(weeks: number): Promise<AnalysisInput> {
     avgFat: food.avgFat,
     fatTarget: prefs?.fatTargetG ?? null,
     avgWaterMl,
+    avgSodiumMg,
+    sodiumLimitMg: prefs?.sodiumLimitMg ?? null,
     todayOpen,
     todayCaloriesSoFar,
     todayProteinSoFar,
+    todayCarbsSoFar,
+    todayFatSoFar,
+    todayWaterMl,
+    todaySodiumMg,
     daysUnderFloor,
     sessionsDone: doneRows.length,
     plannedSessions: plannedRows[0]?.count ?? 0,
@@ -328,6 +348,7 @@ async function buildReport(input: AnalysisInput): Promise<NutritionistReport> {
       weeks: input.weeks,
       weeksElapsed: input.weeksElapsed,
       headline: out.headline ?? fb.headline,
+      today: out.today ?? fb.today,
       protein: {
         status: out.protein?.status ?? fb.protein.status,
         avgProteinG: input.avgProtein,
@@ -358,6 +379,7 @@ async function buildReport(input: AnalysisInput): Promise<NutritionistReport> {
         detail: out.deficit?.detail ?? fb.deficit.detail,
       },
       hydration: out.hydration ?? fb.hydration,
+      sodium: out.sodium ?? fb.sodium,
       keyMoves: Array.isArray(out.keyMoves) && out.keyMoves.length ? out.keyMoves.slice(0, 4) : fb.keyMoves,
       confidence: out.confidence ?? fb.confidence,
       dataGaps: Array.isArray(out.dataGaps) ? out.dataGaps.slice(0, 4) : fb.dataGaps,

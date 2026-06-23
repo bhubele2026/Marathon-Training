@@ -65,10 +65,18 @@ export type NutritionistReport = {
   protein: ProteinVerdict;
   bodyComp: BodyCompRead;
   deficit: DeficitRead;
+  // In-progress PACE coaching for an open day: where today stands vs target and
+  // what to prioritise for the rest of the day. Empty string when the day is
+  // closed / there's no today data (the panel hides it then).
+  today: string;
   // One-line hydration read: how the runner's water intake is helping (or
   // holding back) their nutrition — satiety on a deficit, recovery, protein
   // metabolism. Plain guidance when water isn't logged yet.
   hydration: string;
+  // One-line sodium read tuned to the runner: enough for training/performance &
+  // blood volume on a hard-training, muscle-building program, without blowing
+  // past their ceiling. Plain guidance when sodium isn't logged.
+  sodium: string;
   // 2-4 concrete next moves, most important first.
   keyMoves: string[];
   // How much to trust this read, given how much was actually logged.

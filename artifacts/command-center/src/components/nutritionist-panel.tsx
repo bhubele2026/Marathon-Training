@@ -7,6 +7,8 @@ import {
   Flame,
   Activity,
   Droplet,
+  Zap,
+  Clock,
   Stethoscope,
   ArrowRight,
   CheckCircle2,
@@ -60,7 +62,9 @@ export type NutritionistReport = {
     safeFloorKcal: number;
     detail: string;
   };
+  today: string;
   hydration: string;
+  sodium: string;
   keyMoves: string[];
   confidence: "low" | "medium" | "high";
   dataGaps: string[];
@@ -139,7 +143,11 @@ export function NutritionistPanel({
   const { data, isLoading } = useQuery({
     queryKey: nutritionistQueryKey(weeks),
     queryFn: () => getJson<NutritionistReport>(`/api/nutritionist/analysis?weeks=${weeks}`),
-    staleTime: 5 * 60_000,
+    // Shortish so the read refreshes as the day's food logs in (the server
+    // re-runs the analysis only when the inputs actually changed, so refetching
+    // is cheap when nothing's new). Also refetch when the tab regains focus.
+    staleTime: 45_000,
+    refetchOnWindowFocus: true,
   });
 
   if (isLoading) {
@@ -176,8 +184,11 @@ export function NutritionistPanel({
             </Link>
           </div>
           <p className="text-sm text-foreground font-medium">{data.headline}</p>
-          {data.narrative && (
-            <p className="text-sm text-muted-foreground">{data.narrative}</p>
+          {/* Mid-day pace coaching takes priority when the day's open. */}
+          {data.today ? (
+            <p className="text-sm text-muted-foreground">{data.today}</p>
+          ) : (
+            data.narrative && <p className="text-sm text-muted-foreground">{data.narrative}</p>
           )}
         </CardContent>
       </Card>
@@ -204,6 +215,22 @@ export function NutritionistPanel({
         </div>
 
         <p className="text-lg font-extrabold leading-snug text-foreground">{data.headline}</p>
+
+        {/* TODAY (in progress) — pace coaching, shown only while the day is open. */}
+        {data.today && (
+          <div
+            className="flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/10 p-3"
+            data-testid="section-nutritionist-today"
+          >
+            <Clock className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+            <div className="space-y-0.5">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary">
+                Today so far
+              </p>
+              <p className="text-sm text-foreground">{data.today}</p>
+            </div>
+          </div>
+        )}
 
         {/* PROTEIN */}
         <section className="space-y-2" data-testid="section-nutritionist-protein">
@@ -286,6 +313,19 @@ export function NutritionistPanel({
               </span>
             </div>
             <p className="text-sm text-muted-foreground">{data.hydration}</p>
+          </section>
+        )}
+
+        {/* SODIUM */}
+        {data.sodium && (
+          <section className="space-y-2" data-testid="section-nutritionist-sodium">
+            <div className="flex items-center gap-2">
+              <Zap className="h-4 w-4 text-primary" />
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                Sodium
+              </span>
+            </div>
+            <p className="text-sm text-muted-foreground">{data.sodium}</p>
           </section>
         )}
 
