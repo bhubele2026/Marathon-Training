@@ -104,15 +104,27 @@ function parseMetric(
 // Resolve a water value (in any supported unit) from the request body to
 // millilitres. Priority: explicit mL, then fl oz, then litres, then a bare
 // `water` field (assumed mL). Returns undefined when none were sent.
+//
+// Keys are matched CASE-INSENSITIVELY (waterOz / waterOZ / wateroz / water_oz
+// all work) so the Apple-Shortcut author doesn't have to match capitalization
+// exactly. A bare numeric value with a unit suffix (e.g. "24 fl oz") is also
+// tolerated by stripping non-numeric characters.
+function num(v: unknown): number | null {
+  if (v == null || v === "") return null;
+  const n = typeof v === "number" ? v : Number(String(v).replace(/[^0-9.\-]/g, ""));
+  return Number.isFinite(n) ? n : null;
+}
 function waterToMl(body: Record<string, unknown>): number | undefined {
-  const ml = body.waterMl ?? body.water_ml;
-  if (ml != null && ml !== "") return Number(ml);
-  const oz = body.waterOz ?? body.water_oz;
-  if (oz != null && oz !== "") return Number(oz) * ML_PER_FL_OZ;
-  const l = body.waterL ?? body.water_l;
-  if (l != null && l !== "") return Number(l) * 1000;
-  const bare = body.water;
-  if (bare != null && bare !== "") return Number(bare);
+  const lower: Record<string, unknown> = {};
+  for (const k of Object.keys(body)) lower[k.toLowerCase()] = body[k];
+  const ml = num(lower.waterml ?? lower.water_ml);
+  if (ml != null) return ml;
+  const oz = num(lower.wateroz ?? lower.water_oz);
+  if (oz != null) return oz * ML_PER_FL_OZ;
+  const l = num(lower.waterl ?? lower.water_l);
+  if (l != null) return l * 1000;
+  const bare = num(lower.water);
+  if (bare != null) return bare;
   return undefined;
 }
 
