@@ -45,6 +45,7 @@ const formSchema = z.object({
   rLeg: z.coerce.number().optional().nullable(),
   belly: z.coerce.number().optional().nullable(),
   chest: z.coerce.number().optional().nullable(),
+  neck: z.coerce.number().optional().nullable(),
   bodyFatPct: z.coerce.number().optional().nullable(),
   notes: z.string().optional().nullable(),
 });
@@ -60,6 +61,7 @@ const KNOWN_FIELDS = [
   "rLeg",
   "belly",
   "chest",
+  "neck",
   "bodyFatPct",
   "notes",
 ] as const satisfies ReadonlyArray<Path<FormValues>>;
@@ -87,6 +89,7 @@ export function MeasurementForm({ open, onOpenChange, initial, measurementId }: 
     rLeg: initial?.rLeg ?? null,
     belly: initial?.belly ?? null,
     chest: initial?.chest ?? null,
+    neck: initial?.neck ?? null,
     bodyFatPct: initial?.bodyFatPct ?? null,
     notes: initial?.notes || "",
   });
@@ -212,7 +215,20 @@ export function MeasurementForm({ open, onOpenChange, initial, measurementId }: 
                   <FormItem>
                     <FormLabel>Body Fat (%)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.1" placeholder="22.5" {...field} value={field.value ?? ""} />
+                      <Input type="number" step="0.1" placeholder="auto from neck + waist" {...field} value={field.value ?? ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="neck"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Neck (in)</FormLabel>
+                    <FormControl>
+                      <Input type="number" step="0.1" placeholder="16.0" {...field} value={field.value ?? ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -223,7 +239,7 @@ export function MeasurementForm({ open, onOpenChange, initial, measurementId }: 
                 name="belly"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Belly (in)</FormLabel>
+                    <FormLabel>Waist / Belly (in)</FormLabel>
                     <FormControl>
                       <Input type="number" step="0.1" {...field} value={field.value ?? ""} />
                     </FormControl>
@@ -297,6 +313,12 @@ export function MeasurementForm({ open, onOpenChange, initial, measurementId }: 
                 )}
               />
             </div>
+            <p className="text-xs text-muted-foreground">
+              Leave <span className="font-medium">Body Fat (%)</span> blank and it's
+              estimated for you from your <span className="font-medium">neck + waist</span>{" "}
+              (plus your height &amp; sex from Goals) using the US Navy formula. Enter a
+              number yourself to override (e.g. a DEXA result).
+            </p>
             <FormField
               control={form.control}
               name="notes"

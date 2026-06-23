@@ -382,6 +382,7 @@ export default function Measurements() {
                 <TableHead className="text-[10px] font-bold tracking-wider">Date</TableHead>
                 <TableHead className="text-[10px] font-bold tracking-wider text-right">Weight</TableHead>
                 <TableHead className="text-[10px] font-bold tracking-wider text-right">Body Fat %</TableHead>
+                <TableHead className="text-[10px] font-bold tracking-wider text-right">Neck</TableHead>
                 <TableHead className="text-[10px] font-bold tracking-wider text-right">Belly</TableHead>
                 <TableHead className="text-[10px] font-bold tracking-wider text-right">Chest</TableHead>
                 <TableHead className="text-[10px] font-bold tracking-wider text-right">Arms (L/R)</TableHead>
@@ -392,7 +393,7 @@ export default function Measurements() {
             <TableBody>
               {!hasMeasurements ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
                     No measurements yet. Log your first check-in to start tracking.
                   </TableCell>
                 </TableRow>
@@ -402,6 +403,7 @@ export default function Measurements() {
                     <TableCell className="font-medium whitespace-nowrap">{formatDate(m.date)}</TableCell>
                     <TableCell className="text-right font-mono font-bold text-primary">{m.weight ? `${m.weight.toFixed(1)}` : '-'}</TableCell>
                     <TableCell className="text-right font-mono">{m.bodyFatPct != null ? `${m.bodyFatPct.toFixed(1)}%` : '-'}</TableCell>
+                    <TableCell className="text-right font-mono">{m.neck || '-'}</TableCell>
                     <TableCell className="text-right font-mono">{m.belly || '-'}</TableCell>
                     <TableCell className="text-right font-mono">{m.chest || '-'}</TableCell>
                     <TableCell className="text-right font-mono">{m.lArm || '-'}/{m.rArm || '-'}</TableCell>

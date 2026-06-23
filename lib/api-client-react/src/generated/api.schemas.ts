@@ -998,6 +998,7 @@ export interface Measurement {
   rLeg?: number | null;
   belly?: number | null;
   chest?: number | null;
+  neck?: number | null;
   bodyFatPct?: number | null;
   notes?: string | null;
   createdAt: string;
@@ -1012,6 +1013,7 @@ export interface CreateMeasurementBody {
   rLeg?: number | null;
   belly?: number | null;
   chest?: number | null;
+  neck?: number | null;
   bodyFatPct?: number | null;
   notes?: string | null;
 }
@@ -1025,6 +1027,7 @@ export interface UpdateMeasurementBody {
   rLeg?: number | null;
   belly?: number | null;
   chest?: number | null;
+  neck?: number | null;
   bodyFatPct?: number | null;
   notes?: string | null;
 }

@@ -2962,6 +2962,7 @@ export const ListMeasurementsResponseItem = zod.object({
   rLeg: zod.number().nullish(),
   belly: zod.number().nullish(),
   chest: zod.number().nullish(),
+  neck: zod.number().nullish(),
   bodyFatPct: zod.number().nullish(),
   notes: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -2977,6 +2978,7 @@ export const CreateMeasurementBody = zod.object({
   rLeg: zod.number().nullish(),
   belly: zod.number().nullish(),
   chest: zod.number().nullish(),
+  neck: zod.number().nullish(),
   bodyFatPct: zod.number().nullish(),
   notes: zod.string().nullish(),
 });
@@ -2994,6 +2996,7 @@ export const UpdateMeasurementBody = zod.object({
   rLeg: zod.number().nullish(),
   belly: zod.number().nullish(),
   chest: zod.number().nullish(),
+  neck: zod.number().nullish(),
   bodyFatPct: zod.number().nullish(),
   notes: zod.string().nullish(),
 });
@@ -3008,6 +3011,7 @@ export const UpdateMeasurementResponse = zod.object({
   rLeg: zod.number().nullish(),
   belly: zod.number().nullish(),
   chest: zod.number().nullish(),
+  neck: zod.number().nullish(),
   bodyFatPct: zod.number().nullish(),
   notes: zod.string().nullish(),
   createdAt: zod.coerce.date(),

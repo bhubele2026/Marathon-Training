@@ -2301,6 +2301,7 @@ components:
         rLeg: { type: number, nullable: true }
         belly: { type: number, nullable: true }
         chest: { type: number, nullable: true }
+        neck: { type: number, nullable: true }
         bodyFatPct: { type: number, nullable: true }
         notes: { type: string, nullable: true }
         createdAt: { type: string, format: date-time }
@@ -2317,6 +2318,7 @@ components:
         rLeg: { type: number, nullable: true }
         belly: { type: number, nullable: true }
         chest: { type: number, nullable: true }
+        neck: { type: number, nullable: true }
         bodyFatPct: { type: number, nullable: true }
         notes: { type: string, nullable: true }
 
@@ -2331,6 +2333,7 @@ components:
         rLeg: { type: number, nullable: true }
         belly: { type: number, nullable: true }
         chest: { type: number, nullable: true }
+        neck: { type: number, nullable: true }
         bodyFatPct: { type: number, nullable: true }
         notes: { type: string, nullable: true }
 

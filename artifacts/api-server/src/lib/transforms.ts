@@ -521,6 +521,7 @@ export function toMeasurement(r: MeasurementRow) {
     rLeg: r.rLeg,
     belly: r.belly,
     chest: r.chest,
+    neck: r.neck,
     bodyFatPct: r.bodyFatPct,
     notes: r.notes,
     createdAt: r.createdAt.toISOString(),
