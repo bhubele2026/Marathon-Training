@@ -76,6 +76,12 @@ export type AnalysisInput = {
   avgFat: number | null;
   fatTarget: number | null;
   avgWaterMl: number | null; // average daily water intake (mL) over logged days
+  // Today's eating isn't finished until the runner "closes the day". When open,
+  // the averages/flags above EXCLUDE today; these carry today's partial numbers
+  // so the read can speak to pace without judging a half-eaten day.
+  todayOpen: boolean;
+  todayCaloriesSoFar: number | null;
+  todayProteinSoFar: number | null;
   daysUnderFloor: number;
   // Training
   sessionsDone: number;
@@ -263,6 +269,15 @@ export function buildNutritionistUser(d: AnalysisInput): string {
     `Training: ${d.sessionsDone} of ${d.plannedSessions} planned sessions done, ` +
       `avg training load ${fmt(d.avgTrainingLoad)}.`,
   );
+  if (d.todayOpen) {
+    lines.push(
+      `IMPORTANT — today is still OPEN (the runner hasn't closed the day, they're ` +
+        `still eating). Today's partial intake (${d.todayCaloriesSoFar ?? "—"} kcal, ` +
+        `${d.todayProteinSoFar ?? "—"} g protein so far) is EXCLUDED from the averages above ` +
+        `and must NOT be judged as a finished day. Do not warn that today is low. You may ` +
+        `note pace toward target encouragingly; save the verdict for closed days.`,
+    );
+  }
   lines.push(`Safety ground truth: floor ${d.safeFloorKcal} kcal/day, safe loss rate ${d.safeRateLbPerWk} lb/wk.`);
   if (d.groundTruthFlags.length > 0) {
     lines.push(`Deterministic flags already detected: ${d.groundTruthFlags.join("; ")}.`);

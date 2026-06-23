@@ -91,6 +91,9 @@ async function gatherDay(date: string): Promise<DayInputs> {
     loggedWorkouts: wkAgg.rows[0]?.cnt ?? 0,
     loggedMinutes: wkAgg.rows[0]?.mins ?? 0,
     sex: prefs?.sex ?? null,
+    // The current day is "open" (still eating) until the runner closes it. Past
+    // days are always final. Drives the pace-not-verdict framing in the voice.
+    dayOpen: date === new Date().toISOString().slice(0, 10) && nut?.closedAt == null,
     dayTarget: await readDayTarget(date),
   };
 }

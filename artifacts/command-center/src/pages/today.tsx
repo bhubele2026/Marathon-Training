@@ -33,6 +33,7 @@ import { useMissionActions } from "@/hooks/use-mission-actions";
 import { QuickLogActivity } from "@/components/quick-log-activity";
 import { EatToday } from "@/components/eat-today";
 import { NutritionistPanel } from "@/components/nutritionist-panel";
+import { CloseDayButton } from "@/components/close-day-button";
 import { TimeOfDayBadge } from "@/components/time-of-day-badge";
 import { PlannedBreakdown } from "@/components/planned-breakdown";
 import { ActualBreakdown } from "@/components/actual-breakdown";
@@ -278,6 +279,10 @@ export default function Today() {
           one-line read, with a link into the full body-comp analysis on the
           Nutrition page. */}
       <NutritionistPanel variant="today" />
+
+      {/* Close the day when you're done eating so the coach judges it as final;
+          until then today is read by pace, not warned as low. */}
+      <CloseDayButton />
 
       {today.nextScheduledRace &&
         today.nextScheduledRace.raceDate === today.date &&

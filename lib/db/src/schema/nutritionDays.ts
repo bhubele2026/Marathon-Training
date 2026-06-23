@@ -30,6 +30,12 @@ export const nutritionDaysTable = pgTable("nutrition_days", {
   // Hydration supports satiety on a deficit, recovery, and protein metabolism,
   // so the AI nutritionist factors it in. Same null semantics as the macros.
   waterMl: integer("water_ml"),
+  // When the runner taps "Close the day", marking the day's eating DONE. Null =
+  // still open / in progress. The coach + nutritionist treat an OPEN current day
+  // as partial (judge by pace toward target, never warn it's "too low") and only
+  // judge it as a finished day once closed. Past days (date < today) are always
+  // treated as final regardless, so this only gates TODAY.
+  closedAt: timestamp("closed_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

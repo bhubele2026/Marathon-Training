@@ -15,6 +15,10 @@ export type DayInputs = {
   loggedWorkouts: number;
   loggedMinutes: number;
   sex: string | null;
+  // True when this is the current day and the runner hasn't "closed" it yet —
+  // they're still eating. The voice then judges intake by PACE toward target and
+  // never warns it's too low (the day isn't done). False for closed/past days.
+  dayOpen?: boolean;
   // The reactive per-day macro target the engine produced (carbs scaled to the
   // day's load, protein anchored, fat balanced) so the coach can reference the
   // macro logic — "big day, more carbs, protein stays high." Null pre-baseline.
@@ -60,12 +64,21 @@ export function buildDataSummary(d: DayInputs): string {
     const t = d.target;
     const a = d.actual;
     lines.push(
-      `Food today — calories ${a.calories ?? "—"} (target ${t.calories ?? "—"}), ` +
+      `Food ${d.dayOpen ? "so far today" : "today"} — calories ${a.calories ?? "—"} (target ${t.calories ?? "—"}), ` +
         `protein ${a.protein ?? "—"} g (target ${t.protein ?? "—"}), ` +
         `carbs ${a.carbs ?? "—"} g, fat ${a.fat ?? "—"} g.`,
     );
     const floor = calorieFloor(d.sex);
-    if (a.calories != null && a.calories > 0 && a.calories < floor) {
+    if (d.dayOpen) {
+      // The day isn't finished — these are partial numbers. Judge by pace, never
+      // warn that intake is low; the runner is still eating.
+      lines.push(
+        `NOTE: the day is still OPEN — the runner hasn't finished eating, so these ` +
+          `numbers are PARTIAL. Do NOT warn about low calories/protein or treat this ` +
+          `as a final day. If anything, gauge their pace toward target and nudge ` +
+          `encouragingly. The under-floor warning only applies once the day is closed.`,
+      );
+    } else if (a.calories != null && a.calories > 0 && a.calories < floor) {
       lines.push(
         `SAFETY SIGNAL: today's calories (${a.calories}) are BELOW the safe floor of ${floor}. ` +
           `If this is a real day's intake, DROP the sarcasm and be warm — encourage eating enough.`,

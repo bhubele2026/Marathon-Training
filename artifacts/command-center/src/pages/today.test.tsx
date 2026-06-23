@@ -116,6 +116,11 @@ vi.mock("@/components/nutritionist-panel", () => ({
   ),
 }));
 
+// CloseDayButton also calls useQuery — stub it the same way.
+vi.mock("@/components/close-day-button", () => ({
+  CloseDayButton: () => <div data-testid="close-day-button-stub" />,
+}));
+
 vi.mock("@/components/race-week-banner", () => ({
   ChecklistNudge: () => null,
 }));

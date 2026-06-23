@@ -47,6 +47,7 @@ type ApiNutritionDay = {
   fatG: number | null;
   sodiumMg: number | null;
   waterMl: number | null;
+  closedAt: string | null;
   updatedAt: string | null;
 };
 
@@ -59,6 +60,7 @@ function toApi(row: NutritionDayRow): ApiNutritionDay {
     fatG: row.fatG,
     sodiumMg: row.sodiumMg,
     waterMl: row.waterMl,
+    closedAt: row.closedAt ? row.closedAt.toISOString() : null,
     updatedAt: row.updatedAt.toISOString(),
   };
 }
@@ -225,8 +227,39 @@ router.get("/nutrition/today", async (_req, res) => {
     fatG: null,
     sodiumMg: null,
     waterMl: null,
+    closedAt: null,
     updatedAt: null,
   });
+});
+
+// POST /api/nutrition/close — mark a day's eating DONE (or reopen it). Body:
+//   { date?: "YYYY-MM-DD", closed?: boolean }  (date defaults to today UTC;
+//   closed defaults to true). Closing sets closed_at = now so the coach +
+//   nutritionist judge the day as final; reopening (closed:false) clears it so
+//   the day is treated as in-progress again. Upserts the row if the day has no
+//   intake yet. Same-origin UI action, ungated (like the other UI writes).
+router.post("/nutrition/close", async (req, res): Promise<void> => {
+  const raw = (req.body ?? {}) as { date?: unknown; closed?: unknown };
+  let date = todayUtc();
+  if (typeof raw.date === "string" && raw.date.trim() !== "") {
+    if (!DATE_RE.test(raw.date.trim())) {
+      res.status(400).json({ error: "date must be YYYY-MM-DD." });
+      return;
+    }
+    date = raw.date.trim();
+  }
+  const closing = raw.closed !== false; // default true
+  const closedAt = closing ? new Date() : null;
+
+  const [row] = await db
+    .insert(nutritionDaysTable)
+    .values({ date, closedAt })
+    .onConflictDoUpdate({
+      target: nutritionDaysTable.date,
+      set: { closedAt, updatedAt: new Date() },
+    })
+    .returning();
+  res.json(toApi(row!));
 });
 
 // GET /api/nutrition/recent?days=14 — most recent days with data, newest

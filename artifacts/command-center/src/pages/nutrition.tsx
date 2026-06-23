@@ -7,6 +7,7 @@ import type { LucideIcon } from "lucide-react";
 import { NutritionistPanel } from "@/components/nutritionist-panel";
 import { NutritionLog } from "@/components/nutrition-log";
 import { ResetNutritionButton } from "@/components/reset-nutrition-button";
+import { CloseDayButton } from "@/components/close-day-button";
 
 // These routes are intentionally hand-fetched rather than going through the
 // generated api-client: the nutrition slice isn't in openapi.yaml, so we hit
@@ -426,6 +427,9 @@ export default function Nutrition() {
           diagnosis (where you are, what you should see, why you may not be),
           fuelling, and concrete next moves. Reads the server-cached analysis. */}
       <NutritionistPanel variant="full" weeks={8} />
+
+      {/* Close the day when done eating — until then today is judged by pace. */}
+      <CloseDayButton />
 
       {/* Today's four macros vs target. Phase 6: de-boxed — the rings sit on
           the page under a quiet hairline header, not stranded in a giant

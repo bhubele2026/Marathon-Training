@@ -143,27 +143,39 @@ async function gather(weeks: number): Promise<AnalysisInput> {
   // Nutrition adherence + full macro averages.
   const nutRows = await db
     .select({
+      date: nutritionDaysTable.date,
       calories: nutritionDaysTable.calories,
       proteinG: nutritionDaysTable.proteinG,
       carbsG: nutritionDaysTable.carbsG,
       fatG: nutritionDaysTable.fatG,
       waterMl: nutritionDaysTable.waterMl,
+      closedAt: nutritionDaysTable.closedAt,
     })
     .from(nutritionDaysTable)
     .where(and(gte(nutritionDaysTable.date, from), lte(nutritionDaysTable.date, to)));
-  const waters = nutRows
+
+  // A day is FINAL for judging if it's in the past OR has been closed. TODAY is
+  // "open" (still eating) until closed, so its partial intake is excluded from
+  // the averages/flags — we don't warn about a half-eaten day.
+  const finalRows = nutRows.filter((r) => r.date < to || r.closedAt != null);
+  const todayRow = nutRows.find((r) => r.date === to);
+  const todayOpen = !!todayRow && todayRow.closedAt == null;
+  const todayCaloriesSoFar = todayOpen ? (todayRow?.calories ?? null) : null;
+  const todayProteinSoFar = todayOpen ? (todayRow?.proteinG ?? null) : null;
+
+  const waters = finalRows
     .map((r) => r.waterMl)
     .filter((v): v is number => v != null);
   const avgWaterMl =
     waters.length > 0 ? Math.round(waters.reduce((a, b) => a + b, 0) / waters.length) : null;
-  const food = summarizeFood(nutRows as FoodDay[], {
+  const food = summarizeFood(finalRows as FoodDay[], {
     calories: prefs?.calorieTarget ?? null,
     protein: prefs?.proteinTargetG ?? null,
     carbs: prefs?.carbsTargetG ?? null,
     fat: prefs?.fatTargetG ?? null,
   });
   const safeFloorKcal = calorieFloor(prefs?.sex ?? null);
-  const daysUnderFloor = nutRows.filter(
+  const daysUnderFloor = finalRows.filter(
     (r) => r.calories != null && r.calories > 0 && r.calories < safeFloorKcal,
   ).length;
 
@@ -266,6 +278,9 @@ async function gather(weeks: number): Promise<AnalysisInput> {
     avgFat: food.avgFat,
     fatTarget: prefs?.fatTargetG ?? null,
     avgWaterMl,
+    todayOpen,
+    todayCaloriesSoFar,
+    todayProteinSoFar,
     daysUnderFloor,
     sessionsDone: doneRows.length,
     plannedSessions: plannedRows[0]?.count ?? 0,
