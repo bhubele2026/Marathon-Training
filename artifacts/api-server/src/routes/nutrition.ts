@@ -35,6 +35,9 @@ const MAX_FAT_G = 1000;
 // Sodium in milligrams. Daily intake well under this; anything above is almost
 // certainly a units mistake (e.g. grams sent as mg-times-a-thousand).
 const MAX_SODIUM_MG = 20000;
+// Water in millilitres. 20 L/day is far past any real intake — reject above it.
+const MAX_WATER_ML = 20000;
+const ML_PER_FL_OZ = 29.5735;
 
 type ApiNutritionDay = {
   date: string;
@@ -43,6 +46,7 @@ type ApiNutritionDay = {
   carbsG: number | null;
   fatG: number | null;
   sodiumMg: number | null;
+  waterMl: number | null;
   updatedAt: string | null;
 };
 
@@ -54,6 +58,7 @@ function toApi(row: NutritionDayRow): ApiNutritionDay {
     carbsG: row.carbsG,
     fatG: row.fatG,
     sodiumMg: row.sodiumMg,
+    waterMl: row.waterMl,
     updatedAt: row.updatedAt.toISOString(),
   };
 }
@@ -94,6 +99,21 @@ function parseMetric(
   return { ok: true, value: Math.round(n) };
 }
 
+// Resolve a water value (in any supported unit) from the request body to
+// millilitres. Priority: explicit mL, then fl oz, then litres, then a bare
+// `water` field (assumed mL). Returns undefined when none were sent.
+function waterToMl(body: Record<string, unknown>): number | undefined {
+  const ml = body.waterMl ?? body.water_ml;
+  if (ml != null && ml !== "") return Number(ml);
+  const oz = body.waterOz ?? body.water_oz;
+  if (oz != null && oz !== "") return Number(oz) * ML_PER_FL_OZ;
+  const l = body.waterL ?? body.water_l;
+  if (l != null && l !== "") return Number(l) * 1000;
+  const bare = body.water;
+  if (bare != null && bare !== "") return Number(bare);
+  return undefined;
+}
+
 // POST /api/nutrition — idempotent upsert of one day's totals. Body:
 //   { date?: "YYYY-MM-DD", calories?: number, proteinG?: number,
 //     carbsG?: number, fatG?: number, sodiumMg?: number, token?: string }
@@ -123,15 +143,18 @@ router.post("/nutrition", async (req, res) => {
   const rawCarbs = body.carbsG ?? body.carbs ?? body.carbs_g;
   const rawFat = body.fatG ?? body.fat ?? body.fat_g;
   const rawSodium = body.sodiumMg ?? body.sodium ?? body.sodium_mg;
+  // Water: accept mL / fl oz / litres (or a bare `water`), normalized to mL.
+  const rawWaterMl = waterToMl(body);
   const calories = parseMetric(body.calories, MAX_CALORIES);
   const proteinG = parseMetric(rawProtein, MAX_PROTEIN_G);
   const carbsG = parseMetric(rawCarbs, MAX_CARBS_G);
   const fatG = parseMetric(rawFat, MAX_FAT_G);
   const sodiumMg = parseMetric(rawSodium, MAX_SODIUM_MG);
-  if (!calories.ok || !proteinG.ok || !carbsG.ok || !fatG.ok || !sodiumMg.ok) {
+  const waterMl = parseMetric(rawWaterMl, MAX_WATER_ML);
+  if (!calories.ok || !proteinG.ok || !carbsG.ok || !fatG.ok || !sodiumMg.ok || !waterMl.ok) {
     res.status(400).json({
       error:
-        "calories, proteinG, carbsG, fatG and sodiumMg must be non-negative numbers within range.",
+        "calories, proteinG, carbsG, fatG, sodiumMg and water must be non-negative numbers within range.",
     });
     return;
   }
@@ -140,10 +163,11 @@ router.post("/nutrition", async (req, res) => {
     proteinG.value === undefined &&
     carbsG.value === undefined &&
     fatG.value === undefined &&
-    sodiumMg.value === undefined
+    sodiumMg.value === undefined &&
+    waterMl.value === undefined
   ) {
     res.status(400).json({
-      error: "Send at least one of calories, proteinG, carbsG, fatG or sodiumMg.",
+      error: "Send at least one of calories, proteinG, carbsG, fatG, sodiumMg or water.",
     });
     return;
   }
@@ -166,6 +190,7 @@ router.post("/nutrition", async (req, res) => {
   if (carbsG.value !== undefined) provided.carbsG = carbsG.value;
   if (fatG.value !== undefined) provided.fatG = fatG.value;
   if (sodiumMg.value !== undefined) provided.sodiumMg = sodiumMg.value;
+  if (waterMl.value !== undefined) provided.waterMl = waterMl.value;
 
   const [row] = await db
     .insert(nutritionDaysTable)
@@ -199,6 +224,7 @@ router.get("/nutrition/today", async (_req, res) => {
     carbsG: null,
     fatG: null,
     sodiumMg: null,
+    waterMl: null,
     updatedAt: null,
   });
 });

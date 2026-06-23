@@ -65,6 +65,10 @@ export type NutritionistReport = {
   protein: ProteinVerdict;
   bodyComp: BodyCompRead;
   deficit: DeficitRead;
+  // One-line hydration read: how the runner's water intake is helping (or
+  // holding back) their nutrition — satiety on a deficit, recovery, protein
+  // metabolism. Plain guidance when water isn't logged yet.
+  hydration: string;
   // 2-4 concrete next moves, most important first.
   keyMoves: string[];
   // How much to trust this read, given how much was actually logged.

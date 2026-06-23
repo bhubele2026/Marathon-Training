@@ -41,6 +41,7 @@ function base(over: Partial<AnalysisInput> = {}): AnalysisInput {
     carbsTarget: 242,
     avgFat: 65,
     fatTarget: 68,
+    avgWaterMl: 3000,
     daysUnderFloor: 0,
     sessionsDone: 28,
     plannedSessions: 30,
@@ -99,6 +100,15 @@ describe("fallbackReport — safety-correct without AI", () => {
   it("lowers confidence and lists body-fat as a gap when bf% missing", () => {
     const r = fallbackReport(base({ bodyFatPct: null, leanMassLb: null, fatMassLb: null, leanMassChangeLb: null, fatMassChangeLb: null }));
     expect(r.dataGaps.join(" ")).toMatch(/body-fat/i);
+  });
+
+  it("gives a hydration read — a target when water is unlogged, a check-in when it's logged", () => {
+    const noWater = fallbackReport(base({ avgWaterMl: null }));
+    expect(noWater.hydration).toMatch(/water|hydrat/i);
+    expect(noWater.hydration).toMatch(/\d+\s*oz/i); // suggests a target
+
+    const lowWater = fallbackReport(base({ avgWaterMl: 1000, currentWeightLb: 240 })); // ~34 oz vs ~120 aim
+    expect(lowWater.hydration).toMatch(/under|more water/i);
   });
 
   it("never recommends eating below the floor", () => {

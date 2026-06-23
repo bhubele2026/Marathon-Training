@@ -22,10 +22,14 @@ type NutritionDay = {
   carbsG: number | null;
   fatG: number | null;
   sodiumMg: number | null;
+  waterMl: number | null;
 };
 type RecentResponse = { days: number; entries: NutritionDay[] };
 
 const HISTORY_DAYS = 90;
+const ML_PER_FL_OZ = 29.5735;
+const mlToOz = (ml: number | null): string =>
+  ml == null ? "—" : `${Math.round(ml / ML_PER_FL_OZ)} oz`;
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url, { headers: { accept: "application/json" } });
@@ -84,6 +88,7 @@ export function NutritionLog() {
                 <TableHead className="text-[10px] font-bold tracking-wider text-right">Protein</TableHead>
                 <TableHead className="text-[10px] font-bold tracking-wider text-right">Carbs</TableHead>
                 <TableHead className="text-[10px] font-bold tracking-wider text-right">Fat</TableHead>
+                <TableHead className="text-[10px] font-bold tracking-wider text-right">Water</TableHead>
                 <TableHead className="text-[10px] font-bold tracking-wider text-right">Sodium</TableHead>
               </TableRow>
             </TableHeader>
@@ -95,6 +100,7 @@ export function NutritionLog() {
                   <TableCell className="text-right font-mono">{num(e.proteinG)}{e.proteinG != null ? " g" : ""}</TableCell>
                   <TableCell className="text-right font-mono">{num(e.carbsG)}{e.carbsG != null ? " g" : ""}</TableCell>
                   <TableCell className="text-right font-mono">{num(e.fatG)}{e.fatG != null ? " g" : ""}</TableCell>
+                  <TableCell className="text-right font-mono">{mlToOz(e.waterMl)}</TableCell>
                   <TableCell className="text-right font-mono">{num(e.sodiumMg)}{e.sodiumMg != null ? " mg" : ""}</TableCell>
                 </TableRow>
               ))}

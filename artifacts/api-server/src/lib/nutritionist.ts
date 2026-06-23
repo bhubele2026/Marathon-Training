@@ -75,6 +75,7 @@ export type AnalysisInput = {
   carbsTarget: number | null;
   avgFat: number | null;
   fatTarget: number | null;
+  avgWaterMl: number | null; // average daily water intake (mL) over logged days
   daysUnderFloor: number;
   // Training
   sessionsDone: number;
@@ -95,7 +96,7 @@ export const NUTRITIONIST_TOOL_NAME = "emit_nutrition_report";
 const REPORT_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["headline", "protein", "bodyComp", "deficit", "keyMoves", "confidence", "dataGaps", "narrative"],
+  required: ["headline", "protein", "bodyComp", "deficit", "hydration", "keyMoves", "confidence", "dataGaps", "narrative"],
   properties: {
     headline: {
       type: "string",
@@ -156,6 +157,11 @@ const REPORT_SCHEMA = {
         },
       },
     },
+    hydration: {
+      type: "string",
+      description:
+        "One sentence on hydration: how their water intake (given below, with bodyweight + training) is helping or holding back the goal — satiety/appetite control on a deficit, recovery + performance, and the extra fluid a high-protein intake needs. If water isn't logged, say so and give a simple target (~½ oz per lb bodyweight as a rough daily aim, more on training days).",
+    },
     keyMoves: {
       type: "array",
       items: { type: "string" },
@@ -204,7 +210,9 @@ export function buildNutritionistSystem(persona: string): string {
     `bodyweight to spare/build muscle in a deficit (the recomp floor), a moderate deficit ` +
     `(~0.5-1% bodyweight/wk) to lose fat while training hard, lean mass is preserved by ` +
     `protein + resistance training, the scale lies during recomp (judge by body-fat %, ` +
-    `tape, and lifts), and metabolic adaptation is real after a long cut.\n\n` +
+    `tape, and lifts), metabolic adaptation is real after a long cut, and hydration ` +
+    `matters — water blunts appetite on a deficit, supports recovery + performance, and a ` +
+    `high-protein intake raises fluid needs.\n\n` +
     `## Hard rules (non-negotiable)\n` +
     `- Use ONLY the numbers given. If a metric is missing (e.g. body-fat % unlogged), say ` +
     `so plainly, lower your confidence, and reason from what you have. Never fabricate.\n` +
@@ -246,6 +254,10 @@ export function buildNutritionistUser(d: AnalysisInput): string {
       `carbs ${fmt(d.avgCarbs, " g")} (target ${fmt(d.carbsTarget, " g")}), ` +
       `fat ${fmt(d.avgFat, " g")} (target ${fmt(d.fatTarget, " g")}). ` +
       `Logged ${d.daysLogged} days; ${d.daysUnderFloor} day(s) under the safe floor of ${d.safeFloorKcal} kcal.`,
+  );
+  lines.push(
+    `Water: avg ${d.avgWaterMl != null ? `${Math.round(d.avgWaterMl / 29.5735)} oz (${d.avgWaterMl} mL)` : "not logged"}/day` +
+      `${d.currentWeightLb != null ? ` at ${d.currentWeightLb} lb bodyweight` : ""}.`,
   );
   lines.push(
     `Training: ${d.sessionsDone} of ${d.plannedSessions} planned sessions done, ` +
@@ -296,6 +308,18 @@ export function fallbackReport(d: AnalysisInput): NutritionistReport {
         : deficitStatus === "unknown"
           ? `Not enough logged days to read your fuelling.`
           : `Fuelling is in a reasonable place versus your target.`;
+
+  // Hydration: rough daily aim of ~0.5 oz per lb bodyweight (a common, safe
+  // rule of thumb), nudged up by training. Compared against logged water.
+  const targetOz =
+    d.currentWeightLb != null ? Math.round(d.currentWeightLb * 0.5) : null;
+  const waterOz = d.avgWaterMl != null ? Math.round(d.avgWaterMl / 29.5735) : null;
+  const hydrationDetail =
+    waterOz == null
+      ? `Water isn't logged yet${targetOz != null ? ` — aim for roughly ${targetOz} oz a day (about ½ oz per lb), more on training days` : ""}. Staying hydrated blunts appetite on a deficit and helps recovery.`
+      : targetOz != null && waterOz < targetOz * 0.8
+        ? `You're averaging ~${waterOz} oz/day, under the ~${targetOz} oz aim for your size. More water curbs hunger on a deficit and supports recovery + protein metabolism.`
+        : `You're averaging ~${waterOz} oz/day — solid. That helps appetite control on a deficit and recovery; keep it up, more on hard training days.`;
 
   const leanTxt =
     d.leanMassChangeLb != null
@@ -378,6 +402,7 @@ export function fallbackReport(d: AnalysisInput): NutritionistReport {
       safeFloorKcal: d.safeFloorKcal,
       detail: deficitDetail,
     },
+    hydration: hydrationDetail,
     keyMoves,
     confidence,
     dataGaps,

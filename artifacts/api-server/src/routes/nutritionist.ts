@@ -147,9 +147,15 @@ async function gather(weeks: number): Promise<AnalysisInput> {
       proteinG: nutritionDaysTable.proteinG,
       carbsG: nutritionDaysTable.carbsG,
       fatG: nutritionDaysTable.fatG,
+      waterMl: nutritionDaysTable.waterMl,
     })
     .from(nutritionDaysTable)
     .where(and(gte(nutritionDaysTable.date, from), lte(nutritionDaysTable.date, to)));
+  const waters = nutRows
+    .map((r) => r.waterMl)
+    .filter((v): v is number => v != null);
+  const avgWaterMl =
+    waters.length > 0 ? Math.round(waters.reduce((a, b) => a + b, 0) / waters.length) : null;
   const food = summarizeFood(nutRows as FoodDay[], {
     calories: prefs?.calorieTarget ?? null,
     protein: prefs?.proteinTargetG ?? null,
@@ -259,6 +265,7 @@ async function gather(weeks: number): Promise<AnalysisInput> {
     carbsTarget: prefs?.carbsTargetG ?? null,
     avgFat: food.avgFat,
     fatTarget: prefs?.fatTargetG ?? null,
+    avgWaterMl,
     daysUnderFloor,
     sessionsDone: doneRows.length,
     plannedSessions: plannedRows[0]?.count ?? 0,
@@ -335,6 +342,7 @@ async function buildReport(input: AnalysisInput): Promise<NutritionistReport> {
         safeFloorKcal: input.safeFloorKcal,
         detail: out.deficit?.detail ?? fb.deficit.detail,
       },
+      hydration: out.hydration ?? fb.hydration,
       keyMoves: Array.isArray(out.keyMoves) && out.keyMoves.length ? out.keyMoves.slice(0, 4) : fb.keyMoves,
       confidence: out.confidence ?? fb.confidence,
       dataGaps: Array.isArray(out.dataGaps) ? out.dataGaps.slice(0, 4) : fb.dataGaps,

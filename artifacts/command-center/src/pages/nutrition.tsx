@@ -19,6 +19,7 @@ type NutritionDay = {
   carbsG: number | null;
   fatG: number | null;
   sodiumMg: number | null;
+  waterMl: number | null;
   updatedAt: string | null;
 };
 type RecentResponse = { days: number; entries: NutritionDay[] };
@@ -467,6 +468,23 @@ export default function Nutrition() {
                 {macros.map((m) => (
                   <MacroRing key={m.label} {...m} />
                 ))}
+              </div>
+              {/* Water today — synced from Apple Health (Dietary Water). */}
+              <div className="mt-4 flex items-center gap-2 text-sm" data-testid="text-nutrition-water">
+                <Droplet className="h-4 w-4 text-primary" />
+                <span className="font-bold uppercase tracking-[0.14em] text-[11px] text-muted-foreground">
+                  Water
+                </span>
+                <span className="font-extrabold tabular-nums text-foreground">
+                  {today?.waterMl != null
+                    ? `${Math.round(today.waterMl / 29.5735)} oz`
+                    : "—"}
+                </span>
+                {today?.waterMl != null && (
+                  <span className="text-xs text-muted-foreground">
+                    (~{(today.waterMl / 236.588).toFixed(1)} cups)
+                  </span>
+                )}
               </div>
               {/* baseline → adjusted reactivity readout + rationale. */}
               {adjusted && baseline && (

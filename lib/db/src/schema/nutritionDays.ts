@@ -25,6 +25,11 @@ export const nutritionDaysTable = pgTable("nutrition_days", {
   // semantics as carbsG/fatG — older or macros-only pushes leave it null, so a
   // protein-only Apple Shortcut keeps working unchanged.
   sodiumMg: integer("sodium_mg"),
+  // Total water intake for the day in MILLILITRES (Apple Health's native unit
+  // for Dietary Water; the Shortcut can also send oz/L and the ingest converts).
+  // Hydration supports satiety on a deficit, recovery, and protein metabolism,
+  // so the AI nutritionist factors it in. Same null semantics as the macros.
+  waterMl: integer("water_ml"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

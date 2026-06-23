@@ -6,6 +6,7 @@ import {
   Beef,
   Flame,
   Activity,
+  Droplet,
   Stethoscope,
   ArrowRight,
   CheckCircle2,
@@ -59,6 +60,7 @@ export type NutritionistReport = {
     safeFloorKcal: number;
     detail: string;
   };
+  hydration: string;
   keyMoves: string[];
   confidence: "low" | "medium" | "high";
   dataGaps: string[];
@@ -273,6 +275,19 @@ export function NutritionistPanel({
           </div>
           <p className="text-sm text-muted-foreground">{data.deficit.detail}</p>
         </section>
+
+        {/* HYDRATION */}
+        {data.hydration && (
+          <section className="space-y-2" data-testid="section-nutritionist-hydration">
+            <div className="flex items-center gap-2">
+              <Droplet className="h-4 w-4 text-primary" />
+              <span className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                Hydration
+              </span>
+            </div>
+            <p className="text-sm text-muted-foreground">{data.hydration}</p>
+          </section>
+        )}
 
         {/* KEY MOVES */}
         {data.keyMoves.length > 0 && (
