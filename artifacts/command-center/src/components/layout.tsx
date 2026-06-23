@@ -38,13 +38,13 @@ function Wordmark() {
   return (
     <Link
       href="/"
-      className="flex items-baseline gap-1 shrink-0 select-none"
+      className="flex items-baseline gap-1 shrink-0 select-none rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-[#19140f]"
       aria-label="BH Studio home"
     >
-      <span className="text-xl font-black uppercase italic tracking-tight text-primary leading-none">
+      <span className="font-display text-xl font-extrabold uppercase italic tracking-tight text-primary leading-none">
         BH
       </span>
-      <span className="text-xl font-black uppercase italic tracking-tight text-white leading-none">
+      <span className="font-display text-xl font-extrabold uppercase italic tracking-tight text-white leading-none">
         Studio
       </span>
     </Link>
@@ -80,17 +80,15 @@ export function Layout({ children }: LayoutProps) {
                 <Link
                   key={item.href}
                   href={item.href}
+                  aria-current={active ? "page" : undefined}
                   className={cn(
-                    "relative px-3 py-1.5 text-sm font-medium tracking-tight transition-colors",
+                    "rounded-full px-3 py-1.5 text-sm font-medium tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-[#19140f]",
                     active
-                      ? "text-primary"
-                      : "text-white/55 hover:text-white",
+                      ? "bg-white/10 text-primary"
+                      : "text-white/55 hover:text-white hover:bg-white/5",
                   )}
                 >
                   {item.label}
-                  {active && (
-                    <span className="absolute inset-x-3 -bottom-[10px] h-0.5 rounded-full bg-primary" />
-                  )}
                 </Link>
               );
             })}
@@ -99,7 +97,7 @@ export function Layout({ children }: LayoutProps) {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="px-3 py-1.5 text-sm font-medium text-white/55 hover:text-white transition-colors inline-flex items-center gap-1"
+                  className="rounded-full px-3 py-1.5 text-sm font-medium text-white/55 hover:text-white hover:bg-white/5 transition-colors inline-flex items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-[#19140f]"
                   data-testid="nav-more"
                 >
                   More
@@ -143,9 +141,11 @@ export function Layout({ children }: LayoutProps) {
               onClick={togglePalette}
               data-testid="button-command-palette"
               aria-label="Open command palette"
-              className="hidden sm:inline-flex items-center gap-1 rounded-md border border-white/15 px-2 py-1 text-xs text-white/55 hover:text-white hover:bg-white/10 transition-colors"
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-white/55 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-[#19140f]"
             >
-              <span className="font-mono">{isMac ? "⌘" : "Ctrl"} K</span>
+              <kbd className="rounded border border-white/15 bg-white/5 px-1.5 py-0.5 font-mono text-[11px] font-medium leading-none text-white/70">
+                {isMac ? "⌘" : "Ctrl"} K
+              </kbd>
             </button>
             <div className="text-white/70">
               <ThemeToggle />
@@ -185,7 +185,8 @@ export function Layout({ children }: LayoutProps) {
             <Link
               key={item.href}
               href={item.href}
-              className="flex flex-col items-center justify-center gap-0.5 py-2 flex-1"
+              aria-current={active ? "page" : undefined}
+              className="flex flex-col items-center justify-center gap-0.5 py-2 flex-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
             >
               <Icon
                 className={cn(
@@ -208,7 +209,7 @@ export function Layout({ children }: LayoutProps) {
         <Sheet open={moreSheetOpen} onOpenChange={setMoreSheetOpen}>
           <SheetTrigger asChild>
             <button
-              className="flex flex-col items-center justify-center gap-0.5 py-2 flex-1 text-white/50"
+              className="flex flex-col items-center justify-center gap-0.5 py-2 flex-1 text-white/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
               data-testid="nav-more-mobile"
             >
               <MoreHorizontal className="h-5 w-5" />
@@ -229,7 +230,7 @@ export function Layout({ children }: LayoutProps) {
                     key={item.href}
                     href={item.href}
                     onClick={() => setMoreSheetOpen(false)}
-                    className="flex items-center gap-2 rounded-md border border-border px-3 py-3 text-sm hover:bg-muted transition-colors"
+                    className="flex items-center gap-2 rounded-md border border-border px-3 py-3 text-sm hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <Icon className="h-4 w-4 text-muted-foreground" />
                     {item.label}
