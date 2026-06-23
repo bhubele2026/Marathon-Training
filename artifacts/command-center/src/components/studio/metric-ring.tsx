@@ -1,4 +1,5 @@
 import * as React from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 // MetricRing — a refined progress ring with an instrument-readout center value.
@@ -31,6 +32,7 @@ export function MetricRing({
   const hasData = value != null && goal != null && goal > 0;
   const progress = hasData ? Math.max(0, Math.min(1, (value as number) / (goal as number))) : 0;
   const dashoffset = c * (1 - progress);
+  const reduced = useReducedMotion();
 
   return (
     <div
@@ -53,9 +55,9 @@ export function MetricRing({
           stroke={hero ? "hsl(var(--muted))" : "hsl(var(--border))"}
           strokeWidth={stroke}
         />
-        {/* accent arc */}
+        {/* accent arc — fills on mount (full -> target), instant on reduced motion */}
         {progress > 0 ? (
-          <circle
+          <motion.circle
             cx={size / 2}
             cy={size / 2}
             r={r}
@@ -64,8 +66,9 @@ export function MetricRing({
             strokeWidth={hero ? stroke : stroke - 1}
             strokeLinecap="round"
             strokeDasharray={c}
-            strokeDashoffset={dashoffset}
-            className="transition-[stroke-dashoffset] duration-700 ease-out motion-reduce:transition-none"
+            initial={{ strokeDashoffset: reduced ? dashoffset : c }}
+            animate={{ strokeDashoffset: dashoffset }}
+            transition={reduced ? { duration: 0 } : { duration: 0.7, ease: "easeOut" }}
           />
         ) : null}
       </svg>

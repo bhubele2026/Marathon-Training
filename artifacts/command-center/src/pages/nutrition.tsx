@@ -1,4 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
+import { motion, useReducedMotion } from "framer-motion";
+import { CountUp } from "@/components/studio/count-up";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -143,6 +145,8 @@ function MacroRing({
   const hit = hasGoal && value != null && value >= (target as number);
   const remaining =
     hasGoal && value != null ? Math.max(0, (target as number) - value) : null;
+  const reduced = useReducedMotion();
+  const dashoffset = circ * (1 - pct);
 
   return (
     <div className="flex flex-col items-center gap-2">
@@ -157,22 +161,25 @@ function MacroRing({
             className="stroke-muted"
           />
           {hasGoal && !awaiting && (
-            <circle
+            <motion.circle
               cx={size / 2}
               cy={size / 2}
               r={r}
               fill="none"
               strokeWidth={stroke}
               strokeLinecap="round"
-              className="stroke-primary transition-[stroke-dashoffset]"
+              className="stroke-primary"
               strokeDasharray={circ}
-              strokeDashoffset={circ * (1 - pct)}
+              initial={{ strokeDashoffset: reduced ? dashoffset : circ }}
+              animate={{ strokeDashoffset: dashoffset }}
+              transition={reduced ? { duration: 0 } : { duration: 0.7, ease: "easeOut" }}
             />
           )}
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           {/* Awaiting intake: lead with the TARGET number (muted) so the ring
-              still means something before the day's food syncs. */}
+              still means something before the day's food syncs. The hero
+              (calories) value counts up on mount; smaller rings stay static. */}
           <span
             className={
               "font-mono font-semibold tabular-nums leading-none tracking-[-0.01em] " +
@@ -184,7 +191,13 @@ function MacroRing({
                   : "text-foreground")
             }
           >
-            {awaiting ? (hasGoal ? fmt(target as number) : "—") : fmt(value as number)}
+            {awaiting ? (
+              hasGoal ? fmt(target as number) : "—"
+            ) : hero ? (
+              <CountUp value={value as number} format={fmt} />
+            ) : (
+              fmt(value as number)
+            )}
           </span>
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">
             {unit}

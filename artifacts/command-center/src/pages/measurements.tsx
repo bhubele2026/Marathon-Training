@@ -22,6 +22,7 @@ import { MeasurementForm } from "@/components/measurement-form";
 import { StatReadout } from "@/components/studio/stat-readout";
 import { TrendArea } from "@/components/studio/trend-area";
 import { EmptyState } from "@/components/studio/empty-state";
+import { CountUp } from "@/components/studio/count-up";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
@@ -232,7 +233,11 @@ export default function Measurements() {
           </span>
           <div className="flex items-end gap-3">
             <span className="font-mono text-[clamp(2.25rem,5vw,3.75rem)] font-semibold leading-none tabular-nums tracking-[-0.02em] text-primary">
-              {latestWeight != null ? latestWeight.toFixed(1) : "—"}
+              {latestWeight != null ? (
+                <CountUp value={latestWeight} format={(n) => n.toFixed(1)} />
+              ) : (
+                "—"
+              )}
             </span>
             <span className="pb-1.5 text-base font-medium text-muted-foreground">lb</span>
             {weightDelta != null && weightDelta !== 0 && (

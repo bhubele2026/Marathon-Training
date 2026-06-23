@@ -6,6 +6,7 @@ import { Activity, Flame, Sparkles } from "lucide-react";
 import { SectionHeader } from "@/components/studio/section-header";
 import { StatReadout } from "@/components/studio/stat-readout";
 import { CoachNote } from "@/components/studio/coach-note";
+import { CountUp } from "@/components/studio/count-up";
 
 // R6. The reactive "Eat today" block on the Today page. Surfaces the AI's
 // per-day ADJUSTED calorie + macro target (which reacts to the day's planned
@@ -154,9 +155,11 @@ export function EatToday({ date }: { date: string }) {
             Calories
           </span>
           <div className="flex items-baseline gap-2">
-            <span className="glow-primary font-mono text-4xl font-semibold leading-none tabular-nums tracking-[-0.02em] text-primary sm:text-5xl">
-              {fmt(actual != null ? actual.cal : adjusted.cal)}
-            </span>
+            <CountUp
+              value={actual != null ? actual.cal : adjusted.cal}
+              format={fmt}
+              className="glow-primary font-mono text-4xl font-semibold leading-none tabular-nums tracking-[-0.02em] text-primary sm:text-5xl"
+            />
             <span className="text-sm font-medium text-muted-foreground">
               {actual != null ? `/ ${fmt(adjusted.cal)} kcal` : "kcal"}
             </span>
