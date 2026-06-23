@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Beef, Droplet, Flame, RefreshCw, Sparkles, Wheat } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { NutritionistPanel } from "@/components/nutritionist-panel";
+import { NutritionLog } from "@/components/nutrition-log";
 import { ResetNutritionButton } from "@/components/reset-nutrition-button";
 
 // These routes are intentionally hand-fetched rather than going through the
@@ -550,6 +551,9 @@ export default function Nutrition() {
           )}
         </CardContent>
       </Card>
+
+      {/* Per-day history of every logged day with the actual numbers. */}
+      <NutritionLog />
 
       {/* Maintenance: start nutrition tracking fresh from a chosen date
           (clears earlier logs + rebuilds the AI read; plan/body/workouts kept). */}
