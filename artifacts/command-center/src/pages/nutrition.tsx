@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Beef, Droplet, Flame, RefreshCw, Sparkles, Wheat } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { NutritionistPanel } from "@/components/nutritionist-panel";
+import { CoachNote } from "@/components/studio/coach-note";
 import { NutritionLog } from "@/components/nutrition-log";
 import { ResetNutritionButton } from "@/components/reset-nutrition-button";
 import { CloseDayButton } from "@/components/close-day-button";
@@ -122,15 +123,17 @@ function MacroRing({
   value,
   target,
   unit,
+  hero = false,
 }: {
   label: string;
   Icon: LucideIcon;
   value: number | null;
   target: number | null;
   unit: string;
+  hero?: boolean;
 }) {
-  const size = 116;
-  const stroke = 11;
+  const size = hero ? 168 : 108;
+  const stroke = hero ? 13 : 9;
   const r = (size - stroke) / 2;
   const circ = 2 * Math.PI * r;
   const hasGoal = target != null && target > 0;
@@ -172,8 +175,13 @@ function MacroRing({
               still means something before the day's food syncs. */}
           <span
             className={
-              "text-3xl font-extrabold tabular-nums leading-none " +
-              (awaiting ? "text-muted-foreground" : "text-primary")
+              "font-mono font-semibold tabular-nums leading-none tracking-[-0.01em] " +
+              (hero ? "text-4xl " : "text-2xl ") +
+              (awaiting
+                ? "text-muted-foreground"
+                : hero
+                  ? "text-primary"
+                  : "text-foreground")
             }
           >
             {awaiting ? (hasGoal ? fmt(target as number) : "—") : fmt(value as number)}
@@ -471,48 +479,52 @@ export default function Nutrition() {
             </div>
           ) : (
             <>
+              {/* Calories — the single hero readout (score-first). */}
+              <div className="flex justify-center pb-2">
+                <MacroRing {...macros[0]!} hero />
+              </div>
+              {/* Supporting macros + hydration, equal neutral tiles. */}
               <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
-                {macros.map((m) => (
+                {macros.slice(1).map((m) => (
                   <MacroRing key={m.label} {...m} />
                 ))}
+                {/* Water — a first-class tile in the same grid (was an orphan
+                    line). Synced from Apple Health Dietary Water. */}
+                <div
+                  className="flex flex-col items-center gap-2 text-center"
+                  data-testid="tile-nutrition-water"
+                >
+                  <div className="flex h-[108px] flex-col items-center justify-center">
+                    <Droplet className="mb-1 h-5 w-5 text-primary" />
+                    <span className="font-mono text-2xl font-semibold tabular-nums leading-none text-foreground">
+                      {today?.waterMl != null ? Math.round(today.waterMl / 29.5735) : "—"}
+                    </span>
+                    <span className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                      oz
+                    </span>
+                  </div>
+                  <div className="font-display text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                    Water
+                  </div>
+                  <p className="h-4 text-[11px] text-muted-foreground tabular-nums">
+                    {today?.waterMl != null
+                      ? `~${(today.waterMl / 236.588).toFixed(1)} cups`
+                      : "Awaiting sync"}
+                  </p>
+                </div>
               </div>
-              {/* Water today — synced from Apple Health (Dietary Water). */}
-              <div className="mt-4 flex items-center gap-2 text-sm" data-testid="text-nutrition-water">
-                <Droplet className="h-4 w-4 text-primary" />
-                <span className="font-bold uppercase tracking-[0.14em] text-[11px] text-muted-foreground">
-                  Water
-                </span>
-                <span className="font-extrabold tabular-nums text-foreground">
-                  {today?.waterMl != null
-                    ? `${Math.round(today.waterMl / 29.5735)} oz`
-                    : "—"}
-                </span>
-                {today?.waterMl != null && (
-                  <span className="text-xs text-muted-foreground">
-                    (~{(today.waterMl / 236.588).toFixed(1)} cups)
-                  </span>
-                )}
-              </div>
-              {/* baseline → adjusted reactivity readout + rationale. */}
+              {/* baseline → adjusted reactivity readout + rationale (coach voice). */}
               {adjusted && baseline && (
-                <div className="mt-4 space-y-2">
+                <div className="mt-6 space-y-2">
                   <p
                     className="text-xs text-muted-foreground tabular-nums"
                     data-testid="text-nutrition-recomp"
                   >
                     baseline {fmt(baseline.cal)} → today{" "}
-                    <span className="font-bold text-foreground">
-                      {fmt(adjusted.cal)}
-                    </span>{" "}
-                    kcal
+                    <span className="font-semibold text-foreground">{fmt(adjusted.cal)}</span> kcal
                     {day?.source === "actual" ? " · from logged session" : ""}
                   </p>
-                  {day?.rationale && (
-                    <p className="text-sm text-muted-foreground border-l-2 border-primary/40 pl-3 flex items-start gap-2">
-                      <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
-                      <span>{day.rationale}</span>
-                    </p>
-                  )}
+                  {day?.rationale && <CoachNote>{day.rationale}</CoachNote>}
                 </div>
               )}
             </>

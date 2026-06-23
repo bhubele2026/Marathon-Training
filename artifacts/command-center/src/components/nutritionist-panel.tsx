@@ -2,12 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SectionHeader } from "@/components/studio/section-header";
+import { StatReadout } from "@/components/studio/stat-readout";
+import { CoachNote } from "@/components/studio/coach-note";
 import {
-  Beef,
-  Flame,
-  Activity,
-  Droplet,
-  Zap,
   Clock,
   Stethoscope,
   ArrowRight,
@@ -20,7 +18,7 @@ import {
 //   - variant="today": a compact daily verdict (headline + protein chip + the
 //     coach's one-liner) with a link into the full read.
 //   - variant="full":  the deep-dive on the Nutrition page (protein verdict,
-//     body-comp diagnosis, fuelling, key moves, confidence + data gaps).
+//     body-comp diagnosis, fuelling, hydration, sodium, key moves).
 //
 // Hand-fetched like the rest of the nutrition slice (not in openapi.yaml).
 // Reads GET /api/nutritionist/analysis, which is server-cached by inputHash so
@@ -89,8 +87,8 @@ const PROTEIN_LABEL: Record<ProteinStatus, string> = {
   too_much: "Protein high",
 };
 
-// Health-flag statuses get a warm/amber treatment; good ones get the primary
-// accent; neutral ones stay muted.
+// Semantic status tone. on-track/good = accent; health flags (too little /
+// under floor) = a caution tint; everything else neutral.
 function statusTone(s: ProteinStatus | DeficitStatus): {
   cls: string;
   Icon: typeof CheckCircle2;
@@ -102,16 +100,10 @@ function statusTone(s: ProteinStatus | DeficitStatus): {
     case "too_little":
     case "under_floor":
     case "aggressive":
-      return { cls: "text-amber-500 border-amber-500/30 bg-amber-500/10", Icon: AlertTriangle };
+      return { cls: "text-destructive border-destructive/30 bg-destructive/10", Icon: AlertTriangle };
     default:
-      return { cls: "text-muted-foreground border-border bg-muted/40", Icon: Info };
+      return { cls: "text-muted-foreground border-border bg-muted/50", Icon: Info };
   }
-}
-
-function fmtSigned(n: number | null, unit: string): string {
-  if (n == null) return "—";
-  const s = n > 0 ? `+${n}` : `${n}`;
-  return `${s}${unit}`;
 }
 
 function Chip({ status }: { status: ProteinStatus | DeficitStatus }) {
@@ -131,6 +123,18 @@ function Chip({ status }: { status: ProteinStatus | DeficitStatus }) {
       {label}
     </span>
   );
+}
+
+// A delta string + tone for a body-comp stat. `goodDown` = moving down is the
+// win (weight / fat mass on a cut); for lean mass, up is the win.
+function deltaFor(
+  change: number | null,
+  goodDown: boolean,
+): { value: string; tone: "success" | "neutral" | "destructive" } | undefined {
+  if (change == null || change === 0) return undefined;
+  const good = goodDown ? change < 0 : change > 0;
+  const sign = change > 0 ? "+" : "";
+  return { value: `${sign}${change}`, tone: good ? "success" : "neutral" };
 }
 
 export function NutritionistPanel({
@@ -165,30 +169,35 @@ export function NutritionistPanel({
   if (variant === "today") {
     return (
       <Card
-        className="border-primary/20 bg-primary/5 border-l-4 border-l-primary"
+        variant="flush"
+        className="border-l-2 border-l-primary bg-[hsl(var(--accent)/0.05)]"
         data-testid="card-nutritionist-today"
       >
         <CardContent className="p-5 space-y-2">
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-2">
-              <Stethoscope className="h-5 w-5 text-primary" />
-              <p className="text-sm font-bold tracking-wider text-primary">Nutritionist</p>
+            <div className="flex min-w-0 items-center gap-2">
+              <Stethoscope className="h-5 w-5 shrink-0 text-primary" />
+              <span className="font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                Nutritionist
+              </span>
               <Chip status={data.protein.status} />
             </div>
             <Link
               href="/nutrition"
-              className="inline-flex items-center gap-1 text-xs font-bold tracking-wider text-primary hover:underline"
+              className="inline-flex shrink-0 items-center gap-1 rounded-md text-xs font-semibold tracking-wide text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               data-testid="link-nutritionist-full"
             >
               Full analysis <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
-          <p className="text-sm text-foreground font-medium">{data.headline}</p>
+          <p className="text-sm font-medium text-foreground">{data.headline}</p>
           {/* Mid-day pace coaching takes priority when the day's open. */}
           {data.today ? (
-            <p className="text-sm text-muted-foreground">{data.today}</p>
+            <p className="min-w-0 text-sm leading-relaxed text-muted-foreground">{data.today}</p>
           ) : (
-            data.narrative && <p className="text-sm text-muted-foreground">{data.narrative}</p>
+            data.narrative && (
+              <p className="min-w-0 text-sm leading-relaxed text-muted-foreground">{data.narrative}</p>
+            )
           )}
         </CardContent>
       </Card>
@@ -198,86 +207,96 @@ export function NutritionistPanel({
   // --- Full deep-dive (Nutrition page) ------------------------------------
   const bc = data.bodyComp;
   const hasLeanFat = bc.leanMassLb != null && bc.fatMassLb != null;
+  const p = data.protein;
   return (
     <Card
-      className="border-primary/20 bg-primary/5 border-l-4 border-l-primary"
+      variant="flush"
+      className="border-l-2 border-l-primary bg-[hsl(var(--accent)/0.04)] dark:bg-[hsl(var(--accent)/0.07)]"
       data-testid="card-nutritionist-full"
     >
-      <CardContent className="p-6 space-y-5">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
+      <CardContent className="space-y-6 p-6">
+        <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Stethoscope className="h-5 w-5 text-primary" />
-            <p className="text-sm font-bold tracking-wider text-primary">AI Nutritionist</p>
+            <span className="font-display text-base font-semibold tracking-tight text-foreground">
+              AI Nutritionist
+            </span>
           </div>
-          <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
+          <span className="font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
             last {data.weeksElapsed || data.weeks} wk · confidence {data.confidence}
           </span>
         </div>
 
-        <p className="text-lg font-extrabold leading-snug text-foreground">{data.headline}</p>
+        {/* Headline in the coach's voice. */}
+        <CoachNote icon={Stethoscope}>{data.headline}</CoachNote>
 
         {/* TODAY (in progress) — pace coaching, shown only while the day is open. */}
         {data.today && (
-          <div
-            className="flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/10 p-3"
-            data-testid="section-nutritionist-today"
-          >
-            <Clock className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-            <div className="space-y-0.5">
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-primary">
-                Today so far
-              </p>
-              <p className="text-sm text-foreground">{data.today}</p>
-            </div>
-          </div>
+          <section className="space-y-2" data-testid="section-nutritionist-today">
+            <SectionHeader eyebrow="Today so far" />
+            <CoachNote icon={Clock}>{data.today}</CoachNote>
+          </section>
         )}
 
         {/* PROTEIN */}
         <section className="space-y-2" data-testid="section-nutritionist-protein">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Beef className="h-4 w-4 text-primary" />
-            <span className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
-              Protein
-            </span>
-            <Chip status={data.protein.status} />
-            {data.protein.gPerLb != null && (
-              <span className="text-xs font-bold tabular-nums text-foreground">
-                {data.protein.gPerLb} g/lb
+          <SectionHeader eyebrow="Protein" action={<Chip status={p.status} />} />
+          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            {p.gPerLb != null && (
+              <span className="font-mono text-lg font-semibold tabular-nums text-foreground">
+                {p.gPerLb}
+                <span className="ml-1 text-[13px] font-medium text-muted-foreground">g/lb</span>
               </span>
             )}
-            {data.protein.avgProteinG != null && data.protein.targetProteinG != null && (
-              <span className="text-xs text-muted-foreground tabular-nums">
-                {Math.round(data.protein.avgProteinG)} / {data.protein.targetProteinG} g avg
-                {data.protein.hitRate != null
-                  ? ` · hit ${Math.round(data.protein.hitRate * 100)}% of days`
-                  : ""}
+            {p.avgProteinG != null && p.targetProteinG != null && (
+              <span className="font-mono text-[13px] tabular-nums text-muted-foreground">
+                {Math.round(p.avgProteinG)} / {p.targetProteinG} g avg
+                {p.hitRate != null ? ` · hit ${Math.round(p.hitRate * 100)}% of days` : ""}
               </span>
             )}
           </div>
-          <p className="text-sm text-muted-foreground">{data.protein.detail}</p>
-          <p className="text-xs text-muted-foreground/80 italic">{data.protein.distributionTip}</p>
+          <p className="min-w-0 text-sm leading-relaxed text-muted-foreground">{p.detail}</p>
+          <p className="min-w-0 text-[13px] italic leading-relaxed text-muted-foreground/80">
+            {p.distributionTip}
+          </p>
         </section>
 
         {/* BODY COMPOSITION */}
-        <section className="space-y-2" data-testid="section-nutritionist-bodycomp">
-          <div className="flex items-center gap-2">
-            <Activity className="h-4 w-4 text-primary" />
-            <span className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
-              Body composition
-            </span>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3">
-            <Stat label="Weight" value={bc.currentWeightLb != null ? `${bc.currentWeightLb} lb` : "—"} sub={fmtSigned(bc.weightChangeLb, " lb")} />
-            <Stat label="Body fat" value={bc.bodyFatPct != null ? `${bc.bodyFatPct}%` : "—"} />
-            <Stat
-              label="Lean mass"
-              value={hasLeanFat ? `${bc.leanMassLb} lb` : "—"}
-              sub={fmtSigned(bc.leanMassChangeLb, " lb")}
+        <section className="space-y-3" data-testid="section-nutritionist-bodycomp">
+          <SectionHeader eyebrow="Body composition" />
+          <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-4">
+            <StatReadout
+              label="Weight"
+              value={bc.currentWeightLb != null ? bc.currentWeightLb : "—"}
+              unit={bc.currentWeightLb != null ? "lb" : undefined}
+              delta={deltaFor(bc.weightChangeLb, true)}
             />
-            <Stat
+            {bc.bodyFatPct != null ? (
+              <StatReadout label="Body fat" value={bc.bodyFatPct} unit="%" />
+            ) : (
+              <div className="flex flex-col gap-1">
+                <span className="font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                  Body fat
+                </span>
+                <Link
+                  href="/measurements"
+                  className="text-[13px] font-medium text-primary hover:underline"
+                >
+                  Log to track →
+                </Link>
+              </div>
+            )}
+            <StatReadout
+              label="Lean mass"
+              value={hasLeanFat ? (bc.leanMassLb as number) : "—"}
+              unit={hasLeanFat ? "lb" : undefined}
+              delta={deltaFor(bc.leanMassChangeLb, false)}
+            />
+            <StatReadout
               label="Fat mass"
-              value={hasLeanFat ? `${bc.fatMassLb} lb` : "—"}
-              sub={fmtSigned(bc.fatMassChangeLb, " lb")}
+              value={hasLeanFat ? (bc.fatMassLb as number) : "—"}
+              unit={hasLeanFat ? "lb" : undefined}
+              delta={deltaFor(bc.fatMassChangeLb, true)}
             />
           </div>
           <Read label="Where you are" text={bc.trend} />
@@ -287,59 +306,46 @@ export function NutritionistPanel({
 
         {/* FUELLING */}
         <section className="space-y-2" data-testid="section-nutritionist-deficit">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Flame className="h-4 w-4 text-primary" />
-            <span className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
-              Fuelling
+          <SectionHeader
+            eyebrow="Fuelling"
+            action={
+              data.deficit.status !== "unknown" ? <Chip status={data.deficit.status} /> : undefined
+            }
+          />
+          {data.deficit.avgCalories != null && (
+            <span className="font-mono text-[13px] tabular-nums text-muted-foreground">
+              {Math.round(data.deficit.avgCalories)}
+              {data.deficit.calorieTarget != null ? ` / ${data.deficit.calorieTarget}` : ""} kcal avg
             </span>
-            <Chip status={data.deficit.status} />
-            {data.deficit.avgCalories != null && (
-              <span className="text-xs text-muted-foreground tabular-nums">
-                {Math.round(data.deficit.avgCalories)}
-                {data.deficit.calorieTarget != null ? ` / ${data.deficit.calorieTarget}` : ""} kcal avg
-              </span>
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground">{data.deficit.detail}</p>
+          )}
+          <p className="min-w-0 text-sm leading-relaxed text-muted-foreground">{data.deficit.detail}</p>
         </section>
 
         {/* HYDRATION */}
         {data.hydration && (
           <section className="space-y-2" data-testid="section-nutritionist-hydration">
-            <div className="flex items-center gap-2">
-              <Droplet className="h-4 w-4 text-primary" />
-              <span className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
-                Hydration
-              </span>
-            </div>
-            <p className="text-sm text-muted-foreground">{data.hydration}</p>
+            <SectionHeader eyebrow="Hydration" />
+            <p className="min-w-0 text-sm leading-relaxed text-muted-foreground">{data.hydration}</p>
           </section>
         )}
 
         {/* SODIUM */}
         {data.sodium && (
           <section className="space-y-2" data-testid="section-nutritionist-sodium">
-            <div className="flex items-center gap-2">
-              <Zap className="h-4 w-4 text-primary" />
-              <span className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
-                Sodium
-              </span>
-            </div>
-            <p className="text-sm text-muted-foreground">{data.sodium}</p>
+            <SectionHeader eyebrow="Sodium" />
+            <p className="min-w-0 text-sm leading-relaxed text-muted-foreground">{data.sodium}</p>
           </section>
         )}
 
-        {/* KEY MOVES */}
+        {/* DO THIS NEXT */}
         {data.keyMoves.length > 0 && (
-          <section className="space-y-1.5" data-testid="section-nutritionist-moves">
-            <span className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
-              Do this next
-            </span>
-            <ul className="space-y-1">
+          <section className="space-y-2" data-testid="section-nutritionist-moves">
+            <SectionHeader eyebrow="Do this next" />
+            <ul className="space-y-1.5">
               {data.keyMoves.map((m, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-foreground">
-                  <ArrowRight className="h-3.5 w-3.5 text-primary mt-1 shrink-0" />
-                  <span>{m}</span>
+                  <ArrowRight className="mt-1 h-3.5 w-3.5 shrink-0 text-primary" />
+                  <span className="min-w-0 leading-relaxed">{m}</span>
                 </li>
               ))}
             </ul>
@@ -347,8 +353,8 @@ export function NutritionistPanel({
         )}
 
         {data.dataGaps.length > 0 && (
-          <p className="text-xs text-muted-foreground/80 border-t border-border pt-3">
-            <span className="font-bold">Sharpen this read: </span>
+          <p className="min-w-0 border-t border-border pt-3 text-[13px] leading-relaxed text-muted-foreground/80">
+            <span className="font-semibold">Sharpen this read: </span>
             {data.dataGaps.join(" · ")}
           </p>
         )}
@@ -357,27 +363,18 @@ export function NutritionistPanel({
   );
 }
 
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-        {label}
-      </span>
-      <span className="text-lg font-extrabold tabular-nums leading-none text-foreground">{value}</span>
-      {sub && sub !== "—" && (
-        <span className="text-[11px] tabular-nums text-muted-foreground">{sub}</span>
-      )}
-    </div>
-  );
-}
-
 function Read({ label, text, emphasis }: { label: string; text: string; emphasis?: boolean }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+      <span className="font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
         {label}
       </span>
-      <p className={"text-sm " + (emphasis ? "text-foreground font-medium" : "text-muted-foreground")}>
+      <p
+        className={
+          "min-w-0 text-sm leading-relaxed " +
+          (emphasis ? "font-medium text-foreground" : "text-muted-foreground")
+        }
+      >
         {text}
       </p>
     </div>
