@@ -34,7 +34,7 @@ export function QuickLogActivity({ testIdSuffix }: QuickLogActivityProps = {}) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg tracking-wider">Quick Log Activity</CardTitle>
+        <CardTitle className="font-display text-lg tracking-tight">Quick Log Activity</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-2 gap-2" data-testid={`quick-log-presets${suffix}`}>

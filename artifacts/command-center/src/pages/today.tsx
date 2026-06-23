@@ -34,6 +34,7 @@ import { QuickLogActivity } from "@/components/quick-log-activity";
 import { EatToday } from "@/components/eat-today";
 import { NutritionistPanel } from "@/components/nutritionist-panel";
 import { CloseDayButton } from "@/components/close-day-button";
+import { CoachNote, type CoachTone } from "@/components/studio/coach-note";
 import { TimeOfDayBadge } from "@/components/time-of-day-badge";
 import { PlannedBreakdown } from "@/components/planned-breakdown";
 import { ActualBreakdown } from "@/components/actual-breakdown";
@@ -632,15 +633,15 @@ export default function Today() {
             return (
             <Card
               key={`today-plan-${plan.id}`}
-              className="border-primary/20 bg-primary/5 border-l-4 border-l-primary shadow-card-lg"
+              variant="elevated"
               data-testid={`card-mission-brief-${plan.sourceEntryIndex}`}
             >
               <CardHeader>
-                <CardTitle className="text-lg tracking-wider text-primary flex items-center gap-3 flex-wrap">
+                <CardTitle className="font-display text-lg tracking-tight text-foreground flex items-center gap-3 flex-wrap">
                   <span>Today's session</span>
                   {plan.sourceEntryLabel && (today.plans?.length ?? 0) > 1 && (
                     <span
-                      className="px-2 py-0.5 text-xs bg-primary/15 text-primary rounded font-bold tracking-wider"
+                      className="px-2 py-0.5 text-xs bg-secondary text-secondary-foreground rounded-full font-semibold tracking-wide"
                       data-testid={`badge-program-${plan.sourceEntryIndex}`}
                     >
                       {plan.sourceEntryLabel}
@@ -1218,17 +1219,12 @@ export default function Today() {
                   if (!v) return null;
                   return (
                     <div
-                      className={cn(
-                        "rounded-md border-l-4 px-4 py-3 flex items-start gap-3",
-                        VERDICT_TONE[v.bucket],
-                      )}
                       data-testid={`session-verdict-${session.id}`}
                       data-verdict-bucket={v.bucket}
                     >
-                      <span className="text-[10px] font-black uppercase tracking-widest mt-0.5 shrink-0">
-                        {v.headline}
-                      </span>
-                      <span className="text-sm leading-snug">{v.line}</span>
+                      <CoachNote icon={Zap} tone={VERDICT_TONE[v.bucket]} status={v.headline}>
+                        {v.line}
+                      </CoachNote>
                     </div>
                   );
                 })()}
@@ -1462,16 +1458,16 @@ export default function Today() {
   );
 }
 
-// Tone per verdict bucket for the post-log coach verdict strip — praise reads
-// green, a near miss amber, a real shortfall/skip in the destructive tone, and
-// an off-plan bonus in the brand primary.
-const VERDICT_TONE: Record<VerdictBucket, string> = {
-  over: "border-l-emerald-500 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300",
-  complete: "border-l-emerald-500 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300",
-  close: "border-l-amber-500 bg-amber-500/10 text-amber-800 dark:text-amber-300",
-  short: "border-l-destructive bg-destructive/10 text-destructive",
-  skipped: "border-l-destructive bg-destructive/10 text-destructive",
-  bonus: "border-l-primary bg-primary/10 text-primary",
+// Tone per verdict bucket for the post-log coach verdict — praise reads as
+// success (green), a near miss neutral, a real shortfall/skip destructive, and
+// an off-plan bonus in the brand accent. Rendered on the CoachNote surface.
+const VERDICT_TONE: Record<VerdictBucket, CoachTone> = {
+  over: "success",
+  complete: "success",
+  close: "neutral",
+  short: "destructive",
+  skipped: "destructive",
+  bonus: "accent",
 };
 
 // Task #306: per-kind eyebrow above the "Today's Mission" header so the

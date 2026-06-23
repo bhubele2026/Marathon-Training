@@ -2,7 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Activity, Beef, Flame, Sparkles, Wheat, Droplet } from "lucide-react";
+import { Activity, Flame, Sparkles } from "lucide-react";
+import { SectionHeader } from "@/components/studio/section-header";
+import { StatReadout } from "@/components/studio/stat-readout";
+import { CoachNote } from "@/components/studio/coach-note";
 
 // R6. The reactive "Eat today" block on the Today page. Surfaces the AI's
 // per-day ADJUSTED calorie + macro target (which reacts to the day's planned
@@ -12,8 +15,9 @@ import { Activity, Beef, Flame, Sparkles, Wheat, Droplet } from "lucide-react";
 // (and is trivially mockable in today.test.tsx, which renders Today without
 // a QueryClientProvider).
 //
-// These routes are hand-fetched (the nutrition slice isn't in openapi.yaml),
-// matching the convention in nutrition.tsx / goals.tsx.
+// Score-first (Phase 3): calories is the single hero readout in accent; the
+// macros are quiet neutral StatReadouts; the rationale + training notes ride
+// the CoachNote surface. One orange job per card — the calories number.
 
 export type DayTarget = {
   date: string;
@@ -52,44 +56,24 @@ function fmt(n: number): string {
   return n.toLocaleString();
 }
 
-function MacroLine({
-  Icon,
+// A quiet supporting macro readout: mono value, "/ target unit" suffix.
+function MacroStat({
   label,
   target,
   actual,
   unit,
-  glow = false,
 }: {
-  Icon: typeof Flame;
   label: string;
   target: number;
   actual: number | null;
   unit: string;
-  glow?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
-        <Icon className="h-3.5 w-3.5 text-primary" />
-        {label}
-      </div>
-      <div
-        className={
-          "text-2xl font-extrabold tabular-nums leading-none" +
-          (glow ? " glow-primary" : "")
-        }
-      >
-        {actual != null ? (
-          <>
-            <span className="text-primary">{fmt(actual)}</span>
-            <span className="text-muted-foreground"> / {fmt(target)}</span>
-          </>
-        ) : (
-          <span className="text-primary">{fmt(target)}</span>
-        )}
-        <span className="ml-1 text-sm font-bold text-muted-foreground">{unit}</span>
-      </div>
-    </div>
+    <StatReadout
+      label={label}
+      value={fmt(actual != null ? actual : target)}
+      unit={actual != null ? `/ ${fmt(target)} ${unit}` : unit}
+    />
   );
 }
 
@@ -115,25 +99,21 @@ export function EatToday({ date }: { date: string }) {
   // than render a wrong/empty number.
   if (data.needsBaseline || !data.adjusted) {
     return (
-      <Card
-        className="border-dashed border-2 bg-muted/40"
-        data-testid="card-eat-today-needs-baseline"
-      >
+      <Card variant="flush" className="border-2 border-dashed border-card-border" data-testid="card-eat-today-needs-baseline">
         <CardContent className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Flame className="h-6 w-6 text-primary" />
             <div>
-              <p className="text-sm font-bold tracking-wider text-primary">
+              <p className="font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 Eat today
               </p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[13px] text-muted-foreground">
                 Set up nutrition to see today's reactive calorie + macro target.
               </p>
             </div>
           </div>
           <Button
             variant="outline"
-            className="font-bold tracking-wider"
             onClick={() => window.location.assign("/goals")}
             data-testid="button-eat-today-setup"
           >
@@ -150,85 +130,64 @@ export function EatToday({ date }: { date: string }) {
   const calDelta = data.delta?.cal ?? 0;
 
   return (
-    <Card
-      className="border-primary/20 bg-primary/5 border-l-4 border-l-primary"
-      data-testid="card-eat-today"
-    >
-      <CardContent className="p-6 space-y-4">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Flame className="h-5 w-5 text-primary" />
-            <p className="text-sm font-bold tracking-wider text-primary">
-              Eat today
-            </p>
+    <Card data-testid="card-eat-today">
+      <CardContent className="p-6 space-y-5">
+        <SectionHeader
+          eyebrow="Eat today"
+          action={
+            baseline && calDelta !== 0 ? (
+              <span
+                className="font-mono text-[12px] tabular-nums text-muted-foreground"
+                data-testid="text-eat-today-recomp"
+              >
+                baseline {fmt(baseline.cal)} → today{" "}
+                <span className="font-semibold text-foreground">{fmt(adjusted.cal)}</span> kcal
+                {data.source === "actual" ? " · from logged session" : ""}
+              </span>
+            ) : undefined
+          }
+        />
+
+        {/* Score-first: calories is the hero, in the accent + instrument font. */}
+        <div className="flex flex-col gap-1">
+          <span className="font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            Calories
+          </span>
+          <div className="flex items-baseline gap-2">
+            <span className="glow-primary font-mono text-4xl font-semibold leading-none tabular-nums tracking-[-0.02em] text-primary sm:text-5xl">
+              {fmt(actual != null ? actual.cal : adjusted.cal)}
+            </span>
+            <span className="text-sm font-medium text-muted-foreground">
+              {actual != null ? `/ ${fmt(adjusted.cal)} kcal` : "kcal"}
+            </span>
           </div>
-          {/* baseline → adjusted readout makes the reactivity visible */}
-          {baseline && calDelta !== 0 && (
-            <p
-              className="text-xs text-muted-foreground tabular-nums"
-              data-testid="text-eat-today-recomp"
-            >
-              baseline {fmt(baseline.cal)} → today{" "}
-              <span className="font-bold text-foreground">{fmt(adjusted.cal)}</span> kcal
-              {data.source === "actual" ? " · from logged session" : ""}
-            </p>
-          )}
         </div>
 
-        <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-          <MacroLine
-            Icon={Flame}
-            label="Calories"
-            target={adjusted.cal}
-            actual={actual?.cal ?? null}
-            unit="kcal"
-            glow
-          />
-          <MacroLine
-            Icon={Beef}
-            label="Protein"
-            target={adjusted.protein}
-            actual={actual?.protein ?? null}
-            unit="g"
-          />
-          <MacroLine
-            Icon={Wheat}
-            label="Carbs"
-            target={adjusted.carbs}
-            actual={actual?.carbs ?? null}
-            unit="g"
-          />
-          <MacroLine
-            Icon={Droplet}
-            label="Fat"
-            target={adjusted.fat}
-            actual={actual?.fat ?? null}
-            unit="g"
-          />
+        {/* Supporting macros — quiet, neutral. */}
+        <div className="grid grid-cols-3 gap-x-6 gap-y-4">
+          <MacroStat label="Protein" target={adjusted.protein} actual={actual?.protein ?? null} unit="g" />
+          <MacroStat label="Carbs" target={adjusted.carbs} actual={actual?.carbs ?? null} unit="g" />
+          <MacroStat label="Fat" target={adjusted.fat} actual={actual?.fat ?? null} unit="g" />
         </div>
 
         {data.rationale && (
-          <p
-            className="text-sm text-muted-foreground border-l-2 border-primary/40 pl-3 flex items-start gap-2"
-            data-testid="text-eat-today-rationale"
-          >
-            <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
-            <span>{data.rationale}</span>
-          </p>
+          <div data-testid="text-eat-today-rationale">
+            <CoachNote icon={Sparkles}>{data.rationale}</CoachNote>
+          </div>
         )}
 
         {/* What drove today's target — the logged session + load, plus the
-            explicit reassurance that the bump tracks training load, NOT the
-            (inflated) calories your devices say you burned. */}
+            reassurance that the bump tracks training load, NOT device-estimated
+            calories burned. */}
         {data.training && data.training.summary && data.training.load > 0 && (
           <p
-            className="text-xs text-muted-foreground flex items-start gap-2"
+            className="flex items-start gap-2 text-[13px] text-muted-foreground"
             data-testid="text-eat-today-training"
           >
-            <Activity className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
+            <Activity className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <span>
               Today's training: {data.training.summary} ·{" "}
-              <span className="font-bold text-foreground tabular-nums">
+              <span className="font-mono font-semibold tabular-nums text-foreground">
                 load {data.training.load}
               </span>
               .{" "}
