@@ -1,6 +1,12 @@
 import { Router, type IRouter, type Request } from "express";
-import { db, nutritionDaysTable, type NutritionDayRow } from "@workspace/db";
-import { desc, eq, gte } from "drizzle-orm";
+import {
+  db,
+  nutritionDaysTable,
+  nutritionDayTargetsTable,
+  nutritionistReportsTable,
+  type NutritionDayRow,
+} from "@workspace/db";
+import { desc, eq, gte, lt } from "drizzle-orm";
 import { getDayTarget, isValidDate } from "../lib/nutrition-day-target";
 
 // Daily calories + protein synced from a food tracker (MyNetDiary → Apple
@@ -232,6 +238,37 @@ router.get("/nutrition/day/:date", async (req, res): Promise<void> => {
   }
   const result = await getDayTarget(date);
   res.json(result);
+});
+
+// POST /api/nutrition/reset — "start nutrition tracking fresh from this date".
+// Deletes every daily nutrition log STRICTLY BEFORE `before` (so that date and
+// everything after it is kept), then clears the cached AI nutritionist report
+// and the stale pre-cutoff per-day target cache so the analysis rebuilds from
+// the new window on next load. Plan, body measurements, and workouts are NOT
+// touched. `before` defaults to today (UTC) when omitted/invalid.
+//
+// Same-origin maintenance action triggered from the Nutrition page button,
+// matching the unauthenticated DELETE pattern on measurements/workouts (the
+// NUTRITION_TOKEN gate is specific to the public Apple-Shortcut ingest route).
+router.post("/nutrition/reset", async (req, res): Promise<void> => {
+  const raw = (req.body ?? {}) as { before?: unknown };
+  const before =
+    typeof raw.before === "string" && isValidDate(raw.before)
+      ? raw.before
+      : todayUtc();
+
+  const deleted = await db
+    .delete(nutritionDaysTable)
+    .where(lt(nutritionDaysTable.date, before))
+    .returning({ date: nutritionDaysTable.date });
+
+  // Bust the caches that summarized the now-deleted history.
+  await db.delete(nutritionistReportsTable);
+  await db
+    .delete(nutritionDayTargetsTable)
+    .where(lt(nutritionDayTargetsTable.date, before));
+
+  res.json({ before, deletedDays: deleted.length });
 });
 
 export default router;

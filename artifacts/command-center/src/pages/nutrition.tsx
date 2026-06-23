@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Beef, Droplet, Flame, RefreshCw, Sparkles, Wheat } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { NutritionistPanel } from "@/components/nutritionist-panel";
+import { ResetNutritionButton } from "@/components/reset-nutrition-button";
 
 // These routes are intentionally hand-fetched rather than going through the
 // generated api-client: the nutrition slice isn't in openapi.yaml, so we hit
@@ -549,6 +550,10 @@ export default function Nutrition() {
           )}
         </CardContent>
       </Card>
+
+      {/* Maintenance: start nutrition tracking fresh from a chosen date
+          (clears earlier logs + rebuilds the AI read; plan/body/workouts kept). */}
+      <ResetNutritionButton />
     </div>
   );
 }
