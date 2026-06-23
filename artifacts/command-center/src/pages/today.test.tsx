@@ -108,6 +108,14 @@ vi.mock("@/components/coach-line", () => ({
   ),
 }));
 
+// NutritionistPanel calls useQuery; stub it so Today keeps rendering without a
+// QueryClientProvider. Its own behavior is covered separately.
+vi.mock("@/components/nutritionist-panel", () => ({
+  NutritionistPanel: ({ variant }: { variant?: string }) => (
+    <div data-testid="nutritionist-panel-stub" data-variant={variant} />
+  ),
+}));
+
 vi.mock("@/components/race-week-banner", () => ({
   ChecklistNudge: () => null,
 }));

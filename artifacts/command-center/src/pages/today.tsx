@@ -32,6 +32,7 @@ import { CheckCircle2, Activity, Trash2, Edit, Zap, Pencil, XCircle, Rocket, Spa
 import { useMissionActions } from "@/hooks/use-mission-actions";
 import { QuickLogActivity } from "@/components/quick-log-activity";
 import { EatToday } from "@/components/eat-today";
+import { NutritionistPanel } from "@/components/nutritionist-panel";
 import { TimeOfDayBadge } from "@/components/time-of-day-badge";
 import { PlannedBreakdown } from "@/components/planned-breakdown";
 import { ActualBreakdown } from "@/components/actual-breakdown";
@@ -272,6 +273,11 @@ export default function Today() {
           session. Refreshes when a workout is logged via the day-target query
           key invalidation in useMissionActions. */}
       <EatToday date={today.date} />
+
+      {/* Compact daily nutritionist verdict — protein status + the coach's
+          one-line read, with a link into the full body-comp analysis on the
+          Nutrition page. */}
+      <NutritionistPanel variant="today" />
 
       {today.nextScheduledRace &&
         today.nextScheduledRace.raceDate === today.date &&

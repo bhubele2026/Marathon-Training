@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Beef, Droplet, Flame, RefreshCw, Sparkles, Wheat } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { NutritionistPanel } from "@/components/nutritionist-panel";
 
 // These routes are intentionally hand-fetched rather than going through the
 // generated api-client: the nutrition slice isn't in openapi.yaml, so we hit
@@ -417,6 +418,11 @@ export default function Nutrition() {
           Calories and macros synced from your food tracker via Apple Health.
         </p>
       </div>
+
+      {/* AI Nutritionist deep-dive — protein adequacy, body-composition
+          diagnosis (where you are, what you should see, why you may not be),
+          fuelling, and concrete next moves. Reads the server-cached analysis. */}
+      <NutritionistPanel variant="full" weeks={8} />
 
       {/* Today's four macros vs target. Phase 6: de-boxed — the rings sit on
           the page under a quiet hairline header, not stranded in a giant
