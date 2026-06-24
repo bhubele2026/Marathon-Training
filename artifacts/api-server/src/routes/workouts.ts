@@ -582,15 +582,19 @@ router.post("/workouts/import", async (req, res): Promise<void> => {
         ? item.equipment
         : mapped.equipment;
 
-    // Duration in minutes, with an end-vs-start fallback: if the payload's
-    // duration field was missing/zero (some Peloton/Tonal exports omit it),
-    // derive it from start→end so a real workout never lands at 0 min.
-    let durationMin = num(item.durationMin);
+    // Duration in minutes. PREFER end − start: HAE always sends both, and the
+    // elapsed span is unit-independent — immune to the `duration` field being
+    // missing OR in unexpected units (HAE has been sending minutes where the
+    // code expected seconds, collapsing a 10-min workout to ~0.17 → "0 min").
+    // Only fall back to the payload's parsed duration when there's no usable
+    // start/end span.
+    let durationMin: number | null = null;
+    const endMs = typeof item.end === "string" ? parseStartMs(item.end) : NaN;
+    if (!Number.isNaN(endMs) && endMs > startMs) {
+      durationMin = Math.round(((endMs - startMs) / 60000) * 10) / 10;
+    }
     if (durationMin == null || durationMin === 0) {
-      const endMs = typeof item.end === "string" ? parseStartMs(item.end) : NaN;
-      if (!Number.isNaN(endMs) && endMs > startMs) {
-        durationMin = Math.round(((endMs - startMs) / 60000) * 10) / 10;
-      }
+      durationMin = num(item.durationMin);
     }
     const distanceMi = num(item.distanceMi);
     const avgHrRaw = num(item.avgHr);
