@@ -28,6 +28,12 @@ const badgeVariants = cva(
           "border-success/30 bg-success/10 text-success",
         neutral:
           "border-border bg-muted/60 text-muted-foreground",
+        // `azure` is the named alias of the soft accent tint (design law's one
+        // loud color); `warning` is the amber heads-up tint.
+        azure:
+          "border-primary/30 bg-primary/10 text-primary",
+        warning:
+          "border-warning/30 bg-warning/10 text-warning",
       },
     },
     defaultVariants: {

@@ -115,7 +115,7 @@ export function TrendArea({
           minTickGap={24}
           tickFormatter={xTickFormatter}
           tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-          className="font-mono"
+          className="tabular-nums"
         />
         <YAxis
           domain={domain}
@@ -125,7 +125,7 @@ export function TrendArea({
           tickMargin={6}
           tickFormatter={(v) => fmt(Number(v))}
           tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-          className="font-mono"
+          className="tabular-nums"
         />
         <ChartTooltip
           cursor={{ stroke: "hsl(var(--border))" }}

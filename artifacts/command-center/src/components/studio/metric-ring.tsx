@@ -2,11 +2,21 @@ import * as React from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
-// MetricRing — a refined progress ring with an instrument-readout center value.
-// `hero` enlarges it and uses the accent arc on a muted track; non-hero rings
-// are smaller with a neutral track and a THIN accent arc. All numerals are
-// JetBrains Mono (tabular). Phase 8 layers the fill-on-mount motion; this is the
-// static, reduced-motion-safe base.
+// MetricRing — a refined progress ring with a big friendly center value.
+// `hero` enlarges it and uses the azure arc on a muted track; non-hero rings
+// are smaller with a neutral track and a THIN azure arc. Numerals are the
+// display face (Plus Jakarta Sans, tabular) — the bright signature, NOT mono.
+// Optional `macros` render concentric pastel arcs inside the azure hero arc
+// (e.g. protein/carbs/fat over a calorie ring), each in its fixed metric color.
+// Phase 12 layers the fill-on-mount motion; this is the reduced-motion-safe base.
+
+export interface MetricRingArc {
+  value: number | null;
+  goal: number | null;
+  /** A CSS color, typically `hsl(var(--chart-2))` etc. */
+  color: string;
+  label?: string;
+}
 
 export interface MetricRingProps {
   value: number | null;
@@ -14,7 +24,14 @@ export interface MetricRingProps {
   unit?: string;
   label: string;
   hero?: boolean;
+  /** Concentric pastel arcs drawn inside the primary arc (macros over calories). */
+  macros?: MetricRingArc[];
   className?: string;
+}
+
+function clamp01(value: number | null, goal: number | null): number {
+  if (value == null || goal == null || goal <= 0) return 0;
+  return Math.max(0, Math.min(1, value / goal));
 }
 
 export function MetricRing({
@@ -23,16 +40,21 @@ export function MetricRing({
   unit,
   label,
   hero = false,
+  macros,
   className,
 }: MetricRingProps) {
   const size = hero ? 168 : 108;
   const stroke = hero ? 11 : 7;
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const hasData = value != null && goal != null && goal > 0;
-  const progress = hasData ? Math.max(0, Math.min(1, (value as number) / (goal as number))) : 0;
-  const dashoffset = c * (1 - progress);
   const reduced = useReducedMotion();
+
+  const outerR = (size - stroke) / 2;
+  const outerC = 2 * Math.PI * outerR;
+  const progress = clamp01(value, goal);
+
+  // Macro arcs step inward from the primary arc by a fixed gap.
+  const macroStroke = hero ? 6 : 4;
+  const macroGap = hero ? 5 : 3;
+  const arcs = macros ?? [];
 
   return (
     <div
@@ -46,37 +68,72 @@ export function MetricRing({
         className="-rotate-90"
         aria-hidden="true"
       >
-        {/* track */}
+        {/* primary track */}
         <circle
           cx={size / 2}
           cy={size / 2}
-          r={r}
+          r={outerR}
           fill="none"
           stroke={hero ? "hsl(var(--muted))" : "hsl(var(--border))"}
           strokeWidth={stroke}
         />
-        {/* accent arc — fills on mount (full -> target), instant on reduced motion */}
         {progress > 0 ? (
           <motion.circle
             cx={size / 2}
             cy={size / 2}
-            r={r}
+            r={outerR}
             fill="none"
             stroke="hsl(var(--primary))"
             strokeWidth={hero ? stroke : stroke - 1}
             strokeLinecap="round"
-            strokeDasharray={c}
-            initial={{ strokeDashoffset: reduced ? dashoffset : c }}
-            animate={{ strokeDashoffset: dashoffset }}
+            strokeDasharray={outerC}
+            initial={{ strokeDashoffset: reduced ? outerC * (1 - progress) : outerC }}
+            animate={{ strokeDashoffset: outerC * (1 - progress) }}
             transition={reduced ? { duration: 0 } : { duration: 0.7, ease: "easeOut" }}
           />
         ) : null}
+
+        {/* concentric macro arcs */}
+        {arcs.map((arc, i) => {
+          const r = outerR - (stroke / 2 + macroGap + macroStroke / 2) - i * (macroStroke + macroGap);
+          if (r <= macroStroke) return null;
+          const circ = 2 * Math.PI * r;
+          const p = clamp01(arc.value, arc.goal);
+          return (
+            <React.Fragment key={arc.label ?? i}>
+              <circle
+                cx={size / 2}
+                cy={size / 2}
+                r={r}
+                fill="none"
+                stroke="hsl(var(--muted))"
+                strokeWidth={macroStroke}
+                opacity={0.5}
+              />
+              {p > 0 ? (
+                <motion.circle
+                  cx={size / 2}
+                  cy={size / 2}
+                  r={r}
+                  fill="none"
+                  stroke={arc.color}
+                  strokeWidth={macroStroke}
+                  strokeLinecap="round"
+                  strokeDasharray={circ}
+                  initial={{ strokeDashoffset: reduced ? circ * (1 - p) : circ }}
+                  animate={{ strokeDashoffset: circ * (1 - p) }}
+                  transition={reduced ? { duration: 0 } : { duration: 0.7, ease: "easeOut", delay: 0.05 * (i + 1) }}
+                />
+              ) : null}
+            </React.Fragment>
+          );
+        })}
       </svg>
 
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 px-2 text-center">
         <span
           className={cn(
-            "font-mono font-semibold leading-none tabular-nums tracking-[-0.01em] text-foreground",
+            "font-display font-extrabold leading-none tabular-nums tracking-tight text-foreground",
             hero ? "text-3xl" : "text-xl",
           )}
         >
