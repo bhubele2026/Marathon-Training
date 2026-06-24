@@ -26,7 +26,7 @@
 // Task #137: typography aligned with PrimaryMetricDisplay so the slim
 // card header and the expanded breakdown read as one design system —
 // tracking-wider muted labels, font-black primary-tone TOTAL,
-// font-mono semibold values for the secondary buckets. Tile gaps were
+// tabular-nums semibold values for the secondary buckets. Tile gaps were
 // tightened (gap-x-5 compact, gap-x-7 prominent) to keep the row
 // scannable inside the disclosure gutter.
 
@@ -133,7 +133,7 @@ export function PlannedBreakdown({
                 "font-black leading-tight",
                 c.key === "total"
                   ? "text-2xl text-primary"
-                  : "text-xl font-mono",
+                  : "text-xl tabular-nums",
               )}
               data-testid={tid(`breakdown-${c.key}`)}
             >
@@ -141,7 +141,7 @@ export function PlannedBreakdown({
             </p>
             {c.detail && (
               <p
-                className="text-[10px] text-muted-foreground font-mono mt-0.5 tracking-wider"
+                className="text-[10px] text-muted-foreground tabular-nums mt-0.5 tracking-wider"
                 data-testid={tid(`breakdown-${c.key}-detail`)}
               >
                 {c.detail}
@@ -174,14 +174,14 @@ export function PlannedBreakdown({
               "leading-tight block",
               c.key === "total"
                 ? "text-base font-black text-primary"
-                : "text-sm font-mono font-semibold",
+                : "text-sm tabular-nums font-semibold",
             )}
             data-testid={tid(`breakdown-${c.key}`)}
           >
             {formatDuration(c.value)}
             {c.detail && (
               <span
-                className="text-[10px] text-muted-foreground font-mono ml-1 font-normal"
+                className="text-[10px] text-muted-foreground tabular-nums ml-1 font-normal"
                 data-testid={tid(`breakdown-${c.key}-detail`)}
               >
                 · {c.detail}

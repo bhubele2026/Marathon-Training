@@ -73,8 +73,8 @@ describe("RunTargetLine — race-week pace chip toned per race kind (Task #227)"
   it("marathon → Z3 amber tone", () => {
     const chip = renderRaceChip({ distanceMi: 26.2, pace: "11:30", zoneBucket: 3 });
     expect(chip.getAttribute("data-zone-bucket")).toBe("3");
-    expect(chip.className).toContain("border-amber-500/40");
-    expect(chip.className).toContain("bg-amber-500/10");
+    expect(chip.className).toContain("border-warning/40");
+    expect(chip.className).toContain("bg-warning/10");
     // Legacy primary tone must NOT leak through when toned.
     expect(chip.className).not.toContain("border-primary/30");
     expect(chip.className).not.toContain("bg-primary/5");
@@ -85,15 +85,15 @@ describe("RunTargetLine — race-week pace chip toned per race kind (Task #227)"
   it("half → Z3 amber tone (paired with marathon as race-pace per task #227 brief)", () => {
     const chip = renderRaceChip({ distanceMi: 13.1, pace: "11:30", zoneBucket: 3 });
     expect(chip.getAttribute("data-zone-bucket")).toBe("3");
-    expect(chip.className).toContain("border-amber-500/40");
-    expect(chip.className).toContain("bg-amber-500/10");
+    expect(chip.className).toContain("border-warning/40");
+    expect(chip.className).toContain("bg-warning/10");
   });
 
   it("10K → Z4 orange tone (threshold)", () => {
     const chip = renderRaceChip({ distanceMi: 6.2, pace: "11:00", zoneBucket: 4 });
     expect(chip.getAttribute("data-zone-bucket")).toBe("4");
-    expect(chip.className).toContain("border-orange-500/40");
-    expect(chip.className).toContain("bg-orange-500/10");
+    expect(chip.className).toContain("border-warning/40");
+    expect(chip.className).toContain("bg-warning/10");
     expect(screen.getByTestId("race-target-primary").textContent).toContain("11:00/mi");
   });
 

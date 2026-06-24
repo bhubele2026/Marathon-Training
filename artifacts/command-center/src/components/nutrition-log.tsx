@@ -113,12 +113,12 @@ export function NutritionLog({
                   data-testid={`log-row-${e.date}`}
                 >
                   <TableCell className="font-medium whitespace-nowrap">{fmtDate(e.date)}</TableCell>
-                  <TableCell className="text-right font-mono font-bold text-primary">{num(e.calories)}</TableCell>
-                  <TableCell className="text-right font-mono">{num(e.proteinG)}{e.proteinG != null ? " g" : ""}</TableCell>
-                  <TableCell className="text-right font-mono">{num(e.carbsG)}{e.carbsG != null ? " g" : ""}</TableCell>
-                  <TableCell className="text-right font-mono">{num(e.fatG)}{e.fatG != null ? " g" : ""}</TableCell>
-                  <TableCell className="text-right font-mono">{mlToOz(e.waterMl)}</TableCell>
-                  <TableCell className="text-right font-mono">{num(e.sodiumMg)}{e.sodiumMg != null ? " mg" : ""}</TableCell>
+                  <TableCell className="text-right tabular-nums font-bold text-primary">{num(e.calories)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{num(e.proteinG)}{e.proteinG != null ? " g" : ""}</TableCell>
+                  <TableCell className="text-right tabular-nums">{num(e.carbsG)}{e.carbsG != null ? " g" : ""}</TableCell>
+                  <TableCell className="text-right tabular-nums">{num(e.fatG)}{e.fatG != null ? " g" : ""}</TableCell>
+                  <TableCell className="text-right tabular-nums">{mlToOz(e.waterMl)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{num(e.sodiumMg)}{e.sodiumMg != null ? " mg" : ""}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

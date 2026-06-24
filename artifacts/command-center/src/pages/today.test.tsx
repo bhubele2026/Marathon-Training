@@ -572,7 +572,7 @@ describe("Today page — pre-launch countdown", () => {
 describe("Today page — HR zone swatch coverage (task #166)", () => {
   // Same run-shaped plan day used across the swatch tests. Long Run on
   // week 4 maps to intensityBucket=2, so hr_zones mode renders
-  // "Zone 2 · 120-140 bpm" with the bg-emerald-500 swatch.
+  // "Zone 2 · 120-140 bpm" with the bg-success swatch.
   const runPlan = {
     ...firstSession,
     sourceEntryIndex: 0,
@@ -616,7 +616,7 @@ describe("Today page — HR zone swatch coverage (task #166)", () => {
     // bucket=2 → emerald token from HR_ZONE_COLORS. Asserted here so
     // the mapping locked in by run-target.test.ts is also enforced
     // end-to-end on the actual rendered DOM.
-    expect(swatch.className).toContain("bg-emerald-500");
+    expect(swatch.className).toContain("bg-success");
     // Decorative — a screen reader shouldn't announce the swatch.
     expect(swatch.getAttribute("aria-hidden")).toBe("true");
   });
@@ -655,7 +655,7 @@ describe("Today page — HR zone swatch coverage (task #166)", () => {
     rerender(<Today />);
     const swatch = screen.getByTestId("today-plan-0-run-target-zone-swatch");
     expect(swatch).toBeTruthy();
-    expect(swatch.className).toContain("bg-emerald-500");
+    expect(swatch.className).toContain("bg-success");
 
     // Flip back to a non-HR mode → swatch should disappear again.
     runTargetingModeRef.current = "effort";
@@ -680,7 +680,7 @@ describe("Today page — HR zone swatch coverage (task #166)", () => {
 describe("Today page — HR zone swatch coverage on first-session and logged-session surfaces (task #167)", () => {
   // Run-shaped firstSession used by the pre-launch preview tests. Long
   // Run on week 4 maps to intensityBucket=2 → hr_zones renders
-  // "Zone 2 · 120-140 bpm" with the bg-emerald-500 swatch (matches the
+  // "Zone 2 · 120-140 bpm" with the bg-success swatch (matches the
   // Mission Brief / week-detail swatch tests above).
   const firstSessionRun = {
     ...firstSession,
@@ -833,7 +833,7 @@ describe("Today page — HR zone swatch coverage on first-session and logged-ses
 });
 
 // Task #170: every existing per-surface swatch test only exercises one
-// bucket (Long Run / week 4 → bucket 2 → bg-emerald-500), so the other
+// bucket (Long Run / week 4 → bucket 2 → bg-success), so the other
 // four entries in HR_ZONE_COLORS (slate-400 / amber-400 / orange-500 /
 // red-500 for buckets 1, 3, 4, 5) were only locked in by the unit test
 // on HR_ZONE_COLORS itself. A regression that wired the wrong bucket

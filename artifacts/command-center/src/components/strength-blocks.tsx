@@ -81,7 +81,7 @@ export function StrengthBlocks({
                 </span>
               )}
             </div>
-            <div className="shrink-0 text-right font-mono tabular-nums">
+            <div className="shrink-0 text-right tabular-nums tabular-nums">
               <span
                 className={cn(
                   "text-foreground",

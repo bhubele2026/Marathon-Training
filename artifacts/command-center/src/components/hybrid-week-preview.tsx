@@ -32,10 +32,10 @@ export interface HybridWeekPreviewProps {
 
 const SLOT_TONE = {
   rest: "text-muted-foreground",
-  lift: "text-amber-600 dark:text-amber-400",
+  lift: "text-warning",
   run: "text-sky-600 dark:text-sky-400",
-  "race-prep": "text-amber-700 dark:text-amber-300",
-  race: "text-amber-700 dark:text-amber-300 font-bold",
+  "race-prep": "text-warning",
+  race: "text-warning font-bold",
 } as const;
 
 const RUN_INTENSITY_TAG = {
@@ -100,7 +100,7 @@ export function HybridWeekPreview({
         </div>
         {preview.isRaceWeek && (
           <span
-            className="rounded bg-amber-500/15 px-1 py-px text-[9px] font-mono tracking-wider text-amber-700 dark:text-amber-300 flex items-center gap-1"
+            className="rounded bg-warning/15 px-1 py-px text-[9px] tabular-nums tracking-wider text-warning flex items-center gap-1"
             data-testid={`${tidPrefix}-badge`}
           >
             <Trophy className="h-2.5 w-2.5" /> Race Day
@@ -108,7 +108,7 @@ export function HybridWeekPreview({
         )}
         {showCutbackBadge && (
           <span
-            className="rounded bg-amber-500/15 px-1 py-px text-[9px] font-mono tracking-wider text-amber-700 dark:text-amber-300"
+            className="rounded bg-warning/15 px-1 py-px text-[9px] tabular-nums tracking-wider text-warning"
             data-testid={`${tidPrefix}-cutback`}
           >
             Cutback
@@ -135,9 +135,9 @@ export function HybridWeekPreview({
           // viewing the marathon Sunday.
           const cellClass =
             s.kind === "race"
-              ? "rounded border border-amber-500/60 bg-amber-500/10 ring-1 ring-amber-500/30 p-1 text-center"
+              ? "rounded border border-warning/60 bg-warning/10 ring-1 ring-warning/30 p-1 text-center"
               : s.kind === "race-prep"
-                ? "rounded border border-amber-500/40 bg-amber-500/5 p-1 text-center"
+                ? "rounded border border-warning/40 bg-warning/5 p-1 text-center"
                 : "rounded border bg-background p-1 text-center";
           return (
             <div
@@ -146,7 +146,7 @@ export function HybridWeekPreview({
               data-testid={`${tidPrefix}-${s.day.toLowerCase()}`}
               data-race-day={s.kind === "race" ? "true" : undefined}
             >
-              <div className="text-[9px] font-mono text-muted-foreground">
+              <div className="text-[9px] tabular-nums text-muted-foreground">
                 {s.day}
               </div>
               <div

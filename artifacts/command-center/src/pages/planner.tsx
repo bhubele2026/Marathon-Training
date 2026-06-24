@@ -2969,11 +2969,11 @@ export default function Planner() {
                 </p>
                 <ul className="text-xs text-foreground/90 space-y-1">
                   <li data-testid="planner-budget-preview-mon">
-                    <span className="font-mono">Mon</span> — full rest day (no
+                    <span className="tabular-nums">Mon</span> — full rest day (no
                     sessions scheduled).
                   </li>
                   <li data-testid="planner-budget-preview-weekday">
-                    <span className="font-mono">Tue–Thu</span> short days:{" "}
+                    <span className="tabular-nums">Tue–Thu</span> short days:{" "}
                     {shortInvalid ? (
                       <span className="text-destructive">
                         invalid window ({smin}–{smax} min) — min must be ≤ max
@@ -2988,7 +2988,7 @@ export default function Planner() {
                     )}
                   </li>
                   <li data-testid="planner-budget-preview-weekend">
-                    <span className="font-mono">Fri–Sun</span> long days:{" "}
+                    <span className="tabular-nums">Fri–Sun</span> long days:{" "}
                     {longInvalid ? (
                       <span className="text-destructive">
                         invalid window ({lmin}–{lmax} min) — min must be ≤ max
@@ -3063,7 +3063,7 @@ export default function Planner() {
                               {row.day}
                             </span>
                             {row.is_rest && (
-                              <span className="text-[10px] tracking-wider text-muted-foreground font-mono">
+                              <span className="text-[10px] tracking-wider text-muted-foreground tabular-nums">
                                 Rest
                               </span>
                             )}
@@ -3073,7 +3073,7 @@ export default function Planner() {
                               {row.equipment_list.map((eq) => (
                                 <span
                                   key={eq}
-                                  className="text-[9px] tracking-wider font-mono px-1.5 py-0.5 rounded border border-border/60 bg-muted/50"
+                                  className="text-[9px] tracking-wider tabular-nums px-1.5 py-0.5 rounded border border-border/60 bg-muted/50"
                                 >
                                   {eq}
                                 </span>
@@ -3100,7 +3100,7 @@ export default function Planner() {
             );
           })()}
           {!isEntriesMode && (
-            <div className="md:col-span-3 flex items-center gap-2 pt-2 border-t">
+            <div className="md:col-span-3 flex items-center gap-2 pt-2">
               <input
                 type="checkbox"
                 id="planner-marathon-toggle"
@@ -3622,7 +3622,7 @@ export default function Planner() {
                         return (
                           <Badge
                             variant="outline"
-                            className="text-[10px] border-amber-500/60 text-amber-600 dark:text-amber-400"
+                            className="text-[10px] border-warning/60 text-warning"
                             data-testid={`planner-template-${tpl.id}-below-target`}
                             title={`Peak long run ${previewPeak.toFixed(1)} mi at ${weeks}w · research target ≥${target} mi for ${tpl.goalDistance}`}
                           >
@@ -3764,7 +3764,7 @@ export default function Planner() {
                     </div>
                     {outOfRange && (
                       <p
-                        className="text-[10px] text-amber-600 dark:text-amber-400"
+                        className="text-[10px] text-warning"
                         data-testid={`planner-template-warn-${tpl.id}`}
                       >
                         Outside the published {tpl.minWeeks}–{tpl.maxWeeks}w range — server will reject save. Adjust weeks before applying.
@@ -3772,7 +3772,7 @@ export default function Planner() {
                     )}
                     {tpl.id === "custom_hybrid" ? (
                       <div
-                        className="space-y-3 border-t pt-3 mt-1"
+                        className="space-y-3 pt-3 mt-1"
                         data-testid="planner-hybrid-builder"
                       >
                         <div className="space-y-1.5">
@@ -3878,7 +3878,7 @@ export default function Planner() {
                                   <Minus className="h-3 w-3" />
                                 </Button>
                                 <span
-                                  className="min-w-[5.5rem] text-center text-[11px] font-mono tracking-wider text-muted-foreground"
+                                  className="min-w-[5.5rem] text-center text-[11px] tabular-nums tracking-wider text-muted-foreground"
                                   data-testid="planner-hybrid-preview-week-label"
                                 >
                                   Week {clampedWeek} of {blockWeeks}
@@ -4077,7 +4077,7 @@ export default function Planner() {
                                     {spec.weekInBlock}
                                     {isBaseline && hasPins && (
                                       <span
-                                        className="ml-1 rounded bg-accent/20 px-1 text-[9px] font-mono tracking-wider text-accent"
+                                        className="ml-1 rounded bg-accent/20 px-1 text-[9px] tabular-nums tracking-wider text-accent"
                                         data-testid={`${colTestId}-baseline-badge`}
                                       >
                                         BASE
@@ -4188,7 +4188,7 @@ export default function Planner() {
                                             milesDelta > 0
                                               ? "text-sky-600 dark:text-sky-400 font-semibold"
                                               : milesDelta < 0
-                                                ? "text-amber-600 dark:text-amber-400 font-semibold"
+                                                ? "text-warning font-semibold"
                                                 : "text-muted-foreground"
                                           }
                                           data-testid={`${colTestId}-delta-miles`}
@@ -4201,7 +4201,7 @@ export default function Planner() {
                                         <span
                                           className={
                                             liftsDelta > 0
-                                              ? "text-amber-600 dark:text-amber-400 font-semibold"
+                                              ? "text-warning font-semibold"
                                               : liftsDelta < 0
                                                 ? "text-sky-600 dark:text-sky-400 font-semibold"
                                                 : "text-muted-foreground"
@@ -4472,7 +4472,7 @@ export default function Planner() {
                               hybridBuilderWeeks >= 16 ? 2 : 0;
                             return (
                               <p
-                                className="text-[10px] text-amber-600 dark:text-amber-400"
+                                className="text-[10px] text-warning"
                                 data-testid="planner-hybrid-taper-fallback"
                               >
                                 {!phasedFloor
@@ -4506,7 +4506,7 @@ export default function Planner() {
                           {hybridEventDate &&
                             (!ISO_DATE_RE.test(hybridEventDate) ||
                               dayOfWeekUTC(hybridEventDate) !== 1) && (
-                              <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                              <p className="text-[10px] text-warning">
                                 Event date must be a Monday — falling back to
                                 the Weeks input above.
                               </p>
@@ -4692,7 +4692,7 @@ export default function Planner() {
                     >
                       {proj && proj.gapWeeksBefore > 0 && (
                         <div
-                          className="mb-2 text-[10px] tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1"
+                          className="mb-2 text-[10px] tracking-wider text-warning flex items-center gap-1"
                           data-testid={`planner-entry-${i}-gap-banner`}
                         >
                           ↳ {proj.gapWeeksBefore}w Recovery gap before this
@@ -4700,7 +4700,7 @@ export default function Planner() {
                         </div>
                       )}
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-mono text-muted-foreground w-6">
+                        <span className="text-xs tabular-nums text-muted-foreground w-6">
                           #{i + 1}
                         </span>
                         <div className="flex-1 min-w-0">
@@ -4709,7 +4709,7 @@ export default function Planner() {
                             {isArchived && (
                               <Badge
                                 variant="outline"
-                                className="text-[10px] border-amber-500 text-amber-700 dark:text-amber-400"
+                                className="text-[10px] border-warning text-warning"
                                 data-testid={`planner-entry-${i}-archived`}
                                 title="This template is no longer in the catalog. Existing entries still expand for compatibility, but you can't add new entries from it."
                               >
@@ -4850,7 +4850,7 @@ export default function Planner() {
                                 data-testid={`planner-entry-${i}-end-date`}
                               />
                               <span
-                                className="font-mono tabular-nums"
+                                className="tabular-nums tabular-nums"
                                 data-testid={`planner-entry-${i}-weeks-badge`}
                               >
                                 {e.weeks}w
@@ -4878,7 +4878,7 @@ export default function Planner() {
                           </p>
                           {(e.weeks < tpl.minWeeks || e.weeks > tpl.maxWeeks) && (
                             <p
-                              className="text-[10px] text-amber-600 dark:text-amber-400"
+                              className="text-[10px] text-warning"
                               data-testid={`planner-entry-${i}-out-of-range`}
                             >
                               Outside the published {tpl.minWeeks}–{tpl.maxWeeks}w range — server will reject save.
@@ -4886,7 +4886,7 @@ export default function Planner() {
                           )}
                           {entryClampHints[i] && (
                             <p
-                              className="text-[10px] text-amber-600 dark:text-amber-400"
+                              className="text-[10px] text-warning"
                               data-testid={`planner-entry-${i}-clamp-hint`}
                             >
                               Adjusted to {entryClampHints[i].clampedWeeks}w (
@@ -4917,7 +4917,7 @@ export default function Planner() {
                           data-testid={`planner-entry-${i}-end-readonly`}
                         >
                           Ends{" "}
-                          <span className="font-mono">{proj.endDateISO}</span>{" "}
+                          <span className="tabular-nums">{proj.endDateISO}</span>{" "}
                           ({e.weeks}w)
                         </div>
                       )}
@@ -4935,7 +4935,7 @@ export default function Planner() {
                   <div className="text-[10px] tracking-wider text-muted-foreground">
                     Timeline · {entriesProjectedWeeks}w total
                   </div>
-                  <div className="text-[10px] text-muted-foreground font-mono tabular-nums">
+                  <div className="text-[10px] text-muted-foreground tabular-nums tabular-nums">
                     {startDate} → {marathonDate}
                   </div>
                 </div>
@@ -5036,7 +5036,7 @@ export default function Planner() {
                               #{i + 1} {tpl?.name ?? e.templateId} · {e.weeks}w
                             </span>
                           </div>
-                          <div className="absolute inset-x-0 bottom-0 h-6 px-1.5 flex items-center justify-between text-[9px] font-mono tabular-nums text-white/90 drop-shadow-sm pointer-events-none gap-1">
+                          <div className="absolute inset-x-0 bottom-0 h-6 px-1.5 flex items-center justify-between text-[9px] tabular-nums tabular-nums text-white/90 drop-shadow-sm pointer-events-none gap-1">
                             <span className="truncate">{proj.startDateISO}</span>
                             {entryPct > 14 && (
                               <span className="truncate">{proj.endDateISO}</span>
@@ -5373,7 +5373,7 @@ export default function Planner() {
                 data-testid={`planner-block-${i}`}
               >
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-mono text-muted-foreground w-6">
+                  <span className="text-xs tabular-nums text-muted-foreground w-6">
                     #{i + 1}
                   </span>
                   <Select
@@ -5483,7 +5483,7 @@ export default function Planner() {
               <li className="border rounded-lg p-3 bg-muted/40 border-dashed">
                 <div className="flex items-center gap-2">
                   <Lock className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-xs font-mono text-muted-foreground w-6">
+                  <span className="text-xs tabular-nums text-muted-foreground w-6">
                     #{draft.length + 1}
                   </span>
                   <Badge variant="secondary">Marathon-Specific</Badge>
@@ -5518,7 +5518,7 @@ export default function Planner() {
             testId="planner-mileage-curve"
           />
           <ol
-            className="space-y-1 text-sm font-mono"
+            className="space-y-1 text-sm tabular-nums"
             data-testid="planner-preview"
           >
             {previewBlocks.map((b, i) => (
@@ -5643,7 +5643,7 @@ export default function Planner() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               Default is{" "}
-              <span className="font-mono">
+              <span className="tabular-nums">
                 {pendingApplyTemplate?.proposedStartDate}
               </span>
               {(entries ?? []).length === 0
@@ -5745,7 +5745,7 @@ export default function Planner() {
                 </p>
                 {applyClampHint && (
                   <p
-                    className="text-[10px] text-amber-600 dark:text-amber-400"
+                    className="text-[10px] text-warning"
                     data-testid="planner-pending-apply-clamp-hint"
                   >
                     Adjusted to {applyClampHint.clampedWeeks}w (
@@ -5762,13 +5762,13 @@ export default function Planner() {
               >
                 <div>
                   Race date will be{" "}
-                  <span className="font-mono">
+                  <span className="tabular-nums">
                     {pendingApplyPreview.previewRace}
                   </span>
                   {marathonDate && (
                     <>
                       {" "}(was{" "}
-                      <span className="font-mono">{marathonDate}</span>
+                      <span className="tabular-nums">{marathonDate}</span>
                       {pendingApplyPreview.weekDelta === 0
                         ? ", unchanged"
                         : pendingApplyPreview.weekDelta > 0
@@ -6101,7 +6101,7 @@ function BlockSparkline({
             cx={x(i).toFixed(1)}
             cy={y(w.totalMi).toFixed(1)}
             r={1.6}
-            className="fill-amber-400"
+            className="fill-warning"
             data-testid={`${testId}-steady-w${w.week}`}
           />
         ))}
@@ -6126,7 +6126,7 @@ function BlockSparkline({
           data-testid={`${testId}-steady-legend`}
         >
           <span
-            className="h-1.5 w-1.5 rounded-full bg-amber-400"
+            className="h-1.5 w-1.5 rounded-full bg-warning"
             aria-hidden
           />
           <span>
@@ -6202,7 +6202,7 @@ function MileageCurve({
 
   // Task #181: surface the same amber Z3 marker the per-block sparklines
   // and the plan calendar week strip already use (HR_ZONE_COLORS[3]
-  // swatch via fill-amber-400). The dot rides the total-mileage
+  // swatch via fill-warning). The dot rides the total-mileage
   // polyline at every week whose `wedSteady` is true so a runner can
   // scan the entire 52-week build at a glance and see which weeks
   // earn the Z3 stimulus. Gating is fully driven by `wedSteady` from
@@ -6320,7 +6320,7 @@ function MileageCurve({
             cx={x(w.week).toFixed(1)}
             cy={y(w.totalMi).toFixed(1)}
             r={2.25}
-            className="fill-amber-400"
+            className="fill-warning"
             data-testid={`${testId}-steady-w${w.week}`}
           />
         ))}
@@ -6331,7 +6331,7 @@ function MileageCurve({
           data-testid={`${testId}-steady-legend`}
         >
           <span
-            className="h-1.5 w-1.5 rounded-full bg-amber-400"
+            className="h-1.5 w-1.5 rounded-full bg-warning"
             aria-hidden
           />
           <span>

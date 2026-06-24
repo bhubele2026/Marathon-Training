@@ -84,15 +84,15 @@ function paceMetricFor(eq: {
 
 const PACE_STYLES: Record<PaceStatus, { bar: string; track: string; badge: string; label: string }> = {
   behind: {
-    bar: "bg-amber-500",
-    track: "bg-amber-500/15",
-    badge: "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    bar: "bg-warning",
+    track: "bg-warning/15",
+    badge: "border-warning/40 bg-warning/10 text-warning",
     label: "Behind",
   },
   "on-track": {
-    bar: "bg-emerald-500",
-    track: "bg-emerald-500/15",
-    badge: "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    bar: "bg-success",
+    track: "bg-success/15",
+    badge: "border-success/40 bg-success/10 text-success",
     label: "On track",
   },
   ahead: {
@@ -166,7 +166,7 @@ function PacingIndicator({
           style={{ width: `${fillPct}%` }}
         />
       </div>
-      <div className="mt-1 text-[10px] tracking-wider text-muted-foreground/80 font-mono">
+      <div className="mt-1 text-[10px] tracking-wider text-muted-foreground/80 tabular-nums">
         {isIdle
           ? `0 of ${planned} ${unitLabel} planned this campaign`
           : `${actual} of ${plannedToDate} ${unitLabel} due so far · ${planned} ${unitLabel} planned total`}
@@ -198,11 +198,11 @@ function PlannedActualRow({
       <div className="grid grid-cols-2 gap-2 text-xs">
         <div>
           <div className="text-[9px] tracking-wider text-muted-foreground/80">Planned</div>
-          <div className="font-mono text-base">{planned}</div>
+          <div className="tabular-nums text-base">{planned}</div>
         </div>
         <div>
           <div className="text-[9px] tracking-wider text-muted-foreground/80">Actual</div>
-          <div className="font-mono text-base">{actual}</div>
+          <div className="tabular-nums text-base">{actual}</div>
         </div>
       </div>
     </div>
@@ -267,11 +267,11 @@ export default function Equipment() {
         if (behindMachines.length === 0) {
           return (
             <Card
-              className="border-emerald-500/40 bg-emerald-500/5"
+              className="border-success/40 bg-success/5"
               data-testid="behind-machines-banner-on-track"
             >
               <CardContent className="p-4 flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                <CheckCircle2 className="h-5 w-5 text-success" />
                 <span className="font-black tracking-wider text-sm">
                   All Arsenal On Track
                 </span>
@@ -284,12 +284,12 @@ export default function Equipment() {
         }
         return (
           <Card
-            className="border-amber-500/40 bg-amber-500/5"
+            className="border-warning/40 bg-warning/5"
             data-testid="behind-machines-banner"
           >
             <CardContent className="p-5">
               <div className="flex items-center gap-2 mb-3">
-                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                <AlertTriangle className="h-5 w-5 text-warning" />
                 <span className="font-black tracking-wider text-sm">
                   {behindMachines.length} Machine{behindMachines.length === 1 ? "" : "s"} Need Attention
                 </span>
@@ -305,15 +305,15 @@ export default function Equipment() {
                       key={eq.equipment}
                       type="button"
                       onClick={() => setSelectedEquipment(eq.equipment)}
-                      className="flex items-center justify-between gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-left transition-colors hover:bg-amber-500/20"
+                      className="flex items-center justify-between gap-3 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-left transition-colors hover:bg-warning/20"
                       data-testid={`behind-machine-${eq.equipment.toLowerCase().replace(/\s+/g, "-")}`}
                     >
                       <span className="font-bold tracking-wider text-xs truncate">
                         {eq.equipment}
                       </span>
-                      <span className="text-[11px] font-mono text-amber-600 dark:text-amber-400 shrink-0 text-right">
+                      <span className="text-[11px] tabular-nums text-warning shrink-0 text-right">
                         {shortfall} session{shortfall === 1 ? "" : "s"} behind
-                        <span className="block text-[9px] tracking-wider text-amber-600/70 dark:text-amber-400/70">
+                        <span className="block text-[9px] tracking-wider text-warning/70 dark:text-warning/70">
                           {eq.sessions}/{eq.plannedToDateSessions} · {ratio}%
                         </span>
                       </span>
@@ -342,7 +342,7 @@ export default function Equipment() {
             onClick={() => setSelectedEquipment("All")}
           >
             <CardContent className="p-5">
-              <div className="flex items-center gap-2 mb-4 border-b border-border pb-2">
+              <div className="flex items-center gap-2 mb-4 pb-2">
                 <Dumbbell
                   className={cn(
                     "h-5 w-5",
@@ -396,7 +396,7 @@ export default function Equipment() {
               onClick={() => setSelectedEquipment(eq.equipment)}
             >
               <CardContent className="p-5">
-                <div className="font-black text-lg tracking-wider mb-4 border-b border-border pb-2">
+                <div className="font-black text-lg tracking-wider mb-4 pb-2">
                   {eq.equipment}
                 </div>
                 {(() => {
@@ -438,13 +438,13 @@ export default function Equipment() {
                   />
                 </div>
                 {["Peloton Bike", "Peloton Row", "Peloton Tread"].includes(eq.equipment) && eq.plannedMinutes > 0 && (
-                  <div className="mt-3 pt-3 border-t border-border" data-testid={`cardio-pace-${eq.equipment.toLowerCase().replace(/\s+/g, "-")}`}>
+                  <div className="mt-3 pt-3 " data-testid={`cardio-pace-${eq.equipment.toLowerCase().replace(/\s+/g, "-")}`}>
                     <div className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground mb-1">
                       <Timer className="h-3 w-3" />
                       Cardio Pace
                     </div>
                     <div className="flex items-center gap-3 text-xs">
-                      <span className="font-mono">
+                      <span className="tabular-nums">
                         {eq.sessions > 0
                           ? `${Math.round(eq.totalMinutes / eq.sessions)} min/session avg`
                           : "No sessions yet"}
@@ -453,8 +453,8 @@ export default function Equipment() {
                         <span className={cn(
                           "text-[10px] font-bold tracking-wider px-1.5 py-0.5 rounded",
                           eq.totalMinutes >= eq.plannedToDateMinutes * 0.85
-                            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                            : "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+                            ? "bg-success/15 text-success"
+                            : "bg-warning/15 text-warning",
                         )}>
                           {Math.round((eq.totalMinutes / eq.plannedToDateMinutes) * 100)}% of plan
                         </span>
@@ -475,7 +475,7 @@ export default function Equipment() {
                   if (sharedPrograms.length <= 1) return null;
                   return (
                     <div
-                      className="mt-3 pt-3 border-t border-border"
+                      className="mt-3 pt-3 "
                       data-testid={`equipment-card-programs-${eq.equipment.toLowerCase().replace(/\s+/g, "-")}`}
                     >
                       <div className="text-[10px] font-bold text-muted-foreground mb-1.5">
@@ -496,7 +496,7 @@ export default function Equipment() {
                               <span className="truncate font-bold tracking-wider">
                                 {p.label}
                               </span>
-                              <span className="shrink-0 font-mono text-muted-foreground">
+                              <span className="shrink-0 tabular-nums text-muted-foreground">
                                 {p.plannedSessions}× · {formatDuration(p.plannedMinutes)}
                                 {sharePct > 0 && (
                                   <span className="text-[10px] ml-1">({sharePct}%)</span>
@@ -515,7 +515,7 @@ export default function Equipment() {
         </div>
       )}
 
-      <div className="pt-6 border-t border-border">
+      <div className="pt-6 ">
         <div className="mb-4">
           <h3 className="text-xl font-bold tracking-wider">Campaign Distribution</h3>
           <p className="text-xs text-muted-foreground tracking-widest mt-1">
@@ -621,7 +621,7 @@ export default function Equipment() {
                                               className={cn(
                                                 "relative h-full cursor-default border-r border-background/30 last:border-r-0 transition-opacity hover:opacity-90",
                                                 isBehind &&
-                                                  "ring-1 ring-inset ring-amber-500/80",
+                                                  "ring-1 ring-inset ring-warning/80",
                                               )}
                                               style={{ width: `${segPct}%` }}
                                             >
@@ -650,7 +650,7 @@ export default function Equipment() {
                                               )}
                                               {isBehind && (
                                                 <div
-                                                  className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-amber-500 ring-1 ring-background"
+                                                  className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-warning ring-1 ring-background"
                                                   aria-hidden
                                                   title="Behind plan-to-date"
                                                 />
@@ -676,7 +676,7 @@ export default function Equipment() {
                                               )}
                                             </div>
                                             {isBehind && (
-                                              <div className="text-[10px] tracking-wider text-amber-600 dark:text-amber-400 font-bold mt-0.5">
+                                              <div className="text-[10px] tracking-wider text-warning font-bold mt-0.5">
                                                 Behind by {behindShortfall} session
                                                 {behindShortfall === 1 ? "" : "s"} · {actual}/
                                                 {plannedToDate} due so far
@@ -700,9 +700,9 @@ export default function Equipment() {
                                 )}
                               </div>
                               {behindPhases.length > 0 && (
-                                <div className="mt-1 flex items-start gap-1 text-[10px] tracking-wider font-bold text-amber-600 dark:text-amber-400">
+                                <div className="mt-1 flex items-start gap-1 text-[10px] tracking-wider font-bold text-warning">
                                   <span
-                                    className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"
+                                    className="mt-1 h-1.5 w-1.5 rounded-full bg-warning shrink-0"
                                     aria-hidden
                                   />
                                   <span>
@@ -716,7 +716,7 @@ export default function Equipment() {
                             </div>
                             <div
                               className={cn(
-                                "text-right font-mono text-xs leading-tight pt-1",
+                                "text-right tabular-nums text-xs leading-tight pt-1",
                                 row.total === 0 && row.actualTotal === 0 && "text-muted-foreground/50",
                               )}
                             >
@@ -744,7 +744,7 @@ export default function Equipment() {
         )}
       </div>
 
-      <div className="pt-6 border-t border-border">
+      <div className="pt-6 ">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-bold tracking-wider">Recent Activity</h3>
           {selectedEquipment !== "All" && (
@@ -794,7 +794,7 @@ export default function Equipment() {
                           <span className="block text-[10px] font-bold text-muted-foreground">
                             Distance
                           </span>
-                          <span className="font-mono font-medium">
+                          <span className="tabular-nums font-medium">
                             {formatDistance(workout.distanceMi)}
                           </span>
                         </div>
@@ -804,7 +804,7 @@ export default function Equipment() {
                           <span className="block text-[10px] font-bold text-muted-foreground">
                             Time
                           </span>
-                          <span className="font-mono font-medium">
+                          <span className="tabular-nums font-medium">
                             {formatDuration(workout.durationMin)}
                           </span>
                         </div>
@@ -814,7 +814,7 @@ export default function Equipment() {
                           <span className="block text-[10px] font-bold text-muted-foreground">
                             Load
                           </span>
-                          <span className="font-mono font-medium">
+                          <span className="tabular-nums font-medium">
                             {formatLoad(workout.totalLoad)}
                           </span>
                         </div>

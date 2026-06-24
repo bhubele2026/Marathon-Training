@@ -37,8 +37,8 @@ async function getJson<T>(url: string): Promise<T> {
 
 const TONE: Record<Finding["tone"], string> = {
   supportive: "border-l-sky-500 bg-sky-500/10",
-  positive: "border-l-emerald-500 bg-emerald-500/10",
-  sassy: "border-l-amber-500 bg-amber-500/10",
+  positive: "border-l-success bg-success/10",
+  sassy: "border-l-warning bg-warning/10",
   neutral: "border-l-muted-foreground bg-muted/40",
 };
 
@@ -79,7 +79,7 @@ export function ProgressDiagnosis({ weeks = 12 }: { weeks?: number }) {
   return (
     <Card data-testid="progress-diagnosis">
       <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-        <CardTitle className="text-sm font-bold uppercase tracking-[0.12em] flex items-center gap-2">
+        <CardTitle className="text-sm font-bold uppercase tracking-[0.08em] flex items-center gap-2">
           <Stethoscope className="h-4 w-4 text-primary" /> What's going on
         </CardTitle>
         <Button

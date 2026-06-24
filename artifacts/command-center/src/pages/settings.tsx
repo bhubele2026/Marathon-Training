@@ -259,7 +259,7 @@ export default function Settings() {
                       <div className="font-bold tracking-wider text-sm">
                         {theme.name}
                       </div>
-                      <span className="text-[10px] tracking-widest font-mono text-muted-foreground">
+                      <span className="text-[10px] tracking-widest tabular-nums text-muted-foreground">
                         {theme.number}
                       </span>
                     </div>
@@ -419,7 +419,7 @@ export default function Settings() {
                 </p>
               </div>
 
-              <div className="space-y-2 pt-2 border-t border-border">
+              <div className="space-y-2 pt-2 ">
                 <Label htmlFor="max-hr-input" className="text-xs tracking-wider font-bold">
                   Max heart rate (bpm)
                 </Label>
@@ -513,7 +513,7 @@ export default function Settings() {
                               </span>
                             </span>
                             <span
-                              className="font-mono tabular-nums text-muted-foreground"
+                              className="tabular-nums tabular-nums text-muted-foreground"
                               data-testid={`zone-preview-range-${zoneNumber}`}
                             >
                               {range ? `${range.low}-${range.high} bpm` : "—"}
@@ -526,7 +526,7 @@ export default function Settings() {
                 )}
               </div>
 
-              <div className="space-y-2 pt-2 border-t border-border">
+              <div className="space-y-2 pt-2 ">
                 <Label
                   htmlFor="resting-hr-input"
                   className="text-xs tracking-wider font-bold"
@@ -623,7 +623,7 @@ export default function Settings() {
                 </p>
               </div>
 
-              <div className="space-y-2 pt-2 border-t border-border">
+              <div className="space-y-2 pt-2 ">
                 <Label htmlFor="age-input" className="text-xs tracking-wider font-bold">
                   Don't know it? Estimate from age (220 − age)
                 </Label>
@@ -703,15 +703,15 @@ export default function Settings() {
                 </li>
                 <li>
                   Add a "Get Contents of URL" action: method{" "}
-                  <span className="font-mono text-foreground">POST</span> to{" "}
-                  <span className="font-mono text-foreground">
+                  <span className="tabular-nums text-foreground">POST</span> to{" "}
+                  <span className="tabular-nums text-foreground">
                     /api/workouts/import
                   </span>{" "}
                   on your Command Center URL.
                 </li>
                 <li>
                   Send a JSON body of{" "}
-                  <span className="font-mono text-foreground">
+                  <span className="tabular-nums text-foreground">
                     {"{ token, workouts: [...] }"}
                   </span>{" "}
                   — each workout carries its type, start time, duration,
@@ -719,9 +719,9 @@ export default function Settings() {
                 </li>
                 <li>
                   Put your ingest token in the{" "}
-                  <span className="font-mono text-foreground">token</span> field.
+                  <span className="tabular-nums text-foreground">token</span> field.
                   It must match the{" "}
-                  <span className="font-mono text-foreground">
+                  <span className="tabular-nums text-foreground">
                     NUTRITION_TOKEN
                   </span>{" "}
                   secret set on the server (the same token the nutrition sync

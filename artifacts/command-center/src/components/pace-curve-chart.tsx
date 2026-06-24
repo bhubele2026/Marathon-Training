@@ -163,7 +163,7 @@ export function PaceCurveChart({
               tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
               tickLine={false}
               axisLine={false}
-              className="font-mono"
+              className="tabular-nums"
               tickFormatter={(v) => `W${v}`}
               allowDecimals={false}
             />
@@ -173,7 +173,7 @@ export function PaceCurveChart({
               tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
               tickLine={false}
               axisLine={false}
-              className="font-mono"
+              className="tabular-nums"
               tickFormatter={fmtPaceTick}
               width={48}
             />
@@ -228,14 +228,14 @@ export function PaceCurveChart({
       </div>
       <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] tracking-wider text-muted-foreground">
         <span>
-          Start W1: <span className="text-foreground font-bold font-mono tabular-nums">{fmtPaceTick(data[0]?.easy ?? 0)}/mi</span>
+          Start W1: <span className="text-foreground font-bold tabular-nums tabular-nums">{fmtPaceTick(data[0]?.easy ?? 0)}/mi</span>
         </span>
         <span>
-          End W{totalWeeks}: <span className="text-foreground font-bold font-mono tabular-nums">{fmtPaceTick(data[data.length - 1]?.easy ?? 0)}/mi</span>
+          End W{totalWeeks}: <span className="text-foreground font-bold tabular-nums tabular-nums">{fmtPaceTick(data[data.length - 1]?.easy ?? 0)}/mi</span>
         </span>
         {raceKind ? (
           <span>
-            Race offset: <span className="text-foreground font-bold font-mono tabular-nums">+{easyOffset}s easy / +{easyOffset + longExtra}s long</span>
+            Race offset: <span className="text-foreground font-bold tabular-nums tabular-nums">+{easyOffset}s easy / +{easyOffset + longExtra}s long</span>
           </span>
         ) : null}
         {startSec === null ? (

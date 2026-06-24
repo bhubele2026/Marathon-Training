@@ -171,7 +171,7 @@ describe("Training Log — prescribed run target column (Task #140)", () => {
 // contract holds.
 describe("Training Log — HR zone swatch coverage (task #168)", () => {
   // Long Run on week 4 maps to intensityBucket=2 → hr_zones renders
-  // "Zone 2 · 120-140 bpm" with the bg-emerald-500 swatch. The history
+  // "Zone 2 · 120-140 bpm" with the bg-success swatch. The history
   // row only renders RunTargetLine when the workout has a
   // `prescribedRunTarget` snapshot, so every fixture below carries one.
   function makeRunWorkoutWithPrescribed(id: number) {
@@ -208,7 +208,7 @@ describe("Training Log — HR zone swatch coverage (task #168)", () => {
     // bucket=2 → emerald-500 from HR_ZONE_COLORS. Asserted on the
     // rendered DOM so a regression in HR_ZONE_COLORS or the bucket→
     // swatch wiring is caught end-to-end, not just at the unit level.
-    expect(swatch.className).toContain("bg-emerald-500");
+    expect(swatch.className).toContain("bg-success");
     // Decorative — a screen reader shouldn't announce the swatch.
     expect(swatch.getAttribute("aria-hidden")).toBe("true");
   });
@@ -249,7 +249,7 @@ describe("Training Log — HR zone swatch coverage (task #168)", () => {
     rerender(<Log />);
     const swatch = screen.getByTestId("log-row-202-run-target-zone-swatch");
     expect(swatch).toBeTruthy();
-    expect(swatch.className).toContain("bg-emerald-500");
+    expect(swatch.className).toContain("bg-success");
 
     // Flip back to a non-HR mode → swatch should disappear again.
     runTargetingModeRef.current = "intervals";
@@ -262,7 +262,7 @@ describe("Training Log — HR zone swatch coverage (task #168)", () => {
 
 // Task #171: lock the full HR zone color ramp on the Log page's
 // workout-history row chip. The bucket-2 swatch test above only
-// exercises Long Run / week 4 → bucket 2 → bg-emerald-500, so the
+// exercises Long Run / week 4 → bucket 2 → bg-success, so the
 // other four entries in HR_ZONE_COLORS (slate-400 / amber-400 /
 // orange-500 / red-500 for buckets 1, 3, 4, 5) were only locked in by
 // the unit test on the color map itself. A regression that wired the

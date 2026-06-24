@@ -538,7 +538,7 @@ export default function PlanBuilder() {
                     chat) — no separate Goals step. */}
                 {plan.nutrition && (
                   <div className="rounded-md bg-muted/40 p-2">
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs tabular-nums">
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 tabular-nums text-xs tabular-nums">
                       <span><span className="text-muted-foreground">Cal </span>{Math.round(plan.nutrition.calorieTarget)}</span>
                       <span><span className="text-muted-foreground">Protein </span>{Math.round(plan.nutrition.proteinTargetG)}g</span>
                       <span><span className="text-muted-foreground">Carbs </span>{Math.round(plan.nutrition.carbsTargetG)}g</span>
@@ -570,7 +570,7 @@ export default function PlanBuilder() {
                 {(warnings.length > 0 || infos.length > 0) && (
                   <div className="space-y-1">
                     {warnings.map((g, i) => (
-                      <div key={`w${i}`} className="flex items-start gap-2 text-xs text-amber-500">
+                      <div key={`w${i}`} className="flex items-start gap-2 text-xs text-warning">
                         <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                         <span>{g.message}</span>
                       </div>
@@ -596,7 +596,7 @@ export default function PlanBuilder() {
                     const trainingDays = w.days.filter((d) => !d.isRest);
                     return (
                       <div key={w.week} className="space-y-2">
-                        <div className="flex items-baseline justify-between border-b border-border pb-1">
+                        <div className="flex items-baseline justify-between pb-1">
                           <span className="text-sm font-bold tracking-tight">Week {w.week}</span>
                           <span className="text-xs text-muted-foreground">{w.phase}</span>
                         </div>
@@ -609,12 +609,12 @@ export default function PlanBuilder() {
                             <div key={`${w.week}-${d.day}`} className="space-y-1">
                               <div className="flex items-baseline justify-between gap-2">
                                 <span className="text-sm font-semibold">
-                                  <span className="text-muted-foreground mr-2 font-mono text-xs">
+                                  <span className="text-muted-foreground mr-2 tabular-nums text-xs">
                                     {d.day}
                                   </span>
                                   {d.sessionType}
                                 </span>
-                                <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
+                                <span className="shrink-0 tabular-nums text-xs text-muted-foreground tabular-nums">
                                   {mins} min
                                 </span>
                               </div>
@@ -641,7 +641,7 @@ export default function PlanBuilder() {
                   })}
                 </div>
 
-                <div className="space-y-2 border-t border-border pt-3">
+                <div className="space-y-2 pt-3">
                   {appliedOnce && (
                     <p className="text-xs text-muted-foreground">
                       Applied. Keep chatting to adjust, then re-apply to update the

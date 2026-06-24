@@ -66,7 +66,7 @@ export function PrimaryMetricDisplay({
           </span>
           {planned && (
             <span
-              className="text-muted-foreground font-mono font-bold ml-2 text-base"
+              className="text-muted-foreground tabular-nums font-bold ml-2 text-base"
               data-testid={tid("primary-metric-planned")}
             >
               / {planned.formatted}

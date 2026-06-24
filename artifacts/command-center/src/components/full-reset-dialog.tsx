@@ -66,7 +66,7 @@ export function FullResetDialog({
             Planner config back to draft. The plan stays empty until you
             re-apply a config from the Phase Planner. There is no undo.
             Type{" "}
-            <span className="font-mono font-bold">
+            <span className="tabular-nums font-bold">
               {FULL_RESET_CONFIRM_PHRASE}
             </span>{" "}
             below to confirm.

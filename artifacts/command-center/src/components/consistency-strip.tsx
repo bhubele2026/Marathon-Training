@@ -73,7 +73,7 @@ export function ConsistencyStrip({
             streak > 0 ? "text-primary" : "text-muted-foreground",
           )}
         />
-        <span className="font-mono text-xl font-semibold tabular-nums leading-none text-foreground">
+        <span className="tabular-nums text-xl font-semibold tabular-nums leading-none text-foreground">
           {streak}
         </span>
         <span className="text-xs text-muted-foreground">

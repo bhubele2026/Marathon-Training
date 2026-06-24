@@ -131,7 +131,7 @@ describe("Plan page — bike/row cardio summary (task #109)", () => {
     expect(headline.textContent).toContain("120 / 180 min cardio");
     // Task #112: in-progress (some actual, below planned) → amber tint.
     expect(headline.getAttribute("data-adherence")).toBe("in-progress");
-    expect(headline.className).toContain("amber");
+    expect(headline.className).toContain("warning");
     // Mileage headline must not render on a cardio-only week.
     expect(screen.queryByTestId("week-volume-miles-1")).toBeNull();
   });
@@ -158,7 +158,7 @@ describe("Plan page — bike/row cardio summary (task #109)", () => {
     ]);
     const headline = screen.getByTestId("week-volume-cardio-actual-1");
     expect(headline.getAttribute("data-adherence")).toBe("met");
-    expect(headline.className).toContain("emerald");
+    expect(headline.className).toContain("success");
   });
 
   it("leaves a future cardio week neutral (0 actual, planned > 0)", () => {
@@ -183,8 +183,8 @@ describe("Plan page — bike/row cardio summary (task #109)", () => {
     ]);
     const headline = screen.getByTestId("week-volume-cardio-actual-1");
     expect(headline.getAttribute("data-adherence")).toBe("neutral");
-    expect(headline.className).not.toContain("emerald");
-    expect(headline.className).not.toContain("amber");
+    expect(headline.className).not.toContain("success");
+    expect(headline.className).not.toContain("warning");
   });
 
   it("keeps the mileage headline on run-based weeks (no cardio actual/planned)", () => {
@@ -211,7 +211,7 @@ describe("Plan page — bike/row cardio summary (task #109)", () => {
     expect(headline).toBeTruthy();
     // Task #112: 12 of 20 planned mi → in-progress tint.
     expect(headline.getAttribute("data-adherence")).toBe("in-progress");
-    expect(headline.className).toContain("amber");
+    expect(headline.className).toContain("warning");
     expect(screen.queryByTestId("week-volume-cardio-actual-2")).toBeNull();
   });
 
@@ -336,7 +336,7 @@ describe("Plan page — bike/row cardio summary (task #109)", () => {
     expect(chip.textContent).toContain("Steady");
     // Same amber-400 swatch HR_ZONE_COLORS[3] uses for the Run Target
     // chip — drift would visually disconnect the calendar from Today.
-    expect(chip.className).toContain("amber");
+    expect(chip.className).toContain("warning");
     expect(screen.queryByTestId("badge-steady-week-8")).toBeNull();
   });
 
@@ -390,7 +390,7 @@ describe("Plan page — bike/row cardio summary (task #109)", () => {
     ]);
     const headline = screen.getByTestId("week-volume-miles-2");
     expect(headline.getAttribute("data-adherence")).toBe("met");
-    expect(headline.className).toContain("emerald");
+    expect(headline.className).toContain("success");
   });
 });
 

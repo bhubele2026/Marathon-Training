@@ -169,7 +169,7 @@ function Tiles({ cells, variant, testIdPrefix }: TilesProps) {
                 "font-black leading-tight",
                 c.key === "total"
                   ? "text-2xl text-primary"
-                  : "text-xl font-mono",
+                  : "text-xl tabular-nums",
               )}
               data-testid={tid(`actual-breakdown-${c.key}`)}
             >
@@ -177,7 +177,7 @@ function Tiles({ cells, variant, testIdPrefix }: TilesProps) {
             </p>
             {c.planned != null && (
               <p
-                className="text-[10px] text-muted-foreground font-mono mt-0.5 tracking-wider"
+                className="text-[10px] text-muted-foreground tabular-nums mt-0.5 tracking-wider"
                 data-testid={tid(`actual-breakdown-${c.key}-planned`)}
               >
                 / {c.planned} planned
@@ -208,7 +208,7 @@ function Tiles({ cells, variant, testIdPrefix }: TilesProps) {
               className={cn(
                 c.key === "total"
                   ? "text-base font-black text-primary"
-                  : "text-sm font-mono font-semibold",
+                  : "text-sm tabular-nums font-semibold",
               )}
               data-testid={tid(`actual-breakdown-${c.key}`)}
             >
@@ -216,7 +216,7 @@ function Tiles({ cells, variant, testIdPrefix }: TilesProps) {
             </span>
             {c.planned != null && (
               <span
-                className="text-[10px] text-muted-foreground font-mono ml-1"
+                className="text-[10px] text-muted-foreground tabular-nums ml-1"
                 data-testid={tid(`actual-breakdown-${c.key}-planned`)}
               >
                 / {c.planned}

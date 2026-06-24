@@ -31,11 +31,11 @@ describe("adherenceStatus", () => {
 
 describe("adherenceTextClass", () => {
   it("uses an emerald tone for met targets", () => {
-    expect(adherenceTextClass("met")).toContain("emerald");
+    expect(adherenceTextClass("met")).toContain("success");
   });
 
   it("uses an amber tone for in-progress targets", () => {
-    expect(adherenceTextClass("in-progress")).toContain("amber");
+    expect(adherenceTextClass("in-progress")).toContain("warning");
   });
 
   it("returns an empty class for neutral so the headline inherits the default color", () => {

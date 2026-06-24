@@ -137,7 +137,7 @@ describe("Week detail — bike/row cardio summary (task #109)", () => {
     expect(headline.textContent).toContain("95 / 180 min cardio");
     // Task #112: partial cardio actual → amber tint.
     expect(headline.getAttribute("data-adherence")).toBe("in-progress");
-    expect(headline.className).toContain("amber");
+    expect(headline.className).toContain("warning");
     expect(screen.queryByTestId("week-volume-miles")).toBeNull();
   });
 
@@ -162,7 +162,7 @@ describe("Week detail — bike/row cardio summary (task #109)", () => {
     });
     const headline = screen.getByTestId("week-volume-cardio-actual");
     expect(headline.getAttribute("data-adherence")).toBe("met");
-    expect(headline.className).toContain("emerald");
+    expect(headline.className).toContain("success");
   });
 
   it("keeps a future cardio week neutral (0 actual)", () => {
@@ -186,8 +186,8 @@ describe("Week detail — bike/row cardio summary (task #109)", () => {
     });
     const headline = screen.getByTestId("week-volume-cardio-actual");
     expect(headline.getAttribute("data-adherence")).toBe("neutral");
-    expect(headline.className).not.toContain("emerald");
-    expect(headline.className).not.toContain("amber");
+    expect(headline.className).not.toContain("success");
+    expect(headline.className).not.toContain("warning");
   });
 
   it("keeps the mileage headline on run-based weeks", () => {
@@ -213,7 +213,7 @@ describe("Week detail — bike/row cardio summary (task #109)", () => {
     expect(headline).toBeTruthy();
     // Task #112: 12 / 20 planned miles → amber tint.
     expect(headline.getAttribute("data-adherence")).toBe("in-progress");
-    expect(headline.className).toContain("amber");
+    expect(headline.className).toContain("warning");
     expect(screen.queryByTestId("week-volume-cardio-actual")).toBeNull();
   });
 
@@ -238,7 +238,7 @@ describe("Week detail — bike/row cardio summary (task #109)", () => {
     });
     const headline = screen.getByTestId("week-volume-miles");
     expect(headline.getAttribute("data-adherence")).toBe("met");
-    expect(headline.className).toContain("emerald");
+    expect(headline.className).toContain("success");
   });
 });
 
@@ -256,7 +256,7 @@ describe("Week detail — bike/row cardio summary (task #109)", () => {
 // robust to Tailwind / styling changes.
 describe("Week detail — HR zone swatch coverage (task #166)", () => {
   // Long Run on week 4 maps to intensityBucket=2 → hr_zones renders
-  // "Zone 2 · 120-140 bpm" with the bg-emerald-500 swatch. Field set
+  // "Zone 2 · 120-140 bpm" with the bg-success swatch. Field set
   // mirrors PlanDayWithSuggestions closely enough for the day card
   // render path (non-rest, non-customized, no logged sessions).
   const runDay = {
@@ -326,7 +326,7 @@ describe("Week detail — HR zone swatch coverage (task #166)", () => {
     // bucket=2 → emerald-500 from HR_ZONE_COLORS. Asserted on the
     // rendered DOM so a regression in HR_ZONE_COLORS or the bucket→
     // swatch wiring is caught end-to-end, not just at the unit level.
-    expect(swatch.className).toContain("bg-emerald-500");
+    expect(swatch.className).toContain("bg-success");
     expect(swatch.getAttribute("aria-hidden")).toBe("true");
   });
 
@@ -363,7 +363,7 @@ describe("Week detail — HR zone swatch coverage (task #166)", () => {
     rerender(<WeekDetail />);
     const swatch = screen.getByTestId("day-2026-05-05-run-target-zone-swatch");
     expect(swatch).toBeTruthy();
-    expect(swatch.className).toContain("bg-emerald-500");
+    expect(swatch.className).toContain("bg-success");
 
     runTargetingModeRef.current = "intervals";
     rerender(<WeekDetail />);
@@ -375,7 +375,7 @@ describe("Week detail — HR zone swatch coverage (task #166)", () => {
 
 // Task #173: lock the full HR zone color ramp on the Week Detail
 // expanded plan card's run-target chip. The bucket-2 swatch test above
-// only exercises Long Run / week 4 → bucket 2 → bg-emerald-500, so the
+// only exercises Long Run / week 4 → bucket 2 → bg-success, so the
 // other four entries in HR_ZONE_COLORS (slate-400 / amber-400 /
 // orange-500 / red-500 for buckets 1, 3, 4, 5) were only locked in by
 // the unit test on the color map itself. A regression that wired the
@@ -602,7 +602,7 @@ describe("Week detail — race-day badge on the marathon Sunday (task #199)", ()
     // caught.
     const card = screen.getByTestId("day-card-2026-06-28");
     expect(card.getAttribute("data-race-day")).toBe("true");
-    expect(card.className).toContain("amber");
+    expect(card.className).toContain("warning");
   });
 
   it("does NOT render the race-day badge on non-race days in the same week", () => {

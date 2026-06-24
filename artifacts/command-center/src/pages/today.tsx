@@ -273,7 +273,7 @@ export default function Today() {
                             className={cn(
                               "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold tracking-wider w-fit cursor-help",
                               prp.source === "personalized"
-                                ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                                ? "bg-success/15 text-success"
                                 : "bg-muted text-muted-foreground",
                             )}
                             data-testid={`badge-race-pace-source-first-session-${fs.date}`}
@@ -297,12 +297,12 @@ export default function Today() {
                               {prp.sampleSize === 1 ? "" : "s"} (tempo / threshold /
                               interval / VO2 / race) in the last {prp.lookbackWeeks} weeks.
                               Avg training pace{" "}
-                              <span className="font-mono font-bold">
+                              <span className="tabular-nums font-bold">
                                 {Math.floor(prp.basisPaceSeconds / 60)}:
                                 {String(prp.basisPaceSeconds % 60).padStart(2, "0")}
                               </span>
                               /mi → race-day target{" "}
-                              <span className="font-mono font-bold">{prp.pace}</span>/mi.
+                              <span className="tabular-nums font-bold">{prp.pace}</span>/mi.
                             </span>
                           ) : (
                             <span>
@@ -545,7 +545,7 @@ export default function Today() {
                                     className={cn(
                                       "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold tracking-wider w-fit cursor-help",
                                       prp.source === "personalized"
-                                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                                        ? "bg-success/15 text-success"
                                         : "bg-muted text-muted-foreground",
                                     )}
                                     data-testid={`badge-race-pace-source-today-${plan.date}`}
@@ -569,12 +569,12 @@ export default function Today() {
                                       {prp.sampleSize === 1 ? "" : "s"} (tempo / threshold /
                                       interval / VO2 / race) in the last {prp.lookbackWeeks} weeks.
                                       Avg training pace{" "}
-                                      <span className="font-mono font-bold">
+                                      <span className="tabular-nums font-bold">
                                         {Math.floor(prp.basisPaceSeconds / 60)}:
                                         {String(prp.basisPaceSeconds % 60).padStart(2, "0")}
                                       </span>
                                       /mi → race-day target{" "}
-                                      <span className="font-mono font-bold">{prp.pace}</span>/mi.
+                                      <span className="tabular-nums font-bold">{prp.pace}</span>/mi.
                                     </span>
                                   ) : (
                                     <span>
@@ -607,7 +607,7 @@ export default function Today() {
                                   className={cn(
                                     "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold tracking-wider w-fit cursor-help",
                                     lp.source === "personalized"
-                                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                                      ? "bg-success/15 text-success"
                                       : "bg-muted text-muted-foreground",
                                   )}
                                   data-testid={`badge-long-run-pace-source-today-${plan.date}`}
@@ -631,12 +631,12 @@ export default function Today() {
                                     {lp.sampleSize === 1 ? "" : "s"} (long run / aerobic
                                     base / recovery) in the last {lp.lookbackWeeks} weeks.
                                     Avg training pace{" "}
-                                    <span className="font-mono font-bold">
+                                    <span className="tabular-nums font-bold">
                                       {Math.floor(lp.basisPaceSeconds / 60)}:
                                       {String(lp.basisPaceSeconds % 60).padStart(2, "0")}
                                     </span>
                                     /mi → today's long-run target{" "}
-                                    <span className="font-mono font-bold">{lp.pace}</span>/mi.
+                                    <span className="tabular-nums font-bold">{lp.pace}</span>/mi.
                                   </span>
                                 ) : (
                                   <span>
@@ -676,7 +676,7 @@ export default function Today() {
                                   className={cn(
                                     "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold tracking-wider w-fit cursor-help",
                                     pp.source === "personalized"
-                                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                                      ? "bg-success/15 text-success"
                                       : "bg-muted text-muted-foreground",
                                   )}
                                   data-testid={`badge-quality-pace-source-today-${plan.date}`}
@@ -700,12 +700,12 @@ export default function Today() {
                                     {pp.sampleSize === 1 ? "" : "s"} (tempo / threshold /
                                     interval / VO2 / race) in the last {pp.lookbackWeeks} weeks.
                                     Avg training pace{" "}
-                                    <span className="font-mono font-bold">
+                                    <span className="tabular-nums font-bold">
                                       {Math.floor(pp.basisPaceSeconds / 60)}:
                                       {String(pp.basisPaceSeconds % 60).padStart(2, "0")}
                                     </span>
                                     /mi → today's {lowerSession} target{" "}
-                                    <span className="font-mono font-bold">{pp.pace}</span>/mi.
+                                    <span className="tabular-nums font-bold">{pp.pace}</span>/mi.
                                   </span>
                                 ) : (
                                   <span>
@@ -1014,7 +1014,7 @@ export default function Today() {
                               className={cn(
                                 "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold tracking-wider w-fit cursor-help",
                                 prp.source === "personalized"
-                                  ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                                  ? "bg-success/15 text-success"
                                   : "bg-muted text-muted-foreground",
                               )}
                               data-testid={`badge-race-pace-source-today-session-${session.id}`}
@@ -1038,12 +1038,12 @@ export default function Today() {
                                 {prp.sampleSize === 1 ? "" : "s"} (tempo / threshold /
                                 interval / VO2 / race) in the last {prp.lookbackWeeks} weeks.
                                 Avg training pace{" "}
-                                <span className="font-mono font-bold">
+                                <span className="tabular-nums font-bold">
                                   {Math.floor(prp.basisPaceSeconds / 60)}:
                                   {String(prp.basisPaceSeconds % 60).padStart(2, "0")}
                                 </span>
                                 /mi → race-day target{" "}
-                                <span className="font-mono font-bold">{prp.pace}</span>/mi.
+                                <span className="tabular-nums font-bold">{prp.pace}</span>/mi.
                               </span>
                             ) : (
                               <span>

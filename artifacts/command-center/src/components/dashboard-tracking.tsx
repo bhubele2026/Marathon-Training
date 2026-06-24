@@ -90,7 +90,7 @@ function fmt(n: number | null | undefined, unit = ""): string {
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div>
-      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+      <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
         {label}
       </p>
       <p className="text-2xl font-extrabold tabular-nums leading-tight">{value}</p>
@@ -141,9 +141,9 @@ export function DashboardTracking() {
 
   // Verdict chips, only the buckets that occurred.
   const verdictChips: { label: string; count: number; tone: string }[] = [
-    { label: "Nailed", count: c.verdicts.complete, tone: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" },
-    { label: "Over", count: c.verdicts.over, tone: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" },
-    { label: "Close", count: c.verdicts.close, tone: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
+    { label: "Nailed", count: c.verdicts.complete, tone: "bg-success/15 text-success" },
+    { label: "Over", count: c.verdicts.over, tone: "bg-success/15 text-success" },
+    { label: "Close", count: c.verdicts.close, tone: "bg-warning/15 text-warning" },
     { label: "Short", count: c.verdicts.short, tone: "bg-destructive/15 text-destructive" },
     { label: "Skipped", count: c.verdicts.skipped, tone: "bg-destructive/15 text-destructive" },
     { label: "Bonus", count: c.verdicts.bonus, tone: "bg-primary/15 text-primary" },
@@ -172,7 +172,7 @@ export function DashboardTracking() {
   return (
     <section className="space-y-3" data-testid="dashboard-tracking">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-sm font-bold uppercase tracking-[0.14em] text-primary">
+        <h2 className="text-sm font-bold uppercase tracking-[0.08em] text-primary">
           Tracking
         </h2>
         <div className="flex items-center gap-1" data-testid="tracking-window-toggle">
@@ -201,7 +201,7 @@ export function DashboardTracking() {
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2" data-testid="tracking-weight-curve">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-bold uppercase tracking-[0.12em] flex items-center gap-2">
+            <CardTitle className="text-sm font-bold uppercase tracking-[0.08em] flex items-center gap-2">
               <TrendingDown className="h-4 w-4 text-primary" /> Weight vs goal curve
             </CardTitle>
           </CardHeader>
@@ -217,8 +217,8 @@ export function DashboardTracking() {
                     className={cn(
                       "text-xs font-bold mb-2",
                       ws.onTrack === false
-                        ? "text-amber-600 dark:text-amber-400"
-                        : "text-emerald-600 dark:text-emerald-400",
+                        ? "text-warning"
+                        : "text-success",
                     )}
                     data-testid="tracking-weight-status"
                   >
@@ -268,7 +268,7 @@ export function DashboardTracking() {
 
         <Card data-testid="tracking-recomp-signals">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-bold uppercase tracking-[0.12em] flex items-center gap-2">
+            <CardTitle className="text-sm font-bold uppercase tracking-[0.08em] flex items-center gap-2">
               <Dumbbell className="h-4 w-4 text-primary" /> Recomp signals
             </CardTitle>
           </CardHeader>
@@ -292,7 +292,7 @@ export function DashboardTracking() {
               sub="flat scale + inches down + strength up = winning"
             />
             <div className="space-y-1.5 pt-1">
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
                 Adherence
               </p>
               <div className="flex flex-wrap gap-1.5 text-[10px] font-bold tracking-wider">
@@ -315,7 +315,7 @@ export function DashboardTracking() {
         {/* Recomp */}
         <Card data-testid="tracking-recomp">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-bold uppercase tracking-[0.12em] flex items-center gap-2">
+            <CardTitle className="text-sm font-bold uppercase tracking-[0.08em] flex items-center gap-2">
               <Scale className="h-4 w-4 text-primary" /> Recomp
             </CardTitle>
           </CardHeader>
@@ -335,7 +335,7 @@ export function DashboardTracking() {
               <p
                 className={cn(
                   "text-xs font-bold",
-                  r.changeLb < 0 ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground",
+                  r.changeLb < 0 ? "text-success" : "text-muted-foreground",
                 )}
               >
                 {r.changeLb > 0 ? "+" : ""}
@@ -360,7 +360,7 @@ export function DashboardTracking() {
         {/* Consistency */}
         <Card data-testid="tracking-consistency">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-bold uppercase tracking-[0.12em] flex items-center gap-2">
+            <CardTitle className="text-sm font-bold uppercase tracking-[0.08em] flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-primary" /> Consistency
             </CardTitle>
           </CardHeader>
@@ -392,7 +392,7 @@ export function DashboardTracking() {
         {/* Nutrition adherence */}
         <Card data-testid="tracking-nutrition">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-bold uppercase tracking-[0.12em] flex items-center gap-2">
+            <CardTitle className="text-sm font-bold uppercase tracking-[0.08em] flex items-center gap-2">
               <Flame className="h-4 w-4 text-primary" /> Nutrition
             </CardTitle>
           </CardHeader>
@@ -404,7 +404,7 @@ export function DashboardTracking() {
             />
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground flex items-center gap-1">
+                <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground flex items-center gap-1">
                   <Beef className="h-3 w-3" /> Protein
                 </p>
                 <p className="text-lg font-extrabold tabular-nums">
@@ -417,7 +417,7 @@ export function DashboardTracking() {
                 )}
               </div>
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
                   Cal days
                 </p>
                 <p className="text-lg font-extrabold tabular-nums">
@@ -432,7 +432,7 @@ export function DashboardTracking() {
         {/* Machine mix */}
         <Card data-testid="tracking-machine-mix">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-bold uppercase tracking-[0.12em] flex items-center gap-2">
+            <CardTitle className="text-sm font-bold uppercase tracking-[0.08em] flex items-center gap-2">
               <Activity className="h-4 w-4 text-primary" /> Machine mix
             </CardTitle>
           </CardHeader>

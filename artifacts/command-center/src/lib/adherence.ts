@@ -15,9 +15,9 @@ export function adherenceStatus(
 export function adherenceTextClass(status: AdherenceStatus): string {
   switch (status) {
     case "met":
-      return "text-emerald-600 dark:text-emerald-400";
+      return "text-success";
     case "in-progress":
-      return "text-amber-600 dark:text-amber-400";
+      return "text-warning";
     default:
       return "";
   }
@@ -30,9 +30,9 @@ export function adherenceTextClass(status: AdherenceStatus): string {
 export function adherenceBarClass(status: AdherenceStatus): string {
   switch (status) {
     case "met":
-      return "bg-emerald-500 dark:bg-emerald-400";
+      return "bg-success dark:bg-success";
     case "in-progress":
-      return "bg-amber-500 dark:bg-amber-400";
+      return "bg-warning dark:bg-warning";
     default:
       return "";
   }

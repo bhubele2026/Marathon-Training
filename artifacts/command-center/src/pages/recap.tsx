@@ -53,7 +53,7 @@ function addDays(iso: string, n: number): string {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+      <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
         {label}
       </p>
       <p className="text-lg font-semibold tabular-nums mt-0.5">{value}</p>
@@ -141,7 +141,7 @@ export default function Recap() {
 
           {/* The numbers behind the verdict. */}
           {review && (
-            <section className="border-t border-border pt-5 grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-5">
+            <section className="pt-5 grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-5">
               <Stat
                 label="Sessions"
                 value={`${review.workouts.done}/${review.workouts.planned} done`}
@@ -196,8 +196,8 @@ export default function Recap() {
                     className={
                       "text-sm font-bold " +
                       (review.weight.onTrack
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : "text-amber-600 dark:text-amber-400")
+                        ? "text-success"
+                        : "text-warning")
                     }
                   >
                     {review.weight.onTrack ? "On pace" : "Behind pace"}

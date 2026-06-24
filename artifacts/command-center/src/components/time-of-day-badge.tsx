@@ -18,7 +18,7 @@ export function TimeOfDayBadge({
 
   const tone =
     normalized === "AM"
-      ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+      ? "bg-warning/15 text-warning"
       : normalized === "PM"
       ? "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400"
       : "bg-muted text-muted-foreground";

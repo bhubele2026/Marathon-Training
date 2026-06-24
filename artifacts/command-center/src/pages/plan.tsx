@@ -94,7 +94,7 @@ function WeekCustomizedBadge({
         <button
           type="button"
           onClick={(e) => e.stopPropagation()}
-          className="flex items-center gap-1 text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25 transition-colors px-1.5 py-0.5 rounded font-bold tracking-wider cursor-pointer"
+          className="flex items-center gap-1 text-[10px] bg-warning/15 text-warning hover:bg-warning/25 transition-colors px-1.5 py-0.5 rounded font-bold tracking-wider cursor-pointer"
           data-testid={`badge-customized-week-${week}`}
           aria-label="Show what changed this week"
         >
@@ -130,7 +130,7 @@ function WeekCustomizedBadge({
                     No field-level diff available.
                   </div>
                 ) : (
-                  <ul className="space-y-1 pl-2 border-l-2 border-amber-500/30">
+                  <ul className="space-y-1 pl-2 border-l-2 border-warning/30">
                     {(day.customizedDiff ?? []).map((entry) => (
                       <li
                         key={`${day.id}-${entry.field}`}
@@ -140,10 +140,10 @@ function WeekCustomizedBadge({
                         <span className="font-semibold text-foreground">
                           {customizedFieldLabel(entry.field)}
                         </span>
-                        <span className="font-mono text-muted-foreground">
+                        <span className="tabular-nums text-muted-foreground">
                           <span>{formatDiffValue(entry.field, entry.before)}</span>
                           <span className="mx-1.5">→</span>
-                          <span className="text-amber-600 dark:text-amber-400">
+                          <span className="text-warning">
                             {formatDiffValue(entry.field, entry.after)}
                           </span>
                         </span>
@@ -604,7 +604,7 @@ export default function Plan() {
             )}
             {totalCustomized > 0 && (
               <span
-                className="flex items-center gap-1 text-xs bg-amber-500/15 text-amber-600 dark:text-amber-400 px-2 py-1 rounded font-bold tracking-wider"
+                className="flex items-center gap-1 text-xs bg-warning/15 text-warning px-2 py-1 rounded font-bold tracking-wider"
                 data-testid="badge-total-customized"
               >
                 <Sparkles className="h-3 w-3" />
@@ -652,7 +652,7 @@ export default function Plan() {
           <CardContent className="p-6 flex items-center gap-4">
             <CalendarDays className="h-8 w-8 text-primary shrink-0" />
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Current Week</p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Current Week</p>
               <div className="text-3xl font-extrabold tabular-nums leading-none mt-0.5">Week {overview.currentWeek}</div>
             </div>
           </CardContent>
@@ -667,7 +667,7 @@ export default function Plan() {
               style={{ color: phaseColor(overview.currentPhase) }}
             />
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Phase</p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Phase</p>
               <div className="text-2xl font-extrabold leading-tight mt-0.5">{overview.currentPhase}</div>
             </div>
           </CardContent>
@@ -680,7 +680,7 @@ export default function Plan() {
             <CardContent className="p-6 flex items-center gap-4">
               <Target className="h-8 w-8 text-muted-foreground shrink-0" />
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Target Miles</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Target Miles</p>
                 <div className="text-3xl font-extrabold tabular-nums leading-none mt-0.5">{overview.weeklyMilesTarget ? formatDistance(overview.weeklyMilesTarget) : '-'}</div>
               </div>
             </CardContent>
@@ -690,7 +690,7 @@ export default function Plan() {
             <CardContent className="p-6 flex items-center gap-4">
               <Target className="h-8 w-8 text-muted-foreground shrink-0" />
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Sessions this week</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Sessions this week</p>
                 <div className="text-3xl font-extrabold tabular-nums leading-none mt-0.5">{currentWeekData ? `${currentWeekData.completedSessions || 0} / ${currentWeekData.totalSessions || 0}` : '-'}</div>
               </div>
             </CardContent>
@@ -717,7 +717,7 @@ export default function Plan() {
                 <h3 className="text-sm font-bold tracking-wider text-muted-foreground">
                   Programs ({overview.programs.length})
                 </h3>
-                <span className="text-xs font-mono text-muted-foreground">
+                <span className="text-xs tabular-nums text-muted-foreground">
                   {overview.startDate} → {overview.raceDate}
                 </span>
               </div>
@@ -740,7 +740,7 @@ export default function Plan() {
                         <span className="font-bold tracking-wider">
                           {p.label}
                         </span>
-                        <span className="font-mono text-muted-foreground">
+                        <span className="tabular-nums text-muted-foreground">
                           {p.startDate} → {p.endDate} · {p.weeks} wk
                         </span>
                       </div>
@@ -879,7 +879,7 @@ export default function Plan() {
           return (
           <div key={phase} className="space-y-4">
             <h3
-              className="text-xl font-bold tracking-wider border-b-2 pb-2 sticky top-0 bg-background/95 backdrop-blur z-10 flex items-center gap-3"
+              className="text-xl font-bold tracking-wider pb-2 sticky top-0 bg-background/95 backdrop-blur z-10 flex items-center gap-3"
               style={{ borderBottomColor: color }}
               data-testid={`phase-header-${phase}`}
             >
@@ -930,7 +930,7 @@ export default function Plan() {
                         <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-sm mb-4">
                           <div>
                             <p className="text-[10px] font-bold text-muted-foreground">Training min</p>
-                            <p className="font-mono font-medium" data-testid={`week-training-min-${week.week}`}>
+                            <p className="tabular-nums font-medium" data-testid={`week-training-min-${week.week}`}>
                               {Math.round((week.plannedStrength ?? 0) + (week.plannedCardio ?? 0))} min
                             </p>
                             <span className="inline-block mt-1 text-[10px] bg-secondary text-secondary-foreground px-2 py-0.5 rounded font-bold tracking-wider">
@@ -939,7 +939,7 @@ export default function Plan() {
                           </div>
                           <div>
                             <p className="text-[10px] font-bold text-muted-foreground">Strength load</p>
-                            <p className="font-mono font-medium">{Math.round(week.plannedTotalLoad)}</p>
+                            <p className="tabular-nums font-medium">{Math.round(week.plannedTotalLoad)}</p>
                           </div>
                         </div>
                       ) : (
@@ -972,7 +972,7 @@ export default function Plan() {
                               */}
                               <p
                                 className={cn(
-                                  "font-mono font-medium",
+                                  "tabular-nums font-medium",
                                   adherenceTextClass(
                                     adherenceStatus(week.actualCardio, week.plannedCardio),
                                   ),
@@ -995,7 +995,7 @@ export default function Plan() {
                             <div className="space-y-1">
                               <p
                                 className={cn(
-                                  "font-mono font-medium",
+                                  "tabular-nums font-medium",
                                   adherenceTextClass(
                                     adherenceStatus(week.actualMiles, week.plannedMiles),
                                   ),
@@ -1027,12 +1027,12 @@ export default function Plan() {
                         </div>
                         <div>
                           <p className="text-[10px] font-bold text-muted-foreground">Long Run</p>
-                          <p className="font-mono font-medium">{formatDistance(week.longRunMi)}</p>
+                          <p className="tabular-nums font-medium">{formatDistance(week.longRunMi)}</p>
                         </div>
                       </div>
                       )}
 
-                      <div className="space-y-1.5 mt-4 pt-4 border-t border-border">
+                      <div className="space-y-1.5 mt-4 pt-4 ">
                         <div className="flex justify-between items-center text-[10px] font-bold text-muted-foreground">
                           <span>Adherence</span>
                           <div className="flex items-center gap-2">
@@ -1052,12 +1052,12 @@ export default function Plan() {
                             */}
                             {week.wedSteady && (
                               <span
-                                className="flex items-center gap-1 bg-amber-400/15 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded font-bold tracking-wider"
+                                className="flex items-center gap-1 bg-warning/15 text-warning px-1.5 py-0.5 rounded font-bold tracking-wider"
                                 data-testid={`badge-steady-week-${week.week}`}
                                 title="Wednesday is a Steady (Z3) run this week"
                               >
                                 <span
-                                  className="h-1.5 w-1.5 rounded-full bg-amber-400"
+                                  className="h-1.5 w-1.5 rounded-full bg-warning"
                                   aria-hidden
                                 />
                                 Steady
@@ -1169,7 +1169,7 @@ export default function Plan() {
               Your logged workouts, body measurements, and race results
               are not touched. You can undo this for ~30 seconds from the
               success toast. To confirm, type{" "}
-              <span className="font-mono font-bold">{RESET_PLAN_CONFIRM_PHRASE}</span> below.
+              <span className="tabular-nums font-bold">{RESET_PLAN_CONFIRM_PHRASE}</span> below.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2 py-2">

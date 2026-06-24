@@ -243,13 +243,13 @@ export function NutritionistPanel({
           <SectionHeader eyebrow="Protein" action={<Chip status={p.status} />} />
           <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
             {p.gPerLb != null && (
-              <span className="font-mono text-lg font-semibold tabular-nums text-foreground">
+              <span className="tabular-nums text-lg font-semibold tabular-nums text-foreground">
                 {p.gPerLb}
                 <span className="ml-1 text-[13px] font-medium text-muted-foreground">g/lb</span>
               </span>
             )}
             {p.avgProteinG != null && p.targetProteinG != null && (
-              <span className="font-mono text-[13px] tabular-nums text-muted-foreground">
+              <span className="tabular-nums text-[13px] tabular-nums text-muted-foreground">
                 {Math.round(p.avgProteinG)} / {p.targetProteinG} g avg
                 {p.hitRate != null ? ` · hit ${Math.round(p.hitRate * 100)}% of days` : ""}
               </span>
@@ -313,7 +313,7 @@ export function NutritionistPanel({
             }
           />
           {data.deficit.avgCalories != null && (
-            <span className="font-mono text-[13px] tabular-nums text-muted-foreground">
+            <span className="tabular-nums text-[13px] tabular-nums text-muted-foreground">
               {Math.round(data.deficit.avgCalories)}
               {data.deficit.calorieTarget != null ? ` / ${data.deficit.calorieTarget}` : ""} kcal avg
             </span>

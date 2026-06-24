@@ -136,9 +136,9 @@ const HR_ZONE_MODEL_DEFS: Record<HrZoneModel, HrZoneModelDef> = {
   five_zone_max: {
     zones: [
       { label: "Zone 1", lowPct: 0.5, highPct: 0.6, swatchClass: "bg-slate-400" },
-      { label: "Zone 2", lowPct: 0.6, highPct: 0.7, swatchClass: "bg-emerald-500" },
-      { label: "Zone 3", lowPct: 0.7, highPct: 0.8, swatchClass: "bg-amber-400" },
-      { label: "Zone 4", lowPct: 0.8, highPct: 0.9, swatchClass: "bg-orange-500" },
+      { label: "Zone 2", lowPct: 0.6, highPct: 0.7, swatchClass: "bg-success" },
+      { label: "Zone 3", lowPct: 0.7, highPct: 0.8, swatchClass: "bg-warning" },
+      { label: "Zone 4", lowPct: 0.8, highPct: 0.9, swatchClass: "bg-warning" },
       { label: "Zone 5", lowPct: 0.9, highPct: 1.0, swatchClass: "bg-red-500" },
     ],
     bucketToZoneIndex: { 1: 0, 2: 1, 3: 2, 4: 3, 5: 4 },
@@ -151,10 +151,10 @@ const HR_ZONE_MODEL_DEFS: Record<HrZoneModel, HrZoneModelDef> = {
     zones: [
       { label: "Zone 1", lowPct: 0.58, highPct: 0.72, swatchClass: "bg-slate-400" },
       { label: "Zone 2", lowPct: 0.73, highPct: 0.78, swatchClass: "bg-sky-500" },
-      { label: "Zone 3", lowPct: 0.79, highPct: 0.83, swatchClass: "bg-emerald-500" },
-      { label: "Zone 4", lowPct: 0.84, highPct: 0.88, swatchClass: "bg-amber-400" },
-      { label: "Zone 5a", lowPct: 0.89, highPct: 0.91, swatchClass: "bg-orange-400" },
-      { label: "Zone 5b", lowPct: 0.92, highPct: 0.94, swatchClass: "bg-orange-500" },
+      { label: "Zone 3", lowPct: 0.79, highPct: 0.83, swatchClass: "bg-success" },
+      { label: "Zone 4", lowPct: 0.84, highPct: 0.88, swatchClass: "bg-warning" },
+      { label: "Zone 5a", lowPct: 0.89, highPct: 0.91, swatchClass: "bg-warning" },
+      { label: "Zone 5b", lowPct: 0.92, highPct: 0.94, swatchClass: "bg-warning" },
       { label: "Zone 5c", lowPct: 0.95, highPct: 1.0, swatchClass: "bg-red-500" },
     ],
     bucketToZoneIndex: { 1: 0, 2: 1, 3: 2, 4: 3, 5: 5 },
@@ -165,9 +165,9 @@ const HR_ZONE_MODEL_DEFS: Record<HrZoneModel, HrZoneModelDef> = {
   coggan_5_zone: {
     zones: [
       { label: "Z1 Active Recovery", lowPct: 0.5, highPct: 0.61, swatchClass: "bg-slate-400" },
-      { label: "Z2 Endurance", lowPct: 0.62, highPct: 0.74, swatchClass: "bg-emerald-500" },
-      { label: "Z3 Tempo", lowPct: 0.75, highPct: 0.84, swatchClass: "bg-amber-400" },
-      { label: "Z4 Threshold", lowPct: 0.85, highPct: 0.94, swatchClass: "bg-orange-500" },
+      { label: "Z2 Endurance", lowPct: 0.62, highPct: 0.74, swatchClass: "bg-success" },
+      { label: "Z3 Tempo", lowPct: 0.75, highPct: 0.84, swatchClass: "bg-warning" },
+      { label: "Z4 Threshold", lowPct: 0.85, highPct: 0.94, swatchClass: "bg-warning" },
       { label: "Z5 VO2max", lowPct: 0.95, highPct: 1.0, swatchClass: "bg-red-500" },
     ],
     bucketToZoneIndex: { 1: 0, 2: 1, 3: 2, 4: 3, 5: 4 },
@@ -177,8 +177,8 @@ const HR_ZONE_MODEL_DEFS: Record<HrZoneModel, HrZoneModelDef> = {
   // bucket 5 → Z3.
   polarized_3_zone: {
     zones: [
-      { label: "Z1 Easy", lowPct: 0.5, highPct: 0.8, swatchClass: "bg-emerald-500" },
-      { label: "Z2 Threshold", lowPct: 0.8, highPct: 0.9, swatchClass: "bg-amber-400" },
+      { label: "Z1 Easy", lowPct: 0.5, highPct: 0.8, swatchClass: "bg-success" },
+      { label: "Z2 Threshold", lowPct: 0.8, highPct: 0.9, swatchClass: "bg-warning" },
       { label: "Z3 Hard", lowPct: 0.9, highPct: 1.0, swatchClass: "bg-red-500" },
     ],
     bucketToZoneIndex: { 1: 0, 2: 0, 3: 1, 4: 1, 5: 2 },
@@ -240,9 +240,9 @@ export const HR_ZONE_COLORS: Record<
   { swatchClass: string }
 > = {
   1: { swatchClass: "bg-slate-400" },
-  2: { swatchClass: "bg-emerald-500" },
-  3: { swatchClass: "bg-amber-400" },
-  4: { swatchClass: "bg-orange-500" },
+  2: { swatchClass: "bg-success" },
+  3: { swatchClass: "bg-warning" },
+  4: { swatchClass: "bg-warning" },
   5: { swatchClass: "bg-red-500" },
 };
 
@@ -281,21 +281,21 @@ export const HR_ZONE_TONES: Record<
     description: "Z1 · Recovery effort",
   },
   2: {
-    borderClass: "border-emerald-500/40",
-    bgClass: "bg-emerald-500/10",
-    labelClass: "text-emerald-700 dark:text-emerald-300",
+    borderClass: "border-success/40",
+    bgClass: "bg-success/10",
+    labelClass: "text-success",
     description: "Z2 · Easy aerobic",
   },
   3: {
-    borderClass: "border-amber-500/40",
-    bgClass: "bg-amber-500/10",
-    labelClass: "text-amber-700 dark:text-amber-300",
+    borderClass: "border-warning/40",
+    bgClass: "bg-warning/10",
+    labelClass: "text-warning",
     description: "Z3 · Steady marathon-pace",
   },
   4: {
-    borderClass: "border-orange-500/40",
-    bgClass: "bg-orange-500/10",
-    labelClass: "text-orange-700 dark:text-orange-300",
+    borderClass: "border-warning/40",
+    bgClass: "bg-warning/10",
+    labelClass: "text-warning",
     description: "Z4 · Threshold effort",
   },
   5: {

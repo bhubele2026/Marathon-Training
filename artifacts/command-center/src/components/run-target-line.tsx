@@ -89,7 +89,7 @@ export function RunTargetLine({
         <span className="text-[10px] font-bold tracking-wider text-muted-foreground">
           {modeLabel}
         </span>
-        <span className="inline-flex items-center gap-1.5 font-mono font-medium">
+        <span className="inline-flex items-center gap-1.5 tabular-nums font-medium">
           {showZoneSwatch && (
             <span
               aria-hidden="true"

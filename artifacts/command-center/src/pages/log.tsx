@@ -48,7 +48,7 @@ function WorkoutEditedBadge({ workout }: { workout: Workout }) {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-2 py-1 rounded font-bold tracking-wider inline-flex items-center gap-1 cursor-pointer hover:bg-amber-500/25 transition-colors"
+          className="text-[10px] bg-warning/15 text-warning px-2 py-1 rounded font-bold tracking-wider inline-flex items-center gap-1 cursor-pointer hover:bg-warning/25 transition-colors"
           data-testid={`badge-customized-workout-${workout.id}`}
           aria-label="Show what changed"
         >
@@ -78,7 +78,7 @@ function WorkoutEditedBadge({ workout }: { workout: Workout }) {
                   data-testid={`workout-diff-row-${workout.id}-${entry.field}`}
                 >
                   <span className="font-semibold text-foreground">{label}</span>
-                  <span className="font-mono text-muted-foreground">
+                  <span className="tabular-nums text-muted-foreground">
                     <span
                       data-testid={`workout-diff-before-${workout.id}-${entry.field}`}
                     >
@@ -86,7 +86,7 @@ function WorkoutEditedBadge({ workout }: { workout: Workout }) {
                     </span>
                     <span className="mx-1.5">→</span>
                     <span
-                      className="text-amber-600 dark:text-amber-400"
+                      className="text-warning"
                       data-testid={`workout-diff-after-${workout.id}-${entry.field}`}
                     >
                       {formatDiffValue(entry.field, entry.after)}
@@ -339,15 +339,15 @@ export default function Log() {
                           <div className="grid grid-cols-3 gap-3 text-xs">
                             <div>
                               <p className="text-[10px] font-bold tracking-wider text-muted-foreground">Distance</p>
-                              <p className="font-mono font-bold" data-testid={`log-row-${workout.id}-distance`}>{formatDistance(workout.distanceMi)}</p>
+                              <p className="tabular-nums font-bold" data-testid={`log-row-${workout.id}-distance`}>{formatDistance(workout.distanceMi)}</p>
                             </div>
                             <div>
                               <p className="text-[10px] font-bold tracking-wider text-muted-foreground">Pace</p>
-                              <p className="font-mono font-bold" data-testid={`log-row-${workout.id}-pace`}>{workout.pace || '-'}</p>
+                              <p className="tabular-nums font-bold" data-testid={`log-row-${workout.id}-pace`}>{workout.pace || '-'}</p>
                             </div>
                             <div>
                               <p className="text-[10px] font-bold tracking-wider text-muted-foreground">Load</p>
-                              <p className="font-mono font-bold" data-testid={`log-row-${workout.id}-load`}>{formatLoad(workout.totalLoad)}</p>
+                              <p className="tabular-nums font-bold" data-testid={`log-row-${workout.id}-load`}>{formatLoad(workout.totalLoad)}</p>
                             </div>
                           </div>
                           {/* Task #140 prescribed run-target line, kept

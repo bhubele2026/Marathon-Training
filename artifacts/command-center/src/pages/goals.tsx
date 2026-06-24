@@ -405,9 +405,9 @@ export default function Goals() {
           </p>
 
           {data?.weeklyWeight && (
-            <div className="border-t border-border pt-3 space-y-1">
+            <div className="pt-3 space-y-1">
               {data.weeklyWeight.note && (
-                <p className="text-xs text-amber-600 dark:text-amber-400">
+                <p className="text-xs text-warning">
                   {data.weeklyWeight.note}
                 </p>
               )}
@@ -434,8 +434,8 @@ export default function Goals() {
                   <span
                     className={
                       data.weeklyWeight.onTrack
-                        ? "font-semibold text-emerald-600 dark:text-emerald-400"
-                        : "font-semibold text-amber-600 dark:text-amber-400"
+                        ? "font-semibold text-success"
+                        : "font-semibold text-warning"
                     }
                   >
                     {data.weeklyWeight.onTrack ? "On track" : "Off track"}
@@ -530,7 +530,7 @@ export default function Goals() {
               </span>
             )}
             {needsMsg && !computeTargets.isPending && (
-              <span className="text-xs text-amber-600">{needsMsg}</span>
+              <span className="text-xs text-warning">{needsMsg}</span>
             )}
             {data?.targetsComputedAt && (
               <span className="text-xs text-muted-foreground">

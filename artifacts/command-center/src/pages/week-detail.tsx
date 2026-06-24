@@ -95,7 +95,7 @@ function CustomizedBadge({ day }: { day: PlanDay }) {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-2 py-1 rounded font-bold tracking-wider flex items-center gap-1 cursor-pointer hover:bg-amber-500/25 transition-colors"
+          className="text-[10px] bg-warning/15 text-warning px-2 py-1 rounded font-bold tracking-wider flex items-center gap-1 cursor-pointer hover:bg-warning/25 transition-colors"
           data-testid={`badge-customized-${day.date}`}
           aria-label="Show what changed"
         >
@@ -123,13 +123,13 @@ function CustomizedBadge({ day }: { day: PlanDay }) {
                   data-testid={`diff-row-${entry.field}`}
                 >
                   <span className="font-semibold text-foreground">{label}</span>
-                  <span className="font-mono text-muted-foreground">
+                  <span className="tabular-nums text-muted-foreground">
                     <span data-testid={`diff-before-${entry.field}`}>
                       {formatDiffValue(entry.field, entry.before)}
                     </span>
                     <span className="mx-1.5">→</span>
                     <span
-                      className="text-amber-600 dark:text-amber-400"
+                      className="text-warning"
                       data-testid={`diff-after-${entry.field}`}
                     >
                       {formatDiffValue(entry.field, entry.after)}
@@ -802,7 +802,7 @@ export default function WeekDetail() {
                               ActualBreakdown moves into the disclosure
                               below alongside the rest of the detail. */}
                           <div className="flex flex-col gap-1 min-w-0 flex-1">
-                            <div className="text-xs font-mono flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <div className="text-xs tabular-nums flex flex-wrap items-center gap-x-3 gap-y-1">
                               <TimeOfDayBadge
                                 value={session.timeOfDay}
                                 testId={`badge-time-of-day-week-${session.id}`}
@@ -854,7 +854,7 @@ export default function WeekDetail() {
                       ))}
                     </div>
                   )}
-                  <div className="flex justify-end pt-2 border-t border-dashed border-border/60">
+                  <div className="flex justify-end pt-2 ">
                     {planActions}
                   </div>
                 </CardContent>
@@ -880,7 +880,7 @@ export default function WeekDetail() {
                 missed
                   ? "border-destructive/40 bg-destructive/5 hover:border-destructive/60"
                   : isRaceDay
-                    ? "border-amber-500/60 bg-amber-500/5 hover:border-amber-500/80 ring-1 ring-amber-500/30"
+                    ? "border-warning/60 bg-warning/5 hover:border-warning/80 ring-1 ring-warning/30"
                     : "border-border hover:border-primary/30",
                 isHighlighted && "ring-2 ring-destructive ring-offset-2 ring-offset-background animate-pulse",
               )}
@@ -897,7 +897,7 @@ export default function WeekDetail() {
                       missed
                         ? "bg-destructive/10 border-destructive/30"
                         : isRaceDay
-                          ? "bg-amber-500/10 border-amber-500/30"
+                          ? "bg-warning/10 border-warning/30"
                           : "bg-muted/30 border-border",
                     )}
                   >
@@ -984,7 +984,7 @@ export default function WeekDetail() {
                                     className={cn(
                                       "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold tracking-wider w-fit cursor-help",
                                       prp.source === "personalized"
-                                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                                        ? "bg-success/15 text-success"
                                         : "bg-muted text-muted-foreground",
                                     )}
                                     data-testid={`badge-race-pace-source-${day.date}`}
@@ -1008,12 +1008,12 @@ export default function WeekDetail() {
                                       {prp.sampleSize === 1 ? "" : "s"} (tempo / threshold /
                                       interval / VO2 / race) in the last {prp.lookbackWeeks} weeks.
                                       Avg training pace{" "}
-                                      <span className="font-mono font-bold">
+                                      <span className="tabular-nums font-bold">
                                         {Math.floor(prp.basisPaceSeconds / 60)}:
                                         {String(prp.basisPaceSeconds % 60).padStart(2, "0")}
                                       </span>
                                       /mi → race-day target{" "}
-                                      <span className="font-mono font-bold">{prp.pace}</span>/mi.
+                                      <span className="tabular-nums font-bold">{prp.pace}</span>/mi.
                                     </span>
                                   ) : (
                                     <span>
@@ -1065,7 +1065,7 @@ export default function WeekDetail() {
                                   className={cn(
                                     "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold tracking-wider w-fit cursor-help",
                                     lp.source === "personalized"
-                                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                                      ? "bg-success/15 text-success"
                                       : "bg-muted text-muted-foreground",
                                   )}
                                   data-testid={`badge-long-run-pace-source-${day.date}`}
@@ -1089,12 +1089,12 @@ export default function WeekDetail() {
                                     {lp.sampleSize === 1 ? "" : "s"} (long run / aerobic
                                     base / recovery) in the last {lp.lookbackWeeks} weeks.
                                     Avg training pace{" "}
-                                    <span className="font-mono font-bold">
+                                    <span className="tabular-nums font-bold">
                                       {Math.floor(lp.basisPaceSeconds / 60)}:
                                       {String(lp.basisPaceSeconds % 60).padStart(2, "0")}
                                     </span>
                                     /mi → today's long-run target{" "}
-                                    <span className="font-mono font-bold">{lp.pace}</span>/mi.
+                                    <span className="tabular-nums font-bold">{lp.pace}</span>/mi.
                                   </span>
                                 ) : (
                                   <span>
@@ -1122,7 +1122,7 @@ export default function WeekDetail() {
                                   className={cn(
                                     "inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded font-bold tracking-wider w-fit cursor-help",
                                     pp.source === "personalized"
-                                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                                      ? "bg-success/15 text-success"
                                       : "bg-muted text-muted-foreground",
                                   )}
                                   data-testid={`badge-quality-pace-source-${day.date}`}
@@ -1146,12 +1146,12 @@ export default function WeekDetail() {
                                     {pp.sampleSize === 1 ? "" : "s"} (tempo / threshold /
                                     interval / VO2 / race) in the last {pp.lookbackWeeks} weeks.
                                     Avg training pace{" "}
-                                    <span className="font-mono font-bold">
+                                    <span className="tabular-nums font-bold">
                                       {Math.floor(pp.basisPaceSeconds / 60)}:
                                       {String(pp.basisPaceSeconds % 60).padStart(2, "0")}
                                     </span>
                                     /mi → today's {lowerSession} target{" "}
-                                    <span className="font-mono font-bold">{pp.pace}</span>/mi.
+                                    <span className="tabular-nums font-bold">{pp.pace}</span>/mi.
                                   </span>
                                 ) : (
                                   <span>
@@ -1196,13 +1196,13 @@ export default function WeekDetail() {
                             {day.distanceMi != null && (
                               <div>
                                 <span className="text-[10px] font-bold text-muted-foreground block">Distance</span>
-                                <span className="font-mono font-medium">{formatDistance(day.distanceMi)}</span>
+                                <span className="tabular-nums font-medium">{formatDistance(day.distanceMi)}</span>
                               </div>
                             )}
                             {day.totalLoad != null && day.totalLoad > 0 && (
                               <div>
                                 <span className="text-[10px] font-bold text-muted-foreground block">Load</span>
-                                <span className="font-mono font-medium">{formatLoad(day.totalLoad)}</span>
+                                <span className="tabular-nums font-medium">{formatLoad(day.totalLoad)}</span>
                               </div>
                             )}
                             <PlannedBreakdown
@@ -1287,7 +1287,7 @@ export default function WeekDetail() {
                     </div>
 
                     {hasSessions && (
-                      <div className="space-y-2 pt-2 border-t border-border">
+                      <div className="space-y-2 pt-2 ">
                         {sessions.map((session) => {
                           const sessionCtx = ctxFor(day, session);
                           return (
@@ -1303,7 +1303,7 @@ export default function WeekDetail() {
                                   and load tiles all move into the
                                   disclosure below. */}
                               <div className="flex flex-col gap-2 min-w-0 flex-1">
-                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-mono">
+                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs tabular-nums">
                                   <TimeOfDayBadge
                                     value={session.timeOfDay}
                                     testId={`badge-time-of-day-week-${session.id}`}
@@ -1319,7 +1319,7 @@ export default function WeekDetail() {
                                 <SessionDetailDisclosure
                                   testId={`toggle-session-detail-${session.id}`}
                                 >
-                                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-mono">
+                                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs tabular-nums">
                                     {session.distanceMi != null && (
                                       <span><span className="text-muted-foreground">Dist</span> {formatDistance(session.distanceMi)}</span>
                                     )}
@@ -1410,7 +1410,7 @@ export default function WeekDetail() {
 
                     {/* Plan-edit row sits below the logged-workout actions so the
                         two concerns are visually separated and can't be confused. */}
-                    <div className="flex justify-end pt-3 border-t border-border/60">
+                    <div className="flex justify-end pt-3 ">
                       {planActions}
                     </div>
                   </div>
