@@ -9,11 +9,11 @@ import {
   type Measurement,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  LineChart, Line, Legend,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -39,9 +39,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-// Phase 4. A circumference-tape site charted over time. belly/chest are
-// fat-loss sites; arms/legs (summed L+R) are lean-mass proxies. Each one
-// gets a baseline → latest delta line and its own series on the chart.
+// A circumference-tape site charted over time. belly/chest are fat-loss sites;
+// arms/legs (summed L+R) are lean-mass proxies. Each one gets a baseline →
+// latest delta and its own series on the chart.
 type SitePoint = { date: string; value: number };
 type SiteDef = {
   key: string;
@@ -84,6 +84,10 @@ type WeeklyWeight = {
   varianceLb: number | null;
   onTrack: boolean | null;
 };
+
+// Shared eyebrow label — 11px uppercase, cool-muted (DESIGN LAW typography).
+const EYEBROW =
+  "font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground";
 
 export default function Measurements() {
   const { data: measurements, isLoading: loadingMs } = useListMeasurements();
@@ -204,259 +208,245 @@ export default function Measurements() {
   ];
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1600px] mx-auto">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1440px] mx-auto px-4 md:px-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-4xl font-extrabold tracking-tight text-foreground">Body</h2>
-          <p className="text-muted-foreground font-medium tracking-widest mt-1">
-            Lose inches, gain muscle
-          </p>
+          <h2 className="font-display text-4xl font-extrabold tracking-tight text-foreground">Body</h2>
+          <p className="text-muted-foreground font-medium mt-1">Lose inches, gain muscle</p>
         </div>
-        {/* Phase 4. Fast logging — one prominent primary action up top
-            opens the check-in form (1 tap to open, submit inside). */}
+        {/* Fast logging — one prominent primary action opens the check-in form. */}
         <Button
           onClick={handleCreate}
           size="lg"
-          className="font-black tracking-wider"
+          className="font-semibold"
           data-testid="measurements-log-cta"
         >
           <Plus className="h-5 w-5 mr-2" /> Log measurement
         </Button>
       </div>
 
-      {/* Weight is the hero of the Body screen — the single oversized readout,
-          with the change vs the last weigh-in as a semantic delta chip. */}
-      <section className="flex flex-wrap items-end justify-between gap-x-12 gap-y-6 pt-2">
-        <div className="flex flex-col gap-2">
-          <span className="font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-            Weight
-          </span>
-          <div className="flex items-end gap-3">
-            <span className="font-mono text-[clamp(2.25rem,5vw,3.75rem)] font-semibold leading-none tabular-nums tracking-[-0.02em] text-primary">
-              {latestWeight != null ? (
-                <CountUp value={latestWeight} format={(n) => n.toFixed(1)} />
-              ) : (
-                "—"
-              )}
-            </span>
-            <span className="pb-1.5 text-base font-medium text-muted-foreground">lb</span>
-            {weightDelta != null && weightDelta !== 0 && (
-              <Badge
-                variant={
-                  (weightDelta < 0) === cutGoal ? "success" : "neutral"
-                }
-                className="mb-1.5"
-              >
-                {weightDelta < 0 ? "▼" : "▲"}{" "}
-                <span className="font-mono tabular-nums">{Math.abs(weightDelta).toFixed(1)}</span>{" "}
-                lb vs last
-              </Badge>
-            )}
-            {weightDelta === 0 && (
-              <Badge variant="neutral" className="mb-1.5">
-                Flat · <span className="font-mono tabular-nums">{latestWeight?.toFixed(1)}</span> lb
-              </Badge>
-            )}
-          </div>
-        </div>
-
-        {/* Body-fat: a stat when logged, an invitation (never a dash) when not. */}
-        {latestBodyFat != null ? (
-          <StatReadout label="Body fat" value={latestBodyFat.toFixed(1)} unit="%" />
-        ) : (
-          <EmptyState
-            title="Body fat not logged"
-            hint="Log body-fat % (or your neck + waist) to split fat loss from muscle."
-            action={
-              <Button variant="outline" size="sm" onClick={handleCreate}>
-                Log it
-              </Button>
-            }
-            className="p-0"
-          />
-        )}
-      </section>
-
-      {/* Weekly weight goal — quiet target-vs-actual for the current week. Set
-          it on Goals; read-only here. De-boxed to match the rest of the page. */}
-      {weekly && (
-        <section className="border-t border-border pt-6">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground mb-3">
-            This week
-          </p>
-          <div className="flex flex-wrap items-baseline gap-x-10 gap-y-2">
-            <div>
-              <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-                Target
-              </p>
-              <p className="text-3xl font-extrabold tabular-nums leading-none">
-                {weekly.currentWeekTargetLb}
-                <span className="text-base text-muted-foreground font-bold"> lb</span>
-              </p>
-            </div>
-            <div>
-              <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-                Actual
-              </p>
-              <p className="text-3xl font-extrabold tabular-nums leading-none">
-                {weekly.latestActualLb != null ? weekly.latestActualLb : "—"}
-                <span className="text-base text-muted-foreground font-bold"> lb</span>
-              </p>
-            </div>
-            <div>
-              <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-                Pace
-              </p>
-              <p className="text-sm font-mono tabular-nums mt-1.5">
-                {weekly.rateLb < 0
-                  ? `−${Math.abs(weekly.rateLb)} lb/wk`
-                  : weekly.rateLb > 0
-                    ? `+${weekly.rateLb} lb/wk`
-                    : "maintain"}
-              </p>
-            </div>
-            {weekly.onTrack != null && (
-              <span
-                className={
-                  "text-sm font-bold self-center " +
-                  (weekly.onTrack ? "text-success" : "text-destructive")
-                }
-              >
-                {weekly.onTrack ? "On track" : "Off track"}
-                {weekly.varianceLb != null && weekly.varianceLb !== 0 && (
-                  <span className="ml-1 font-mono font-normal text-muted-foreground">
-                    ({weekly.varianceLb > 0 ? "+" : ""}
-                    {weekly.varianceLb} lb)
-                  </span>
+      {/* HERO TILE — weight is the single oversized readout, with its change vs
+          the last weigh-in as a semantic delta chip, body fat alongside, and the
+          soft azure trend area right below it. One hero per surface. */}
+      <Card className="shadow-tile">
+        <CardContent className="p-6 md:p-8 space-y-7">
+          <div className="flex flex-wrap items-end justify-between gap-x-12 gap-y-6">
+            <div className="flex flex-col gap-2">
+              <span className={EYEBROW}>Weight</span>
+              <div className="flex items-end gap-3">
+                <span className="font-display text-[clamp(2.5rem,6vw,4.5rem)] font-extrabold leading-none tabular-nums tracking-tight text-primary">
+                  {latestWeight != null ? (
+                    <CountUp value={latestWeight} format={(n) => n.toFixed(1)} />
+                  ) : (
+                    "—"
+                  )}
+                </span>
+                <span className="pb-2 text-base font-medium text-muted-foreground">lb</span>
+                {weightDelta != null && weightDelta !== 0 && (
+                  <Badge
+                    variant={(weightDelta < 0) === cutGoal ? "success" : "neutral"}
+                    className="mb-2 tabular-nums"
+                  >
+                    {weightDelta < 0 ? "▼" : "▲"} {Math.abs(weightDelta).toFixed(1)} lb vs last
+                  </Badge>
                 )}
-              </span>
+                {weightDelta === 0 && (
+                  <Badge variant="neutral" className="mb-2 tabular-nums">
+                    Flat · {latestWeight?.toFixed(1)} lb
+                  </Badge>
+                )}
+              </div>
+            </div>
+
+            {/* Body-fat: a stat when logged, an invitation (never a dash) when not. */}
+            {latestBodyFat != null ? (
+              <StatReadout label="Body fat" value={latestBodyFat.toFixed(1)} unit="%" />
+            ) : (
+              <EmptyState
+                title="Body fat not logged"
+                hint="Log body-fat % (or your neck + waist) to split fat loss from muscle."
+                action={
+                  <Button variant="outline" size="sm" onClick={handleCreate}>
+                    Log it
+                  </Button>
+                }
+                className="p-0"
+              />
             )}
           </div>
-        </section>
+
+          <div>
+            <span className={cn(EYEBROW, "block mb-3")}>Weight trend</span>
+            {loadingMs ? (
+              <Skeleton className="h-56 w-full" />
+            ) : (
+              <TrendArea
+                data={weightData}
+                xKey="date"
+                yKey="weight"
+                unit="lb"
+                height={224}
+                valueFormatter={(n) => n.toFixed(1)}
+                xTickFormatter={(v) => format(parseISO(String(v)), "MMM d")}
+                sparseFallback={
+                  <EmptyState
+                    title="Not enough weigh-ins yet"
+                    hint="One weigh-in down. Two more and your trend line shows up."
+                  />
+                }
+              />
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Weekly weight goal — quiet target-vs-actual for the current week. Set it
+          on Goals; read-only here. */}
+      {weekly && (
+        <Card className="shadow-card">
+          <CardContent className="p-6">
+            <span className={cn(EYEBROW, "block mb-3")}>This week</span>
+            <div className="flex flex-wrap items-baseline gap-x-10 gap-y-2">
+              <div>
+                <p className={EYEBROW}>Target</p>
+                <p className="font-display text-3xl font-extrabold tabular-nums leading-none mt-1">
+                  {weekly.currentWeekTargetLb}
+                  <span className="text-base text-muted-foreground font-bold"> lb</span>
+                </p>
+              </div>
+              <div>
+                <p className={EYEBROW}>Actual</p>
+                <p className="font-display text-3xl font-extrabold tabular-nums leading-none mt-1">
+                  {weekly.latestActualLb != null ? weekly.latestActualLb : "—"}
+                  <span className="text-base text-muted-foreground font-bold"> lb</span>
+                </p>
+              </div>
+              <div>
+                <p className={EYEBROW}>Pace</p>
+                <p className="text-sm font-semibold tabular-nums mt-1.5">
+                  {weekly.rateLb < 0
+                    ? `−${Math.abs(weekly.rateLb)} lb/wk`
+                    : weekly.rateLb > 0
+                      ? `+${weekly.rateLb} lb/wk`
+                      : "maintain"}
+                </p>
+              </div>
+              {weekly.onTrack != null && (
+                <span
+                  className={cn(
+                    "text-sm font-bold self-center",
+                    weekly.onTrack ? "text-success" : "text-destructive",
+                  )}
+                >
+                  {weekly.onTrack ? "On track" : "Off track"}
+                  {weekly.varianceLb != null && weekly.varianceLb !== 0 && (
+                    <span className="ml-1 font-normal tabular-nums text-muted-foreground">
+                      ({weekly.varianceLb > 0 ? "+" : ""}
+                      {weekly.varianceLb} lb)
+                    </span>
+                  )}
+                </span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* Phase 6: the recomp deltas ARE the hero of this screen — large
-          numbers straight on the page (no card), one quiet label above,
-          separated by a hairline rather than boxed. */}
-      <section className="border-t border-border pt-6">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground mb-5">
-          Since baseline
-        </p>
-        {loadingMs ? (
-          <Skeleton className="h-20 w-full" />
-        ) : !hasMeasurements ? (
-          <p className="text-sm text-muted-foreground">
-            Log your first measurement to see your baseline → latest change
-            per site.
-          </p>
-        ) : (
-          <div
-            className="grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-6"
-            data-testid="measurements-site-deltas"
-          >
-            {siteDeltas.map(({ def, latest, delta }) => {
-              const magnitude = delta == null ? null : Math.abs(delta);
-              const up = delta != null && delta < 0; // latest > baseline (grew)
-              const good = def.muscleProxy ? up : !up;
-              const deltaChip =
-                magnitude != null && magnitude > 0
-                  ? {
-                      value: `${up ? "▲" : "▼"} ${magnitude.toFixed(1)}"`,
-                      tone: (good ? "success" : "neutral") as "success" | "neutral",
-                    }
-                  : undefined;
-              return (
-                <div key={def.key} data-testid={`measurements-site-delta-${def.key}`}>
-                  <StatReadout
-                    label={def.label}
-                    value={latest != null ? latest.toFixed(1) : "—"}
-                    unit={'"'}
-                    delta={deltaChip}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      {/* Phase 6: weight is secondary on the Body screen — a flat, de-boxed
-          trend section, not a competing card. */}
-      <section className="border-t border-border pt-6">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground mb-4">
-          Weight trend
-        </p>
-        <div>
+      {/* Since baseline — the recomp deltas per tape site. */}
+      <Card className="shadow-card">
+        <CardContent className="p-6 md:p-8">
+          <span className={cn(EYEBROW, "block mb-5")}>Since baseline</span>
           {loadingMs ? (
-            <Skeleton className="h-56 w-full" />
+            <Skeleton className="h-20 w-full" />
+          ) : !hasMeasurements ? (
+            <p className="text-sm text-muted-foreground">
+              Log your first measurement to see your baseline → latest change per site.
+            </p>
           ) : (
-            <TrendArea
-              data={weightData}
-              xKey="date"
-              yKey="weight"
-              unit="lb"
-              height={224}
-              valueFormatter={(n) => n.toFixed(1)}
-              xTickFormatter={(v) => format(parseISO(String(v)), "MMM d")}
-              sparseFallback={
-                <EmptyState
-                  title="Not enough weigh-ins yet"
-                  hint="One weigh-in down. Two more and your trend line shows up."
-                />
-              }
-            />
+            <div
+              className="grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-6"
+              data-testid="measurements-site-deltas"
+            >
+              {siteDeltas.map(({ def, latest, delta }) => {
+                const magnitude = delta == null ? null : Math.abs(delta);
+                const up = delta != null && delta < 0; // latest > baseline (grew)
+                const good = def.muscleProxy ? up : !up;
+                const deltaChip =
+                  magnitude != null && magnitude > 0
+                    ? {
+                        value: `${up ? "▲" : "▼"} ${magnitude.toFixed(1)}"`,
+                        tone: (good ? "success" : "neutral") as "success" | "neutral",
+                      }
+                    : undefined;
+                return (
+                  <div key={def.key} data-testid={`measurements-site-delta-${def.key}`}>
+                    <StatReadout
+                      label={def.label}
+                      value={latest != null ? latest.toFixed(1) : "—"}
+                      unit={'"'}
+                      delta={deltaChip}
+                    />
+                  </div>
+                );
+              })}
+            </div>
           )}
-        </div>
-      </section>
+        </CardContent>
+      </Card>
 
-      <section className="border-t border-border pt-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
-            Tape measurements
-          </p>
-          {/* Pill toggles instead of a dotted legend — the selected site is the
-              accent line, the rest fade into the neutral ramp. */}
-          <div className="flex flex-wrap gap-1.5">
-            {SITE_DEFS.map((def) => (
-              <button
-                key={def.key}
-                type="button"
-                onClick={() => setSelectedSite(def.key)}
-                aria-pressed={selectedSite === def.key}
-                className={cn(
-                  "rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                  selectedSite === def.key
-                    ? "border-primary/30 bg-primary/10 text-primary"
-                    : "border-border bg-muted/40 text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {def.label}
-              </button>
-            ))}
+      {/* Tape measurements — selected site is the azure line, the rest recede
+          into the neutral ramp; pill toggles instead of a dotted legend. */}
+      <Card className="shadow-card">
+        <CardContent className="p-6 md:p-8">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <span className={EYEBROW}>Tape measurements</span>
+            <div className="flex flex-wrap gap-1.5">
+              {SITE_DEFS.map((def) => (
+                <button
+                  key={def.key}
+                  type="button"
+                  onClick={() => setSelectedSite(def.key)}
+                  aria-pressed={selectedSite === def.key}
+                  className={cn(
+                    "rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                    selectedSite === def.key
+                      ? "border-primary/30 bg-primary/10 text-primary"
+                      : "border-border bg-muted/40 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {def.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-        <div>
-          {loadingMs ? <Skeleton className="h-64 w-full" /> : (
+          {loadingMs ? (
+            <Skeleton className="h-64 w-full" />
+          ) : (
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={tapeData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                   <XAxis
                     dataKey="date"
-                    tickFormatter={(str) => format(parseISO(str), 'MMM d')}
+                    tickFormatter={(str) => format(parseISO(str), "MMM d")}
                     tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                    className="font-mono"
                     tickLine={false}
                     axisLine={false}
                   />
                   <YAxis
                     tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                    className="font-mono"
                     tickLine={false}
                     axisLine={false}
                     width={36}
                   />
-                  <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: 12 }} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      borderColor: "hsl(var(--border))",
+                      borderRadius: 12,
+                      boxShadow: "var(--shadow-pop)",
+                    }}
+                  />
                   {/* Selected site = accent; the rest recede into the neutral ramp. */}
                   {SITE_DEFS.map((def, i) => {
                     const isSel = def.key === selectedSite;
@@ -479,10 +469,11 @@ export default function Measurements() {
               </ResponsiveContainer>
             </div>
           )}
-        </div>
-      </section>
+        </CardContent>
+      </Card>
 
-      <div className="bg-card border border-card-border shadow-card rounded-lg overflow-hidden">
+      {/* Full check-in history. */}
+      <Card className="overflow-hidden shadow-card">
         {loadingMs ? (
           <div className="p-8"><Skeleton className="h-64 w-full" /></div>
         ) : (
@@ -511,13 +502,13 @@ export default function Measurements() {
                 measurements?.map((m) => (
                   <TableRow key={m.id} className="hover:bg-muted/30">
                     <TableCell className="font-medium whitespace-nowrap">{formatDate(m.date)}</TableCell>
-                    <TableCell className="text-right font-mono font-bold text-primary">{m.weight ? `${m.weight.toFixed(1)}` : '-'}</TableCell>
-                    <TableCell className="text-right font-mono">{m.bodyFatPct != null ? `${m.bodyFatPct.toFixed(1)}%` : '-'}</TableCell>
-                    <TableCell className="text-right font-mono">{m.neck || '-'}</TableCell>
-                    <TableCell className="text-right font-mono">{m.belly || '-'}</TableCell>
-                    <TableCell className="text-right font-mono">{m.chest || '-'}</TableCell>
-                    <TableCell className="text-right font-mono">{m.lArm || '-'}/{m.rArm || '-'}</TableCell>
-                    <TableCell className="text-right font-mono">{m.lLeg || '-'}/{m.rLeg || '-'}</TableCell>
+                    <TableCell className="text-right tabular-nums font-bold text-primary">{m.weight ? `${m.weight.toFixed(1)}` : '-'}</TableCell>
+                    <TableCell className="text-right tabular-nums">{m.bodyFatPct != null ? `${m.bodyFatPct.toFixed(1)}%` : '-'}</TableCell>
+                    <TableCell className="text-right tabular-nums">{m.neck || '-'}</TableCell>
+                    <TableCell className="text-right tabular-nums">{m.belly || '-'}</TableCell>
+                    <TableCell className="text-right tabular-nums">{m.chest || '-'}</TableCell>
+                    <TableCell className="text-right tabular-nums">{m.lArm || '-'}/{m.rArm || '-'}</TableCell>
+                    <TableCell className="text-right tabular-nums">{m.lLeg || '-'}/{m.rLeg || '-'}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(m)}>
@@ -550,7 +541,7 @@ export default function Measurements() {
             </TableBody>
           </Table>
         )}
-      </div>
+      </Card>
 
       <MeasurementForm
         open={formOpen}

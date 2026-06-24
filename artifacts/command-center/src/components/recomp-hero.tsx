@@ -187,7 +187,7 @@ export function RecompHero({
         </div>
 
         {/* Muscle / strength proxy block + secondary weight */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border pt-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div data-testid="recomp-hero-muscle">
             <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               Muscle (proxies for lean mass)
