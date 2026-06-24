@@ -2921,6 +2921,159 @@ export const DeleteMeasurementParams = zod.object({
 });
 
 /**
+ * Phase 13. Timestamped, source-aware food entries. `date` returns one
+local day; `from`/`to` (inclusive YYYY-MM-DD) return a range. With no
+params, returns the most recent entries. Manual and health_sync rows
+sit side by side; the day total is the sum of all entries for a date.
+
+ */
+export const ListNutritionEntriesQueryParams = zod.object({
+  date: zod.coerce.string().optional(),
+  from: zod.coerce.string().optional(),
+  to: zod.coerce.string().optional(),
+});
+
+export const ListNutritionEntriesResponseItem = zod
+  .object({
+    id: zod.number(),
+    date: zod.string(),
+    loggedAt: zod.coerce.date(),
+    label: zod.string().nullish(),
+    calories: zod.number().nullish(),
+    proteinG: zod.number().nullish(),
+    carbsG: zod.number().nullish(),
+    fatG: zod.number().nullish(),
+    sodiumMg: zod.number().nullish(),
+    source: zod.enum(["manual", "health_sync"]),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .describe(
+    "Phase 13. One timestamped food entry. `source` is `manual` (logged in\nthe app) or `health_sync` (the Apple-Shortcut push collapses each day's\nsynced totals into a single health_sync entry). The day's totals are the\nsum of all entries for `date`.\n",
+  );
+export const ListNutritionEntriesResponse = zod.array(
+  ListNutritionEntriesResponseItem,
+);
+
+export const CreateNutritionEntryBody = zod
+  .object({
+    date: zod.string().optional(),
+    loggedAt: zod.coerce.date().optional(),
+    label: zod.string().nullish(),
+    calories: zod.number().nullish(),
+    proteinG: zod.number().nullish(),
+    carbsG: zod.number().nullish(),
+    fatG: zod.number().nullish(),
+    sodiumMg: zod.number().nullish(),
+  })
+  .describe(
+    "A manual food entry. `date` (local YYYY-MM-DD) and `loggedAt` default\nto the runner's local day \/ now when omitted. At least one of\ncalories\/proteinG\/carbsG\/fatG\/sodiumMg should be present.\n",
+  );
+
+export const UpdateNutritionEntryParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateNutritionEntryBody = zod.object({
+  date: zod.string().optional(),
+  loggedAt: zod.coerce.date().optional(),
+  label: zod.string().nullish(),
+  calories: zod.number().nullish(),
+  proteinG: zod.number().nullish(),
+  carbsG: zod.number().nullish(),
+  fatG: zod.number().nullish(),
+  sodiumMg: zod.number().nullish(),
+});
+
+export const UpdateNutritionEntryResponse = zod
+  .object({
+    id: zod.number(),
+    date: zod.string(),
+    loggedAt: zod.coerce.date(),
+    label: zod.string().nullish(),
+    calories: zod.number().nullish(),
+    proteinG: zod.number().nullish(),
+    carbsG: zod.number().nullish(),
+    fatG: zod.number().nullish(),
+    sodiumMg: zod.number().nullish(),
+    source: zod.enum(["manual", "health_sync"]),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .describe(
+    "Phase 13. One timestamped food entry. `source` is `manual` (logged in\nthe app) or `health_sync` (the Apple-Shortcut push collapses each day's\nsynced totals into a single health_sync entry). The day's totals are the\nsum of all entries for `date`.\n",
+  );
+
+export const DeleteNutritionEntryParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * Phase 13. Timestamped water logs. `date` returns one local day;
+`from`/`to` (inclusive) return a range; no params returns the most
+recent logs. The day's water total is the sum of its logs (oz).
+
+ */
+export const ListWaterLogsQueryParams = zod.object({
+  date: zod.coerce.string().optional(),
+  from: zod.coerce.string().optional(),
+  to: zod.coerce.string().optional(),
+});
+
+export const ListWaterLogsResponseItem = zod
+  .object({
+    id: zod.number(),
+    date: zod.string(),
+    loggedAt: zod.coerce.date(),
+    oz: zod.number(),
+    source: zod.enum(["manual", "health_sync"]),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .describe(
+    "Phase 13. One timestamped water log in fluid ounces. `source` is\n`manual` or `health_sync`. A day's water total is the sum of its logs.\n",
+  );
+export const ListWaterLogsResponse = zod.array(ListWaterLogsResponseItem);
+
+export const CreateWaterLogBody = zod
+  .object({
+    oz: zod.number(),
+    date: zod.string().optional(),
+    loggedAt: zod.coerce.date().optional(),
+  })
+  .describe(
+    "A water log in fluid ounces. `date`\/`loggedAt` default to the runner's\nlocal day \/ now when omitted.\n",
+  );
+
+export const UpdateWaterLogParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateWaterLogBody = zod.object({
+  oz: zod.number().optional(),
+  date: zod.string().optional(),
+  loggedAt: zod.coerce.date().optional(),
+});
+
+export const UpdateWaterLogResponse = zod
+  .object({
+    id: zod.number(),
+    date: zod.string(),
+    loggedAt: zod.coerce.date(),
+    oz: zod.number(),
+    source: zod.enum(["manual", "health_sync"]),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .describe(
+    "Phase 13. One timestamped water log in fluid ounces. `source` is\n`manual` or `health_sync`. A day's water total is the sum of its logs.\n",
+  );
+
+export const DeleteWaterLogParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * Task #383. Consolidated first-paint bootstrap for the dashboard.
 Returns the union of the 8 per-tile payloads the page needs on
 cold load. Server fans the underlying queries out with

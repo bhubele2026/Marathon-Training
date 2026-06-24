@@ -111,6 +111,16 @@ export async function cleanTestData(): Promise<void> {
   await db.execute(
     sql`DELETE FROM plan_weeks WHERE week >= ${TEST_WEEK_MIN} AND week <= ${TEST_WEEK_MAX}`,
   );
+  // Phase 13: nutrition entries / water logs / day rollup in the test-year window.
+  await db.execute(
+    sql`DELETE FROM nutrition_entries WHERE date >= ${TEST_YEAR_START} AND date < ${TEST_YEAR_END}`,
+  );
+  await db.execute(
+    sql`DELETE FROM water_logs WHERE date >= ${TEST_YEAR_START} AND date < ${TEST_YEAR_END}`,
+  );
+  await db.execute(
+    sql`DELETE FROM nutrition_days WHERE date >= ${TEST_YEAR_START} AND date < ${TEST_YEAR_END}`,
+  );
 }
 
 export interface PlanWeekInput {

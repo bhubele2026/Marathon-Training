@@ -4,12 +4,24 @@ import {
   nutritionDaysTable,
   nutritionDayTargetsTable,
   nutritionistReportsTable,
+  nutritionEntriesTable,
   userPreferencesTable,
   type NutritionDayRow,
+  type NutritionEntryRow,
 } from "@workspace/db";
-import { desc, eq, gte, lt } from "drizzle-orm";
+import { and, desc, eq, gte, lte, lt } from "drizzle-orm";
+import {
+  CreateNutritionEntryBody,
+  UpdateNutritionEntryBody,
+  ListNutritionEntriesQueryParams,
+} from "@workspace/api-zod";
 import { getDayTarget, isValidDate } from "../lib/nutrition-day-target";
 import { localToday } from "../lib/day-state";
+import {
+  recomputeDay,
+  upsertHealthSyncEntry,
+  upsertHealthSyncWater,
+} from "../lib/nutrition-rollup";
 
 // Daily calories + protein synced from a food tracker (MyNetDiary → Apple
 // Health → an Apple Shortcut that POSTs here once a day). The ingest route
@@ -209,25 +221,34 @@ router.post("/nutrition", async (req, res) => {
     date = d;
   }
 
-  // Only write the fields that were actually sent so a protein-only push
-  // doesn't blow away an earlier calories value (and vice versa).
-  const provided: Partial<NutritionDayRow> = {};
-  if (calories.value !== undefined) provided.calories = calories.value;
-  if (proteinG.value !== undefined) provided.proteinG = proteinG.value;
-  if (carbsG.value !== undefined) provided.carbsG = carbsG.value;
-  if (fatG.value !== undefined) provided.fatG = fatG.value;
-  if (sodiumMg.value !== undefined) provided.sodiumMg = sodiumMg.value;
-  if (waterMl.value !== undefined) provided.waterMl = waterMl.value;
+  // Phase 13: reconcile the push into the entries model instead of writing
+  // nutrition_days directly. The day's synced totals collapse into ONE
+  // health_sync entry (+ one health_sync water log), MERGING only the fields
+  // this push sent so a protein-only push doesn't wipe earlier calories — then
+  // recomputeDay rebuilds the nutrition_days cache from all entries (manual +
+  // sync), so manual entries are never double-counted or clobbered.
+  const providedMacros: Partial<
+    Record<"calories" | "proteinG" | "carbsG" | "fatG" | "sodiumMg", number>
+  > = {};
+  if (calories.value !== undefined) providedMacros.calories = calories.value;
+  if (proteinG.value !== undefined) providedMacros.proteinG = proteinG.value;
+  if (carbsG.value !== undefined) providedMacros.carbsG = carbsG.value;
+  if (fatG.value !== undefined) providedMacros.fatG = fatG.value;
+  if (sodiumMg.value !== undefined) providedMacros.sodiumMg = sodiumMg.value;
+
+  if (Object.keys(providedMacros).length > 0) {
+    await upsertHealthSyncEntry(date, providedMacros);
+  }
+  if (waterMl.value !== undefined) {
+    await upsertHealthSyncWater(date, waterMl.value);
+  }
+  await recomputeDay(date);
 
   const [row] = await db
-    .insert(nutritionDaysTable)
-    .values({ date, ...provided })
-    .onConflictDoUpdate({
-      target: nutritionDaysTable.date,
-      set: { ...provided, updatedAt: new Date() },
-    })
-    .returning();
-
+    .select()
+    .from(nutritionDaysTable)
+    .where(eq(nutritionDaysTable.date, date))
+    .limit(1);
   res.json(toApi(row!));
 });
 
@@ -353,6 +374,139 @@ router.post("/nutrition/reset", async (req, res): Promise<void> => {
     .where(lt(nutritionDayTargetsTable.date, before));
 
   res.json({ before, deletedDays: deleted.length });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 13 — timestamped, source-aware nutrition entries (manual logging).
+// In-app writes are ungated (same-origin, single-user), matching the
+// measurements/workouts convention; the NUTRITION_TOKEN gate stays specific to
+// the public Apple-Shortcut ingest route above. Every write recomputes the
+// nutrition_days rollup so the existing reads stay correct.
+// ---------------------------------------------------------------------------
+
+function toApiEntry(row: NutritionEntryRow) {
+  return {
+    id: row.id,
+    date: row.date,
+    loggedAt: row.loggedAt.toISOString(),
+    label: row.label,
+    calories: row.calories,
+    proteinG: row.proteinG,
+    carbsG: row.carbsG,
+    fatG: row.fatG,
+    sodiumMg: row.sodiumMg,
+    source: row.source as "manual" | "health_sync",
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+// GET /api/nutrition/entries?date=YYYY-MM-DD | ?from=&to= — entries for a day
+// or an inclusive range, newest first. No params → most recent 200.
+router.get("/nutrition/entries", async (req, res): Promise<void> => {
+  const parsed = ListNutritionEntriesQueryParams.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const { date, from, to } = parsed.data;
+  const conds = [];
+  if (date && isValidDate(date)) conds.push(eq(nutritionEntriesTable.date, date));
+  if (from && isValidDate(from)) conds.push(gte(nutritionEntriesTable.date, from));
+  if (to && isValidDate(to)) conds.push(lte(nutritionEntriesTable.date, to));
+  const rows = await db
+    .select()
+    .from(nutritionEntriesTable)
+    .where(conds.length ? and(...conds) : undefined)
+    .orderBy(desc(nutritionEntriesTable.loggedAt))
+    .limit(conds.length ? 1000 : 200);
+  res.json(rows.map(toApiEntry));
+});
+
+// POST /api/nutrition/entries — log a manual food entry. date/loggedAt default
+// to the runner's local day / now.
+router.post("/nutrition/entries", async (req, res): Promise<void> => {
+  const parsed = CreateNutritionEntryBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const d = parsed.data;
+  const date = d.date && isValidDate(d.date) ? d.date : await localToday_();
+  const [row] = await db
+    .insert(nutritionEntriesTable)
+    .values({
+      date,
+      loggedAt: d.loggedAt ? new Date(d.loggedAt) : new Date(),
+      label: d.label ?? null,
+      calories: d.calories ?? null,
+      proteinG: d.proteinG ?? null,
+      carbsG: d.carbsG ?? null,
+      fatG: d.fatG ?? null,
+      sodiumMg: d.sodiumMg ?? null,
+      source: "manual",
+    })
+    .returning();
+  await recomputeDay(date);
+  res.status(201).json(toApiEntry(row!));
+});
+
+// PATCH /api/nutrition/entries/:id — edit a manual entry. If the date changes,
+// both the old and new day rollups are recomputed.
+router.patch("/nutrition/entries/:id", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "invalid id" });
+    return;
+  }
+  const parsed = UpdateNutritionEntryBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const existing = await db
+    .select()
+    .from(nutritionEntriesTable)
+    .where(eq(nutritionEntriesTable.id, id))
+    .limit(1);
+  if (!existing[0]) {
+    res.status(404).json({ error: "not found" });
+    return;
+  }
+  const d = parsed.data;
+  const set: Partial<NutritionEntryRow> = { updatedAt: new Date() };
+  if (d.date !== undefined && isValidDate(d.date)) set.date = d.date;
+  if (d.loggedAt !== undefined) set.loggedAt = new Date(d.loggedAt);
+  if (d.label !== undefined) set.label = d.label;
+  if (d.calories !== undefined) set.calories = d.calories;
+  if (d.proteinG !== undefined) set.proteinG = d.proteinG;
+  if (d.carbsG !== undefined) set.carbsG = d.carbsG;
+  if (d.fatG !== undefined) set.fatG = d.fatG;
+  if (d.sodiumMg !== undefined) set.sodiumMg = d.sodiumMg;
+
+  const [row] = await db
+    .update(nutritionEntriesTable)
+    .set(set)
+    .where(eq(nutritionEntriesTable.id, id))
+    .returning();
+  await recomputeDay(existing[0].date);
+  if (row && row.date !== existing[0].date) await recomputeDay(row.date);
+  res.json(toApiEntry(row!));
+});
+
+// DELETE /api/nutrition/entries/:id — remove a manual entry, recompute its day.
+router.delete("/nutrition/entries/:id", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "invalid id" });
+    return;
+  }
+  const [deleted] = await db
+    .delete(nutritionEntriesTable)
+    .where(eq(nutritionEntriesTable.id, id))
+    .returning();
+  if (deleted) await recomputeDay(deleted.date);
+  res.status(204).send();
 });
 
 export default router;

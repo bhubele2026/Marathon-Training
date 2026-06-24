@@ -17,6 +17,7 @@
     "backfill-workout-plan-day": "tsx ./src/backfill-workout-plan-day.ts",
     "backfill-walk-run-coherence": "tsx ./src/backfill-walk-run-coherence.ts",
     "backfill-pace-target-cards": "tsx ./src/backfill-pace-target-cards.ts",
+    "backfill-nutrition-entries": "tsx ./src/backfill-nutrition-entries.ts",
     "check-workout-orphans": "tsx ./src/check-workout-orphans.ts",
     "cleanup-orphan-plan-rows": "tsx ./src/cleanup-orphan-plan-rows.ts",
     "check-orphan-plan-rows": "tsx ./src/check-orphan-plan-rows.ts",

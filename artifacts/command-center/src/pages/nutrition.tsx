@@ -16,6 +16,8 @@ import { NutritionLog } from "@/components/nutrition-log";
 import { ResetNutritionButton } from "@/components/reset-nutrition-button";
 import { CloseDayButton } from "@/components/close-day-button";
 import { ConsistencyStrip } from "@/components/consistency-strip";
+import { NutritionEntryForm } from "@/components/nutrition-entry-form";
+import { WaterQuickAdd } from "@/components/water-quick-add";
 
 // These routes are intentionally hand-fetched rather than going through the
 // generated api-client: the nutrition slice isn't in openapi.yaml, so we hit
@@ -497,10 +499,17 @@ export default function Nutrition() {
                 </button>
               )}
             </div>
-            <span className="flex shrink-0 items-center gap-1.5 text-xs font-normal normal-case">
-              <RefreshCw className="h-3 w-3" />
-              {formatUpdated(today?.updatedAt ?? null)}
-            </span>
+            <div className="flex shrink-0 items-center gap-3 normal-case">
+              <NutritionEntryForm
+                date={date}
+                triggerLabel="Log food"
+                triggerClassName="h-8 px-3 text-xs"
+              />
+              <span className="flex items-center gap-1.5 text-xs font-normal">
+                <RefreshCw className="h-3 w-3" />
+                {formatUpdated(today?.updatedAt ?? null)}
+              </span>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -567,14 +576,16 @@ export default function Nutrition() {
                 {day?.rationale && <CoachNote icon={Sparkles}>{day.rationale}</CoachNote>}
               </div>
 
-              {/* Hydration — first-class tile (replaces the old orphan line). */}
-              <div data-testid="tile-nutrition-water">
+              {/* Hydration — first-class tile (replaces the old orphan line),
+                  now with tap-to-add logging into the real water store. */}
+              <div data-testid="tile-nutrition-water" className="space-y-3">
                 <WaterTracker
                   oz={waterOz}
                   goalOz={64}
                   weeklyAvgOz={avgOz(entries, 7)}
                   monthlyAvgOz={avgOz(entries, 30)}
                 />
+                <WaterQuickAdd date={date} />
               </div>
             </div>
           )}

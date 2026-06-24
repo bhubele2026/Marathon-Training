@@ -19,7 +19,9 @@ import type {
 import type {
   ApplyPlannerConfigResponse,
   CreateMeasurementBody,
+  CreateNutritionEntryBody,
   CreatePlannerConfigBody,
+  CreateWaterLogBody,
   CreateWorkoutBody,
   DashboardBootstrap,
   DashboardSummary,
@@ -31,10 +33,13 @@ import type {
   FullResetPlanResponse,
   GetRecentLifestyleActivities200Item,
   HealthStatus,
+  ListNutritionEntriesParams,
   ListPlannerConfigsResponse,
+  ListWaterLogsParams,
   ListWorkoutsParams,
   LongRunPoint,
   Measurement,
+  NutritionEntry,
   PlanDay,
   PlanOverview,
   PlanWeek,
@@ -53,12 +58,15 @@ import type {
   UpdateAppliedStartingPaceBody,
   UpdateAppliedStartingPaceResponse,
   UpdateMeasurementBody,
+  UpdateNutritionEntryBody,
   UpdatePlanDayBody,
   UpdatePlannerConfigBody,
   UpdateUserPreferencesBody,
+  UpdateWaterLogBody,
   UpdateWorkoutBody,
   UserPreferences,
   ValidationError,
+  WaterLog,
   WeeklyMileagePoint,
   WeightPoint,
   Workout,
@@ -1713,6 +1721,681 @@ export const useDeleteMeasurement = <
   TContext
 > => {
   return useMutation(getDeleteMeasurementMutationOptions(options));
+};
+
+/**
+ * Phase 13. Timestamped, source-aware food entries. `date` returns one
+local day; `from`/`to` (inclusive YYYY-MM-DD) return a range. With no
+params, returns the most recent entries. Manual and health_sync rows
+sit side by side; the day total is the sum of all entries for a date.
+
+ */
+export const getListNutritionEntriesUrl = (
+  params?: ListNutritionEntriesParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/nutrition/entries?${stringifiedParams}`
+    : `/api/nutrition/entries`;
+};
+
+export const listNutritionEntries = async (
+  params?: ListNutritionEntriesParams,
+  options?: RequestInit,
+): Promise<NutritionEntry[]> => {
+  return customFetch<NutritionEntry[]>(getListNutritionEntriesUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListNutritionEntriesQueryKey = (
+  params?: ListNutritionEntriesParams,
+) => {
+  return [`/api/nutrition/entries`, ...(params ? [params] : [])] as const;
+};
+
+export const getListNutritionEntriesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listNutritionEntries>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListNutritionEntriesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listNutritionEntries>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListNutritionEntriesQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listNutritionEntries>>
+  > = ({ signal }) =>
+    listNutritionEntries(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listNutritionEntries>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListNutritionEntriesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listNutritionEntries>>
+>;
+export type ListNutritionEntriesQueryError = ErrorType<unknown>;
+
+export function useListNutritionEntries<
+  TData = Awaited<ReturnType<typeof listNutritionEntries>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListNutritionEntriesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listNutritionEntries>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListNutritionEntriesQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getCreateNutritionEntryUrl = () => {
+  return `/api/nutrition/entries`;
+};
+
+export const createNutritionEntry = async (
+  createNutritionEntryBody: CreateNutritionEntryBody,
+  options?: RequestInit,
+): Promise<NutritionEntry> => {
+  return customFetch<NutritionEntry>(getCreateNutritionEntryUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createNutritionEntryBody),
+  });
+};
+
+export const getCreateNutritionEntryMutationOptions = <
+  TError = ErrorType<ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createNutritionEntry>>,
+    TError,
+    { data: BodyType<CreateNutritionEntryBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createNutritionEntry>>,
+  TError,
+  { data: BodyType<CreateNutritionEntryBody> },
+  TContext
+> => {
+  const mutationKey = ["createNutritionEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createNutritionEntry>>,
+    { data: BodyType<CreateNutritionEntryBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createNutritionEntry(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateNutritionEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createNutritionEntry>>
+>;
+export type CreateNutritionEntryMutationBody =
+  BodyType<CreateNutritionEntryBody>;
+export type CreateNutritionEntryMutationError = ErrorType<ValidationError>;
+
+export const useCreateNutritionEntry = <
+  TError = ErrorType<ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createNutritionEntry>>,
+    TError,
+    { data: BodyType<CreateNutritionEntryBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createNutritionEntry>>,
+  TError,
+  { data: BodyType<CreateNutritionEntryBody> },
+  TContext
+> => {
+  return useMutation(getCreateNutritionEntryMutationOptions(options));
+};
+
+export const getUpdateNutritionEntryUrl = (id: number) => {
+  return `/api/nutrition/entries/${id}`;
+};
+
+export const updateNutritionEntry = async (
+  id: number,
+  updateNutritionEntryBody: UpdateNutritionEntryBody,
+  options?: RequestInit,
+): Promise<NutritionEntry> => {
+  return customFetch<NutritionEntry>(getUpdateNutritionEntryUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateNutritionEntryBody),
+  });
+};
+
+export const getUpdateNutritionEntryMutationOptions = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateNutritionEntry>>,
+    TError,
+    { id: number; data: BodyType<UpdateNutritionEntryBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateNutritionEntry>>,
+  TError,
+  { id: number; data: BodyType<UpdateNutritionEntryBody> },
+  TContext
+> => {
+  const mutationKey = ["updateNutritionEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateNutritionEntry>>,
+    { id: number; data: BodyType<UpdateNutritionEntryBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateNutritionEntry(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateNutritionEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateNutritionEntry>>
+>;
+export type UpdateNutritionEntryMutationBody =
+  BodyType<UpdateNutritionEntryBody>;
+export type UpdateNutritionEntryMutationError = ErrorType<
+  Error | ValidationError
+>;
+
+export const useUpdateNutritionEntry = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateNutritionEntry>>,
+    TError,
+    { id: number; data: BodyType<UpdateNutritionEntryBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateNutritionEntry>>,
+  TError,
+  { id: number; data: BodyType<UpdateNutritionEntryBody> },
+  TContext
+> => {
+  return useMutation(getUpdateNutritionEntryMutationOptions(options));
+};
+
+export const getDeleteNutritionEntryUrl = (id: number) => {
+  return `/api/nutrition/entries/${id}`;
+};
+
+export const deleteNutritionEntry = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteNutritionEntryUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteNutritionEntryMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteNutritionEntry>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteNutritionEntry>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteNutritionEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteNutritionEntry>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteNutritionEntry(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteNutritionEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteNutritionEntry>>
+>;
+
+export type DeleteNutritionEntryMutationError = ErrorType<Error>;
+
+export const useDeleteNutritionEntry = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteNutritionEntry>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteNutritionEntry>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteNutritionEntryMutationOptions(options));
+};
+
+/**
+ * Phase 13. Timestamped water logs. `date` returns one local day;
+`from`/`to` (inclusive) return a range; no params returns the most
+recent logs. The day's water total is the sum of its logs (oz).
+
+ */
+export const getListWaterLogsUrl = (params?: ListWaterLogsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/water?${stringifiedParams}`
+    : `/api/water`;
+};
+
+export const listWaterLogs = async (
+  params?: ListWaterLogsParams,
+  options?: RequestInit,
+): Promise<WaterLog[]> => {
+  return customFetch<WaterLog[]>(getListWaterLogsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListWaterLogsQueryKey = (params?: ListWaterLogsParams) => {
+  return [`/api/water`, ...(params ? [params] : [])] as const;
+};
+
+export const getListWaterLogsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listWaterLogs>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListWaterLogsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listWaterLogs>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListWaterLogsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listWaterLogs>>> = ({
+    signal,
+  }) => listWaterLogs(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listWaterLogs>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListWaterLogsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listWaterLogs>>
+>;
+export type ListWaterLogsQueryError = ErrorType<unknown>;
+
+export function useListWaterLogs<
+  TData = Awaited<ReturnType<typeof listWaterLogs>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListWaterLogsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listWaterLogs>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListWaterLogsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getCreateWaterLogUrl = () => {
+  return `/api/water`;
+};
+
+export const createWaterLog = async (
+  createWaterLogBody: CreateWaterLogBody,
+  options?: RequestInit,
+): Promise<WaterLog> => {
+  return customFetch<WaterLog>(getCreateWaterLogUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createWaterLogBody),
+  });
+};
+
+export const getCreateWaterLogMutationOptions = <
+  TError = ErrorType<ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createWaterLog>>,
+    TError,
+    { data: BodyType<CreateWaterLogBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createWaterLog>>,
+  TError,
+  { data: BodyType<CreateWaterLogBody> },
+  TContext
+> => {
+  const mutationKey = ["createWaterLog"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createWaterLog>>,
+    { data: BodyType<CreateWaterLogBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createWaterLog(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateWaterLogMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createWaterLog>>
+>;
+export type CreateWaterLogMutationBody = BodyType<CreateWaterLogBody>;
+export type CreateWaterLogMutationError = ErrorType<ValidationError>;
+
+export const useCreateWaterLog = <
+  TError = ErrorType<ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createWaterLog>>,
+    TError,
+    { data: BodyType<CreateWaterLogBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createWaterLog>>,
+  TError,
+  { data: BodyType<CreateWaterLogBody> },
+  TContext
+> => {
+  return useMutation(getCreateWaterLogMutationOptions(options));
+};
+
+export const getUpdateWaterLogUrl = (id: number) => {
+  return `/api/water/${id}`;
+};
+
+export const updateWaterLog = async (
+  id: number,
+  updateWaterLogBody: UpdateWaterLogBody,
+  options?: RequestInit,
+): Promise<WaterLog> => {
+  return customFetch<WaterLog>(getUpdateWaterLogUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateWaterLogBody),
+  });
+};
+
+export const getUpdateWaterLogMutationOptions = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateWaterLog>>,
+    TError,
+    { id: number; data: BodyType<UpdateWaterLogBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateWaterLog>>,
+  TError,
+  { id: number; data: BodyType<UpdateWaterLogBody> },
+  TContext
+> => {
+  const mutationKey = ["updateWaterLog"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateWaterLog>>,
+    { id: number; data: BodyType<UpdateWaterLogBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateWaterLog(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateWaterLogMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateWaterLog>>
+>;
+export type UpdateWaterLogMutationBody = BodyType<UpdateWaterLogBody>;
+export type UpdateWaterLogMutationError = ErrorType<Error | ValidationError>;
+
+export const useUpdateWaterLog = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateWaterLog>>,
+    TError,
+    { id: number; data: BodyType<UpdateWaterLogBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateWaterLog>>,
+  TError,
+  { id: number; data: BodyType<UpdateWaterLogBody> },
+  TContext
+> => {
+  return useMutation(getUpdateWaterLogMutationOptions(options));
+};
+
+export const getDeleteWaterLogUrl = (id: number) => {
+  return `/api/water/${id}`;
+};
+
+export const deleteWaterLog = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteWaterLogUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteWaterLogMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteWaterLog>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteWaterLog>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteWaterLog"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteWaterLog>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteWaterLog(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteWaterLogMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteWaterLog>>
+>;
+
+export type DeleteWaterLogMutationError = ErrorType<Error>;
+
+export const useDeleteWaterLog = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteWaterLog>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteWaterLog>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteWaterLogMutationOptions(options));
 };
 
 /**

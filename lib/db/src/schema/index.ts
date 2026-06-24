@@ -6,6 +6,8 @@ export * from "./resetUndoSnapshots";
 export * from "./plannerConfigs";
 export * from "./userPreferences";
 export * from "./nutritionDays";
+export * from "./nutritionEntries";
+export * from "./waterLogs";
 export * from "./nutritionDayTargets";
 export * from "./planDrafts";
 export * from "./coachNotes";

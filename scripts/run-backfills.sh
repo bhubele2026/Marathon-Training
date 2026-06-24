@@ -64,6 +64,12 @@ pnpm --filter @workspace/scripts run backfill-walk-run-coherence
 # equal the prior seed (no user customization to clobber). Idempotent
 # — safe to re-run; no-op when no planner_configs row has been applied.
 pnpm --filter @workspace/scripts run backfill-pace-target-cards
+# Phase 13: migrate prior nutrition_days totals into the new entries model.
+# Inserts one health_sync nutrition_entry (+ water_log) per existing day so all
+# history shows up in the entries/history surfaces. Non-destructive +
+# idempotent — skips a day that already has a health_sync entry, so it's safe
+# on every merge and every deploy.
+pnpm --filter @workspace/scripts run backfill-nutrition-entries
 # Task #327: enforce the "plan tables stay EMPTY until a Phase Planner
 # config has been applied" invariant. Pre-Task #307 databases still
 # carry the auto-generated 52-week canonical plan even though

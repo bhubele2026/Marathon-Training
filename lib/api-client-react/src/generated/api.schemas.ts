@@ -946,6 +946,104 @@ export interface UpdateMeasurementBody {
   notes?: string | null;
 }
 
+export type NutritionEntrySource =
+  (typeof NutritionEntrySource)[keyof typeof NutritionEntrySource];
+
+export const NutritionEntrySource = {
+  manual: "manual",
+  health_sync: "health_sync",
+} as const;
+
+/**
+ * Phase 13. One timestamped food entry. `source` is `manual` (logged in
+the app) or `health_sync` (the Apple-Shortcut push collapses each day's
+synced totals into a single health_sync entry). The day's totals are the
+sum of all entries for `date`.
+
+ */
+export interface NutritionEntry {
+  id: number;
+  date: string;
+  loggedAt: string;
+  label?: string | null;
+  calories?: number | null;
+  proteinG?: number | null;
+  carbsG?: number | null;
+  fatG?: number | null;
+  sodiumMg?: number | null;
+  source: NutritionEntrySource;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * A manual food entry. `date` (local YYYY-MM-DD) and `loggedAt` default
+to the runner's local day / now when omitted. At least one of
+calories/proteinG/carbsG/fatG/sodiumMg should be present.
+
+ */
+export interface CreateNutritionEntryBody {
+  date?: string;
+  loggedAt?: string;
+  label?: string | null;
+  calories?: number | null;
+  proteinG?: number | null;
+  carbsG?: number | null;
+  fatG?: number | null;
+  sodiumMg?: number | null;
+}
+
+export interface UpdateNutritionEntryBody {
+  date?: string;
+  loggedAt?: string;
+  label?: string | null;
+  calories?: number | null;
+  proteinG?: number | null;
+  carbsG?: number | null;
+  fatG?: number | null;
+  sodiumMg?: number | null;
+}
+
+export type WaterLogSource =
+  (typeof WaterLogSource)[keyof typeof WaterLogSource];
+
+export const WaterLogSource = {
+  manual: "manual",
+  health_sync: "health_sync",
+} as const;
+
+/**
+ * Phase 13. One timestamped water log in fluid ounces. `source` is
+`manual` or `health_sync`. A day's water total is the sum of its logs.
+
+ */
+export interface WaterLog {
+  id: number;
+  date: string;
+  loggedAt: string;
+  oz: number;
+  source: WaterLogSource;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * A water log in fluid ounces. `date`/`loggedAt` default to the runner's
+local day / now when omitted.
+
+ */
+export interface CreateWaterLogBody {
+  oz: number;
+  date?: string;
+  loggedAt?: string;
+}
+
+export interface UpdateWaterLogBody {
+  oz?: number;
+  date?: string;
+  loggedAt?: string;
+}
+
 export type RecompSiteKey = (typeof RecompSiteKey)[keyof typeof RecompSiteKey];
 
 export const RecompSiteKey = {
@@ -1964,6 +2062,18 @@ export const ListWorkoutsTimeOfDay = {
   PM: "PM",
   Other: "Other",
 } as const;
+
+export type ListNutritionEntriesParams = {
+  date?: string;
+  from?: string;
+  to?: string;
+};
+
+export type ListWaterLogsParams = {
+  date?: string;
+  from?: string;
+  to?: string;
+};
 
 export type GetRecentLifestyleActivities200Item = {
   sessionType: string;

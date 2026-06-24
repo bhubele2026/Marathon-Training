@@ -482,6 +482,203 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
 
+  /nutrition/entries:
+    get:
+      operationId: listNutritionEntries
+      tags: [nutrition]
+      description: |
+        Phase 13. Timestamped, source-aware food entries. `date` returns one
+        local day; `from`/`to` (inclusive YYYY-MM-DD) return a range. With no
+        params, returns the most recent entries. Manual and health_sync rows
+        sit side by side; the day total is the sum of all entries for a date.
+      parameters:
+        - in: query
+          name: date
+          required: false
+          schema: { type: string }
+        - in: query
+          name: from
+          required: false
+          schema: { type: string }
+        - in: query
+          name: to
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/NutritionEntry" }
+    post:
+      operationId: createNutritionEntry
+      tags: [nutrition]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateNutritionEntryBody" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NutritionEntry" }
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ValidationError" }
+
+  /nutrition/entries/{id}:
+    patch:
+      operationId: updateNutritionEntry
+      tags: [nutrition]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateNutritionEntryBody" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NutritionEntry" }
+        "400":
+          description: Invalid id or request body
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ValidationError"
+        "404":
+          description: Entry not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      operationId: deleteNutritionEntry
+      tags: [nutrition]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: No Content }
+        "400":
+          description: Invalid id
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /water:
+    get:
+      operationId: listWaterLogs
+      tags: [nutrition]
+      description: |
+        Phase 13. Timestamped water logs. `date` returns one local day;
+        `from`/`to` (inclusive) return a range; no params returns the most
+        recent logs. The day's water total is the sum of its logs (oz).
+      parameters:
+        - in: query
+          name: date
+          required: false
+          schema: { type: string }
+        - in: query
+          name: from
+          required: false
+          schema: { type: string }
+        - in: query
+          name: to
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/WaterLog" }
+    post:
+      operationId: createWaterLog
+      tags: [nutrition]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateWaterLogBody" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WaterLog" }
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ValidationError" }
+
+  /water/{id}:
+    patch:
+      operationId: updateWaterLog
+      tags: [nutrition]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateWaterLogBody" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WaterLog" }
+        "400":
+          description: Invalid id or request body
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ValidationError"
+        "404":
+          description: Water log not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      operationId: deleteWaterLog
+      tags: [nutrition]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: No Content }
+        "400":
+          description: Invalid id
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
   /dashboard/bootstrap:
     get:
       operationId: getDashboardBootstrap
@@ -1942,6 +2139,89 @@ components:
         neck: { type: number, nullable: true }
         bodyFatPct: { type: number, nullable: true }
         notes: { type: string, nullable: true }
+
+    NutritionEntry:
+      type: object
+      description: |
+        Phase 13. One timestamped food entry. `source` is `manual` (logged in
+        the app) or `health_sync` (the Apple-Shortcut push collapses each day's
+        synced totals into a single health_sync entry). The day's totals are the
+        sum of all entries for `date`.
+      required: [id, date, loggedAt, source, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        date: { type: string }
+        loggedAt: { type: string, format: date-time }
+        label: { type: string, nullable: true }
+        calories: { type: integer, nullable: true }
+        proteinG: { type: integer, nullable: true }
+        carbsG: { type: integer, nullable: true }
+        fatG: { type: integer, nullable: true }
+        sodiumMg: { type: integer, nullable: true }
+        source: { type: string, enum: [manual, health_sync] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreateNutritionEntryBody:
+      type: object
+      description: |
+        A manual food entry. `date` (local YYYY-MM-DD) and `loggedAt` default
+        to the runner's local day / now when omitted. At least one of
+        calories/proteinG/carbsG/fatG/sodiumMg should be present.
+      properties:
+        date: { type: string }
+        loggedAt: { type: string, format: date-time }
+        label: { type: string, nullable: true }
+        calories: { type: integer, nullable: true }
+        proteinG: { type: integer, nullable: true }
+        carbsG: { type: integer, nullable: true }
+        fatG: { type: integer, nullable: true }
+        sodiumMg: { type: integer, nullable: true }
+
+    UpdateNutritionEntryBody:
+      type: object
+      properties:
+        date: { type: string }
+        loggedAt: { type: string, format: date-time }
+        label: { type: string, nullable: true }
+        calories: { type: integer, nullable: true }
+        proteinG: { type: integer, nullable: true }
+        carbsG: { type: integer, nullable: true }
+        fatG: { type: integer, nullable: true }
+        sodiumMg: { type: integer, nullable: true }
+
+    WaterLog:
+      type: object
+      description: |
+        Phase 13. One timestamped water log in fluid ounces. `source` is
+        `manual` or `health_sync`. A day's water total is the sum of its logs.
+      required: [id, date, loggedAt, oz, source, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        date: { type: string }
+        loggedAt: { type: string, format: date-time }
+        oz: { type: integer }
+        source: { type: string, enum: [manual, health_sync] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreateWaterLogBody:
+      type: object
+      required: [oz]
+      description: |
+        A water log in fluid ounces. `date`/`loggedAt` default to the runner's
+        local day / now when omitted.
+      properties:
+        oz: { type: integer }
+        date: { type: string }
+        loggedAt: { type: string, format: date-time }
+
+    UpdateWaterLogBody:
+      type: object
+      properties:
+        oz: { type: integer }
+        date: { type: string }
+        loggedAt: { type: string, format: date-time }
 
     DashboardBootstrap:
       type: object
