@@ -44,7 +44,7 @@ function Wordmark() {
       <span className="font-display text-xl font-extrabold uppercase italic tracking-tight text-primary leading-none">
         BH
       </span>
-      <span className="font-display text-xl font-extrabold uppercase italic tracking-tight text-white leading-none">
+      <span className="font-display text-xl font-extrabold uppercase italic tracking-tight text-sidebar-foreground leading-none">
         Studio
       </span>
     </Link>
@@ -65,10 +65,11 @@ export function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
-      {/* Pro top bar: matte-black chrome, white text, one orange accent —
-          a dark header over light content (Amazon/Linear-style). Always dark
-          regardless of theme. */}
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-sidebar text-white">
+      {/* Bright top bar: white chrome on the faint cool canvas, cool ink, one
+          azure accent — a light header that matches the tiled content. Uses
+          the semantic `sidebar` tokens, so flipping to dark mode (theme
+          toggle) gives the dark-bar option for free. */}
+      <header className="sticky top-0 z-40 border-b border-sidebar-border bg-sidebar text-sidebar-foreground">
         <div className="mx-auto max-w-[1600px] px-4 md:px-6 h-14 flex items-center gap-7">
           <Wordmark />
 
@@ -84,8 +85,8 @@ export function Layout({ children }: LayoutProps) {
                   className={cn(
                     "rounded-full px-3 py-1.5 text-sm font-medium tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
                     active
-                      ? "bg-white/10 text-primary"
-                      : "text-white/55 hover:text-white hover:bg-white/5",
+                      ? "bg-secondary text-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-secondary/60",
                   )}
                 >
                   {item.label}
@@ -97,7 +98,7 @@ export function Layout({ children }: LayoutProps) {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="rounded-full px-3 py-1.5 text-sm font-medium text-white/55 hover:text-white hover:bg-white/5 transition-colors inline-flex items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar"
+                  className="rounded-full px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors inline-flex items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar"
                   data-testid="nav-more"
                 >
                   More
@@ -141,13 +142,13 @@ export function Layout({ children }: LayoutProps) {
               onClick={togglePalette}
               data-testid="button-command-palette"
               aria-label="Open command palette"
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-white/55 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar"
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar"
             >
-              <kbd className="rounded border border-white/15 bg-white/5 px-1.5 py-0.5 font-mono text-[11px] font-medium leading-none text-white/70">
+              <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 text-[11px] font-medium leading-none text-muted-foreground">
                 {isMac ? "⌘" : "Ctrl"} K
               </kbd>
             </button>
-            <div className="text-white/70">
+            <div className="text-muted-foreground">
               <ThemeToggle />
             </div>
           </div>
@@ -175,9 +176,9 @@ export function Layout({ children }: LayoutProps) {
         </div>
       </main>
 
-      {/* Mobile bottom tab bar: same four + a More entry. Matches the dark
-          matte-black chrome of the top bar. */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-sidebar text-white flex items-stretch justify-around">
+      {/* Mobile bottom tab bar: same primary set + a More entry. Matches the
+          bright chrome of the top bar via the semantic sidebar tokens. */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-sidebar-border bg-sidebar text-sidebar-foreground flex items-stretch justify-around">
         {PRIMARY_NAV.map((item) => {
           const active = isActivePath(location, item.href);
           const Icon = item.icon;
@@ -191,13 +192,13 @@ export function Layout({ children }: LayoutProps) {
               <Icon
                 className={cn(
                   "h-5 w-5",
-                  active ? "text-primary" : "text-white/50",
+                  active ? "text-primary" : "text-muted-foreground",
                 )}
               />
               <span
                 className={cn(
                   "text-[10px]",
-                  active ? "text-primary font-medium" : "text-white/50",
+                  active ? "text-primary font-medium" : "text-muted-foreground",
                 )}
               >
                 {item.short ?? item.label}
@@ -209,7 +210,7 @@ export function Layout({ children }: LayoutProps) {
         <Sheet open={moreSheetOpen} onOpenChange={setMoreSheetOpen}>
           <SheetTrigger asChild>
             <button
-              className="flex flex-col items-center justify-center gap-0.5 py-2 flex-1 text-white/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+              className="flex flex-col items-center justify-center gap-0.5 py-2 flex-1 text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
               data-testid="nav-more-mobile"
             >
               <MoreHorizontal className="h-5 w-5" />
