@@ -224,7 +224,6 @@ export default function Today() {
     (sum, p) => sum + (p.totalMin ?? 0),
     0,
   );
-  const lastSessionId = sessions.length > 0 ? sessions[sessions.length - 1]!.id : null;
   // Pre-launch countdown: when the API tells us today is before the first
   // scheduled session, take over the page with a dedicated countdown card so
   // the user has clear orientation during the gap. We hide both the plan card
@@ -1227,16 +1226,13 @@ export default function Today() {
                   variant="prominent"
                   testIdPrefix={`session-today-${session.id}`}
                 />
-                {/* The coach's verdict on what you did vs the plan — did-it-all
-                    / close / fell-short / overdelivered, in the same sardonic
-                    voice as the daily line. Pure client-side from the
-                    planned-vs-actual minutes already on this card. */}
-                {/* ONE verdict per day, judged on the day's TOTAL logged
-                    minutes vs the planned total — shown on the last logged
-                    session so a lift + a run that together hit the plan read as
-                    done, not two separate shortfalls. */}
-                {session.id === lastSessionId &&
-                  (() => {
+                {/* The coach's verdict, on EVERY logged session so each card
+                    keeps its voice — but judged on the DAY's TOTAL minutes vs
+                    the planned total, not this one workout. So a lift + a run
+                    that together hit the plan both read as done, never punished
+                    for being split. The stable per-session seed varies the
+                    phrasing so the cards don't read identically. */}
+                {(() => {
                     const v = sessionVerdict({
                       plannedMin: dayPlannedMin > 0 ? dayPlannedMin : matchedPlan?.totalMin ?? null,
                       actualMin: dayActualMin,
