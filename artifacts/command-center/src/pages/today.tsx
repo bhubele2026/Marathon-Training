@@ -204,6 +204,27 @@ export default function Today() {
   }
 
   const sessions = today.loggedWorkouts ?? [];
+  // Day-level verdict inputs: judge the day's TOTAL logged minutes against the
+  // planned total, so a day split across multiple workouts (e.g. a lift + a
+  // run) is credited for the whole thing instead of each piece being graded
+  // short on its own. Planned total = the distinct matched plan days' totals.
+  const dayActualMin = sessions.reduce(
+    (sum, s) => sum + (s.totalMin ?? s.durationMin ?? 0),
+    0,
+  );
+  const matchedPlansById = new Map<number, { totalMin?: number | null }>();
+  for (const s of sessions) {
+    const mp =
+      (s.planDayId != null ? today.plans?.find((p) => p.id === s.planDayId) : null) ??
+      today.plan ??
+      null;
+    if (mp) matchedPlansById.set(mp.id, mp);
+  }
+  const dayPlannedMin = [...matchedPlansById.values()].reduce(
+    (sum, p) => sum + (p.totalMin ?? 0),
+    0,
+  );
+  const lastSessionId = sessions.length > 0 ? sessions[sessions.length - 1]!.id : null;
   // Pre-launch countdown: when the API tells us today is before the first
   // scheduled session, take over the page with a dedicated countdown card so
   // the user has clear orientation during the gap. We hide both the plan card
@@ -1210,24 +1231,29 @@ export default function Today() {
                     / close / fell-short / overdelivered, in the same sardonic
                     voice as the daily line. Pure client-side from the
                     planned-vs-actual minutes already on this card. */}
-                {(() => {
-                  const v = sessionVerdict({
-                    plannedMin: matchedPlan?.totalMin ?? null,
-                    actualMin: session.totalMin ?? session.durationMin ?? null,
-                    seed: session.id,
-                  });
-                  if (!v) return null;
-                  return (
-                    <div
-                      data-testid={`session-verdict-${session.id}`}
-                      data-verdict-bucket={v.bucket}
-                    >
-                      <CoachNote icon={Zap} tone={VERDICT_TONE[v.bucket]} status={v.headline}>
-                        {v.line}
-                      </CoachNote>
-                    </div>
-                  );
-                })()}
+                {/* ONE verdict per day, judged on the day's TOTAL logged
+                    minutes vs the planned total — shown on the last logged
+                    session so a lift + a run that together hit the plan read as
+                    done, not two separate shortfalls. */}
+                {session.id === lastSessionId &&
+                  (() => {
+                    const v = sessionVerdict({
+                      plannedMin: dayPlannedMin > 0 ? dayPlannedMin : matchedPlan?.totalMin ?? null,
+                      actualMin: dayActualMin,
+                      seed: session.id,
+                    });
+                    if (!v) return null;
+                    return (
+                      <div
+                        data-testid={`session-verdict-${session.id}`}
+                        data-verdict-bucket={v.bucket}
+                      >
+                        <CoachNote icon={Zap} tone={VERDICT_TONE[v.bucket]} status={v.headline}>
+                          {v.line}
+                        </CoachNote>
+                      </div>
+                    );
+                  })()}
                 <SessionDetailDisclosure
                   testId={`toggle-today-session-detail-${session.id}`}
                 >
