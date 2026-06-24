@@ -1,5 +1,6 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { CountUp } from "./count-up";
 
 // StatReadout — the atomic metric unit of the BH Studio design system.
 // Eyebrow label over a big friendly display number (Plus Jakarta Sans, 700–800,
@@ -15,6 +16,12 @@ export interface StatReadoutProps {
   delta?: { value: string; tone?: DeltaTone };
   tone?: "accent" | "foreground";
   align?: "left" | "center";
+  /** Gentle count-up on mount for the value. Only applies to whole-number
+   * values (so the resting text is byte-identical to the static render — no
+   * locale-comma or rounding drift); decimals/strings render statically.
+   * prefers-reduced-motion renders the final value instantly. Opt-in so only
+   * hero numbers animate, keeping the restraint. */
+  countUp?: boolean;
   className?: string;
 }
 
@@ -31,8 +38,11 @@ export function StatReadout({
   delta,
   tone = "foreground",
   align = "left",
+  countUp = false,
   className,
 }: StatReadoutProps) {
+  const animatable =
+    countUp && typeof value === "number" && Number.isInteger(value);
   return (
     <div
       className={cn(
@@ -51,7 +61,14 @@ export function StatReadout({
             tone === "accent" ? "text-primary" : "text-foreground",
           )}
         >
-          {value}
+          {animatable ? (
+            <CountUp
+              value={value as number}
+              format={(n) => String(Math.round(n))}
+            />
+          ) : (
+            value
+          )}
         </span>
         {unit ? (
           <span className="text-[13px] font-medium text-muted-foreground">{unit}</span>

@@ -4186,7 +4186,7 @@ export default function Planner() {
                                         <span
                                           className={
                                             milesDelta > 0
-                                              ? "text-sky-600 dark:text-sky-400 font-semibold"
+                                              ? "text-primary font-semibold"
                                               : milesDelta < 0
                                                 ? "text-warning font-semibold"
                                                 : "text-muted-foreground"
@@ -4203,7 +4203,7 @@ export default function Planner() {
                                             liftsDelta > 0
                                               ? "text-warning font-semibold"
                                               : liftsDelta < 0
-                                                ? "text-sky-600 dark:text-sky-400 font-semibold"
+                                                ? "text-primary font-semibold"
                                                 : "text-muted-foreground"
                                           }
                                           data-testid={`${colTestId}-delta-lifts`}
@@ -6362,7 +6362,7 @@ function Stat({
     <div
       className={`rounded-md border p-3 ${
         ok === true
-          ? "border-green-500/50 bg-green-500/5"
+          ? "border-success/50 bg-success/5"
           : ok === false
           ? "border-destructive/50 bg-destructive/5"
           : ""

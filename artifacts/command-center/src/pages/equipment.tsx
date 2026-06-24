@@ -96,9 +96,9 @@ const PACE_STYLES: Record<PaceStatus, { bar: string; track: string; badge: strin
     label: "On track",
   },
   ahead: {
-    bar: "bg-sky-500",
-    track: "bg-sky-500/15",
-    badge: "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400",
+    bar: "bg-primary",
+    track: "bg-primary/15",
+    badge: "border-primary/40 bg-primary/10 text-primary",
     label: "Ahead",
   },
   idle: {

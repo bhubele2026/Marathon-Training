@@ -1,6 +1,7 @@
 import * as React from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { CountUp } from "./count-up";
 
 // MetricRing — a refined progress ring with a big friendly center value.
 // `hero` enlarges it and uses the azure arc on a muted track; non-hero rings
@@ -137,7 +138,15 @@ export function MetricRing({
             hero ? "text-3xl" : "text-xl",
           )}
         >
-          {value != null ? value : ""}
+          {value == null ? (
+            ""
+          ) : Number.isInteger(value) ? (
+            // Count up whole numbers; integer format keeps the resting text
+            // identical to the static value (no locale-comma drift).
+            <CountUp value={value} format={(n) => String(Math.round(n))} />
+          ) : (
+            value
+          )}
         </span>
         {unit ? (
           <span className="text-[11px] font-medium leading-none text-muted-foreground">{unit}</span>

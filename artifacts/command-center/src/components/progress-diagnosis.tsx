@@ -36,7 +36,7 @@ async function getJson<T>(url: string): Promise<T> {
 }
 
 const TONE: Record<Finding["tone"], string> = {
-  supportive: "border-l-sky-500 bg-sky-500/10",
+  supportive: "border-l-primary bg-primary/10",
   positive: "border-l-success bg-success/10",
   sassy: "border-l-warning bg-warning/10",
   neutral: "border-l-muted-foreground bg-muted/40",

@@ -23,7 +23,12 @@ export function StatTile({
   ...readout
 }: StatTileProps) {
   return (
-    <Card className={cn("flex flex-col gap-3 p-6", tileClassName)}>
+    <Card
+      className={cn(
+        "flex flex-col gap-3 p-6 transition-shadow duration-150 hover:shadow-[var(--shadow-tile)] motion-reduce:transition-none",
+        tileClassName,
+      )}
+    >
       <div className="flex items-start justify-between gap-3">
         <StatReadout {...readout} className={className} />
         {Icon != null && (

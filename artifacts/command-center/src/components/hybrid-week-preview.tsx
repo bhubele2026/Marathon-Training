@@ -33,7 +33,7 @@ export interface HybridWeekPreviewProps {
 const SLOT_TONE = {
   rest: "text-muted-foreground",
   lift: "text-warning",
-  run: "text-sky-600 dark:text-sky-400",
+  run: "text-primary",
   "race-prep": "text-warning",
   race: "text-warning font-bold",
 } as const;
