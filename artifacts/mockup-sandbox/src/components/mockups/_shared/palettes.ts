@@ -3,6 +3,7 @@
 // truth. Keep all palette additions/edits in the lib package.
 export {
   PALETTES,
+  DEFAULT_PALETTE_KEY,
   PALETTE_TOKEN_TO_CSS_VAR,
   paletteTokensToCssVars,
   PHASE_LABELS,

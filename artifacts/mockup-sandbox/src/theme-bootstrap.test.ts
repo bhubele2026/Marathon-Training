@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
   PALETTES,
+  DEFAULT_PALETTE_KEY,
   PALETTE_TOKEN_TO_CSS_VAR,
   paletteTokensToCssVars,
 } from "./components/mockups/_shared/palettes";
@@ -10,7 +11,6 @@ import {
 import "./theme-bootstrap";
 
 const STYLE_ELEMENT_ID = "sandbox-default-theme";
-const DEFAULT_PALETTE_KEY = "arctic-performance";
 const INDEX_CSS_PATH = path.resolve(import.meta.dirname, "./index.css");
 const MAIN_TSX_PATH = path.resolve(import.meta.dirname, "./main.tsx");
 
@@ -34,7 +34,7 @@ function parseCssVarBlock(css: string, blockRegex: RegExp): Record<string, strin
 }
 
 describe("sandbox theme bootstrap", () => {
-  it("injects a <style> element from PALETTES['arctic-performance']", () => {
+  it("injects a <style> element from PALETTES[DEFAULT_PALETTE_KEY]", () => {
     const style = document.getElementById(
       STYLE_ELEMENT_ID,
     ) as HTMLStyleElement | null;

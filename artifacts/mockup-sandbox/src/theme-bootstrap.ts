@@ -21,12 +21,12 @@
 
 import {
   PALETTES,
+  DEFAULT_PALETTE_KEY,
   paletteTokensToCssVars,
   type PaletteTokens,
 } from "./components/mockups/_shared/palettes";
 
 const STYLE_ELEMENT_ID = "sandbox-default-theme";
-const DEFAULT_PALETTE_KEY = "arctic-performance";
 
 function tokensToCssBlock(tokens: PaletteTokens): string {
   const vars = paletteTokensToCssVars(tokens);

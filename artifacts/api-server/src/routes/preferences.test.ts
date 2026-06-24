@@ -49,20 +49,20 @@ describe("/api/preferences — visualTheme (Task #196)", () => {
   it("PUT persists a chosen visualTheme and surfaces it on the next GET", async () => {
     const put = await request(app)
       .put("/api/preferences")
-      .send({ visualTheme: "midnight-track" });
+      .send({ visualTheme: "studio" });
     expect(put.status).toBe(200);
     expectMatchesSchema(UpdateUserPreferencesResponse, put.body);
-    expect(put.body.visualTheme).toBe("midnight-track");
+    expect(put.body.visualTheme).toBe("studio");
 
     const get = await request(app).get("/api/preferences");
     expect(get.status).toBe(200);
-    expect(get.body.visualTheme).toBe("midnight-track");
+    expect(get.body.visualTheme).toBe("studio");
   });
 
   it("PUT visualTheme=null clears a previously saved choice", async () => {
     await request(app)
       .put("/api/preferences")
-      .send({ visualTheme: "trail-forest" });
+      .send({ visualTheme: "studio" });
 
     const cleared = await request(app)
       .put("/api/preferences")
@@ -77,14 +77,14 @@ describe("/api/preferences — visualTheme (Task #196)", () => {
   it("omitting visualTheme on PUT leaves the saved value alone", async () => {
     await request(app)
       .put("/api/preferences")
-      .send({ visualTheme: "championship-red" });
+      .send({ visualTheme: "studio" });
 
     // Touch a different field — should not disturb the visualTheme.
     const res = await request(app)
       .put("/api/preferences")
       .send({ runTargetingMode: "pace" });
     expect(res.status).toBe(200);
-    expect(res.body.visualTheme).toBe("championship-red");
+    expect(res.body.visualTheme).toBe("studio");
     expect(res.body.runTargetingMode).toBe("pace");
   });
 
