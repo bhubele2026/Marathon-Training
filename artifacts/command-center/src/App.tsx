@@ -24,6 +24,7 @@ const Log = lazyWithReload(() => import("@/pages/log"));
 const Measurements = lazyWithReload(() => import("@/pages/measurements"));
 const Nutrition = lazyWithReload(() => import("@/pages/nutrition"));
 const History = lazyWithReload(() => import("@/pages/history"));
+const Insights = lazyWithReload(() => import("@/pages/insights"));
 const Goals = lazyWithReload(() => import("@/pages/goals"));
 const Recap = lazyWithReload(() => import("@/pages/recap"));
 const Equipment = lazyWithReload(() => import("@/pages/equipment"));
@@ -82,6 +83,7 @@ function Router() {
           <Route path="/measurements" component={Measurements} />
           <Route path="/nutrition" component={Nutrition} />
           <Route path="/history" component={History} />
+          <Route path="/insights" component={Insights} />
           <Route path="/goals" component={Goals} />
           <Route path="/recap" component={Recap} />
           <Route path="/equipment" component={Equipment} />

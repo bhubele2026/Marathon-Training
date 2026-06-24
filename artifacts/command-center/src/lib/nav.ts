@@ -10,6 +10,7 @@ import {
   Target,
   ListOrdered,
   History as HistoryIcon,
+  Lightbulb,
   Sparkles,
   CalendarCheck,
   Settings as SettingsIcon,
@@ -40,6 +41,7 @@ export const PRIMARY_NAV: NavDestination[] = [
 export const MORE_NAV: NavDestination[] = [
   { href: "/recap", label: "This week", icon: CalendarCheck },
   { href: "/history", label: "History", icon: HistoryIcon },
+  { href: "/insights", label: "Insights", icon: Lightbulb },
   { href: "/log", label: "Training log", icon: ListOrdered },
   { href: "/goals", label: "Goals", icon: Target },
   { href: "/planner", label: "Planner", icon: Sparkles },
