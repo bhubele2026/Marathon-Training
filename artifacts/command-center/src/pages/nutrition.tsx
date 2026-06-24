@@ -1,10 +1,11 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "framer-motion";
 import { CountUp } from "@/components/studio/count-up";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Beef, Droplet, Flame, RefreshCw, Sparkles, Wheat } from "lucide-react";
+import { Beef, ChevronLeft, ChevronRight, Droplet, Flame, RefreshCw, Sparkles, Wheat } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { NutritionistPanel } from "@/components/nutritionist-panel";
 import { CoachNote } from "@/components/studio/coach-note";
@@ -69,6 +70,25 @@ function localTodayStr(): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+// Shift a YYYY-MM-DD string by n days, TZ-safe (operates on the date parts in
+// UTC and reformats), for the day navigator's prev/next.
+function shiftDay(dateStr: string, n: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y!, (m ?? 1) - 1, d ?? 1));
+  dt.setUTCDate(dt.getUTCDate() + n);
+  return dt.toISOString().slice(0, 10);
+}
+
+// "Tue, Jun 24" style label for a YYYY-MM-DD (anchored at noon UTC so the
+// calendar day doesn't drift across timezones).
+function dayLabel(dateStr: string): string {
+  return new Date(`${dateStr}T12:00:00Z`).toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 // Build a fixed N-day calendar axis ending today (oldest → newest), filling each
@@ -330,14 +350,22 @@ function MacroTrendRow({
 }
 
 export default function Nutrition() {
-  const date = localTodayStr();
+  // The day under review — defaults to today; the navigator steps it back/forward
+  // so any past day can be reviewed (and closed). Never past today.
+  const todayStr = localTodayStr();
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+  const date = selectedDate;
+  const isToday = selectedDate === todayStr;
   const todayQuery = useQuery({
     queryKey: ["/api/nutrition/today"],
     queryFn: () => getJson<NutritionDay>("/api/nutrition/today"),
   });
+  // 90-day window so the navigator + close button have each day's full row
+  // (water / sodium / closedAt). Shared key with the Nutrition log, so it's one
+  // fetch for the trend, the rings' per-day row, the log, and the close button.
   const recentQuery = useQuery({
-    queryKey: ["/api/nutrition/recent", 14],
-    queryFn: () => getJson<RecentResponse>("/api/nutrition/recent?days=14"),
+    queryKey: ["/api/nutrition/recent", 90],
+    queryFn: () => getJson<RecentResponse>("/api/nutrition/recent?days=90"),
   });
   // Baseline targets (the fixed recomp numbers) from the Goals page.
   const goalsQuery = useQuery({
@@ -357,7 +385,8 @@ export default function Nutrition() {
   // updatedAt for the runner's actual day); fall back to /api/nutrition/today
   // (the server's UTC day) only when the local day isn't in the window yet.
   const today =
-    recentQuery.data?.entries.find((e) => e.date === date) ?? todayQuery.data;
+    recentQuery.data?.entries.find((e) => e.date === date) ??
+    (isToday ? todayQuery.data : undefined);
   const day = dayQuery.data;
   const baselineGoals = goalsQuery.data;
 
@@ -464,17 +493,57 @@ export default function Nutrition() {
           fuelling, and concrete next moves. Reads the server-cached analysis. */}
       <NutritionistPanel variant="full" weeks={8} />
 
-      {/* Close the day when done eating — until then today is judged by pace. */}
-      <CloseDayButton />
-
-      {/* Today's four macros vs target. Phase 6: de-boxed — the rings sit on
-          the page under a quiet hairline header, not stranded in a giant
-          outlined panel. */}
+      {/* Per-day review: the selected day's macros + water, a navigator to step
+          to any past day, and the close control for that day. De-boxed. */}
       <Card className="border-0 bg-transparent shadow-none">
         <CardHeader className="px-0 pb-3 border-b border-border">
-          <CardTitle className="flex items-center justify-between text-sm tracking-wider text-muted-foreground">
-            <span>Today</span>
-            <span className="flex items-center gap-1.5 text-xs font-normal normal-case">
+          <CardTitle className="flex items-center justify-between gap-3 text-sm tracking-wider text-muted-foreground">
+            {/* Day navigator — step back/forward, or jump with the date input. */}
+            <div className="flex items-center gap-1 normal-case">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => setSelectedDate(shiftDay(selectedDate, -1))}
+                aria-label="Previous day"
+                data-testid="button-prev-day"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <input
+                type="date"
+                value={selectedDate}
+                max={todayStr}
+                onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+                className="rounded-md border border-input bg-transparent px-2 py-1 font-mono text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                data-testid="input-review-date"
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => setSelectedDate(shiftDay(selectedDate, 1))}
+                disabled={isToday}
+                aria-label="Next day"
+                data-testid="button-next-day"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <span className="ml-1 font-display text-sm font-semibold tracking-tight text-foreground">
+                {isToday ? "Today" : dayLabel(selectedDate)}
+              </span>
+              {!isToday && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate(todayStr)}
+                  className="ml-1 rounded text-xs font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  data-testid="button-jump-today"
+                >
+                  Today
+                </button>
+              )}
+            </div>
+            <span className="flex shrink-0 items-center gap-1.5 text-xs font-normal normal-case">
               <RefreshCw className="h-3 w-3" />
               {formatUpdated(today?.updatedAt ?? null)}
             </span>
@@ -556,6 +625,9 @@ export default function Nutrition() {
           )}
         </CardContent>
       </Card>
+
+      {/* Close / reopen the day under review (acts on the selected date). */}
+      <CloseDayButton date={selectedDate} />
 
       {/* 14-day trend across all four macros */}
       <Card>

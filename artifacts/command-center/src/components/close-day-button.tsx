@@ -31,31 +31,32 @@ async function getJson<T>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-async function postClose(closed: boolean): Promise<NutritionDay> {
+async function postClose(closed: boolean, date: string): Promise<NutritionDay> {
   const res = await fetch("/api/nutrition/close", {
     method: "POST",
     headers: { "content-type": "application/json", accept: "application/json" },
-    body: JSON.stringify({ closed, date: localTodayStr() }),
+    body: JSON.stringify({ closed, date }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json() as Promise<NutritionDay>;
 }
 
-export function CloseDayButton() {
+// `date` is the day under review (defaults to the runner's local today). The
+// button closes / reopens THAT day, and reads its closed state from the recent
+// feed (90-day window, shared cache with the Nutrition page + log).
+export function CloseDayButton({ date: dateProp }: { date?: string } = {}) {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const date = localTodayStr();
-  // Read the local day's closed state from the recent feed (carries closedAt
-  // per day); /api/nutrition/today is the server's UTC day, which would be the
-  // wrong day in the evening.
+  const date = dateProp ?? localTodayStr();
+  const isToday = date === localTodayStr();
   const { data } = useQuery({
-    queryKey: ["/api/nutrition/recent", 3],
-    queryFn: () => getJson<RecentResponse>("/api/nutrition/recent?days=3"),
+    queryKey: ["/api/nutrition/recent", 90],
+    queryFn: () => getJson<RecentResponse>("/api/nutrition/recent?days=90"),
   });
   const closed = data?.entries.find((e) => e.date === date)?.closedAt != null;
 
   const mut = useMutation({
-    mutationFn: (close: boolean) => postClose(close),
+    mutationFn: (close: boolean) => postClose(close, date),
     onSuccess: (_res, close) => {
       // Everything that reads "is today final?" needs to re-evaluate.
       qc.invalidateQueries({ queryKey: ["/api/nutrition/today"] });
@@ -67,8 +68,8 @@ export function CloseDayButton() {
       toast({
         title: close ? "Day closed" : "Day reopened",
         description: close
-          ? "Today now counts as a finished day — the coach gives its real verdict."
-          : "Today's open again — judged by pace, no low-intake warnings.",
+          ? `${isToday ? "Today" : "That day"} now counts as finished — the coach gives its real verdict.`
+          : `${isToday ? "Today" : "That day"} is open again — judged by pace, no low-intake warnings.`,
       });
     },
     onError: () => toast({ title: "Couldn't update the day", variant: "destructive" }),
@@ -79,7 +80,7 @@ export function CloseDayButton() {
       <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
         <span className="flex items-center gap-2 text-sm font-bold text-primary">
           <CheckCircle2 className="h-4 w-4" />
-          Day closed — today's counted as final.
+          {isToday ? "Day closed — today's counted as final." : "This day is closed — counted as final."}
         </span>
         <Button
           variant="ghost"
@@ -97,8 +98,19 @@ export function CloseDayButton() {
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-border px-4 py-3">
       <span className="text-sm text-muted-foreground">
-        Still eating? Today's judged by <span className="font-medium text-foreground">pace</span>{" "}
-        until you close it — no low-intake warnings mid-day.
+        {isToday ? (
+          <>
+            Still eating? Today's judged by{" "}
+            <span className="font-medium text-foreground">pace</span> until you close it — no
+            low-intake warnings mid-day.
+          </>
+        ) : (
+          <>
+            This day's still open — judged by{" "}
+            <span className="font-medium text-foreground">pace</span>. Close it to lock in the
+            verdict.
+          </>
+        )}
       </span>
       <Button
         variant="outline"
@@ -109,7 +121,7 @@ export function CloseDayButton() {
         data-testid="button-close-day"
       >
         <Lock className="h-3.5 w-3.5 mr-1.5" />
-        {mut.isPending ? "Closing…" : "Close the day"}
+        {mut.isPending ? "Closing…" : isToday ? "Close the day" : "Close this day"}
       </Button>
     </div>
   );
