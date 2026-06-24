@@ -3,6 +3,8 @@ import {
   computeBodyComp,
   proteinGPerLb,
   fallbackReport,
+  buildNutritionistUser,
+  buildNutritionistSystem,
   type AnalysisInput,
 } from "./nutritionist";
 
@@ -18,6 +20,7 @@ function base(over: Partial<AnalysisInput> = {}): AnalysisInput {
     bodyGoal: "recomp",
     goalWeightLb: 210,
     weeklyRateLb: -1,
+    actualWeeklyRateLb: -1,
     goalDirection: "loss",
     onTrack: true,
     currentWeightLb: 240,
@@ -36,6 +39,7 @@ function base(over: Partial<AnalysisInput> = {}): AnalysisInput {
     avgProtein: 220,
     proteinTarget: 224,
     proteinHitRate: 0.85,
+    calorieHitRate: 0.8,
     proteinGPerLb: 0.92,
     avgCarbs: 240,
     carbsTarget: 242,
@@ -158,5 +162,53 @@ describe("fallbackReport — safety-correct without AI", () => {
     // The only calorie figure pushed should be the floor (up), never a cut below it.
     expect(r.deficit.status).toBe("under_floor");
     expect(allText).not.toMatch(/eat less|cut calories|reduce calories/);
+  });
+});
+
+describe("buildNutritionistUser — enriched briefing (Phase 10)", () => {
+  it("surfaces goal trajectory: actual vs target weekly rate + on/off-track", () => {
+    const onText = buildNutritionistUser(base({ actualWeeklyRateLb: -1, weeklyRateLb: -1, onTrack: true }));
+    expect(onText).toMatch(/Trajectory:/);
+    expect(onText).toMatch(/actual -1 lb\/wk vs target -1 lb\/wk/);
+    expect(onText).toMatch(/ON TRACK/);
+
+    const offText = buildNutritionistUser(base({ actualWeeklyRateLb: -0.3, weeklyRateLb: -1, onTrack: false }));
+    expect(offText).toMatch(/actual -0\.3 lb\/wk vs target -1 lb\/wk/);
+    expect(offText).toMatch(/OFF TRACK/);
+  });
+
+  it("reports calorie adherence as a hit-rate percentage", () => {
+    expect(buildNutritionistUser(base({ calorieHitRate: 0.8 }))).toMatch(/calorie target \(±10%\) on 80% of logged days/);
+  });
+
+  it("coaches protein PACE on an open day with g-to-go and per-meal split", () => {
+    const txt = buildNutritionistUser(
+      base({
+        todayOpen: true,
+        todayProteinSoFar: 102,
+        proteinTarget: 224,
+        todayLocalHour: 18, // evening → ~1 meal left
+      }),
+    );
+    expect(txt).toMatch(/Protein still to bury today: 122 g/);
+    expect(txt).toMatch(/priority/);
+  });
+
+  it("acknowledges when today's protein target is already met", () => {
+    const txt = buildNutritionistUser(
+      base({ todayOpen: true, todayProteinSoFar: 230, proteinTarget: 224 }),
+    );
+    expect(txt).toMatch(/already hit for today/);
+  });
+});
+
+describe("buildNutritionistSystem — sharpened persona", () => {
+  it("mandates naming the real number and forbids vague advice", () => {
+    const sys = buildNutritionistSystem("PERSONA");
+    expect(sys).toMatch(/name the number/i);
+    expect(sys).toMatch(/g\/lb/);
+    // keeps the non-negotiable safety rails intact
+    expect(sys).toMatch(/safe floor/i);
+    expect(sys).toMatch(/DROP all sarcasm/);
   });
 });

@@ -50,6 +50,7 @@ export type AnalysisInput = {
   bodyGoal: string; // recomp | cut | lean_bulk
   goalWeightLb: number | null;
   weeklyRateLb: number | null; // signed target rate
+  actualWeeklyRateLb: number | null; // signed ACTUAL rate (weight change / weeks elapsed)
   goalDirection: "loss" | "gain" | "maintain" | "none";
   onTrack: boolean | null;
   // Body comp
@@ -70,6 +71,7 @@ export type AnalysisInput = {
   avgProtein: number | null;
   proteinTarget: number | null;
   proteinHitRate: number | null; // 0..1
+  calorieHitRate: number | null; // 0..1 — share of logged days within ~±10% of the calorie target
   proteinGPerLb: number | null;
   avgCarbs: number | null;
   carbsTarget: number | null;
@@ -196,7 +198,7 @@ const REPORT_SCHEMA = {
       items: { type: "string" },
       minItems: 1,
       maxItems: 4,
-      description: "2-4 concrete next moves, most important first. Each a short imperative line.",
+      description: "2-4 concrete next moves, most important first. Each a short imperative line that NAMES THE NUMBER — 'Get protein to 224 g/day (you're at 198)', 'Bring intake up to the 1,500 kcal floor' — not 'eat more protein' or 'be consistent'.",
     },
     confidence: {
       type: "string",
@@ -211,7 +213,7 @@ const REPORT_SCHEMA = {
     },
     narrative: {
       type: "string",
-      description: "2-4 sentences IN THE COACH PERSONA — the line shown on the Today screen. Lead with the real cause + safe fix; the substance matters more than the joke. Warm (no sarcasm) for any health flag.",
+      description: "2-4 sentences IN THE COACH PERSONA — the line shown on the Today screen. Lead with the real cause + safe fix, anchored to an actual number from the brief (the g/lb, the lb/wk, the kcal-to-go); the substance matters more than the joke. Warm (no sarcasm) for any health flag.",
     },
   },
 } as const;
@@ -258,6 +260,14 @@ export function buildNutritionistSystem(persona: string): string {
     `losing too fast, DROP all sarcasm, be genuinely warm, and steer UP.\n` +
     `- We have DAILY macro totals only, not per-meal data — give protein timing advice as a ` +
     `principle, never as if you can see their meals.\n` +
+    `## Be SPECIFIC — name the number, every time\n` +
+    `Every verdict, every key move, the narrative — anchor it to the REAL figure in the ` +
+    `brief. Say "you're at 0.78 g/lb, the floor's 0.8 — you're one chicken breast short," not ` +
+    `"eat more protein." Say "down 0.4 lb/wk, target's 1.0 — you're dawdling," not "you're ` +
+    `behind." On an OPEN day, coach the gap as a move: "bury the other 122 g of protein before ` +
+    `bed," "1,000 kcal left — that's dinner and a snack," not "log more." Vague, number-free ` +
+    `advice ("eat better", "stay consistent", "log more") is a FAIL — the runner can already see ` +
+    `their dashboard; your job is to tell them the one number that matters and what to do about it.\n` +
     `- Output ONLY via the ${NUTRITIONIST_TOOL_NAME} tool. No prose outside it.`
   );
 }
@@ -280,6 +290,20 @@ export function buildNutritionistUser(d: AnalysisInput): string {
       `(change ${fmt(d.leanMassChangeLb, " lb")}), fat mass ${fmt(d.fatMassLb, " lb")} ` +
       `(change ${fmt(d.fatMassChangeLb, " lb")}), tape total change ${fmt(d.inchesChange, " in")}.`,
   );
+  // Goal trajectory: the ACTUAL weekly rate vs the target rate is the single
+  // clearest "is this working?" signal — surface it explicitly (it was computed
+  // but never shown) so the coach can call the gap by its number.
+  {
+    const actual = d.actualWeeklyRateLb;
+    const target = d.weeklyRateLb;
+    const onTrackTxt =
+      d.onTrack == null ? "no weekly goal set" : d.onTrack ? "ON TRACK" : "OFF TRACK";
+    lines.push(
+      `Trajectory: actual ${fmt(actual, " lb/wk")} vs target ${fmt(target, " lb/wk")} ` +
+        `over ${d.weeksElapsed} weeks → ${onTrackTxt}. ` +
+        `(Recomp scale move is slow on purpose — weigh this against body-fat % + tape, not just the scale.)`,
+    );
+  }
   lines.push(
     `Protein: avg ${fmt(d.avgProtein, " g")}/day vs target ${fmt(d.proteinTarget, " g")}, ` +
       `that's ${fmt(d.proteinGPerLb, " g/lb")} of bodyweight, hit target on ` +
@@ -290,6 +314,7 @@ export function buildNutritionistUser(d: AnalysisInput): string {
     `Energy: avg ${fmt(d.avgCalories, " kcal")}/day vs target ${fmt(d.calorieTarget, " kcal")}, ` +
       `carbs ${fmt(d.avgCarbs, " g")} (target ${fmt(d.carbsTarget, " g")}), ` +
       `fat ${fmt(d.avgFat, " g")} (target ${fmt(d.fatTarget, " g")}). ` +
+      `Hit the calorie target (±10%) on ${d.calorieHitRate != null ? Math.round(d.calorieHitRate * 100) : "—"}% of logged days. ` +
       `Logged ${d.daysLogged} days; ${d.daysUnderFloor} day(s) under the safe floor of ${d.safeFloorKcal} kcal.`,
   );
   lines.push(
@@ -322,6 +347,19 @@ export function buildNutritionistUser(d: AnalysisInput): string {
             ` compare intake-so-far to THAT pace, not the full-day target — being "behind" the full day at midday is normal, not a miss.`
           : "");
     }
+    // Protein PACE: the gap that matters most on an open day. Give the coach the
+    // g-to-go and a rough per-remaining-meal figure (eating window ~7am–10pm) so
+    // it can say "bury the other 122 g across ~2 meals" instead of "log more".
+    let proteinPace = "";
+    if (d.proteinTarget != null) {
+      const toGo = Math.max(0, d.proteinTarget - (d.todayProteinSoFar ?? 0));
+      const hour = d.todayLocalHour ?? 12;
+      const mealsLeft = hour < 11 ? 3 : hour < 15 ? 2 : hour < 20 ? 1 : 1;
+      proteinPace =
+        toGo <= 0
+          ? ` Protein target already hit for today — nice.`
+          : ` Protein still to bury today: ${toGo} g (~${Math.round(toGo / mealsLeft)} g across the ~${mealsLeft} meal(s) likely left) — make this the priority.`;
+    }
     lines.push(
       `\nTODAY (in progress, not closed) — coach this by PACE in the 'today' field, no warnings: ` +
         `calories ${d.todayCaloriesSoFar ?? 0} of ${d.calorieTarget ?? "—"}, ` +
@@ -331,6 +369,7 @@ export function buildNutritionistUser(d: AnalysisInput): string {
         `water ${d.todayWaterMl != null ? `${Math.round(d.todayWaterMl / 29.5735)} oz` : "—"}, ` +
         `sodium ${d.todaySodiumMg != null ? `${d.todaySodiumMg} mg` : "—"}.` +
         clockLine +
+        proteinPace +
         ` Use these (not the averages) for the hydration + sodium reads while the day is open.`,
     );
   }
@@ -497,7 +536,8 @@ export function fallbackReport(d: AnalysisInput): NutritionistReport {
       fatMassChangeLb: d.fatMassChangeLb,
       weightChangeLb: d.weightChangeLb,
       inchesChange: d.inchesChange,
-      trend: `Over ${d.weeksElapsed} weeks: weight ${d.weightChangeLb != null ? `${d.weightChangeLb} lb` : "—"}, ${leanTxt}.`,
+      trend: `Over ${d.weeksElapsed} weeks: weight ${d.weightChangeLb != null ? `${d.weightChangeLb} lb` : "—"}` +
+        `${d.actualWeeklyRateLb != null ? ` (${d.actualWeeklyRateLb} lb/wk${d.weeklyRateLb != null ? ` vs ${d.weeklyRateLb} target` : ""})` : ""}, ${leanTxt}.`,
       whatYouShouldSee:
         d.bodyGoal === "recomp"
           ? "On a recomp the scale should move slowly while the tape and body-fat % drift down and lean mass holds — judge it by those, not the scale."

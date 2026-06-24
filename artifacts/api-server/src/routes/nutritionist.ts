@@ -199,6 +199,20 @@ async function gather(weeks: number): Promise<AnalysisInput> {
     (r) => r.calories != null && r.calories > 0 && r.calories < safeFloorKcal,
   ).length;
 
+  // Calorie adherence: share of logged days landing within ~±10% of the target.
+  const calTargetVal = prefs?.calorieTarget ?? null;
+  const calsLogged = finalRows
+    .map((r) => r.calories)
+    .filter((v): v is number => v != null && v > 0);
+  const calorieHitRate =
+    calTargetVal != null && calTargetVal > 0 && calsLogged.length > 0
+      ? Math.round(
+          (calsLogged.filter((c) => Math.abs(c - calTargetVal) <= calTargetVal * 0.1).length /
+            calsLogged.length) *
+            100,
+        ) / 100
+      : null;
+
   // Training consistency + average load.
   const doneRows = await db
     .select({
@@ -264,6 +278,13 @@ async function gather(weeks: number): Promise<AnalysisInput> {
   };
   const groundTruthFlags = diagnose(diagInput).findings.map((f) => f.title);
 
+  // Actual weekly rate of weight change over the observed span — the clearest
+  // "is this working?" signal to set against the target rate.
+  const actualWeeklyRateLb =
+    weightChangeLb != null && weeksElapsed > 0
+      ? round1(weightChangeLb / weeksElapsed)
+      : null;
+
   return {
     weeks,
     weeksElapsed,
@@ -274,6 +295,7 @@ async function gather(weeks: number): Promise<AnalysisInput> {
     bodyGoal: prefs?.bodyGoal ?? "recomp",
     goalWeightLb: prefs?.goalWeightLb ?? null,
     weeklyRateLb: rate,
+    actualWeeklyRateLb,
     goalDirection,
     onTrack,
     currentWeightLb: currentW,
@@ -292,6 +314,7 @@ async function gather(weeks: number): Promise<AnalysisInput> {
     avgProtein: food.avgProtein,
     proteinTarget: prefs?.proteinTargetG ?? null,
     proteinHitRate: food.proteinHitRate,
+    calorieHitRate,
     proteinGPerLb: proteinGPerLb(food.avgProtein, currentW),
     avgCarbs: food.avgCarbs,
     carbsTarget: prefs?.carbsTargetG ?? null,
