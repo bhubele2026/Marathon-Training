@@ -8,11 +8,22 @@ import { Lock, CheckCircle2 } from "lucide-react";
 // (judged by pace toward target, never warned as "too low"). Closing/reopening
 // busts the coach + nutritionist caches so their read updates immediately.
 
-type TodayNutrition = {
+type NutritionDay = {
   date: string;
   calories: number | null;
   closedAt: string | null;
 };
+type RecentResponse = { days: number; entries: NutritionDay[] };
+
+// The runner's LOCAL calendar day, not UTC — so "the day" the button closes is
+// the day they're actually living (an evening in the US is already next-day UTC).
+function localTodayStr(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url, { headers: { accept: "application/json" } });
@@ -20,24 +31,28 @@ async function getJson<T>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-async function postClose(closed: boolean): Promise<TodayNutrition> {
+async function postClose(closed: boolean): Promise<NutritionDay> {
   const res = await fetch("/api/nutrition/close", {
     method: "POST",
     headers: { "content-type": "application/json", accept: "application/json" },
-    body: JSON.stringify({ closed }),
+    body: JSON.stringify({ closed, date: localTodayStr() }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json() as Promise<TodayNutrition>;
+  return res.json() as Promise<NutritionDay>;
 }
 
 export function CloseDayButton() {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const date = localTodayStr();
+  // Read the local day's closed state from the recent feed (carries closedAt
+  // per day); /api/nutrition/today is the server's UTC day, which would be the
+  // wrong day in the evening.
   const { data } = useQuery({
-    queryKey: ["/api/nutrition/today"],
-    queryFn: () => getJson<TodayNutrition>("/api/nutrition/today"),
+    queryKey: ["/api/nutrition/recent", 3],
+    queryFn: () => getJson<RecentResponse>("/api/nutrition/recent?days=3"),
   });
-  const closed = data?.closedAt != null;
+  const closed = data?.entries.find((e) => e.date === date)?.closedAt != null;
 
   const mut = useMutation({
     mutationFn: (close: boolean) => postClose(close),
