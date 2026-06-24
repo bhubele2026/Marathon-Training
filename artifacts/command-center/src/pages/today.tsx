@@ -133,12 +133,12 @@ export default function Today() {
   const showCountdown =
     typeof today.daysUntilStart === "number" && today.daysUntilStart > 0 && !!today.firstSession;
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1600px] mx-auto">
+    <div className="mx-auto flex max-w-[1440px] flex-col gap-6 px-4 animate-in fade-in slide-in-from-bottom-4 duration-500 md:px-8">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <TodayEyebrow raceKind={(today.raceKind ?? null) as RaceDayKind | null} />
-          <h2 className="text-4xl font-extrabold tracking-tight text-foreground">Today</h2>
-          <p className="text-muted-foreground font-medium tracking-widest">{today.date}</p>
+          <h2 className="font-display text-4xl font-extrabold tracking-tight text-foreground">Today</h2>
+          <p className="text-sm font-medium text-muted-foreground">{today.date}</p>
         </div>
         <div className="flex items-center gap-2">
           {campaignHasPlan && (
@@ -184,16 +184,12 @@ export default function Today() {
           Nutrition page. */}
       <NutritionistPanel variant="today" />
 
-      {/* Close the day when you're done eating so the coach judges it as final;
-          until then today is read by pace, not warned as low. */}
-      <CloseDayButton />
-
       {showCountdown && today.firstSession ? (
         <Card
-          className="border-primary/40 bg-primary/5"
+          className="border-primary/30 bg-primary/5"
           data-testid="card-campaign-countdown"
         >
-          <CardHeader className="border-b border-border pb-4">
+          <CardHeader className="pb-4">
             <CardTitle className="text-lg tracking-wider text-primary flex items-center gap-2">
               <Rocket className="h-5 w-5" />
               {/* R2: drop the "Pre-Launch / campaign" framing on the
@@ -235,9 +231,8 @@ export default function Today() {
                 </>
               )}
             </div>
-            {/* Phase 6: de-boxed inner section — a hairline divider, not a
-                nested bordered card. */}
-            <div className="border-t border-border pt-4">
+            {/* Inner section — separated by whitespace, not a rule. */}
+            <div className="pt-2">
               <p className="text-xs text-muted-foreground font-bold tracking-wider mb-2">
                 First Scheduled Session
               </p>
@@ -519,7 +514,7 @@ export default function Today() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="bg-background p-6 rounded-md border border-border">
+                <div>
                   <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
                     <div className="space-y-4 flex-1">
                       {/* Task #235: mirror the race-day badge + personalized
@@ -863,7 +858,7 @@ export default function Today() {
                       </SessionDetailDisclosure>
                     </div>
 
-                    <div className="shrink-0 flex flex-col items-stretch justify-center gap-3 border-t md:border-t-0 md:border-l border-border pt-6 md:pt-0 md:pl-6 md:w-56">
+                    <div className="shrink-0 flex flex-col items-stretch justify-center gap-3 pt-2 md:pt-0 md:pl-6 md:w-56">
                       <Button
                         size="lg"
                         className="h-14 px-6 text-base font-black tracking-widest group"
@@ -951,16 +946,16 @@ export default function Today() {
               : null;
             return (
             <Card key={session.id} className="border-border" data-testid={`session-today-${session.id}`}>
-              <CardHeader className="bg-muted/30 border-b border-border pb-4 flex flex-row items-center justify-between space-y-0">
-                <CardTitle className="text-lg tracking-wider flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-primary" />
+              <CardHeader className="pb-4 flex flex-row items-center justify-between space-y-0">
+                <CardTitle className="font-display text-lg tracking-tight flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-success" />
                   Done
                   <TimeOfDayBadge
                     value={session.timeOfDay}
                     className="ml-2"
                     testId={`badge-time-of-day-today-${session.id}`}
                   />
-                  <span className="text-xs font-mono normal-case tracking-normal text-muted-foreground ml-2">
+                  <span className="text-xs normal-case tracking-normal text-muted-foreground ml-2">
                     {session.sessionType}
                   </span>
                 </CardTitle>
@@ -1197,7 +1192,7 @@ export default function Today() {
                       )}
                     </div>
                     {session.notes && (
-                      <div className="pt-4 border-t border-border">
+                      <div className="pt-2">
                         <p className="text-xs text-muted-foreground font-bold tracking-wider mb-2">Notes</p>
                         <p className="text-sm">{session.notes}</p>
                       </div>
@@ -1210,6 +1205,10 @@ export default function Today() {
           })}
         </div>
       )}
+
+      {/* Footer: close the day when you're done eating so the coach judges it
+          as final; until then today is read by pace, not warned as low. */}
+      <CloseDayButton />
 
       {dialogs}
 

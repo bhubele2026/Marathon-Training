@@ -6,7 +6,7 @@ import { Activity, Flame, Sparkles } from "lucide-react";
 import { SectionHeader } from "@/components/studio/section-header";
 import { StatReadout } from "@/components/studio/stat-readout";
 import { CoachNote } from "@/components/studio/coach-note";
-import { CountUp } from "@/components/studio/count-up";
+import { MetricRing, type MetricRingArc } from "@/components/studio/metric-ring";
 
 // R6. The reactive "Eat today" block on the Today page. Surfaces the AI's
 // per-day ADJUSTED calorie + macro target (which reacts to the day's planned
@@ -16,9 +16,10 @@ import { CountUp } from "@/components/studio/count-up";
 // (and is trivially mockable in today.test.tsx, which renders Today without
 // a QueryClientProvider).
 //
-// Score-first (Phase 3): calories is the single hero readout in accent; the
-// macros are quiet neutral StatReadouts; the rationale + training notes ride
-// the CoachNote surface. One orange job per card — the calories number.
+// Phase 5 (bright tiled): calories is the hero MetricRing in azure with the
+// fixed pastel macro arcs (protein=violet, carbs=teal, fat=amber) stepping
+// inward; the macros also read as quiet StatReadouts; the rationale + training
+// notes ride the CoachNote surface. One loud color (azure) per tile.
 
 export type DayTarget = {
   date: string;
@@ -57,7 +58,7 @@ function fmt(n: number): string {
   return n.toLocaleString();
 }
 
-// A quiet supporting macro readout: mono value, "/ target unit" suffix.
+// A quiet supporting macro readout: value, "/ target unit" suffix.
 function MacroStat({
   label,
   target,
@@ -88,7 +89,7 @@ export function EatToday({ date }: { date: string }) {
     return (
       <Card data-testid="card-eat-today-loading">
         <CardContent className="p-6">
-          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-32 w-full rounded-2xl" />
         </CardContent>
       </Card>
     );
@@ -102,9 +103,11 @@ export function EatToday({ date }: { date: string }) {
     return (
       <Card variant="flush" className="border-2 border-dashed border-card-border" data-testid="card-eat-today-needs-baseline">
         <CardContent className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Flame className="h-6 w-6 text-primary" />
-            <div>
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-secondary text-primary">
+              <Flame className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
               <p className="font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 Eat today
               </p>
@@ -130,6 +133,28 @@ export function EatToday({ date }: { date: string }) {
   const baseline = data.baseline;
   const calDelta = data.delta?.cal ?? 0;
 
+  // Calories is the hero ring (azure); macros step inward as fixed pastel arcs.
+  const macroArcs: MetricRingArc[] = [
+    {
+      value: actual?.protein ?? null,
+      goal: adjusted.protein,
+      color: "hsl(var(--chart-2))",
+      label: "Protein",
+    },
+    {
+      value: actual?.carbs ?? null,
+      goal: adjusted.carbs,
+      color: "hsl(var(--chart-3))",
+      label: "Carbs",
+    },
+    {
+      value: actual?.fat ?? null,
+      goal: adjusted.fat,
+      color: "hsl(var(--chart-4))",
+      label: "Fat",
+    },
+  ];
+
   return (
     <Card data-testid="card-eat-today">
       <CardContent className="p-6 space-y-5">
@@ -138,7 +163,7 @@ export function EatToday({ date }: { date: string }) {
           action={
             baseline && calDelta !== 0 ? (
               <span
-                className="font-mono text-[12px] tabular-nums text-muted-foreground"
+                className="text-[12px] tabular-nums text-muted-foreground"
                 data-testid="text-eat-today-recomp"
               >
                 baseline {fmt(baseline.cal)} → today{" "}
@@ -149,28 +174,35 @@ export function EatToday({ date }: { date: string }) {
           }
         />
 
-        {/* Score-first: calories is the hero, in the accent + instrument font. */}
-        <div className="flex flex-col gap-1">
-          <span className="font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-            Calories
-          </span>
-          <div className="flex items-baseline gap-2">
-            <CountUp
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+          {/* Calorie hero ring — azure, with the pastel macro arcs inside. */}
+          <div className="flex items-center gap-5">
+            <MetricRing
               value={actual != null ? actual.cal : adjusted.cal}
-              format={fmt}
-              className="glow-primary font-mono text-4xl font-semibold leading-none tabular-nums tracking-[-0.02em] text-primary sm:text-5xl"
+              goal={adjusted.cal}
+              label="kcal"
+              hero
+              macros={macroArcs}
             />
-            <span className="text-sm font-medium text-muted-foreground">
-              {actual != null ? `/ ${fmt(adjusted.cal)} kcal` : "kcal"}
-            </span>
+            <div className="min-w-0">
+              <p className="font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                Calories
+              </p>
+              <p className="font-display text-2xl font-extrabold tabular-nums tracking-tight text-foreground">
+                {fmt(actual != null ? actual.cal : adjusted.cal)}
+                <span className="ml-1 text-sm font-medium text-muted-foreground">
+                  {actual != null ? `/ ${fmt(adjusted.cal)} kcal` : "kcal"}
+                </span>
+              </p>
+            </div>
           </div>
-        </div>
 
-        {/* Supporting macros — quiet, neutral. */}
-        <div className="grid grid-cols-3 gap-x-6 gap-y-4">
-          <MacroStat label="Protein" target={adjusted.protein} actual={actual?.protein ?? null} unit="g" />
-          <MacroStat label="Carbs" target={adjusted.carbs} actual={actual?.carbs ?? null} unit="g" />
-          <MacroStat label="Fat" target={adjusted.fat} actual={actual?.fat ?? null} unit="g" />
+          {/* Supporting macros — quiet, neutral, matched to the arc colors. */}
+          <div className="grid flex-1 grid-cols-3 gap-x-6 gap-y-4">
+            <MacroStat label="Protein" target={adjusted.protein} actual={actual?.protein ?? null} unit="g" />
+            <MacroStat label="Carbs" target={adjusted.carbs} actual={actual?.carbs ?? null} unit="g" />
+            <MacroStat label="Fat" target={adjusted.fat} actual={actual?.fat ?? null} unit="g" />
+          </div>
         </div>
 
         {data.rationale && (
@@ -188,9 +220,9 @@ export function EatToday({ date }: { date: string }) {
             data-testid="text-eat-today-training"
           >
             <Activity className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            <span>
+            <span className="min-w-0">
               Today's training: {data.training.summary} ·{" "}
-              <span className="font-mono font-semibold tabular-nums text-foreground">
+              <span className="font-semibold tabular-nums text-foreground">
                 load {data.training.load}
               </span>
               .{" "}
