@@ -308,6 +308,7 @@ router.patch("/workouts/:id", async (req, res): Promise<void> => {
 type ImportItem = {
   type?: unknown;
   start?: unknown;
+  end?: unknown;
   durationMin?: unknown;
   calories?: unknown;
   distanceMi?: unknown;
@@ -417,18 +418,48 @@ function parseStartMs(raw: string): number {
 // Normalize one raw import item — simple Shortcut shape OR Health Auto Export
 // shape — into the canonical ImportItem the import loop consumes. Every field
 // prefers the simple/explicit form and falls back to the HAE equivalent.
+// Parse a workout duration into MINUTES from the several shapes Health Auto
+// Export (and the simple payload) use: a bare number of SECONDS, a
+// { qty, units } object (s|min|hr), or an "HH:MM:SS" / "MM:SS" string.
+function parseDurationMin(raw: unknown): number | null {
+  if (raw == null || raw === "") return null;
+  // Bare number (or numeric string) → HAE convention is seconds.
+  const bare = num(raw);
+  if (bare != null) return Math.round((bare / 60) * 10) / 10;
+  // { qty, units } → convert by unit (default seconds).
+  if (raw && typeof raw === "object") {
+    const { qty, units } = qtyOf(raw);
+    if (qty != null) {
+      const u = (units ?? "s").toLowerCase();
+      const min = u.startsWith("min") ? qty : u.startsWith("h") ? qty * 60 : qty / 60;
+      return Math.round(min * 10) / 10;
+    }
+  }
+  // "HH:MM:SS" / "MM:SS" clock string.
+  if (typeof raw === "string" && raw.includes(":")) {
+    const parts = raw.split(":").map((p) => Number(p));
+    if (parts.length >= 2 && parts.every((p) => Number.isFinite(p))) {
+      const secs =
+        parts.length === 3
+          ? parts[0]! * 3600 + parts[1]! * 60 + parts[2]!
+          : parts[0]! * 60 + parts[1]!;
+      return Math.round((secs / 60) * 10) / 10;
+    }
+  }
+  return null;
+}
+
 function coerceItem(raw: Record<string, unknown>): ImportItem {
   // Activity label: simple payload uses `type`, HAE uses `name`.
   const type =
     (typeof raw.type === "string" && raw.type) ||
     (typeof raw.name === "string" ? raw.name : "");
 
-  // Duration: simple payload sends minutes; HAE sends `duration` in seconds.
+  // Duration: simple payload sends minutes; HAE sends `duration` as seconds /
+  // { qty, units } / "HH:MM:SS". An end-vs-start fallback is applied in the
+  // route when this still comes up empty (HAE always sends start + end).
   let durationMin = num(raw.durationMin);
-  if (durationMin == null) {
-    const secs = num(raw.duration);
-    if (secs != null) durationMin = Math.round((secs / 60) * 10) / 10;
-  }
+  if (durationMin == null) durationMin = parseDurationMin(raw.duration);
 
   // Distance: bare miles, or HAE's { qty, units } (mi|km → mi).
   let distanceMi = num(raw.distanceMi);
@@ -477,6 +508,7 @@ function coerceItem(raw: Record<string, unknown>): ImportItem {
   return {
     type,
     start: typeof raw.start === "string" ? raw.start : undefined,
+    end: typeof raw.end === "string" ? raw.end : undefined,
     durationMin: durationMin ?? undefined,
     distanceMi: distanceMi ?? undefined,
     calories: calories ?? undefined,
@@ -550,7 +582,16 @@ router.post("/workouts/import", async (req, res): Promise<void> => {
         ? item.equipment
         : mapped.equipment;
 
-    const durationMin = num(item.durationMin);
+    // Duration in minutes, with an end-vs-start fallback: if the payload's
+    // duration field was missing/zero (some Peloton/Tonal exports omit it),
+    // derive it from start→end so a real workout never lands at 0 min.
+    let durationMin = num(item.durationMin);
+    if (durationMin == null || durationMin === 0) {
+      const endMs = typeof item.end === "string" ? parseStartMs(item.end) : NaN;
+      if (!Number.isNaN(endMs) && endMs > startMs) {
+        durationMin = Math.round(((endMs - startMs) / 60000) * 10) / 10;
+      }
+    }
     const distanceMi = num(item.distanceMi);
     const avgHrRaw = num(item.avgHr);
     const avgHr = avgHrRaw != null ? Math.round(avgHrRaw) : null;
