@@ -144,6 +144,16 @@ export const userPreferencesTable = pgTable("user_preferences", {
   strengthScoreCurrent: integer("strength_score_current"),
   strengthScoreGoal: integer("strength_score_goal"),
 
+  // --- Local timezone (Phase 9: time-aware coach) ------------------------
+  // The runner's IANA timezone string (e.g. "America/Chicago"), detected on
+  // the client via Intl.DateTimeFormat().resolvedOptions().timeZone and
+  // PATCHed here on app load when unset or changed. Drives the LOCAL-day
+  // boundary for "today" (nutrition rollover, the coach's day-state) instead
+  // of UTC, so an evening log in the US doesn't roll into the next day and a
+  // half-finished day isn't graded as a failure at local midday. Null until
+  // the client reports one — the server falls back to UTC in that case.
+  timezone: text("timezone"),
+
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

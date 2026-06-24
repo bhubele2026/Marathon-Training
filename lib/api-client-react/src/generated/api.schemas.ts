@@ -1785,6 +1785,17 @@ to localStorage so the choice follows the runner across
 devices.
  */
   visualTheme: UserPreferencesVisualTheme;
+  /** The runner's IANA timezone string (e.g. "America/Chicago"),
+detected on the client via
+Intl.DateTimeFormat().resolvedOptions().timeZone and PATCHed
+here on app load when unset or changed (Phase 9). Drives the
+LOCAL-day boundary for "today" — nutrition rollover and the
+coach's day-state — instead of UTC, so an evening log doesn't
+roll into the next day and a half-finished day isn't graded as
+a failure at local midday. Null until the client reports one;
+the server falls back to UTC in that case.
+ */
+  timezone: string | null;
   updatedAt: string;
 }
 
@@ -1862,6 +1873,11 @@ export interface UpdateUserPreferencesBody {
   restingHr?: number | null;
   hrZoneModel?: UpdateUserPreferencesBodyHrZoneModel;
   visualTheme?: UpdateUserPreferencesBodyVisualTheme;
+  /** IANA timezone string (e.g. "America/Chicago"). Sent by the
+client on app load when it detects the browser timezone is
+unset or differs from the stored one. Send null to clear.
+ */
+  timezone?: string | null;
 }
 
 /**

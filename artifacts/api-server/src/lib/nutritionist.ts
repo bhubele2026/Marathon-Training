@@ -89,6 +89,12 @@ export type AnalysisInput = {
   todayFatSoFar: number | null;
   todayWaterMl: number | null;
   todaySodiumMg: number | null;
+  // Phase 9 — local-clock context so pace coaching on an OPEN day is grounded
+  // in the time of day ("it's 7pm, ~60% of the day done"), not judged early.
+  // Optional/back-compatible: undefined → no time context (the report still
+  // works, just without the "by now" pacing line).
+  todayLocalHour?: number | null;
+  todayFractionElapsed?: number | null;
   daysUnderFloor: number;
   // Training
   sessionsDone: number;
@@ -295,6 +301,27 @@ export function buildNutritionistUser(d: AnalysisInput): string {
       `ceiling ${d.sodiumLimitMg != null ? `${d.sodiumLimitMg} mg` : "~2300 mg (default)"}.`,
   );
   if (d.todayOpen) {
+    // Phase 9 — ground the pace read in the LOCAL clock. People eat across a
+    // ~7am–10pm window, so translate the hour into an "expected by now" calorie
+    // fraction (not a flat 1/24 per hour) the coach can pace against. Only added
+    // when the client has reported a timezone (else hour is null → omitted).
+    let clockLine = "";
+    if (d.todayLocalHour != null) {
+      const hour = d.todayLocalHour;
+      const pctDay =
+        d.todayFractionElapsed != null
+          ? Math.round(d.todayFractionElapsed * 100)
+          : null;
+      const eatFrac = Math.max(0, Math.min(1, (hour - 7) / 15));
+      const expectedCal =
+        d.calorieTarget != null ? Math.round(d.calorieTarget * eatFrac) : null;
+      clockLine =
+        ` It is about ${hour}:00 local${pctDay != null ? ` (${pctDay}% of the day elapsed)` : ""}.` +
+        (expectedCal != null
+          ? ` By this hour a typical eating day would have ~${expectedCal} of ${d.calorieTarget} kcal in;` +
+            ` compare intake-so-far to THAT pace, not the full-day target — being "behind" the full day at midday is normal, not a miss.`
+          : "");
+    }
     lines.push(
       `\nTODAY (in progress, not closed) — coach this by PACE in the 'today' field, no warnings: ` +
         `calories ${d.todayCaloriesSoFar ?? 0} of ${d.calorieTarget ?? "—"}, ` +
@@ -302,8 +329,9 @@ export function buildNutritionistUser(d: AnalysisInput): string {
         `carbs ${d.todayCarbsSoFar ?? 0} of ${d.carbsTarget ?? "—"} g, ` +
         `fat ${d.todayFatSoFar ?? 0} of ${d.fatTarget ?? "—"} g, ` +
         `water ${d.todayWaterMl != null ? `${Math.round(d.todayWaterMl / 29.5735)} oz` : "—"}, ` +
-        `sodium ${d.todaySodiumMg != null ? `${d.todaySodiumMg} mg` : "—"}. ` +
-        `Use these (not the averages) for the hydration + sodium reads while the day is open.`,
+        `sodium ${d.todaySodiumMg != null ? `${d.todaySodiumMg} mg` : "—"}.` +
+        clockLine +
+        ` Use these (not the averages) for the hydration + sodium reads while the day is open.`,
     );
   }
   lines.push(

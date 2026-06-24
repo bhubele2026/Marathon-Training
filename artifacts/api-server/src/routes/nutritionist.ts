@@ -18,6 +18,7 @@ import { summarizeFood, type FoodDay } from "../lib/week-review";
 import { weeklyWeightStatus } from "../lib/weekly-weight";
 import { calorieFloor, safeWeeklyRateLb, PROTEIN_FLOOR_G_PER_LB } from "../lib/nutrition-safety";
 import { computePlannedLoad } from "../lib/nutrition-engine";
+import { dayState, localToday } from "../lib/day-state";
 import {
   type AnalysisInput,
   computeBodyComp,
@@ -43,8 +44,6 @@ function hashInputs(obj: unknown): string {
 // Build the comprehensive nutritionist input from the trailing `weeks` window.
 async function gather(weeks: number): Promise<AnalysisInput> {
   const now = new Date();
-  const to = now.toISOString().slice(0, 10);
-  const from = new Date(now.getTime() - weeks * 7 * DAY_MS).toISOString().slice(0, 10);
 
   const prefsRows = await db
     .select({
@@ -62,11 +61,18 @@ async function gather(weeks: number): Promise<AnalysisInput> {
       weeklyGoalStartWeightLb: userPreferencesTable.weeklyGoalStartWeightLb,
       weeklyGoalAnchorDate: userPreferencesTable.weeklyGoalAnchorDate,
       sodiumLimitMg: userPreferencesTable.sodiumLimitMg,
+      timezone: userPreferencesTable.timezone,
     })
     .from(userPreferencesTable)
     .where(eq(userPreferencesTable.id, 1))
     .limit(1);
   const prefs = prefsRows[0];
+  // Phase 9: "today" and the window are the runner's LOCAL day, not UTC, so an
+  // evening log isn't seen as tomorrow and a half-eaten day isn't graded early.
+  const tz = prefs?.timezone ?? null;
+  const today = dayState(tz, {}, now);
+  const to = today.localDate;
+  const from = localToday(tz, new Date(now.getTime() - weeks * 7 * DAY_MS));
 
   // Weight: latest overall + earliest in window.
   const latest = await db
@@ -301,6 +307,8 @@ async function gather(weeks: number): Promise<AnalysisInput> {
     todayFatSoFar,
     todayWaterMl,
     todaySodiumMg,
+    todayLocalHour: todayOpen ? today.localHour : null,
+    todayFractionElapsed: todayOpen ? today.fractionOfDayElapsed : null,
     daysUnderFloor,
     sessionsDone: doneRows.length,
     plannedSessions: plannedRows[0]?.count ?? 0,

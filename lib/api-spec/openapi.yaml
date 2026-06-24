@@ -2918,7 +2918,7 @@ components:
 
     UserPreferences:
       type: object
-      required: [runTargetingMode, maxHr, restingHr, hrZoneModel, visualTheme, updatedAt]
+      required: [runTargetingMode, maxHr, restingHr, hrZoneModel, visualTheme, timezone, updatedAt]
       description: Single-user preferences applied across the app. Exposes the run targeting mode (Task #134) which drives how every prescribed run is displayed on Today, Week Detail, and the expanded card detail, plus the user's max heart rate (Task #141), optional resting heart rate (Task #146), chosen HR zone model (Task #158) used to compute personalized BPM ranges for the HR Zone targeting mode, and chosen visual theme palette (Task #196) so the picker on Settings persists across devices instead of being per-browser.
       properties:
         runTargetingMode:
@@ -2979,6 +2979,19 @@ components:
             default. Picking a theme on Settings writes here in addition
             to localStorage so the choice follows the runner across
             devices.
+        timezone:
+          type: string
+          nullable: true
+          description: |
+            The runner's IANA timezone string (e.g. "America/Chicago"),
+            detected on the client via
+            Intl.DateTimeFormat().resolvedOptions().timeZone and PATCHed
+            here on app load when unset or changed (Phase 9). Drives the
+            LOCAL-day boundary for "today" — nutrition rollover and the
+            coach's day-state — instead of UTC, so an evening log doesn't
+            roll into the next day and a half-finished day isn't graded as
+            a failure at local midday. Null until the client reports one;
+            the server falls back to UTC in that case.
         updatedAt:
           type: string
           format: date-time
@@ -3034,6 +3047,13 @@ components:
           type: string
           nullable: true
           enum: [studio, null]
+        timezone:
+          type: string
+          nullable: true
+          description: |
+            IANA timezone string (e.g. "America/Chicago"). Sent by the
+            client on app load when it detects the browser timezone is
+            unset or differs from the stored one. Send null to clear.
 
     ApplyPlannerConfigResponse:
       type: object

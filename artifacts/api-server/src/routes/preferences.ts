@@ -31,6 +31,7 @@ type ApiUserPreferences = {
   restingHr: number | null;
   hrZoneModel: string;
   visualTheme: string | null;
+  timezone: string | null;
   updatedAt: string;
 };
 
@@ -41,6 +42,7 @@ function toApi(row: UserPreferencesRow): ApiUserPreferences {
     restingHr: row.restingHr,
     hrZoneModel: row.hrZoneModel,
     visualTheme: row.visualTheme,
+    timezone: row.timezone,
     updatedAt: row.updatedAt.toISOString(),
   };
 }
@@ -104,6 +106,12 @@ router.put("/preferences", async (req, res) => {
   // omit to leave the saved choice alone.
   if (parsed.data.visualTheme !== undefined) {
     updates.visualTheme = parsed.data.visualTheme;
+  }
+  // Phase 9 — IANA timezone. Nullable: send `null` to clear (server falls
+  // back to UTC); omit to leave alone. The client PATCHes this on app load
+  // when the detected browser zone differs from the stored one.
+  if (parsed.data.timezone !== undefined) {
+    updates.timezone = parsed.data.timezone;
   }
   if (Object.keys(updates).length === 0) {
     const row = await readOrSeed();

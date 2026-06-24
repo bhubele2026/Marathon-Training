@@ -6014,6 +6014,12 @@ export const GetUserPreferencesResponse = zod
       .describe(
         "Which visual theme palette the runner picked (Task #196). The\nfive palettes match the keys in the frontend theme registry\n(`artifacts\/command-center\/src\/lib\/visual-themes.ts`). Null\nmeans the runner has never picked one — the provider falls\nback to localStorage and then to the arctic-performance\ndefault. Picking a theme on Settings writes here in addition\nto localStorage so the choice follows the runner across\ndevices.\n",
       ),
+    timezone: zod
+      .string()
+      .nullable()
+      .describe(
+        "The runner's IANA timezone string (e.g. \"America\/Chicago\"),\ndetected on the client via\nIntl.DateTimeFormat().resolvedOptions().timeZone and PATCHed\nhere on app load when unset or changed (Phase 9). Drives the\nLOCAL-day boundary for \"today\" — nutrition rollover and the\ncoach's day-state — instead of UTC, so an evening log doesn't\nroll into the next day and a half-finished day isn't graded as\na failure at local midday. Null until the client reports one;\nthe server falls back to UTC in that case.\n",
+      ),
     updatedAt: zod.coerce.date(),
   })
   .describe(
@@ -6055,6 +6061,12 @@ export const UpdateUserPreferencesBody = zod
     visualTheme: zod
       .union([zod.literal("studio"), zod.literal(null)])
       .nullish(),
+    timezone: zod
+      .string()
+      .nullish()
+      .describe(
+        'IANA timezone string (e.g. \"America\/Chicago\"). Sent by the\nclient on app load when it detects the browser timezone is\nunset or differs from the stored one. Send null to clear.\n',
+      ),
   })
   .describe(
     "Partial update of UserPreferences. Omitted fields are left untouched.\nSend maxHr=null or restingHr=null to explicitly clear the configured\nvalue.\n",
@@ -6104,6 +6116,12 @@ export const UpdateUserPreferencesResponse = zod
       .nullable()
       .describe(
         "Which visual theme palette the runner picked (Task #196). The\nfive palettes match the keys in the frontend theme registry\n(`artifacts\/command-center\/src\/lib\/visual-themes.ts`). Null\nmeans the runner has never picked one — the provider falls\nback to localStorage and then to the arctic-performance\ndefault. Picking a theme on Settings writes here in addition\nto localStorage so the choice follows the runner across\ndevices.\n",
+      ),
+    timezone: zod
+      .string()
+      .nullable()
+      .describe(
+        "The runner's IANA timezone string (e.g. \"America\/Chicago\"),\ndetected on the client via\nIntl.DateTimeFormat().resolvedOptions().timeZone and PATCHed\nhere on app load when unset or changed (Phase 9). Drives the\nLOCAL-day boundary for \"today\" — nutrition rollover and the\ncoach's day-state — instead of UTC, so an evening log doesn't\nroll into the next day and a half-finished day isn't graded as\na failure at local midday. Null until the client reports one;\nthe server falls back to UTC in that case.\n",
       ),
     updatedAt: zod.coerce.date(),
   })

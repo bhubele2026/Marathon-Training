@@ -4,10 +4,12 @@ import {
   nutritionDaysTable,
   nutritionDayTargetsTable,
   nutritionistReportsTable,
+  userPreferencesTable,
   type NutritionDayRow,
 } from "@workspace/db";
 import { desc, eq, gte, lt } from "drizzle-orm";
 import { getDayTarget, isValidDate } from "../lib/nutrition-day-target";
+import { localToday } from "../lib/day-state";
 
 // Daily calories + protein synced from a food tracker (MyNetDiary → Apple
 // Health → an Apple Shortcut that POSTs here once a day). The ingest route
@@ -65,10 +67,21 @@ function toApi(row: NutritionDayRow): ApiNutritionDay {
   };
 }
 
-// "Today" in UTC, matching the rest of the app's day math (see replit.md
-// deployment notes). YYYY-MM-DD.
-function todayUtc(): string {
-  return new Date().toISOString().slice(0, 10);
+// The runner's saved IANA timezone (Phase 9), or null → UTC fallback.
+async function getUserTimezone(): Promise<string | null> {
+  const rows = await db
+    .select({ timezone: userPreferencesTable.timezone })
+    .from(userPreferencesTable)
+    .where(eq(userPreferencesTable.id, 1))
+    .limit(1);
+  return rows[0]?.timezone ?? null;
+}
+
+// "Today" as YYYY-MM-DD in the runner's LOCAL timezone (Phase 9), so an
+// evening log doesn't roll into the next UTC day. Falls back to UTC when no
+// timezone has been reported yet.
+async function localToday_(): Promise<string> {
+  return localToday(await getUserTimezone());
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -186,7 +199,7 @@ router.post("/nutrition", async (req, res) => {
     return;
   }
 
-  let date = todayUtc();
+  let date = await localToday_();
   if (typeof body.date === "string" && body.date.trim() !== "") {
     const d = body.date.trim();
     if (!DATE_RE.test(d)) {
@@ -221,7 +234,7 @@ router.post("/nutrition", async (req, res) => {
 // GET /api/nutrition/today — today's totals, or an empty shell so the client
 // never has to special-case "nothing synced yet".
 router.get("/nutrition/today", async (_req, res) => {
-  const date = todayUtc();
+  const date = await localToday_();
   const rows = await db
     .select()
     .from(nutritionDaysTable)
@@ -252,7 +265,7 @@ router.get("/nutrition/today", async (_req, res) => {
 //   intake yet. Same-origin UI action, ungated (like the other UI writes).
 router.post("/nutrition/close", async (req, res): Promise<void> => {
   const raw = (req.body ?? {}) as { date?: unknown; closed?: unknown };
-  let date = todayUtc();
+  let date = await localToday_();
   if (typeof raw.date === "string" && raw.date.trim() !== "") {
     if (!DATE_RE.test(raw.date.trim())) {
       res.status(400).json({ error: "date must be YYYY-MM-DD." });
@@ -326,7 +339,7 @@ router.post("/nutrition/reset", async (req, res): Promise<void> => {
   const before =
     typeof raw.before === "string" && isValidDate(raw.before)
       ? raw.before
-      : todayUtc();
+      : await localToday_();
 
   const deleted = await db
     .delete(nutritionDaysTable)

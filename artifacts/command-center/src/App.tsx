@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "@/components/layout";
 import { VisualThemeProvider } from "@/lib/visual-theme";
+import { useTimezoneSync } from "@/hooks/use-timezone-sync";
 import { Skeleton } from "@/components/ui/skeleton";
 import { lazyWithReload } from "@/lib/lazy-with-reload";
 import { RouteErrorBoundary } from "@/components/route-error-boundary";
@@ -64,6 +65,9 @@ function RouteFallback() {
 }
 
 function Router() {
+  // Phase 9: report the browser timezone to the server once on load so the
+  // coach's "today" boundary follows the runner's local clock, not UTC.
+  useTimezoneSync();
   return (
     <Layout>
       <RouteErrorBoundary>
