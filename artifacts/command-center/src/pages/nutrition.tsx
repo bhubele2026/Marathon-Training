@@ -59,8 +59,16 @@ async function getJson<T>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-function todayUtc(): string {
-  return new Date().toISOString().slice(0, 10);
+// The runner's LOCAL calendar day (YYYY-MM-DD), not UTC. An evening in the US is
+// already "tomorrow" in UTC, so a UTC "today" would flip the rings to an empty
+// new day before the runner's day is actually over (their logged data then looks
+// like it vanished). Local keeps "today" aligned with the day they're living.
+function localTodayStr(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 // Build a fixed N-day calendar axis ending today (oldest → newest), filling each
@@ -69,7 +77,7 @@ function todayUtc(): string {
 // half-width blocks. A fixed axis makes one day read as one thin bar.
 function buildTrendAxis(entries: NutritionDay[], days: number): NutritionDay[] {
   const byDate = new Map(entries.map((e) => [e.date, e]));
-  const today = new Date(`${todayUtc()}T12:00:00Z`).getTime();
+  const today = new Date(`${localTodayStr()}T12:00:00Z`).getTime();
   const out: NutritionDay[] = [];
   for (let i = days - 1; i >= 0; i--) {
     const iso = new Date(today - i * 86400000).toISOString().slice(0, 10);
@@ -322,7 +330,7 @@ function MacroTrendRow({
 }
 
 export default function Nutrition() {
-  const date = todayUtc();
+  const date = localTodayStr();
   const todayQuery = useQuery({
     queryKey: ["/api/nutrition/today"],
     queryFn: () => getJson<NutritionDay>("/api/nutrition/today"),
@@ -345,7 +353,11 @@ export default function Nutrition() {
     queryFn: () => getJson<DayTarget>(`/api/nutrition/day/${date}`),
   });
 
-  const today = todayQuery.data;
+  // Prefer the LOCAL-day row from the recent feed (it carries water / sodium /
+  // updatedAt for the runner's actual day); fall back to /api/nutrition/today
+  // (the server's UTC day) only when the local day isn't in the window yet.
+  const today =
+    recentQuery.data?.entries.find((e) => e.date === date) ?? todayQuery.data;
   const day = dayQuery.data;
   const baselineGoals = goalsQuery.data;
 
