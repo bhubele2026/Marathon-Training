@@ -69,6 +69,26 @@ describe("getPrimaryMetricCompare", () => {
     expect(c?.planned?.formatted).toBe("6.00 mi");
   });
 
+  it("falls back to TOTAL when plan bucket and logged bucket are different families", () => {
+    // Plan logged the day as cardio (40 min) but the runner actually ran —
+    // don't show a misleading "Cardio 0 / 40"; compare totals instead.
+    const run = getPrimaryMetricCompare(
+      { runMin: 30, distanceMi: 1.77, totalMin: 30 },
+      { cardioMin: 40, totalMin: 40 },
+    );
+    expect(run?.actual.kind).toBe("total");
+    expect(run?.actual.value).toBe(30);
+    expect(run?.planned?.value).toBe(40);
+
+    // Same for a Tonal lift logged against a cardio-bucketed plan day.
+    const lift = getPrimaryMetricCompare(
+      { strengthMin: 10.6, totalMin: 10.6 },
+      { cardioMin: 40, totalMin: 40 },
+    );
+    expect(lift?.actual.kind).toBe("total");
+    expect(lift?.planned?.value).toBe(40);
+  });
+
   it("returns just actual when there is no plan", () => {
     const c = getPrimaryMetricCompare({ strengthMin: 40, totalMin: 40 }, null);
     expect(c?.actual.kind).toBe("lift");

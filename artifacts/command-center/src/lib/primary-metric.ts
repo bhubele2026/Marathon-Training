@@ -98,6 +98,18 @@ function formatFor(kind: PrimaryMetricKind, value: number): string {
   return formatDuration(value);
 }
 
+// The broad activity family a metric kind belongs to. Used to detect when the
+// plan's headline metric and what was actually logged are different KINDS of
+// work (plan said cardio, the runner ran or lifted) vs the same activity just
+// missing a sub-metric (a run logged without its distance). distance + run are
+// the same family (running); lift = strength; cardio = cardio.
+function family(kind: PrimaryMetricKind): "run" | "strength" | "cardio" | "total" {
+  if (kind === "distance" || kind === "run") return "run";
+  if (kind === "lift") return "strength";
+  if (kind === "cardio") return "cardio";
+  return "total";
+}
+
 export function getPrimaryMetric(
   s: PrimaryMetricSource | null | undefined,
 ): PrimaryMetric | null {
@@ -119,10 +131,28 @@ export function getPrimaryMetricCompare(
   actual: PrimaryMetricSource | null | undefined,
   planned: PrimaryMetricSource | null | undefined,
 ): PrimaryMetricCompare | null {
-  const kind =
-    (planned ? pickKind(planned) : null) ??
-    (actual ? pickKind(actual) : null);
+  const plannedKind = planned ? pickKind(planned) : null;
+  const actualKind = actual ? pickKind(actual) : null;
+  let kind = plannedKind ?? actualKind;
   if (!kind) return null;
+
+  // When the plan's headline bucket and what was actually logged are different
+  // FAMILIES of work (e.g. the plan logged the day as `cardio` but the session
+  // came in as a run or a lift), comparing inside the plan's bucket shows a
+  // misleading actual = 0. Fall back to TOTAL minutes so the card honestly
+  // reads the real work vs planned (e.g. "30 / 40 min"), matching the detail
+  // breakdown's Total row. Same-family gaps (a run with no recorded distance
+  // vs a planned-distance run) are left alone so "0.00 / 6.00 mi" still works.
+  if (
+    plannedKind &&
+    actualKind &&
+    family(plannedKind) !== family(actualKind) &&
+    actual != null &&
+    valueFor(actual, plannedKind) <= 0
+  ) {
+    kind = "total";
+  }
+
   const aValue = actual ? valueFor(actual, kind) : 0;
   const aMetric: PrimaryMetric = {
     kind,
