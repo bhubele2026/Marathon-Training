@@ -31,6 +31,16 @@ async function getJson<T>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+// Sardonic coach quips for a closed day (the persona, lightly applied).
+const CLOSE_QUIPS = [
+  "Locked in.",
+  "Sealed. We judge it for real now.",
+  "Done and dusted.",
+  "Closed. Respectable… we'll see.",
+  "No more 'I'll log it later.'",
+  "That's the day, then.",
+];
+
 async function postClose(closed: boolean, date: string): Promise<NutritionDay> {
   const res = await fetch("/api/nutrition/close", {
     method: "POST",
@@ -66,7 +76,7 @@ export function CloseDayButton({ date: dateProp }: { date?: string } = {}) {
       qc.invalidateQueries({ queryKey: ["/api/nutrition/recent"] });
       qc.invalidateQueries({ queryKey: ["/api/nutrition/day"] });
       toast({
-        title: close ? "Day closed" : "Day reopened",
+        title: close ? CLOSE_QUIPS[Math.floor(Math.random() * CLOSE_QUIPS.length)] : "Day reopened",
         description: close
           ? `${isToday ? "Today" : "That day"} now counts as finished — the coach gives its real verdict.`
           : `${isToday ? "Today" : "That day"} is open again — judged by pace, no low-intake warnings.`,

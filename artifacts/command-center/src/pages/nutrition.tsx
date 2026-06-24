@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "framer-motion";
 import { CountUp } from "@/components/studio/count-up";
@@ -12,6 +12,7 @@ import { CoachNote } from "@/components/studio/coach-note";
 import { NutritionLog } from "@/components/nutrition-log";
 import { ResetNutritionButton } from "@/components/reset-nutrition-button";
 import { CloseDayButton } from "@/components/close-day-button";
+import { ConsistencyStrip } from "@/components/consistency-strip";
 
 // These routes are intentionally hand-fetched rather than going through the
 // generated api-client: the nutrition slice isn't in openapi.yaml, so we hit
@@ -196,7 +197,7 @@ function MacroRing({
               fill="none"
               strokeWidth={stroke}
               strokeLinecap="round"
-              className="stroke-primary"
+              className={"stroke-primary" + (hit ? " ring-glow-primary" : "")}
               strokeDasharray={circ}
               initial={{ strokeDashoffset: reduced ? dashoffset : circ }}
               animate={{ strokeDashoffset: dashoffset }}
@@ -216,7 +217,8 @@ function MacroRing({
                 ? "text-muted-foreground"
                 : hero
                   ? "text-primary"
-                  : "text-foreground")
+                  : "text-foreground") +
+              (hit && !awaiting ? " glow-primary" : "")
             }
           >
             {awaiting ? (
@@ -356,6 +358,19 @@ export default function Nutrition() {
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const date = selectedDate;
   const isToday = selectedDate === todayStr;
+
+  // Power touch: ←/→ browse days (ignored while typing in a field). Never future.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      const el = document.activeElement;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || (el as HTMLElement).isContentEditable)) return;
+      if (e.key === "ArrowLeft") setSelectedDate((cur) => shiftDay(cur, -1));
+      else setSelectedDate((cur) => (cur >= todayStr ? cur : shiftDay(cur, 1)));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [todayStr]);
   const todayQuery = useQuery({
     queryKey: ["/api/nutrition/today"],
     queryFn: () => getJson<NutritionDay>("/api/nutrition/today"),
@@ -492,6 +507,14 @@ export default function Nutrition() {
           diagnosis (where you are, what you should see, why you may not be),
           fuelling, and concrete next moves. Reads the server-cached analysis. */}
       <NutritionistPanel variant="full" weeks={8} />
+
+      {/* Logging streak + clickable mini-calendar of recent days. */}
+      <ConsistencyStrip
+        entries={entries}
+        selectedDate={selectedDate}
+        todayStr={todayStr}
+        onSelect={setSelectedDate}
+      />
 
       {/* Per-day review: the selected day's macros + water, a navigator to step
           to any past day, and the close control for that day. De-boxed. */}
@@ -687,7 +710,7 @@ export default function Nutrition() {
       </Card>
 
       {/* Per-day history of every logged day with the actual numbers. */}
-      <NutritionLog />
+      <NutritionLog onSelectDate={setSelectedDate} selectedDate={selectedDate} />
 
       {/* Maintenance: start nutrition tracking fresh from a chosen date
           (clears earlier logs + rebuilds the AI read; plan/body/workouts kept). */}

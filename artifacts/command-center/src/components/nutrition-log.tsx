@@ -9,6 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 // A plain per-day history of logged nutrition — every day that has data, newest
 // first, with the actual numbers (not just the trend bars). Reads the same
@@ -51,7 +52,15 @@ function fmtDate(iso: string): string {
 
 const num = (n: number | null): string => (n == null ? "—" : Math.round(n).toLocaleString());
 
-export function NutritionLog() {
+// `onSelectDate` (optional) makes each row a button that jumps the day
+// navigator to that day; `selectedDate` highlights the row under review.
+export function NutritionLog({
+  onSelectDate,
+  selectedDate,
+}: {
+  onSelectDate?: (date: string) => void;
+  selectedDate?: string;
+} = {}) {
   const { data, isLoading } = useQuery({
     queryKey: ["/api/nutrition/recent", HISTORY_DAYS],
     queryFn: () => getJson<RecentResponse>(`/api/nutrition/recent?days=${HISTORY_DAYS}`),
@@ -94,7 +103,15 @@ export function NutritionLog() {
             </TableHeader>
             <TableBody>
               {logged.map((e) => (
-                <TableRow key={e.date} className="hover:bg-muted/30">
+                <TableRow
+                  key={e.date}
+                  onClick={onSelectDate ? () => onSelectDate(e.date) : undefined}
+                  className={cn(
+                    onSelectDate && "cursor-pointer",
+                    e.date === selectedDate ? "bg-primary/5" : "hover:bg-muted/30",
+                  )}
+                  data-testid={`log-row-${e.date}`}
+                >
                   <TableCell className="font-medium whitespace-nowrap">{fmtDate(e.date)}</TableCell>
                   <TableCell className="text-right font-mono font-bold text-primary">{num(e.calories)}</TableCell>
                   <TableCell className="text-right font-mono">{num(e.proteinG)}{e.proteinG != null ? " g" : ""}</TableCell>
