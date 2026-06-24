@@ -14,6 +14,16 @@
 
 set -e
 
+# Drop the legacy marathon race tables BEFORE the schema push. They were removed
+# from the schema in the overhaul, but a prod/dev DB that still carries them makes
+# the `drizzle-kit push` diff RENAME-AMBIGUOUS (is nutrition_entries/water_logs a
+# fresh create, or a rename of a race table?). That question is interactive and
+# can't be answered in the non-interactive deploy build, which left the new tables
+# uncreated and broke the nutrition-entries backfill. Dropping first makes the
+# push purely additive + non-interactive. Idempotent (DROP IF EXISTS) — no-op once
+# the tables are gone, so safe on every merge AND every deploy.
+pnpm --filter @workspace/scripts run drop-legacy-race-tables
+
 pnpm --filter db push
 # Backfill strength_min / run_min and re-bucket legacy cardio_min values
 # after the schema push, so existing plan_day rows pick up the new

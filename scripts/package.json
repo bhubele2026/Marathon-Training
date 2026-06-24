@@ -10,6 +10,7 @@
     "hello": "tsx ./src/hello.ts",
     "generate-plan": "tsx ./src/generate-plan.ts",
     "seed": "tsx ./src/seed.ts",
+    "drop-legacy-race-tables": "tsx ./src/drop-legacy-race-tables.ts",
     "backfill-plan-day-minutes": "tsx ./src/backfill-plan-day-minutes.ts",
     "backfill-plan-day-buckets": "tsx ./src/backfill-plan-day-buckets.ts",
     "backfill-plan-day-equipment": "tsx ./src/backfill-plan-day-equipment.ts",
