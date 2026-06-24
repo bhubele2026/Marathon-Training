@@ -1,5 +1,6 @@
 import { DAY_ORDER, addDaysISO, mondayOnOrBefore } from "./dates";
 import { planIncludesRunning } from "./guardrails";
+import { normalizeSessionBuckets } from "./buckets";
 import type { AiPlan, AiStrengthBlock } from "./types";
 
 // Turn an AiPlan into rows shaped for plan_weeks / plan_days. The server maps
@@ -71,8 +72,17 @@ export function materializeAiPlan(plan: AiPlan): MaterializedPlan {
       const dayIdx = DAY_ORDER.indexOf(d.day) === -1 ? i : DAY_ORDER.indexOf(d.day);
       const date = addDaysISO(startDate, (week.week - 1) * 7 + dayIdx);
       const distanceMi = d.distanceMi ?? null;
-      const strengthLoad = d.strengthMin; // minute-proxy load (AI plans)
-      const totalLoad = d.strengthMin + d.cardioMin + d.runMin;
+      // Bucket the minutes by session type so the plan lines up with how logged
+      // workouts are bucketed (a Run/Strength day's minutes never get stranded
+      // in cardio). Conservative: only moves minutes out of cardio for a clearly
+      // run/strength session whose own bucket is empty.
+      const nb = normalizeSessionBuckets(d.sessionType, {
+        strengthMin: d.strengthMin,
+        cardioMin: d.cardioMin,
+        runMin: d.runMin,
+      });
+      const strengthLoad = nb.strengthMin; // minute-proxy load (AI plans)
+      const totalLoad = nb.strengthMin + nb.cardioMin + nb.runMin;
       const equipment = d.equipmentList[0] ?? (d.isRest ? "Off / Rest" : "Tonal");
       const strengthBlocks =
         Array.isArray(d.strengthBlocks) && d.strengthBlocks.length > 0
@@ -86,9 +96,9 @@ export function materializeAiPlan(plan: AiPlan): MaterializedPlan {
         day: d.day,
         isRest: d.isRest,
         sessionType: d.sessionType,
-        strengthMin: d.strengthMin,
-        cardioMin: d.cardioMin,
-        runMin: d.runMin,
+        strengthMin: nb.strengthMin,
+        cardioMin: nb.cardioMin,
+        runMin: nb.runMin,
         distanceMi,
         pace: d.pace ?? null,
         equipment,
@@ -102,7 +112,7 @@ export function materializeAiPlan(plan: AiPlan): MaterializedPlan {
       });
 
       plannedStrength += strengthLoad;
-      plannedCardio += d.cardioMin;
+      plannedCardio += nb.cardioMin;
       plannedTotalLoad += totalLoad;
       if (distanceMi) {
         plannedMiles += distanceMi;

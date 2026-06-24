@@ -11,6 +11,7 @@
     "generate-plan": "tsx ./src/generate-plan.ts",
     "seed": "tsx ./src/seed.ts",
     "backfill-plan-day-minutes": "tsx ./src/backfill-plan-day-minutes.ts",
+    "backfill-plan-day-buckets": "tsx ./src/backfill-plan-day-buckets.ts",
     "backfill-plan-day-equipment": "tsx ./src/backfill-plan-day-equipment.ts",
     "backfill-workout-equipment": "tsx ./src/backfill-workout-equipment.ts",
     "backfill-workout-plan-day": "tsx ./src/backfill-workout-plan-day.ts",
@@ -27,6 +28,7 @@
     "@types/node": "catalog:",
     "@workspace/db": "workspace:*",
     "@workspace/plan-generator": "workspace:*",
+    "@workspace/plan-knowledge": "workspace:*",
     "drizzle-orm": "catalog:",
     "tsx": "catalog:",
     "vitest": "^4.1.5"

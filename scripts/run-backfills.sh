@@ -19,6 +19,13 @@ pnpm --filter db push
 # after the schema push, so existing plan_day rows pick up the new
 # breakdown columns introduced by task #74. Idempotent — safe to re-run.
 pnpm --filter @workspace/scripts run backfill-plan-day-minutes
+# Re-bucket plan_day minutes by SESSION TYPE: AI-authored plans sometimes parked
+# a Run/Strength day's minutes in cardio_min, so the session-card headline read
+# the wrong (empty) bucket and couldn't line up with the logged actual. Uses the
+# same normalizeSessionBuckets rule the live materialize path uses. Conservative
+# + idempotent (only moves minutes for a clearly run/strength day whose own
+# bucket is empty). Set DRY_RUN=1 to preview.
+pnpm --filter @workspace/scripts run backfill-plan-day-buckets
 # Backfill the equipment_list chip rail introduced by task #77. Parses the
 # description for known machine names in canonical priority order and
 # populates equipment_list / seed_equipment_list on rows whose columns are
