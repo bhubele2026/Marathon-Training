@@ -8,7 +8,6 @@ import {
   Beef,
   Target,
   ListOrdered,
-  Trophy,
   Sparkles,
   CalendarCheck,
   Settings as SettingsIcon,
@@ -32,13 +31,12 @@ export const PRIMARY_NAV: NavDestination[] = [
 ];
 
 // Everything else lives behind the single "More" menu. Ordered for cohesion:
-// review surfaces (this week, training log, goals), then races, then the
-// planner, then settings.
+// review surfaces (this week, training log, goals), then the planner, then
+// settings.
 export const MORE_NAV: NavDestination[] = [
   { href: "/recap", label: "This week", icon: CalendarCheck },
   { href: "/log", label: "Training log", icon: ListOrdered },
   { href: "/goals", label: "Goals", icon: Target },
-  { href: "/races", label: "Races", icon: Trophy },
   { href: "/planner", label: "Planner", icon: Sparkles },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
 ];

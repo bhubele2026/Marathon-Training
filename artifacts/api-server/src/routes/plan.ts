@@ -4,11 +4,8 @@ import {
   planDaysTable,
   planWeeksTable,
   plannerConfigsTable,
-  scheduledRacesTable,
-  raceResultsTable,
   workoutsTable,
   type PlanDayRow,
-  type ScheduledRaceRow,
   type WorkoutRow,
 } from "@workspace/db";
 import { eq, asc, desc, sql, and, gte, lte, inArray } from "drizzle-orm";
@@ -31,7 +28,6 @@ import {
 import {
   toPlanDay,
   toPlanWeek,
-  toScheduledRace,
   toWorkout,
   type PlanWeekProgramSummary,
 } from "../lib/transforms";
@@ -201,17 +197,16 @@ export async function computePlanOverview() {
   const nextMissed = nextMissedRows.rows[0];
 
   const activeConfigName = await readActiveConfigName();
-  const nextScheduledRace = await fetchNextScheduledRace(today);
 
   // Behavior rehaul R1. The single authoritative "this plan includes running"
   // flag the whole frontend reads instead of re-deriving "is there running"
   // from raceKind / miles in five places. Running is OPT-IN; the default plan
   // is strength + body-recomposition (lift + low-impact conditioning) with
-  // ZERO miles. A plan includes running when ANY of these explicit opt-in
-  // signals hold:
-  //   - the campaign is anchored on a run race (raceKind detected on the
-  //     trailing plan_day), OR
-  //   - the runner has a scheduled race coming up, OR
+  // ZERO miles. A plan includes running when EITHER of these explicit opt-in
+  // signals holds:
+  //   - the campaign is anchored on a run race — race intent now comes from
+  //     the active plan's goal (raceKind detected on the trailing plan_day),
+  //     not a separate scheduled-races tracking table, OR
   //   - the applied plan_days actually program running (any distance_mi > 0
   //     or run_min > 0) — covers entries-mode run templates whose trailing
   //     day might not classify as a race (e.g. a couch-to-5K graduating run).
@@ -222,8 +217,7 @@ export async function computePlanOverview() {
         ) AS has_running`,
   );
   const planHasRunningDays = runRows.rows[0]?.has_running === true;
-  const includesRunning =
-    raceKind !== null || nextScheduledRace !== null || planHasRunningDays;
+  const includesRunning = raceKind !== null || planHasRunningDays;
 
   // Task #329: derive plan-window dates from the most-recently-applied
   // planner config so the /plan header reflects whatever the runner
@@ -296,12 +290,6 @@ export async function computePlanOverview() {
     nextMissedDate: nextMissed?.date ?? null,
     nextMissedWeek: nextMissed?.week ?? null,
     nextMissedPlanDayId: nextMissed?.id ?? null,
-    nextScheduledRace: nextScheduledRace
-      ? {
-          ...toScheduledRace(nextScheduledRace.row, nextScheduledRace.hasResult),
-          daysUntil: nextScheduledRace.daysUntil,
-        }
-      : null,
     activeConfigName,
     scienceVersion: PLAN_SCIENCE_VERSION,
     lastAppliedAt,
@@ -479,7 +467,6 @@ router.get("/plan/weeks", async (_req, res) => {
     });
     programsByWeek.set(r.week, list);
   }
-  const scheduledRacesByWeek = await fetchScheduledRacesByWeek(weeks);
   res.json(
     weeks.map((w) => {
       const a = byWeek.get(w.week);
@@ -493,7 +480,6 @@ router.get("/plan/weeks", async (_req, res) => {
         dominantCardioEquipment: dominantByWeek.get(w.week) ?? null,
         wedSteady: wedSteadyByWeek.get(w.week) ?? null,
         programs: programsByWeek.get(w.week) ?? null,
-        scheduledRaces: scheduledRacesByWeek.get(w.week) ?? null,
       });
     }),
   );
@@ -657,14 +643,6 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
     : days.some((d) => d.day === "Wed")
       ? false
       : null;
-  const scheduledRacesByWeek = await fetchScheduledRacesByWeek([
-    {
-      week: weekRow.week,
-      startDate: weekRow.startDate,
-      endDate: weekRow.endDate,
-    },
-  ]);
-  const scheduledRacesForWeek = scheduledRacesByWeek.get(weekRow.week) ?? null;
   res.json({
     ...toPlanWeek(weekRow, {
       actualMiles: actuals.rows[0]?.actual_miles ?? 0,
@@ -675,7 +653,6 @@ router.get("/plan/weeks/:week", async (req, res): Promise<void> => {
       wedSteady,
       programs,
       raceKind,
-      scheduledRaces: scheduledRacesForWeek,
     }),
     days: daysWithSuggestions,
   });
@@ -1091,81 +1068,6 @@ function daysBetweenISO(from: string, to: string): number {
 // window. Rest days at the very start of week 1 are skipped on purpose so
 // the countdown reflects the first day the user actually has to train, not
 // the technical start of week 1 (which may be a Mon rest day).
-// Task #345. Fetch the closest upcoming supplemental scheduled race
-// (raceDate >= today). Used by both /plan/overview and /plan/today to
-// surface a "Next race · 5K · in N days" chip without forcing the
-// client to round-trip to /scheduled-races. Returns the raw row plus
-// the route-layer `hasResult` flag so the caller can serialize via
-// `toScheduledRace`. Returns null when nothing is scheduled in the
-// future.
-async function fetchNextScheduledRace(
-  today: string,
-): Promise<{ row: ScheduledRaceRow; hasResult: boolean; daysUntil: number } | null> {
-  const rows = await db
-    .select()
-    .from(scheduledRacesTable)
-    .where(gte(scheduledRacesTable.raceDate, today))
-    .orderBy(asc(scheduledRacesTable.raceDate))
-    .limit(1);
-  const row = rows[0];
-  if (!row) return null;
-  const result = await db
-    .select({ raceDate: raceResultsTable.raceDate })
-    .from(raceResultsTable)
-    .where(eq(raceResultsTable.raceDate, row.raceDate))
-    .limit(1);
-  // Compute daysUntil server-side from the same UTC midnight that
-  // /plan/today uses so the chip text doesn't drift across timezones.
-  const msPerDay = 24 * 60 * 60 * 1000;
-  const todayMs = Date.parse(`${today}T00:00:00.000Z`);
-  const raceMs = Date.parse(`${row.raceDate}T00:00:00.000Z`);
-  const daysUntil = Math.max(0, Math.round((raceMs - todayMs) / msPerDay));
-  return { row, hasResult: result.length > 0, daysUntil };
-}
-
-// Task #345. Fetch every scheduled race that lands inside any of the
-// supplied weeks' [startDate, endDate] windows, then group by week so
-// the route handler can pass `programs[]`-style per-week arrays
-// straight to `toPlanWeek`. Single SQL fetch keyed on the global
-// min/max of the supplied range so a 52-week list scan only takes one
-// round-trip; the per-week assignment is done in JS afterwards.
-async function fetchScheduledRacesByWeek(
-  weeks: ReadonlyArray<{ week: number; startDate: string; endDate: string }>,
-): Promise<Map<number, Array<ReturnType<typeof toScheduledRace>>>> {
-  const out = new Map<number, Array<ReturnType<typeof toScheduledRace>>>();
-  if (weeks.length === 0) return out;
-  let minStart = weeks[0]!.startDate;
-  let maxEnd = weeks[0]!.endDate;
-  for (const w of weeks) {
-    if (w.startDate < minStart) minStart = w.startDate;
-    if (w.endDate > maxEnd) maxEnd = w.endDate;
-  }
-  const rows = await db
-    .select()
-    .from(scheduledRacesTable)
-    .where(
-      and(
-        gte(scheduledRacesTable.raceDate, minStart),
-        lte(scheduledRacesTable.raceDate, maxEnd),
-      ),
-    )
-    .orderBy(asc(scheduledRacesTable.raceDate));
-  if (rows.length === 0) return out;
-  const dates = rows.map((r) => r.raceDate);
-  const resultRows = await db
-    .select({ raceDate: raceResultsTable.raceDate })
-    .from(raceResultsTable)
-    .where(inArray(raceResultsTable.raceDate, dates));
-  const resultSet = new Set(resultRows.map((r) => r.raceDate));
-  for (const w of weeks) {
-    const matched = rows
-      .filter((r) => r.raceDate >= w.startDate && r.raceDate <= w.endDate)
-      .map((r) => toScheduledRace(r, resultSet.has(r.raceDate)));
-    if (matched.length > 0) out.set(w.week, matched);
-  }
-  return out;
-}
-
 async function fetchFirstSessionDay(): Promise<PlanDayRow | null> {
   const rows = await db
     .select()
@@ -1266,8 +1168,6 @@ export async function computeTodayPlan() {
       personalizedLongRunPace: longRunByDayId.get(r.id) ?? null,
     });
 
-  const nextScheduledRace = await fetchNextScheduledRace(today);
-
   return {
     date: today,
     hasPlan: planRows.length > 0,
@@ -1283,12 +1183,6 @@ export async function computeTodayPlan() {
     daysUntilStart,
     firstSession:
       firstSessionRow && showFirstSession ? todayPlanDay(firstSessionRow) : null,
-    nextScheduledRace: nextScheduledRace
-      ? {
-          ...toScheduledRace(nextScheduledRace.row, nextScheduledRace.hasResult),
-          daysUntil: nextScheduledRace.daysUntil,
-        }
-      : null,
     raceKind,
   };
 }
@@ -1872,7 +1766,7 @@ router.post("/plan/full-reset", async (req, res): Promise<void> => {
     // counts. ACCESS EXCLUSIVE matches the lock TRUNCATE itself takes, so
     // this just hoists that lock acquisition earlier in the transaction.
     await tx.execute(
-      sql`LOCK TABLE workouts, plan_days, plan_weeks, measurements, race_week_checklist, race_results, reset_undo_snapshots IN ACCESS EXCLUSIVE MODE`,
+      sql`LOCK TABLE workouts, plan_days, plan_weeks, measurements, reset_undo_snapshots IN ACCESS EXCLUSIVE MODE`,
     );
 
     // Snapshot pre-wipe counts so the response can tell the user exactly
@@ -1888,11 +1782,6 @@ router.post("/plan/full-reset", async (req, res): Promise<void> => {
         sql`SELECT COUNT(*)::int AS count FROM measurements`,
       )
     ).rows;
-    const [{ count: checklistBefore } = { count: 0 }] = (
-      await tx.execute<{ count: number }>(
-        sql`SELECT COUNT(*)::int AS count FROM race_week_checklist`,
-      )
-    ).rows;
     const [{ count: snapshotsBefore } = { count: 0 }] = (
       await tx.execute<{ count: number }>(
         sql`SELECT COUNT(*)::int AS count FROM reset_undo_snapshots`,
@@ -1904,7 +1793,7 @@ router.post("/plan/full-reset", async (req, res): Promise<void> => {
     // Listing every table the runner can mutate makes this the canonical
     // "delete everything I've put in" operation.
     await tx.execute(
-      sql`TRUNCATE TABLE workouts, plan_days, plan_weeks, measurements, race_week_checklist, race_results, reset_undo_snapshots RESTART IDENTITY CASCADE`,
+      sql`TRUNCATE TABLE workouts, plan_days, plan_weeks, measurements, reset_undo_snapshots RESTART IDENTITY CASCADE`,
     );
 
     // Task #326: demote every planner_configs row to draft state by
@@ -1928,7 +1817,6 @@ router.post("/plan/full-reset", async (req, res): Promise<void> => {
       workoutsWiped: workoutsBefore,
       measurementsWiped: measurementsBefore,
       measurementsSeeded: 0,
-      checklistItemsWiped: checklistBefore,
       undoSnapshotsWiped: snapshotsBefore,
     };
   });
@@ -1943,7 +1831,6 @@ router.post("/plan/full-reset", async (req, res): Promise<void> => {
       workoutsWiped: result.workoutsWiped,
       measurementsWiped: result.measurementsWiped,
       measurementsSeeded: result.measurementsSeeded,
-      checklistItemsWiped: result.checklistItemsWiped,
       undoSnapshotsWiped: result.undoSnapshotsWiped,
     },
     "full plan reset (no undo) — plan tables wiped, applied planner config demoted to draft",

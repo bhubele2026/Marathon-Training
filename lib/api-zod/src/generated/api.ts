@@ -76,7 +76,7 @@ export const GetPlanOverviewResponse = zod.object({
   includesRunning: zod
     .boolean()
     .describe(
-      'Behavior rehaul R1. The single authoritative \"this plan includes\nrunning\" flag. Running is an OPT-IN module — the default plan is\nstrength + body-recomposition (Tonal lifting + low-impact Peloton\nBike\/Row conditioning) with ZERO programmed miles and no Long Run.\nTrue only when the runner explicitly opted into running: the\ncampaign is anchored on a run race (`raceKind` is non-null), a\nscheduled race is upcoming (`nextScheduledRace`), or the applied\nplan_days actually program running (any distance_mi > 0 or\nrun_min > 0). False for the default recomp \/ lift-primary plan and\non freshly seeded campaigns with no plan_days. Every running-aware\nsurface (Plan tiles, Today, dashboard) should gate on THIS flag\nrather than re-deriving running from raceKind \/ miles.\n',
+      'Behavior rehaul R1. The single authoritative \"this plan includes\nrunning\" flag. Running is an OPT-IN module — the default plan is\nstrength + body-recomposition (Tonal lifting + low-impact Peloton\nBike\/Row conditioning) with ZERO programmed miles and no Long Run.\nTrue only when the runner explicitly opted into running: the\ncampaign is anchored on a run race (`raceKind` is non-null), or\nthe applied plan_days actually program running (any\ndistance_mi > 0 or run_min > 0). False for the default recomp \/\nlift-primary plan and\non freshly seeded campaigns with no plan_days. Every running-aware\nsurface (Plan tiles, Today, dashboard) should gate on THIS flag\nrather than re-deriving running from raceKind \/ miles.\n',
     ),
   nextMissedDate: zod
     .string()
@@ -89,28 +89,6 @@ export const GetPlanOverviewResponse = zod.object({
     .nullish()
     .describe(
       "Task #33. Week number containing `nextMissedDate`, surfaced\nso the client can navigate to \/plan\/:week without a second\nlookup. Null whenever `nextMissedDate` is null.\n",
-    ),
-  nextScheduledRace: zod
-    .object({
-      raceDate: zod.string(),
-      raceKind: zod.enum(["marathon", "half", "10k", "5k"]),
-      name: zod.string().nullish(),
-      notes: zod.string().nullish(),
-      hasResult: zod.boolean().optional(),
-      recordedAt: zod.coerce.date(),
-      updatedAt: zod.coerce.date(),
-      daysUntil: zod
-        .number()
-        .describe(
-          "Whole days from the server's UTC `today` to `raceDate`.\n0 on the race day itself; never negative because the\npicker only returns races with `raceDate >= today`.\n",
-        ),
-    })
-    .describe(
-      "Task #345. Embedded shape for the closest upcoming scheduled\nrace surfaced on \/plan\/overview and \/plan\/today. Same wire\nshape as `ScheduledRace` plus a server-computed `daysUntil`\ndelta from the API server's UTC `today` (0 on race day) so\nclients don't have to recompute it from `raceDate`.\n",
-    )
-    .nullish()
-    .describe(
-      'Task #345. Closest upcoming supplemental scheduled race\n(raceDate >= today), or null when none are on the calendar.\nCarries `daysUntil` (server-computed delta from today, 0 on\nrace day) so the \/plan header can render a \"Next race · 5K\n· in N days\" chip without a second round-trip.\n',
     ),
   nextMissedPlanDayId: zod
     .number()
@@ -220,32 +198,6 @@ export const ListPlanWeeksResponseItem = zod.object({
     .describe(
       'Task #162. Per-program completion breakdown for this week,\nfor runners stacking concurrent programs (e.g. a Tonal lift\nprogram alongside a 5K running program). Each entry pairs a\nTemplateEntry contributing plan_days this week with its own\ncompleted \/ total \/ missed session counts so weekly summary\ncards can render \"Tonal Lift 3\/4 · 5K Improver 2\/4\" instead\nof rolling everything into a single combined ratio. The\nexisting `completedSessions` \/ `totalSessions` \/\n`missedSessions` fields above remain the COMBINED totals\nacross all programs. Null on weeks with no plan_days yet\n(freshly seeded \/ legacy data); a single-element array for\nsingle-program campaigns. Ordered by `sourceEntryIndex`\nascending.\n',
     ),
-  scheduledRaces: zod
-    .array(
-      zod.object({
-        raceDate: zod.string(),
-        raceKind: zod.enum(["marathon", "half", "10k", "5k"]),
-        name: zod
-          .string()
-          .nullish()
-          .describe(
-            'Optional human-readable name (e.g. \"Brooklyn Mile 5K\").',
-          ),
-        notes: zod.string().nullish(),
-        hasResult: zod
-          .boolean()
-          .optional()
-          .describe(
-            'True when a `race_results` row already exists for this\nscheduled race\'s date. Lets the \/races UI render a \"Log\nresult\" CTA only on past, unlogged races.\n',
-          ),
-        recordedAt: zod.coerce.date(),
-        updatedAt: zod.coerce.date(),
-      }),
-    )
-    .nullish()
-    .describe(
-      'Task #345. Every supplemental scheduled race that lands in\nthis week\'s [startDate, endDate] window, ordered by\n`raceDate` ascending. Lets weekly summary cards render a\n\"5K · Sat\" chip alongside the planned-load summary so\nrunners can see scheduled B-races on the calendar at a\nglance. Independent of `marathonDate` \/ the active campaign\nso the chip survives Phase Planner re-applies and Full\nReset. Null on freshly seeded weeks for back-compat.\n',
-    ),
   raceKind: zod
     .enum(["marathon", "half", "10k", "5k"])
     .nullish()
@@ -325,32 +277,6 @@ export const GetPlanWeekResponse = zod
       .nullish()
       .describe(
         'Task #162. Per-program completion breakdown for this week,\nfor runners stacking concurrent programs (e.g. a Tonal lift\nprogram alongside a 5K running program). Each entry pairs a\nTemplateEntry contributing plan_days this week with its own\ncompleted \/ total \/ missed session counts so weekly summary\ncards can render \"Tonal Lift 3\/4 · 5K Improver 2\/4\" instead\nof rolling everything into a single combined ratio. The\nexisting `completedSessions` \/ `totalSessions` \/\n`missedSessions` fields above remain the COMBINED totals\nacross all programs. Null on weeks with no plan_days yet\n(freshly seeded \/ legacy data); a single-element array for\nsingle-program campaigns. Ordered by `sourceEntryIndex`\nascending.\n',
-      ),
-    scheduledRaces: zod
-      .array(
-        zod.object({
-          raceDate: zod.string(),
-          raceKind: zod.enum(["marathon", "half", "10k", "5k"]),
-          name: zod
-            .string()
-            .nullish()
-            .describe(
-              'Optional human-readable name (e.g. \"Brooklyn Mile 5K\").',
-            ),
-          notes: zod.string().nullish(),
-          hasResult: zod
-            .boolean()
-            .optional()
-            .describe(
-              'True when a `race_results` row already exists for this\nscheduled race\'s date. Lets the \/races UI render a \"Log\nresult\" CTA only on past, unlogged races.\n',
-            ),
-          recordedAt: zod.coerce.date(),
-          updatedAt: zod.coerce.date(),
-        }),
-      )
-      .nullish()
-      .describe(
-        'Task #345. Every supplemental scheduled race that lands in\nthis week\'s [startDate, endDate] window, ordered by\n`raceDate` ascending. Lets weekly summary cards render a\n\"5K · Sat\" chip alongside the planned-load summary so\nrunners can see scheduled B-races on the calendar at a\nglance. Independent of `marathonDate` \/ the active campaign\nso the chip survives Phase Planner re-applies and Full\nReset. Null on freshly seeded weeks for back-compat.\n',
       ),
     raceKind: zod
       .enum(["marathon", "half", "10k", "5k"])
@@ -1770,11 +1696,6 @@ export const FullResetPlanResponse = zod.object({
     .describe(
       "Number of baseline measurements rows reinserted from the seed (1 for the standard campaign).",
     ),
-  checklistItemsWiped: zod
-    .number()
-    .describe(
-      "Number of race-week checklist rows that were deleted by the reset.",
-    ),
   undoSnapshotsWiped: zod
     .number()
     .describe(
@@ -2657,28 +2578,6 @@ export const GetTodayPlanResponse = zod.object({
     .describe(
       "Preview of the first scheduled (non-rest) plan day. Populated alongside daysUntilStart only when today is before that session; null once the campaign has started.",
     ),
-  nextScheduledRace: zod
-    .object({
-      raceDate: zod.string(),
-      raceKind: zod.enum(["marathon", "half", "10k", "5k"]),
-      name: zod.string().nullish(),
-      notes: zod.string().nullish(),
-      hasResult: zod.boolean().optional(),
-      recordedAt: zod.coerce.date(),
-      updatedAt: zod.coerce.date(),
-      daysUntil: zod
-        .number()
-        .describe(
-          "Whole days from the server's UTC `today` to `raceDate`.\n0 on the race day itself; never negative because the\npicker only returns races with `raceDate >= today`.\n",
-        ),
-    })
-    .describe(
-      "Task #345. Embedded shape for the closest upcoming scheduled\nrace surfaced on \/plan\/overview and \/plan\/today. Same wire\nshape as `ScheduledRace` plus a server-computed `daysUntil`\ndelta from the API server's UTC `today` (0 on race day) so\nclients don't have to recompute it from `raceDate`.\n",
-    )
-    .nullish()
-    .describe(
-      'Task #345. Closest upcoming supplemental scheduled race\n(raceDate >= today), or null when none are on the\ncalendar. Carries `daysUntil` (server-computed, 0 on\nrace day) so \/today can render a \"Next race · 5K · in N\ndays\" chip without a second round-trip. On the race day\nitself the row is still surfaced so the UI can swap the\nchip for a \"Log result\" CTA.\n',
-    ),
   raceKind: zod
     .enum(["marathon", "half", "10k", "5k"])
     .nullish()
@@ -3231,7 +3130,7 @@ export const GetDashboardBootstrapResponse = zod
         .enum(["marathon", "half", "10k", "5k"])
         .nullish()
         .describe(
-          'Task #209. Kind of race the campaign is anchored on, derived\nfrom the trailing plan_day Sunday — same detection logic as\n`PlanOverview.raceKind` (Task #204) so the dashboard header\nand race-week banner stay in lock-step with \/plan. Populated\nwhen that final row is a recognised race day (sessionType\n`Race` or the generator\'s \"RACE DAY — <Marathon|Half|10K|5K>\"\ndescription prefix); resolved from the description first so\na runner who edits the distance still gets the right kind,\nthen falls back to `distance_mi`. Null on tonal-first \/\nnon-race plans (lift_primary blocks, ad-hoc Custom blocks)\nand on legacy \/ freshly seeded campaigns with no plan_days\nyet — the dashboard header keeps generic copy in those cases\nso we don\'t presuppose a race. Drives the \"Race Campaign\" \/\nper-kind (\"5K Campaign\", \"10K Campaign\", \"Half Marathon\nCampaign\") framing on the dashboard header and the\nRaceWeekBanner countdown \/ post-race copy.\n',
+          'Task #209. Kind of race the campaign is anchored on, derived\nfrom the trailing plan_day Sunday — same detection logic as\n`PlanOverview.raceKind` (Task #204) so the dashboard header\nand race-week banner stay in lock-step with \/plan. Populated\nwhen that final row is a recognised race day (sessionType\n`Race` or the generator\'s \"RACE DAY — <Marathon|Half|10K|5K>\"\ndescription prefix); resolved from the description first so\na runner who edits the distance still gets the right kind,\nthen falls back to `distance_mi`. Null on tonal-first \/\nnon-race plans (lift_primary blocks, ad-hoc Custom blocks)\nand on legacy \/ freshly seeded campaigns with no plan_days\nyet — the dashboard header keeps generic copy in those cases\nso we don\'t presuppose a race. Drives the \"Race Campaign\" \/\nper-kind (\"5K Campaign\", \"10K Campaign\", \"Half Marathon\nCampaign\") framing on the dashboard header.\n',
         ),
     }),
     weightTrend: zod.array(
@@ -4311,28 +4210,6 @@ export const GetDashboardBootstrapResponse = zod
         .describe(
           "Preview of the first scheduled (non-rest) plan day. Populated alongside daysUntilStart only when today is before that session; null once the campaign has started.",
         ),
-      nextScheduledRace: zod
-        .object({
-          raceDate: zod.string(),
-          raceKind: zod.enum(["marathon", "half", "10k", "5k"]),
-          name: zod.string().nullish(),
-          notes: zod.string().nullish(),
-          hasResult: zod.boolean().optional(),
-          recordedAt: zod.coerce.date(),
-          updatedAt: zod.coerce.date(),
-          daysUntil: zod
-            .number()
-            .describe(
-              "Whole days from the server's UTC `today` to `raceDate`.\n0 on the race day itself; never negative because the\npicker only returns races with `raceDate >= today`.\n",
-            ),
-        })
-        .describe(
-          "Task #345. Embedded shape for the closest upcoming scheduled\nrace surfaced on \/plan\/overview and \/plan\/today. Same wire\nshape as `ScheduledRace` plus a server-computed `daysUntil`\ndelta from the API server's UTC `today` (0 on race day) so\nclients don't have to recompute it from `raceDate`.\n",
-        )
-        .nullish()
-        .describe(
-          'Task #345. Closest upcoming supplemental scheduled race\n(raceDate >= today), or null when none are on the\ncalendar. Carries `daysUntil` (server-computed, 0 on\nrace day) so \/today can render a \"Next race · 5K · in N\ndays\" chip without a second round-trip. On the race day\nitself the row is still surfaced so the UI can swap the\nchip for a \"Log result\" CTA.\n',
-        ),
       raceKind: zod
         .enum(["marathon", "half", "10k", "5k"])
         .nullish()
@@ -4405,7 +4282,7 @@ export const GetDashboardBootstrapResponse = zod
       includesRunning: zod
         .boolean()
         .describe(
-          'Behavior rehaul R1. The single authoritative \"this plan includes\nrunning\" flag. Running is an OPT-IN module — the default plan is\nstrength + body-recomposition (Tonal lifting + low-impact Peloton\nBike\/Row conditioning) with ZERO programmed miles and no Long Run.\nTrue only when the runner explicitly opted into running: the\ncampaign is anchored on a run race (`raceKind` is non-null), a\nscheduled race is upcoming (`nextScheduledRace`), or the applied\nplan_days actually program running (any distance_mi > 0 or\nrun_min > 0). False for the default recomp \/ lift-primary plan and\non freshly seeded campaigns with no plan_days. Every running-aware\nsurface (Plan tiles, Today, dashboard) should gate on THIS flag\nrather than re-deriving running from raceKind \/ miles.\n',
+          'Behavior rehaul R1. The single authoritative \"this plan includes\nrunning\" flag. Running is an OPT-IN module — the default plan is\nstrength + body-recomposition (Tonal lifting + low-impact Peloton\nBike\/Row conditioning) with ZERO programmed miles and no Long Run.\nTrue only when the runner explicitly opted into running: the\ncampaign is anchored on a run race (`raceKind` is non-null), or\nthe applied plan_days actually program running (any\ndistance_mi > 0 or run_min > 0). False for the default recomp \/\nlift-primary plan and\non freshly seeded campaigns with no plan_days. Every running-aware\nsurface (Plan tiles, Today, dashboard) should gate on THIS flag\nrather than re-deriving running from raceKind \/ miles.\n',
         ),
       nextMissedDate: zod
         .string()
@@ -4418,28 +4295,6 @@ export const GetDashboardBootstrapResponse = zod
         .nullish()
         .describe(
           "Task #33. Week number containing `nextMissedDate`, surfaced\nso the client can navigate to \/plan\/:week without a second\nlookup. Null whenever `nextMissedDate` is null.\n",
-        ),
-      nextScheduledRace: zod
-        .object({
-          raceDate: zod.string(),
-          raceKind: zod.enum(["marathon", "half", "10k", "5k"]),
-          name: zod.string().nullish(),
-          notes: zod.string().nullish(),
-          hasResult: zod.boolean().optional(),
-          recordedAt: zod.coerce.date(),
-          updatedAt: zod.coerce.date(),
-          daysUntil: zod
-            .number()
-            .describe(
-              "Whole days from the server's UTC `today` to `raceDate`.\n0 on the race day itself; never negative because the\npicker only returns races with `raceDate >= today`.\n",
-            ),
-        })
-        .describe(
-          "Task #345. Embedded shape for the closest upcoming scheduled\nrace surfaced on \/plan\/overview and \/plan\/today. Same wire\nshape as `ScheduledRace` plus a server-computed `daysUntil`\ndelta from the API server's UTC `today` (0 on race day) so\nclients don't have to recompute it from `raceDate`.\n",
-        )
-        .nullish()
-        .describe(
-          'Task #345. Closest upcoming supplemental scheduled race\n(raceDate >= today), or null when none are on the calendar.\nCarries `daysUntil` (server-computed delta from today, 0 on\nrace day) so the \/plan header can render a \"Next race · 5K\n· in N days\" chip without a second round-trip.\n',
         ),
       nextMissedPlanDayId: zod
         .number()
@@ -4682,7 +4537,7 @@ export const GetDashboardSummaryResponse = zod.object({
     .enum(["marathon", "half", "10k", "5k"])
     .nullish()
     .describe(
-      'Task #209. Kind of race the campaign is anchored on, derived\nfrom the trailing plan_day Sunday — same detection logic as\n`PlanOverview.raceKind` (Task #204) so the dashboard header\nand race-week banner stay in lock-step with \/plan. Populated\nwhen that final row is a recognised race day (sessionType\n`Race` or the generator\'s \"RACE DAY — <Marathon|Half|10K|5K>\"\ndescription prefix); resolved from the description first so\na runner who edits the distance still gets the right kind,\nthen falls back to `distance_mi`. Null on tonal-first \/\nnon-race plans (lift_primary blocks, ad-hoc Custom blocks)\nand on legacy \/ freshly seeded campaigns with no plan_days\nyet — the dashboard header keeps generic copy in those cases\nso we don\'t presuppose a race. Drives the \"Race Campaign\" \/\nper-kind (\"5K Campaign\", \"10K Campaign\", \"Half Marathon\nCampaign\") framing on the dashboard header and the\nRaceWeekBanner countdown \/ post-race copy.\n',
+      'Task #209. Kind of race the campaign is anchored on, derived\nfrom the trailing plan_day Sunday — same detection logic as\n`PlanOverview.raceKind` (Task #204) so the dashboard header\nand race-week banner stay in lock-step with \/plan. Populated\nwhen that final row is a recognised race day (sessionType\n`Race` or the generator\'s \"RACE DAY — <Marathon|Half|10K|5K>\"\ndescription prefix); resolved from the description first so\na runner who edits the distance still gets the right kind,\nthen falls back to `distance_mi`. Null on tonal-first \/\nnon-race plans (lift_primary blocks, ad-hoc Custom blocks)\nand on legacy \/ freshly seeded campaigns with no plan_days\nyet — the dashboard header keeps generic copy in those cases\nso we don\'t presuppose a race. Drives the \"Race Campaign\" \/\nper-kind (\"5K Campaign\", \"10K Campaign\", \"Half Marathon\nCampaign\") framing on the dashboard header.\n',
     ),
 });
 
@@ -6299,617 +6154,3 @@ export const GetSuggestedRestingHrResponse = zod
   .describe(
     'Server-derived resting HR suggestion based on recently logged\nworkouts. The Settings page uses this to render a one-click\n\"Use N bpm\" affordance below the resting HR input when the user\nhasn\'t set one manually yet.\n',
   );
-
-export const getRaceWeekResponseRaceResultOneFeltRatingMax = 5;
-
-export const getRaceWeekResponseUncheckedCountMin = 0;
-
-export const GetRaceWeekResponse = zod.object({
-  raceDate: zod
-    .string()
-    .nullable()
-    .describe(
-      "ISO yyyy-mm-dd of the runner's APPLIED marathon date. Null when the active planner config is in date-optional \/ workout-planner mode (Task",
-    ),
-  daysToRace: zod.number(),
-  hoursToRace: zod.number(),
-  inWindow: zod.boolean(),
-  isRaceDay: zod.boolean(),
-  racePassed: zod
-    .boolean()
-    .describe(
-      "True when the race date is in the past and the runner is in the post-race recovery window.",
-    ),
-  daysAfterRace: zod
-    .number()
-    .nullish()
-    .describe(
-      "Number of days since race day. Null when race has not yet passed.",
-    ),
-  racePlan: zod
-    .object({
-      distanceMi: zod.number(),
-      targetPace: zod.string().nullish(),
-      fuelingNote: zod.string().nullish(),
-      description: zod.string(),
-    })
-    .nullish(),
-  raceResult: zod
-    .object({
-      raceDate: zod.string(),
-      finishTime: zod
-        .string()
-        .nullish()
-        .describe('Free-form finish time string (e.g. \"2:14:08\").'),
-      placementOverall: zod.number().nullish(),
-      placementTotal: zod
-        .number()
-        .nullish()
-        .describe(
-          "Total field size, used together with placementOverall (e.g. 312 of 1804).",
-        ),
-      feltRating: zod
-        .number()
-        .min(1)
-        .max(getRaceWeekResponseRaceResultOneFeltRatingMax)
-        .nullish()
-        .describe(
-          "1-5 self-rating of how the race felt (1 = brutal, 5 = nailed it).",
-        ),
-      notes: zod.string().nullish(),
-      raceKind: zod
-        .enum(["marathon", "half", "10k", "5k"])
-        .nullish()
-        .describe(
-          "Task #265. Captured at write time from the active plan_day at the\nrace date so PR comparisons across past campaigns survive Phase\nPlanner re-applies. The \/races history endpoint (Task #266)\nfalls back to a `plan_days` lookup on the same date via\n`detectRaceKind` for legacy rows where the persisted column is\nstill null. Null for legacy rows whose plan_day is also gone or\nunrecognised.\n",
-        ),
-      previousBest: zod
-        .object({
-          raceDate: zod.string(),
-          finishTime: zod.string(),
-          deltaSeconds: zod
-            .number()
-            .describe(
-              "`currentSeconds - previousBestSeconds`. Negative when this\nfinish beats the prior best (a PR); positive when slower.\n",
-            ),
-        })
-        .nullish()
-        .describe(
-          "Task #265. The fastest prior `race_results` row sharing this\nrow's `raceKind` (excluding the current row), used by the\npost-race banner to render the PR badge + \"−1:43 vs prior best\n2:15:51\" comparison line. Null when there's no prior result of\nthis kind, when this row has no `raceKind`, or when this row's\n`finishTime` can't be parsed.\n",
-        ),
-      isPersonalRecord: zod
-        .boolean()
-        .optional()
-        .describe(
-          "Task #265. True when this finish time is strictly faster than\nevery prior `race_results` row of the same `raceKind`. False on\nfirst-of-kind rows (nothing to beat yet), on ties, and on rows\nwith an unparseable `finishTime` or null `raceKind`.\n",
-        ),
-      recordedAt: zod.coerce.date(),
-      updatedAt: zod.coerce.date(),
-    })
-    .nullish()
-    .describe(
-      'The runner\'s logged race-day result, or null if no result has been\ncaptured yet. Only ever populated once `racePassed` is true; the\nUI uses this to switch the post-race recovery banner between an\nempty \"Log your race\" form and a \"saved result\" summary card.\n',
-    ),
-  checklist: zod.array(
-    zod.object({
-      itemId: zod.string(),
-      label: zod.string(),
-      checked: zod.boolean(),
-      checkedAt: zod.coerce.date().nullish(),
-      isCustom: zod
-        .boolean()
-        .describe(
-          "True for user-created items (which can be deleted). False for built-in default items.",
-        ),
-    }),
-  ),
-  uncheckedCount: zod
-    .number()
-    .min(getRaceWeekResponseUncheckedCountMin)
-    .describe(
-      "Task #39. Count of taper checklist items still unchecked. Used by\nthe dashboard header and Today page to render a compact reminder\nbadge during race week. Falls to 0 once everything is checked, so\nthe UI can hide the nudge without recomputing client-side.\n",
-    ),
-});
-
-/**
- * Create a user-defined custom checklist item. Default items are seeded by the server and cannot be created this way.
- */
-export const createRaceWeekChecklistItemBodyLabelMax = 200;
-
-export const CreateRaceWeekChecklistItemBody = zod.object({
-  label: zod
-    .string()
-    .min(1)
-    .max(createRaceWeekChecklistItemBodyLabelMax)
-    .describe("Human-readable label for the new custom checklist item."),
-});
-
-export const CreateRaceWeekChecklistItemResponse = zod.object({
-  itemId: zod.string(),
-  label: zod.string(),
-  checked: zod.boolean(),
-  checkedAt: zod.coerce.date().nullish(),
-  isCustom: zod
-    .boolean()
-    .describe(
-      "True for user-created items (which can be deleted). False for built-in default items.",
-    ),
-});
-
-/**
- * Task #266. List every persisted race result, newest first. Powers the
-race history page so runners can revisit prior campaigns' finishes
-long after the post-race recovery banner has expired. Each row
-includes a best-effort `raceKind` derived from the matching
-`plan_days` row on the same date (NULL for orphaned results whose
-plan day no longer exists, e.g. after a Full Reset wiped the plan
-but the race_results row from a prior campaign was preserved by an
-out-of-band restore).
-
- */
-export const listRaceResultsResponseFeltRatingMax = 5;
-
-export const ListRaceResultsResponseItem = zod.object({
-  raceDate: zod.string(),
-  finishTime: zod
-    .string()
-    .nullish()
-    .describe('Free-form finish time string (e.g. \"2:14:08\").'),
-  placementOverall: zod.number().nullish(),
-  placementTotal: zod
-    .number()
-    .nullish()
-    .describe(
-      "Total field size, used together with placementOverall (e.g. 312 of 1804).",
-    ),
-  feltRating: zod
-    .number()
-    .min(1)
-    .max(listRaceResultsResponseFeltRatingMax)
-    .nullish()
-    .describe(
-      "1-5 self-rating of how the race felt (1 = brutal, 5 = nailed it).",
-    ),
-  notes: zod.string().nullish(),
-  raceKind: zod
-    .enum(["marathon", "half", "10k", "5k"])
-    .nullish()
-    .describe(
-      "Task #265. Captured at write time from the active plan_day at the\nrace date so PR comparisons across past campaigns survive Phase\nPlanner re-applies. The \/races history endpoint (Task #266)\nfalls back to a `plan_days` lookup on the same date via\n`detectRaceKind` for legacy rows where the persisted column is\nstill null. Null for legacy rows whose plan_day is also gone or\nunrecognised.\n",
-    ),
-  previousBest: zod
-    .object({
-      raceDate: zod.string(),
-      finishTime: zod.string(),
-      deltaSeconds: zod
-        .number()
-        .describe(
-          "`currentSeconds - previousBestSeconds`. Negative when this\nfinish beats the prior best (a PR); positive when slower.\n",
-        ),
-    })
-    .nullish()
-    .describe(
-      "Task #265. The fastest prior `race_results` row sharing this\nrow's `raceKind` (excluding the current row), used by the\npost-race banner to render the PR badge + \"−1:43 vs prior best\n2:15:51\" comparison line. Null when there's no prior result of\nthis kind, when this row has no `raceKind`, or when this row's\n`finishTime` can't be parsed.\n",
-    ),
-  isPersonalRecord: zod
-    .boolean()
-    .optional()
-    .describe(
-      "Task #265. True when this finish time is strictly faster than\nevery prior `race_results` row of the same `raceKind`. False on\nfirst-of-kind rows (nothing to beat yet), on ties, and on rows\nwith an unparseable `finishTime` or null `raceKind`.\n",
-    ),
-  recordedAt: zod.coerce.date(),
-  updatedAt: zod.coerce.date(),
-});
-export const ListRaceResultsResponse = zod.array(ListRaceResultsResponseItem);
-
-/**
- * Task #345. Upsert a race result by its `race_date` primary key.
-Creates the row if it doesn't exist, otherwise updates it. Used
-by the /races and /today "Log result" CTAs to log a finish for
-a scheduled supplemental race on any date (not just the active
-campaign A-race). The persisted `race_kind` is captured from the
-matching `scheduled_races` row when one exists, falling back to
-the `plan_days` row on the same date so PR comparisons keep
-working across past campaigns.
-
- */
-export const UpsertRaceResultParams = zod.object({
-  raceDate: zod.coerce.string(),
-});
-
-export const upsertRaceResultBodyFeltRatingMax = 5;
-
-export const UpsertRaceResultBody = zod.object({
-  finishTime: zod.string().nullish(),
-  placementOverall: zod
-    .number()
-    .min(1)
-    .nullish()
-    .describe("1-based finish position. Must be a positive integer."),
-  placementTotal: zod
-    .number()
-    .min(1)
-    .nullish()
-    .describe("Total field size. Must be a positive integer."),
-  feltRating: zod
-    .number()
-    .min(1)
-    .max(upsertRaceResultBodyFeltRatingMax)
-    .nullish(),
-  notes: zod.string().nullish(),
-});
-
-export const upsertRaceResultResponseFeltRatingMax = 5;
-
-export const UpsertRaceResultResponse = zod.object({
-  raceDate: zod.string(),
-  finishTime: zod
-    .string()
-    .nullish()
-    .describe('Free-form finish time string (e.g. \"2:14:08\").'),
-  placementOverall: zod.number().nullish(),
-  placementTotal: zod
-    .number()
-    .nullish()
-    .describe(
-      "Total field size, used together with placementOverall (e.g. 312 of 1804).",
-    ),
-  feltRating: zod
-    .number()
-    .min(1)
-    .max(upsertRaceResultResponseFeltRatingMax)
-    .nullish()
-    .describe(
-      "1-5 self-rating of how the race felt (1 = brutal, 5 = nailed it).",
-    ),
-  notes: zod.string().nullish(),
-  raceKind: zod
-    .enum(["marathon", "half", "10k", "5k"])
-    .nullish()
-    .describe(
-      "Task #265. Captured at write time from the active plan_day at the\nrace date so PR comparisons across past campaigns survive Phase\nPlanner re-applies. The \/races history endpoint (Task #266)\nfalls back to a `plan_days` lookup on the same date via\n`detectRaceKind` for legacy rows where the persisted column is\nstill null. Null for legacy rows whose plan_day is also gone or\nunrecognised.\n",
-    ),
-  previousBest: zod
-    .object({
-      raceDate: zod.string(),
-      finishTime: zod.string(),
-      deltaSeconds: zod
-        .number()
-        .describe(
-          "`currentSeconds - previousBestSeconds`. Negative when this\nfinish beats the prior best (a PR); positive when slower.\n",
-        ),
-    })
-    .nullish()
-    .describe(
-      "Task #265. The fastest prior `race_results` row sharing this\nrow's `raceKind` (excluding the current row), used by the\npost-race banner to render the PR badge + \"−1:43 vs prior best\n2:15:51\" comparison line. Null when there's no prior result of\nthis kind, when this row has no `raceKind`, or when this row's\n`finishTime` can't be parsed.\n",
-    ),
-  isPersonalRecord: zod
-    .boolean()
-    .optional()
-    .describe(
-      "Task #265. True when this finish time is strictly faster than\nevery prior `race_results` row of the same `raceKind`. False on\nfirst-of-kind rows (nothing to beat yet), on ties, and on rows\nwith an unparseable `finishTime` or null `raceKind`.\n",
-    ),
-  recordedAt: zod.coerce.date(),
-  updatedAt: zod.coerce.date(),
-});
-
-/**
- * Task #266. Edit any persisted race result by its `race_date` primary
-key. Mirrors the body shape of `setRaceResult` so the same form can
-be reused for both the active campaign banner and the history page.
-
- */
-export const UpdateRaceResultParams = zod.object({
-  raceDate: zod.coerce.string(),
-});
-
-export const updateRaceResultBodyFeltRatingMax = 5;
-
-export const UpdateRaceResultBody = zod.object({
-  finishTime: zod.string().nullish(),
-  placementOverall: zod
-    .number()
-    .min(1)
-    .nullish()
-    .describe("1-based finish position. Must be a positive integer."),
-  placementTotal: zod
-    .number()
-    .min(1)
-    .nullish()
-    .describe("Total field size. Must be a positive integer."),
-  feltRating: zod
-    .number()
-    .min(1)
-    .max(updateRaceResultBodyFeltRatingMax)
-    .nullish(),
-  notes: zod.string().nullish(),
-});
-
-export const updateRaceResultResponseFeltRatingMax = 5;
-
-export const UpdateRaceResultResponse = zod.object({
-  raceDate: zod.string(),
-  finishTime: zod
-    .string()
-    .nullish()
-    .describe('Free-form finish time string (e.g. \"2:14:08\").'),
-  placementOverall: zod.number().nullish(),
-  placementTotal: zod
-    .number()
-    .nullish()
-    .describe(
-      "Total field size, used together with placementOverall (e.g. 312 of 1804).",
-    ),
-  feltRating: zod
-    .number()
-    .min(1)
-    .max(updateRaceResultResponseFeltRatingMax)
-    .nullish()
-    .describe(
-      "1-5 self-rating of how the race felt (1 = brutal, 5 = nailed it).",
-    ),
-  notes: zod.string().nullish(),
-  raceKind: zod
-    .enum(["marathon", "half", "10k", "5k"])
-    .nullish()
-    .describe(
-      "Task #265. Captured at write time from the active plan_day at the\nrace date so PR comparisons across past campaigns survive Phase\nPlanner re-applies. The \/races history endpoint (Task #266)\nfalls back to a `plan_days` lookup on the same date via\n`detectRaceKind` for legacy rows where the persisted column is\nstill null. Null for legacy rows whose plan_day is also gone or\nunrecognised.\n",
-    ),
-  previousBest: zod
-    .object({
-      raceDate: zod.string(),
-      finishTime: zod.string(),
-      deltaSeconds: zod
-        .number()
-        .describe(
-          "`currentSeconds - previousBestSeconds`. Negative when this\nfinish beats the prior best (a PR); positive when slower.\n",
-        ),
-    })
-    .nullish()
-    .describe(
-      "Task #265. The fastest prior `race_results` row sharing this\nrow's `raceKind` (excluding the current row), used by the\npost-race banner to render the PR badge + \"−1:43 vs prior best\n2:15:51\" comparison line. Null when there's no prior result of\nthis kind, when this row has no `raceKind`, or when this row's\n`finishTime` can't be parsed.\n",
-    ),
-  isPersonalRecord: zod
-    .boolean()
-    .optional()
-    .describe(
-      "Task #265. True when this finish time is strictly faster than\nevery prior `race_results` row of the same `raceKind`. False on\nfirst-of-kind rows (nothing to beat yet), on ties, and on rows\nwith an unparseable `finishTime` or null `raceKind`.\n",
-    ),
-  recordedAt: zod.coerce.date(),
-  updatedAt: zod.coerce.date(),
-});
-
-/**
- * Task #266. Delete a persisted race result by its `race_date`
-primary key. Used by the race history page to clean up stale
-entries (e.g. a test row, or a campaign the runner never actually
-ran).
-
- */
-export const DeleteRaceResultParams = zod.object({
-  raceDate: zod.coerce.string(),
-});
-
-/**
- * Task #345. List every scheduled supplemental race the runner has
-added to their calendar, newest race date first. These
-rows live independently of the active Phase Planner config so
-they survive Phase Planner re-applies AND Full Reset, and they
-do not affect the campaign's A-race / `marathonDate` math.
-Logging a finish on race day still writes to `race_results`
-keyed by the same date so PR comparisons (Task #318) and the
-/races history listing both work without a second store.
-
- */
-export const ListScheduledRacesResponseItem = zod.object({
-  raceDate: zod.string(),
-  raceKind: zod.enum(["marathon", "half", "10k", "5k"]),
-  name: zod
-    .string()
-    .nullish()
-    .describe('Optional human-readable name (e.g. \"Brooklyn Mile 5K\").'),
-  notes: zod.string().nullish(),
-  hasResult: zod
-    .boolean()
-    .optional()
-    .describe(
-      'True when a `race_results` row already exists for this\nscheduled race\'s date. Lets the \/races UI render a \"Log\nresult\" CTA only on past, unlogged races.\n',
-    ),
-  recordedAt: zod.coerce.date(),
-  updatedAt: zod.coerce.date(),
-});
-export const ListScheduledRacesResponse = zod.array(
-  ListScheduledRacesResponseItem,
-);
-
-/**
- * Task #345. Schedule a new supplemental race on the calendar.
-Returns 409 if a row already exists for the given `raceDate`
-(the primary key) — use PATCH to edit instead.
-
- */
-export const CreateScheduledRaceBody = zod.object({
-  raceDate: zod.string().describe("ISO yyyy-mm-dd race date. Primary key."),
-  raceKind: zod.enum(["marathon", "half", "10k", "5k"]),
-  name: zod.string().nullish(),
-  notes: zod.string().nullish(),
-});
-
-export const CreateScheduledRaceResponse = zod.object({
-  raceDate: zod.string(),
-  raceKind: zod.enum(["marathon", "half", "10k", "5k"]),
-  name: zod
-    .string()
-    .nullish()
-    .describe('Optional human-readable name (e.g. \"Brooklyn Mile 5K\").'),
-  notes: zod.string().nullish(),
-  hasResult: zod
-    .boolean()
-    .optional()
-    .describe(
-      'True when a `race_results` row already exists for this\nscheduled race\'s date. Lets the \/races UI render a \"Log\nresult\" CTA only on past, unlogged races.\n',
-    ),
-  recordedAt: zod.coerce.date(),
-  updatedAt: zod.coerce.date(),
-});
-
-/**
- * Task #345. Edit the kind, name, or notes of a scheduled race.
-The `raceDate` primary key is immutable — to move the race to a
-different date, delete and recreate.
-
- */
-export const UpdateScheduledRaceParams = zod.object({
-  raceDate: zod.coerce.string(),
-});
-
-export const UpdateScheduledRaceBody = zod.object({
-  raceKind: zod.enum(["marathon", "half", "10k", "5k"]).optional(),
-  name: zod.string().nullish(),
-  notes: zod.string().nullish(),
-});
-
-export const UpdateScheduledRaceResponse = zod.object({
-  raceDate: zod.string(),
-  raceKind: zod.enum(["marathon", "half", "10k", "5k"]),
-  name: zod
-    .string()
-    .nullish()
-    .describe('Optional human-readable name (e.g. \"Brooklyn Mile 5K\").'),
-  notes: zod.string().nullish(),
-  hasResult: zod
-    .boolean()
-    .optional()
-    .describe(
-      'True when a `race_results` row already exists for this\nscheduled race\'s date. Lets the \/races UI render a \"Log\nresult\" CTA only on past, unlogged races.\n',
-    ),
-  recordedAt: zod.coerce.date(),
-  updatedAt: zod.coerce.date(),
-});
-
-/**
- * Task #345. Remove a scheduled race from the calendar. Does NOT
-delete any matching `race_results` row — those persist
-independently so PR history is preserved across schedule
-churn.
-
- */
-export const DeleteScheduledRaceParams = zod.object({
-  raceDate: zod.coerce.string(),
-});
-
-/**
- * Upsert the runner's race-day result for the currently active race
-date. Used by the post-race recovery banner so the runner can capture
-their finish time, placement, perceived effort, and any free-form
-notes once the race is in the past. The race date is implicit — it's
-always the active planner config's race date — so the body has no
-date field. All fields except `raceDate` echo back nullable so the
-client can render partial saves (e.g. "I'll fill in placement
-later").
-
- */
-
-export const setRaceResultBodyFeltRatingMax = 5;
-
-export const SetRaceResultBody = zod.object({
-  finishTime: zod.string().nullish(),
-  placementOverall: zod
-    .number()
-    .min(1)
-    .nullish()
-    .describe("1-based finish position. Must be a positive integer."),
-  placementTotal: zod
-    .number()
-    .min(1)
-    .nullish()
-    .describe("Total field size. Must be a positive integer."),
-  feltRating: zod.number().min(1).max(setRaceResultBodyFeltRatingMax).nullish(),
-  notes: zod.string().nullish(),
-});
-
-export const setRaceResultResponseFeltRatingMax = 5;
-
-export const SetRaceResultResponse = zod.object({
-  raceDate: zod.string(),
-  finishTime: zod
-    .string()
-    .nullish()
-    .describe('Free-form finish time string (e.g. \"2:14:08\").'),
-  placementOverall: zod.number().nullish(),
-  placementTotal: zod
-    .number()
-    .nullish()
-    .describe(
-      "Total field size, used together with placementOverall (e.g. 312 of 1804).",
-    ),
-  feltRating: zod
-    .number()
-    .min(1)
-    .max(setRaceResultResponseFeltRatingMax)
-    .nullish()
-    .describe(
-      "1-5 self-rating of how the race felt (1 = brutal, 5 = nailed it).",
-    ),
-  notes: zod.string().nullish(),
-  raceKind: zod
-    .enum(["marathon", "half", "10k", "5k"])
-    .nullish()
-    .describe(
-      "Task #265. Captured at write time from the active plan_day at the\nrace date so PR comparisons across past campaigns survive Phase\nPlanner re-applies. The \/races history endpoint (Task #266)\nfalls back to a `plan_days` lookup on the same date via\n`detectRaceKind` for legacy rows where the persisted column is\nstill null. Null for legacy rows whose plan_day is also gone or\nunrecognised.\n",
-    ),
-  previousBest: zod
-    .object({
-      raceDate: zod.string(),
-      finishTime: zod.string(),
-      deltaSeconds: zod
-        .number()
-        .describe(
-          "`currentSeconds - previousBestSeconds`. Negative when this\nfinish beats the prior best (a PR); positive when slower.\n",
-        ),
-    })
-    .nullish()
-    .describe(
-      "Task #265. The fastest prior `race_results` row sharing this\nrow's `raceKind` (excluding the current row), used by the\npost-race banner to render the PR badge + \"−1:43 vs prior best\n2:15:51\" comparison line. Null when there's no prior result of\nthis kind, when this row has no `raceKind`, or when this row's\n`finishTime` can't be parsed.\n",
-    ),
-  isPersonalRecord: zod
-    .boolean()
-    .optional()
-    .describe(
-      "Task #265. True when this finish time is strictly faster than\nevery prior `race_results` row of the same `raceKind`. False on\nfirst-of-kind rows (nothing to beat yet), on ties, and on rows\nwith an unparseable `finishTime` or null `raceKind`.\n",
-    ),
-  recordedAt: zod.coerce.date(),
-  updatedAt: zod.coerce.date(),
-});
-
-export const SetRaceWeekChecklistItemParams = zod.object({
-  itemId: zod.coerce.string(),
-});
-
-export const SetRaceWeekChecklistItemBody = zod.object({
-  checked: zod.boolean(),
-});
-
-export const SetRaceWeekChecklistItemResponse = zod.object({
-  itemId: zod.string(),
-  label: zod.string(),
-  checked: zod.boolean(),
-  checkedAt: zod.coerce.date().nullish(),
-  isCustom: zod
-    .boolean()
-    .describe(
-      "True for user-created items (which can be deleted). False for built-in default items.",
-    ),
-});
-
-/**
- * Delete a user-defined custom checklist item. Default items cannot be deleted and return 400.
- */
-export const DeleteRaceWeekChecklistItemParams = zod.object({
-  itemId: zod.coerce.string(),
-});
-
-export const DeleteRaceWeekChecklistItemResponse = zod.object({
-  itemId: zod.string(),
-  deleted: zod.boolean(),
-});

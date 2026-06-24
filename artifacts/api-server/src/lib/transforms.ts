@@ -2,7 +2,6 @@ import type { PlanDayRow } from "@workspace/db";
 import type { PlanWeekRow } from "@workspace/db";
 import type { WorkoutRow } from "@workspace/db";
 import type { MeasurementRow } from "@workspace/db";
-import type { RaceResultRow, ScheduledRaceRow } from "@workspace/db";
 import type {
   PersonalizedQualityPace,
   PersonalizedRacePace,
@@ -249,10 +248,6 @@ export function toPlanWeek(
     // / non-race plans and on the list aggregation that doesn't drive
     // the eyebrow.
     raceKind?: "marathon" | "half" | "10k" | "5k" | null;
-    // Task #345. Supplemental scheduled races landing inside this
-    // week's [startDate, endDate]. Mirrors the shape returned by
-    // `toScheduledRace`. Null on freshly seeded weeks for back-compat.
-    scheduledRaces?: ReturnType<typeof toScheduledRace>[] | null;
   },
 ) {
   return {
@@ -274,7 +269,6 @@ export function toPlanWeek(
     dominantCardioEquipment: extras?.dominantCardioEquipment ?? null,
     wedSteady: extras?.wedSteady ?? null,
     programs: extras?.programs ?? null,
-    scheduledRaces: extras?.scheduledRaces ?? null,
     raceKind: extras?.raceKind ?? null,
   };
 }
@@ -441,72 +435,6 @@ export function toWorkout(
         }
       : null,
     createdAt: r.createdAt.toISOString(),
-  };
-}
-
-export type RaceResultRaceKind = "marathon" | "half" | "10k" | "5k";
-
-function toRaceKind(value: string | null | undefined): RaceResultRaceKind | null {
-  if (value === "marathon" || value === "half" || value === "10k" || value === "5k") {
-    return value;
-  }
-  return null;
-}
-
-// Task #265 + #266. Extras computed by the route layer:
-// - `previousBest` / `isPersonalRecord` (Task #265): PR comparison
-//   context computed by /api/race-week and /api/race-week/result
-//   across every other `race_results` row of the same `raceKind`.
-// - `raceKind` (Task #266): override derived from the matching
-//   `plan_days` row on the same date. Used by the /races history
-//   endpoint as a fallback for legacy rows where the persisted
-//   `race_kind` column is still null. When omitted, the persisted
-//   column on the row wins.
-export interface RaceResultExtras {
-  previousBest?: {
-    raceDate: string;
-    finishTime: string;
-    deltaSeconds: number;
-  } | null;
-  isPersonalRecord?: boolean;
-  raceKind?: RaceResultRaceKind | null;
-}
-
-export function toRaceResult(r: RaceResultRow, extras: RaceResultExtras = {}) {
-  return {
-    raceDate: r.raceDate,
-    finishTime: r.finishTime,
-    placementOverall: r.placementOverall,
-    placementTotal: r.placementTotal,
-    feltRating: r.feltRating,
-    notes: r.notes,
-    // Persisted `race_kind` from the row (Task #265, captured at write
-    // time) wins; the route-layer override (Task #266, derived from
-    // plan_days on the /races history endpoint) is a fallback for legacy
-    // rows where the column is still null.
-    raceKind: toRaceKind(r.raceKind) ?? extras.raceKind ?? null,
-    previousBest: extras.previousBest ?? null,
-    isPersonalRecord: extras.isPersonalRecord ?? false,
-    recordedAt: r.recordedAt.toISOString(),
-    updatedAt: r.updatedAt.toISOString(),
-  };
-}
-
-// Task #345. Wire shape for a supplemental scheduled race. Mirrors the
-// `race_results` row shape closely so the same RaceKind enum / display
-// helpers work; `hasResult` is a route-layer-computed flag indicating
-// whether a race_results row already exists for this scheduled race's
-// date so the /races UI can render a "Log result" CTA only on past,
-// unlogged rows.
-export function toScheduledRace(r: ScheduledRaceRow, hasResult: boolean) {
-  return {
-    raceDate: r.raceDate,
-    raceKind: (toRaceKind(r.raceKind) ?? "5k") as RaceResultRaceKind,
-    name: r.name,
-    notes: r.notes,
-    hasResult,
-    recordedAt: r.recordedAt.toISOString(),
-    updatedAt: r.updatedAt.toISOString(),
   };
 }
 

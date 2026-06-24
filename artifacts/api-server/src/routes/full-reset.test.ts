@@ -8,7 +8,6 @@ import {
   planWeeksTable,
   plannerConfigsTable,
   workoutsTable,
-  raceWeekChecklistTable,
   resetUndoSnapshotsTable,
 } from "@workspace/db";
 import { FullResetPlanResponse } from "@workspace/api-zod";
@@ -96,11 +95,10 @@ describe("POST /api/plan/full-reset", () => {
     // sees nothing to wipe and reports zero counts.
     expect(res.body.workoutsWiped).toBe(0);
     expect(res.body.measurementsWiped).toBe(0);
-    expect(res.body.checklistItemsWiped).toBe(0);
     expect(res.body.undoSnapshotsWiped).toBe(0);
   });
 
-  it("wipes logged workouts, measurements, checklist items, and pending undo snapshots and reports the pre-wipe counts", async () => {
+  it("wipes logged workouts, measurements, and pending undo snapshots and reports the pre-wipe counts", async () => {
     // Insert one of each "user-mutable" row so we can prove they all get
     // wiped and counted in the response.
     await db.insert(workoutsTable).values({
@@ -121,10 +119,6 @@ describe("POST /api/plan/full-reset", () => {
       weight: 280.0,
       notes: "post-baseline check-in",
     });
-    await db.insert(raceWeekChecklistTable).values({
-      itemId: "test-item-full-reset",
-      checked: true,
-    });
     // Stash a fake undo snapshot too so the route's "drop pending undos"
     // behavior is covered. Token must be unique; expiresAt is in the past
     // because this row should be wiped regardless of TTL.
@@ -138,12 +132,10 @@ describe("POST /api/plan/full-reset", () => {
     const before = {
       workouts: await tableCount("workouts"),
       measurements: await tableCount("measurements"),
-      checklist: await tableCount("race_week_checklist"),
       snapshots: await tableCount("reset_undo_snapshots"),
     };
     expect(before.workouts).toBeGreaterThanOrEqual(2);
     expect(before.measurements).toBeGreaterThanOrEqual(1);
-    expect(before.checklist).toBeGreaterThanOrEqual(1);
     expect(before.snapshots).toBeGreaterThanOrEqual(1);
 
     const res = await request(app).post("/api/plan/full-reset");
@@ -151,7 +143,6 @@ describe("POST /api/plan/full-reset", () => {
     expectMatchesSchema(FullResetPlanResponse, res.body);
     expect(res.body.workoutsWiped).toBe(before.workouts);
     expect(res.body.measurementsWiped).toBe(before.measurements);
-    expect(res.body.checklistItemsWiped).toBe(before.checklist);
     expect(res.body.undoSnapshotsWiped).toBe(before.snapshots);
 
     // Task #326: every user-mutable table is empty after the reset.
@@ -159,7 +150,6 @@ describe("POST /api/plan/full-reset", () => {
     // a planner config to repopulate the campaign.
     expect(await tableCount("workouts")).toBe(0);
     expect(await tableCount("measurements")).toBe(0);
-    expect(await tableCount("race_week_checklist")).toBe(0);
     expect(await tableCount("reset_undo_snapshots")).toBe(0);
   });
 

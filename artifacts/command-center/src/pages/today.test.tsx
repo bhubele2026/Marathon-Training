@@ -64,14 +64,6 @@ vi.mock("@workspace/api-client-react", () => ({
       restingHr: null,
     },
   }),
-  useGetRaceWeek: () => ({ data: raceWeekRef.current, isLoading: false }),
-  getGetRaceWeekQueryKey: () => ["/race-week"],
-  // Task #345: /today uses the upsert hook to log scheduled-race
-  // results inline; stub it as a no-op so non-race-day fixtures
-  // don't have to wire React Query state.
-  useUpsertRaceResult: () => ({ mutate: vi.fn(), isPending: false }),
-  getListRaceResultsQueryKey: () => ["/race-results"],
-  getListScheduledRacesQueryKey: () => ["/scheduled-races"],
   getGetTodayPlanQueryKey: () => ["/plan/today"],
   getGetPlanOverviewQueryKey: () => ["/plan/overview"],
 }));
@@ -119,10 +111,6 @@ vi.mock("@/components/nutritionist-panel", () => ({
 // CloseDayButton also calls useQuery — stub it the same way.
 vi.mock("@/components/close-day-button", () => ({
   CloseDayButton: () => <div data-testid="close-day-button-stub" />,
-}));
-
-vi.mock("@/components/race-week-banner", () => ({
-  ChecklistNudge: () => null,
 }));
 
 import { useGetTodayPlan, useGetPlanOverview } from "@workspace/api-client-react";
@@ -1839,41 +1827,10 @@ describe("Today page — per-kind eyebrow (task #306)", () => {
     { kind: "10k", label: "10K Campaign" },
     { kind: "half", label: "Half Marathon Campaign" },
     { kind: "marathon", label: "Race Campaign" },
-  ])("renders '$label' for raceKind=$kind outside race week", ({ kind, label }) => {
-    raceWeekRef.current = { inWindow: false, racePassed: false };
+  ])("renders '$label' for raceKind=$kind (run-goal campaign)", ({ kind, label }) => {
     renderWithData(basePayload({ raceKind: kind }));
     const eyebrow = screen.getByTestId("today-eyebrow");
     expect(eyebrow.textContent).toBe(label);
-    expect(eyebrow.getAttribute("data-race-week")).toBeNull();
-    expect(eyebrow.getAttribute("data-post-race")).toBeNull();
-  });
-
-  it.each([
-    { kind: "5k", label: "5K · Race Week" },
-    { kind: "10k", label: "10K · Race Week" },
-    { kind: "half", label: "Half Marathon · Race Week" },
-    { kind: "marathon", label: "Race Week" },
-  ])("renders '$label' during race week for raceKind=$kind", ({ kind, label }) => {
-    raceWeekRef.current = { inWindow: true, racePassed: false };
-    renderWithData(basePayload({ raceKind: kind }));
-    const eyebrow = screen.getByTestId("today-eyebrow");
-    expect(eyebrow.textContent).toBe(label);
-    expect(eyebrow.getAttribute("data-race-week")).toBe("true");
-    expect(eyebrow.getAttribute("data-post-race")).toBeNull();
-  });
-
-  it.each([
-    { kind: "5k", label: "5K Complete" },
-    { kind: "10k", label: "10K Complete" },
-    { kind: "half", label: "Half Marathon Complete" },
-    { kind: "marathon", label: "Race Complete" },
-  ])("renders '$label' after the race for raceKind=$kind", ({ kind, label }) => {
-    raceWeekRef.current = { inWindow: true, racePassed: true, daysAfterRace: 2 };
-    renderWithData(basePayload({ raceKind: kind }));
-    const eyebrow = screen.getByTestId("today-eyebrow");
-    expect(eyebrow.textContent).toBe(label);
-    expect(eyebrow.getAttribute("data-race-week")).toBeNull();
-    expect(eyebrow.getAttribute("data-post-race")).toBe("true");
   });
 });
 

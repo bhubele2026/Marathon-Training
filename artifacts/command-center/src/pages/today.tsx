@@ -1,11 +1,6 @@
 import {
   useGetTodayPlan,
   useGetPlanOverview,
-  useGetRaceWeek,
-  useUpsertRaceResult,
-  getGetRaceWeekQueryKey,
-  getListRaceResultsQueryKey,
-  getListScheduledRacesQueryKey,
   getGetTodayPlanQueryKey,
   getGetPlanOverviewQueryKey,
 } from "@workspace/api-client-react";
@@ -53,9 +48,7 @@ import {
 import { RunTargetLine } from "@/components/run-target-line";
 import { sessionVerdict, type VerdictBucket } from "@/lib/session-verdict";
 import { raceDayLabel } from "@/lib/race-day-label";
-import { ChecklistNudge } from "@/components/race-week-banner";
 import { EmptyPlanState } from "@/components/empty-plan-state";
-import { NextScheduledRaceChip } from "@/components/next-scheduled-race-chip";
 import { useFirstRunRedirect } from "@/hooks/use-first-run-redirect";
 import { useListPlannerConfigs } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
@@ -87,98 +80,6 @@ export default function Today() {
     window.location.assign(`/planner?seed=${encodeURIComponent(seed)}`);
   };
 
-  // Task #345 review fix: open the same finish-time form on /today so
-  // the runner can log a scheduled race result without bouncing to
-  // /races. Mirrors the LogResultDraft / handleLogResult flow on
-  // races.tsx and shares the upsert endpoint + invalidation set.
-  const [logDraft, setLogDraft] = useState<{
-    raceDate: string;
-    raceKind: string;
-    name: string | null | undefined;
-    finishTime: string;
-    placementOverall: string;
-    placementTotal: string;
-    feltRating: string;
-    notes: string;
-  } | null>(null);
-  const upsertResult = useUpsertRaceResult();
-  const qc = useQueryClient();
-  const { toast } = useToast();
-  const handleLogResult = () => {
-    if (!logDraft) return;
-    const parseIntOrInvalid = (s: string): number | null | "invalid" => {
-      const t = s.trim();
-      if (!t) return null;
-      const n = Number(t);
-      if (!Number.isInteger(n) || n < 1) return "invalid";
-      return n;
-    };
-    const overall = parseIntOrInvalid(logDraft.placementOverall);
-    const total = parseIntOrInvalid(logDraft.placementTotal);
-    if (overall === "invalid" || total === "invalid") {
-      toast({
-        title: "Invalid placement",
-        description: "Placements must be positive integers.",
-        variant: "destructive",
-      });
-      return;
-    }
-    const feltRaw = logDraft.feltRating.trim();
-    const feltRating = feltRaw ? Number(feltRaw) : null;
-    if (
-      feltRating != null &&
-      (!Number.isInteger(feltRating) || feltRating < 1 || feltRating > 5)
-    ) {
-      toast({
-        title: "Invalid felt rating",
-        description: "Felt rating must be 1-5.",
-        variant: "destructive",
-      });
-      return;
-    }
-    upsertResult.mutate(
-      {
-        raceDate: logDraft.raceDate,
-        data: {
-          finishTime: logDraft.finishTime.trim() || null,
-          placementOverall: overall,
-          placementTotal: total,
-          feltRating,
-          notes: logDraft.notes.trim() || null,
-        },
-      },
-      {
-        onSuccess: () => {
-          toast({ title: "Race result saved" });
-          setLogDraft(null);
-          qc.invalidateQueries({ queryKey: getListRaceResultsQueryKey() });
-          qc.invalidateQueries({ queryKey: getListScheduledRacesQueryKey() });
-          qc.invalidateQueries({ queryKey: getGetRaceWeekQueryKey() });
-          qc.invalidateQueries({ queryKey: getGetTodayPlanQueryKey() });
-          qc.invalidateQueries({ queryKey: getGetPlanOverviewQueryKey() });
-        },
-        onError: () => {
-          toast({ title: "Could not save result", variant: "destructive" });
-        },
-      },
-    );
-  };
-  const openLogDraftFor = (race: {
-    raceDate: string;
-    raceKind: string;
-    name?: string | null;
-  }) => {
-    setLogDraft({
-      raceDate: race.raceDate,
-      raceKind: race.raceKind,
-      name: race.name ?? null,
-      finishTime: "",
-      placementOverall: "",
-      placementTotal: "",
-      feltRating: "",
-      notes: "",
-    });
-  };
 
   // Task #308: drop the runner straight into the Phase Planner on first
   // session load when no plan has ever been applied AND no planner
@@ -231,28 +132,11 @@ export default function Today() {
   // the generic "Rest Day" empty state in this window.
   const showCountdown =
     typeof today.daysUntilStart === "number" && today.daysUntilStart > 0 && !!today.firstSession;
-  // Task #345 review fix: replace the regular Mission Brief framing on
-  // race day. The "Race Day — Log result" CTA above takes over the page
-  // so the runner isn't presented with a stale planned-session card
-  // when the only thing that matters is logging the finish.
-  const isRaceDayUnlogged =
-    !!today.nextScheduledRace &&
-    today.nextScheduledRace.raceDate === today.date &&
-    !today.nextScheduledRace.hasResult;
-
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1600px] mx-auto">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <TodayEyebrow raceKind={(today.raceKind ?? null) as RaceDayKind | null} />
-          {today.nextScheduledRace && (
-            <div className="mt-1">
-              <NextScheduledRaceChip
-                race={today.nextScheduledRace}
-                onLogResult={() => openLogDraftFor(today.nextScheduledRace!)}
-              />
-            </div>
-          )}
           <h2 className="text-4xl font-extrabold tracking-tight text-foreground">Today</h2>
           <p className="text-muted-foreground font-medium tracking-widest">{today.date}</p>
         </div>
@@ -284,7 +168,6 @@ export default function Today() {
               Adjust Pace
             </Button>
           )}
-          <ChecklistNudge testId="today-checklist-reminder" />
         </div>
       </div>
 
@@ -304,40 +187,6 @@ export default function Today() {
       {/* Close the day when you're done eating so the coach judges it as final;
           until then today is read by pace, not warned as low. */}
       <CloseDayButton />
-
-      {today.nextScheduledRace &&
-        today.nextScheduledRace.raceDate === today.date &&
-        !today.nextScheduledRace.hasResult && (
-          <Card
-            className="border-primary/40 bg-primary/5"
-            data-testid="card-race-day-log-result"
-          >
-            <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <Trophy className="h-6 w-6 text-primary" />
-                <div>
-                  <p className="text-sm font-bold tracking-wider text-primary">
-                    Race Day —{" "}
-                    {RACE_KIND_LABELS[
-                      today.nextScheduledRace.raceKind as RaceDayKind
-                    ] ?? today.nextScheduledRace.raceKind.toUpperCase()}
-                  </p>
-                  {today.nextScheduledRace.name && (
-                    <p className="text-xs text-muted-foreground">
-                      {today.nextScheduledRace.name}
-                    </p>
-                  )}
-                </div>
-              </div>
-              <Button
-                onClick={() => openLogDraftFor(today.nextScheduledRace!)}
-                data-testid="button-race-day-log-result"
-              >
-                Log result
-              </Button>
-            </CardContent>
-          </Card>
-        )}
 
       {showCountdown && today.firstSession ? (
         <Card
@@ -608,7 +457,7 @@ export default function Today() {
 
       <QuickLogActivity testIdSuffix="today" />
 
-      {today.hasPlan && !showCountdown && !isRaceDayUnlogged && (
+      {today.hasPlan && !showCountdown && (
         <div className="grid gap-6">
           {/* Task #135 + #143: render one Mission Brief card per concurrent
               program. `plans[]` is ordered by sourceEntryIndex so the
@@ -1364,118 +1213,6 @@ export default function Today() {
 
       {dialogs}
 
-      <Dialog
-        open={logDraft != null}
-        onOpenChange={(o) => !o && setLogDraft(null)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Log race result</DialogTitle>
-          </DialogHeader>
-          {logDraft && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 flex-wrap">
-                <Badge variant="secondary" className="tracking-wider">
-                  {RACE_KIND_LABELS[logDraft.raceKind as RaceDayKind] ??
-                    logDraft.raceKind}
-                </Badge>
-                <span className="font-mono font-bold text-primary">
-                  {logDraft.raceDate}
-                </span>
-                {logDraft.name && (
-                  <span className="text-sm text-muted-foreground">
-                    {logDraft.name}
-                  </span>
-                )}
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <Label htmlFor="todayLogFinish">Finish time</Label>
-                  <Input
-                    id="todayLogFinish"
-                    placeholder="2:14:08"
-                    value={logDraft.finishTime}
-                    onChange={(e) =>
-                      setLogDraft({ ...logDraft, finishTime: e.target.value })
-                    }
-                    data-testid="input-today-log-finish-time"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="todayLogOverall">Placement</Label>
-                  <Input
-                    id="todayLogOverall"
-                    inputMode="numeric"
-                    placeholder="312"
-                    value={logDraft.placementOverall}
-                    onChange={(e) =>
-                      setLogDraft({
-                        ...logDraft,
-                        placementOverall: e.target.value,
-                      })
-                    }
-                    data-testid="input-today-log-placement-overall"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="todayLogTotal">Field size</Label>
-                  <Input
-                    id="todayLogTotal"
-                    inputMode="numeric"
-                    placeholder="1804"
-                    value={logDraft.placementTotal}
-                    onChange={(e) =>
-                      setLogDraft({
-                        ...logDraft,
-                        placementTotal: e.target.value,
-                      })
-                    }
-                    data-testid="input-today-log-placement-total"
-                  />
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="todayLogFelt">Felt rating (1-5)</Label>
-                <Input
-                  id="todayLogFelt"
-                  inputMode="numeric"
-                  placeholder="4"
-                  value={logDraft.feltRating}
-                  onChange={(e) =>
-                    setLogDraft({ ...logDraft, feltRating: e.target.value })
-                  }
-                  data-testid="input-today-log-felt-rating"
-                />
-              </div>
-              <div>
-                <Label htmlFor="todayLogNotes">Notes</Label>
-                <Textarea
-                  id="todayLogNotes"
-                  rows={3}
-                  placeholder="Splits, weather, fueling, what worked, what didn't..."
-                  value={logDraft.notes}
-                  onChange={(e) =>
-                    setLogDraft({ ...logDraft, notes: e.target.value })
-                  }
-                  data-testid="input-today-log-notes"
-                />
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setLogDraft(null)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleLogResult}
-              disabled={upsertResult.isPending}
-              data-testid="button-today-confirm-log-result"
-            >
-              {upsertResult.isPending ? "Saving…" : "Save result"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -1510,35 +1247,17 @@ const RACE_KIND_LABELS: Record<RaceDayKind, string> = {
 };
 
 function TodayEyebrow({ raceKind }: { raceKind: RaceDayKind | null }) {
-  // Reuses the same query key as RaceWeekBanner / ChecklistNudge so
-  // there's no extra round-trip — the cached payload already drives the
-  // race-week reminder in the header.
-  const { data: raceWeek } = useGetRaceWeek({
-    query: {
-      queryKey: getGetRaceWeekQueryKey(),
-      refetchOnWindowFocus: true,
-      refetchInterval: 60_000,
-    },
-  });
+  // Run-goal campaign eyebrow. Race intent now comes purely from the
+  // active plan's detected race kind (no separate race-week tracking
+  // store), so this is a simple per-kind "… Campaign" label.
   if (raceKind == null) return null;
   const label = RACE_KIND_LABELS[raceKind];
-  const isRaceWeek = !!raceWeek?.inWindow && !raceWeek.racePassed;
-  const isPostRace = !!raceWeek?.racePassed;
-  let text: string;
-  if (isPostRace) {
-    text = raceKind === "marathon" ? "Race Complete" : `${label} Complete`;
-  } else if (isRaceWeek) {
-    text = raceKind === "marathon" ? "Race Week" : `${label} · Race Week`;
-  } else {
-    text = raceKind === "marathon" ? "Race Campaign" : `${label} Campaign`;
-  }
+  const text = raceKind === "marathon" ? "Race Campaign" : `${label} Campaign`;
   return (
     <p
       className="text-[10px] tracking-[0.2em] font-bold text-primary mb-1"
       data-testid="today-eyebrow"
       data-race-kind={raceKind}
-      data-race-week={isRaceWeek ? "true" : undefined}
-      data-post-race={isPostRace ? "true" : undefined}
     >
       {text}
     </p>

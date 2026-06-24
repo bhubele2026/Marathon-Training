@@ -310,8 +310,6 @@ export interface FullResetPlanResponse {
   measurementsWiped: number;
   /** Number of baseline measurements rows reinserted from the seed (1 for the standard campaign). */
   measurementsSeeded: number;
-  /** Number of race-week checklist rows that were deleted by the reset. */
-  checklistItemsWiped: number;
   /** Number of pending reset-undo snapshots that were dropped (so a stale Undo can't restore deleted state after the full reset). */
   undoSnapshotsWiped: number;
 }
@@ -361,31 +359,6 @@ export interface PlanWeekProgram {
   totalSessions: number;
   /** Non-rest plan_days for this program in this week whose date is in the past with no logged workout attributed to them. */
   missedSessions: number;
-}
-
-export type ScheduledRaceRaceKind =
-  (typeof ScheduledRaceRaceKind)[keyof typeof ScheduledRaceRaceKind];
-
-export const ScheduledRaceRaceKind = {
-  marathon: "marathon",
-  half: "half",
-  "10k": "10k",
-  "5k": "5k",
-} as const;
-
-export interface ScheduledRace {
-  raceDate: string;
-  raceKind: ScheduledRaceRaceKind;
-  /** Optional human-readable name (e.g. "Brooklyn Mile 5K"). */
-  name?: string | null;
-  notes?: string | null;
-  /** True when a `race_results` row already exists for this
-scheduled race's date. Lets the /races UI render a "Log
-result" CTA only on past, unlogged races.
- */
-  hasResult?: boolean;
-  recordedAt: string;
-  updatedAt: string;
 }
 
 export interface PlanWeek {
@@ -447,16 +420,6 @@ single-program campaigns. Ordered by `sourceEntryIndex`
 ascending.
  */
   programs?: PlanWeekProgram[] | null;
-  /** Task #345. Every supplemental scheduled race that lands in
-this week's [startDate, endDate] window, ordered by
-`raceDate` ascending. Lets weekly summary cards render a
-"5K · Sat" chip alongside the planned-load summary so
-runners can see scheduled B-races on the calendar at a
-glance. Independent of `marathonDate` / the active campaign
-so the chip survives Phase Planner re-applies and Full
-Reset. Null on freshly seeded weeks for back-compat.
- */
-  scheduledRaces?: ScheduledRace[] | null;
   /** Task #242. Kind of race the campaign is anchored on, mirrored
 on per-week responses so the /plan/:week eyebrow can switch
 to "5K Campaign" / "10K Campaign" / "Half Marathon Campaign"
@@ -534,39 +497,6 @@ export const PlanOverviewRaceKind = {
   "10k": "10k",
   "5k": "5k",
 } as const;
-
-export type NextScheduledRaceRaceKind =
-  (typeof NextScheduledRaceRaceKind)[keyof typeof NextScheduledRaceRaceKind];
-
-export const NextScheduledRaceRaceKind = {
-  marathon: "marathon",
-  half: "half",
-  "10k": "10k",
-  "5k": "5k",
-} as const;
-
-/**
- * Task #345. Embedded shape for the closest upcoming scheduled
-race surfaced on /plan/overview and /plan/today. Same wire
-shape as `ScheduledRace` plus a server-computed `daysUntil`
-delta from the API server's UTC `today` (0 on race day) so
-clients don't have to recompute it from `raceDate`.
-
- */
-export interface NextScheduledRace {
-  raceDate: string;
-  raceKind: NextScheduledRaceRaceKind;
-  name?: string | null;
-  notes?: string | null;
-  hasResult?: boolean;
-  recordedAt: string;
-  updatedAt: string;
-  /** Whole days from the server's UTC `today` to `raceDate`.
-0 on the race day itself; never negative because the
-picker only returns races with `raceDate >= today`.
- */
-  daysUntil: number;
-}
 
 export interface PlanOverview {
   /** Task #307. False when no Phase Planner config has ever been
@@ -648,10 +578,10 @@ running" flag. Running is an OPT-IN module — the default plan is
 strength + body-recomposition (Tonal lifting + low-impact Peloton
 Bike/Row conditioning) with ZERO programmed miles and no Long Run.
 True only when the runner explicitly opted into running: the
-campaign is anchored on a run race (`raceKind` is non-null), a
-scheduled race is upcoming (`nextScheduledRace`), or the applied
-plan_days actually program running (any distance_mi > 0 or
-run_min > 0). False for the default recomp / lift-primary plan and
+campaign is anchored on a run race (`raceKind` is non-null), or
+the applied plan_days actually program running (any
+distance_mi > 0 or run_min > 0). False for the default recomp /
+lift-primary plan and
 on freshly seeded campaigns with no plan_days. Every running-aware
 surface (Plan tiles, Today, dashboard) should gate on THIS flag
 rather than re-deriving running from raceKind / miles.
@@ -673,13 +603,6 @@ so the client can navigate to /plan/:week without a second
 lookup. Null whenever `nextMissedDate` is null.
  */
   nextMissedWeek?: number | null;
-  /** Task #345. Closest upcoming supplemental scheduled race
-(raceDate >= today), or null when none are on the calendar.
-Carries `daysUntil` (server-computed delta from today, 0 on
-race day) so the /plan header can render a "Next race · 5K
-· in N days" chip without a second round-trip.
- */
-  nextScheduledRace?: NextScheduledRace | null;
   /** Task #33. plan_day.id of the earliest missed session.
 Surfaced so the client can highlight the EXACT card after
 navigation, even when concurrent overlapping programs share
@@ -874,15 +797,6 @@ export interface TodayPlan {
   daysUntilStart?: number | null;
   /** Preview of the first scheduled (non-rest) plan day. Populated alongside daysUntilStart only when today is before that session; null once the campaign has started. */
   firstSession?: PlanDay | null;
-  /** Task #345. Closest upcoming supplemental scheduled race
-(raceDate >= today), or null when none are on the
-calendar. Carries `daysUntil` (server-computed, 0 on
-race day) so /today can render a "Next race · 5K · in N
-days" chip without a second round-trip. On the race day
-itself the row is still surfaced so the UI can swap the
-chip for a "Log result" CTA.
- */
-  nextScheduledRace?: NextScheduledRace | null;
   /** Task #306. Kind of race the campaign is anchored on, mirrored
 on /plan/today so the Today page eyebrow can switch to the
 per-kind framing ("5K Campaign" / "10K Campaign" / "Half
@@ -1138,8 +1052,7 @@ and on legacy / freshly seeded campaigns with no plan_days
 yet — the dashboard header keeps generic copy in those cases
 so we don't presuppose a race. Drives the "Race Campaign" /
 per-kind ("5K Campaign", "10K Campaign", "Half Marathon
-Campaign") framing on the dashboard header and the
-RaceWeekBanner countdown / post-race copy.
+Campaign") framing on the dashboard header.
 
  */
 export type DashboardSummaryRaceKind =
@@ -1228,8 +1141,7 @@ and on legacy / freshly seeded campaigns with no plan_days
 yet — the dashboard header keeps generic copy in those cases
 so we don't presuppose a race. Drives the "Race Campaign" /
 per-kind ("5K Campaign", "10K Campaign", "Half Marathon
-Campaign") framing on the dashboard header and the
-RaceWeekBanner countdown / post-race copy.
+Campaign") framing on the dashboard header.
  */
   raceKind?: DashboardSummaryRaceKind;
 }
@@ -1364,195 +1276,6 @@ export interface EquipmentPhaseRow {
 export interface EquipmentPhaseSummary {
   phases: string[];
   rows: EquipmentPhaseRow[];
-}
-
-export interface RaceWeekChecklistItem {
-  itemId: string;
-  label: string;
-  checked: boolean;
-  checkedAt?: string | null;
-  /** True for user-created items (which can be deleted). False for built-in default items. */
-  isCustom: boolean;
-}
-
-export interface RaceWeekRacePlan {
-  distanceMi: number;
-  targetPace?: string | null;
-  fuelingNote?: string | null;
-  description: string;
-}
-
-/**
- * Task #265. Captured at write time from the active plan_day at the
-race date so PR comparisons across past campaigns survive Phase
-Planner re-applies. The /races history endpoint (Task #266)
-falls back to a `plan_days` lookup on the same date via
-`detectRaceKind` for legacy rows where the persisted column is
-still null. Null for legacy rows whose plan_day is also gone or
-unrecognised.
-
- */
-export type RaceResultRaceKind =
-  | (typeof RaceResultRaceKind)[keyof typeof RaceResultRaceKind]
-  | null;
-
-export const RaceResultRaceKind = {
-  marathon: "marathon",
-  half: "half",
-  "10k": "10k",
-  "5k": "5k",
-} as const;
-
-export interface RaceResultPreviousBest {
-  raceDate: string;
-  finishTime: string;
-  /** `currentSeconds - previousBestSeconds`. Negative when this
-finish beats the prior best (a PR); positive when slower.
- */
-  deltaSeconds: number;
-}
-
-export interface RaceResult {
-  raceDate: string;
-  /** Free-form finish time string (e.g. "2:14:08"). */
-  finishTime?: string | null;
-  placementOverall?: number | null;
-  /** Total field size, used together with placementOverall (e.g. 312 of 1804). */
-  placementTotal?: number | null;
-  /**
-   * 1-5 self-rating of how the race felt (1 = brutal, 5 = nailed it).
-   * @minimum 1
-   * @maximum 5
-   */
-  feltRating?: number | null;
-  notes?: string | null;
-  /** Task #265. Captured at write time from the active plan_day at the
-race date so PR comparisons across past campaigns survive Phase
-Planner re-applies. The /races history endpoint (Task #266)
-falls back to a `plan_days` lookup on the same date via
-`detectRaceKind` for legacy rows where the persisted column is
-still null. Null for legacy rows whose plan_day is also gone or
-unrecognised.
- */
-  raceKind?: RaceResultRaceKind;
-  /** Task #265. The fastest prior `race_results` row sharing this
-row's `raceKind` (excluding the current row), used by the
-post-race banner to render the PR badge + "−1:43 vs prior best
-2:15:51" comparison line. Null when there's no prior result of
-this kind, when this row has no `raceKind`, or when this row's
-`finishTime` can't be parsed.
- */
-  previousBest?: RaceResultPreviousBest | null;
-  /** Task #265. True when this finish time is strictly faster than
-every prior `race_results` row of the same `raceKind`. False on
-first-of-kind rows (nothing to beat yet), on ties, and on rows
-with an unparseable `finishTime` or null `raceKind`.
- */
-  isPersonalRecord?: boolean;
-  recordedAt: string;
-  updatedAt: string;
-}
-
-export interface RaceWeekStatus {
-  /** ISO yyyy-mm-dd of the runner's APPLIED marathon date. Null when the active planner config is in date-optional / workout-planner mode (Task */
-  raceDate: string | null;
-  daysToRace: number;
-  hoursToRace: number;
-  inWindow: boolean;
-  isRaceDay: boolean;
-  /** True when the race date is in the past and the runner is in the post-race recovery window. */
-  racePassed: boolean;
-  /** Number of days since race day. Null when race has not yet passed. */
-  daysAfterRace?: number | null;
-  racePlan?: RaceWeekRacePlan | null;
-  /** The runner's logged race-day result, or null if no result has been
-captured yet. Only ever populated once `racePassed` is true; the
-UI uses this to switch the post-race recovery banner between an
-empty "Log your race" form and a "saved result" summary card.
- */
-  raceResult?: RaceResult | null;
-  checklist: RaceWeekChecklistItem[];
-  /**
-   * Task #39. Count of taper checklist items still unchecked. Used by
-the dashboard header and Today page to render a compact reminder
-badge during race week. Falls to 0 once everything is checked, so
-the UI can hide the nudge without recomputing client-side.
-
-   * @minimum 0
-   */
-  uncheckedCount: number;
-}
-
-export type CreateScheduledRaceBodyRaceKind =
-  (typeof CreateScheduledRaceBodyRaceKind)[keyof typeof CreateScheduledRaceBodyRaceKind];
-
-export const CreateScheduledRaceBodyRaceKind = {
-  marathon: "marathon",
-  half: "half",
-  "10k": "10k",
-  "5k": "5k",
-} as const;
-
-export interface CreateScheduledRaceBody {
-  /** ISO yyyy-mm-dd race date. Primary key. */
-  raceDate: string;
-  raceKind: CreateScheduledRaceBodyRaceKind;
-  name?: string | null;
-  notes?: string | null;
-}
-
-export type UpdateScheduledRaceBodyRaceKind =
-  (typeof UpdateScheduledRaceBodyRaceKind)[keyof typeof UpdateScheduledRaceBodyRaceKind];
-
-export const UpdateScheduledRaceBodyRaceKind = {
-  marathon: "marathon",
-  half: "half",
-  "10k": "10k",
-  "5k": "5k",
-} as const;
-
-export interface UpdateScheduledRaceBody {
-  raceKind?: UpdateScheduledRaceBodyRaceKind;
-  name?: string | null;
-  notes?: string | null;
-}
-
-export interface SetRaceResultBody {
-  finishTime?: string | null;
-  /**
-   * 1-based finish position. Must be a positive integer.
-   * @minimum 1
-   */
-  placementOverall?: number | null;
-  /**
-   * Total field size. Must be a positive integer.
-   * @minimum 1
-   */
-  placementTotal?: number | null;
-  /**
-   * @minimum 1
-   * @maximum 5
-   */
-  feltRating?: number | null;
-  notes?: string | null;
-}
-
-export interface SetRaceWeekChecklistItemBody {
-  checked: boolean;
-}
-
-export interface CreateRaceWeekChecklistItemBody {
-  /**
-   * Human-readable label for the new custom checklist item.
-   * @minLength 1
-   * @maxLength 200
-   */
-  label: string;
-}
-
-export interface DeleteRaceWeekChecklistItemResponse {
-  itemId: string;
-  deleted: boolean;
 }
 
 export type PhaseBlockFocusType =

@@ -61,8 +61,8 @@ export function FullResetDialog({
           <AlertDialogTitle>Wipe everything and start over?</AlertDialogTitle>
           <AlertDialogDescription>
             This is a nuclear reset. It permanently deletes every logged
-            workout, every body measurement, the race-week checklist, and
-            every plan customization, and demotes every applied Phase
+            workout, every body measurement, and every plan customization,
+            and demotes every applied Phase
             Planner config back to draft. The plan stays empty until you
             re-apply a config from the Phase Planner. There is no undo.
             Type{" "}

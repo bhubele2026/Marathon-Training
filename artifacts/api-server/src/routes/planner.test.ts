@@ -423,10 +423,11 @@ describe("POST /api/planner/apply", () => {
     expect(b.status).toBe(201);
     expect(b.body.isActive).toBe(false);
 
-    // /api/race-week.raceDate must STILL anchor on config A (the applied
-    // marathon date), proving the saved-but-not-applied draft did not
-    // silently re-anchor.
-    const rw = await request(app).get("/api/race-week");
+    // /api/plan/overview.raceDate must STILL anchor on config A (the
+    // applied marathon date), proving the saved-but-not-applied draft did
+    // not silently re-anchor. (Race intent is now read from the active
+    // plan overview, not a separate race-week tracking endpoint.)
+    const rw = await request(app).get("/api/plan/overview");
     expect(rw.status).toBe(200);
     expect(rw.body.raceDate).toBe(RACE_DATE_ISO);
   });
@@ -609,8 +610,9 @@ describe("POST /api/planner/apply", () => {
     const b = bRes.body as { id: number };
     await request(app).post(`/api/planner/configs/${b.id}/activate`).expect(200);
 
-    // Anchor still points at A's applied marathon date.
-    const rw = await request(app).get("/api/race-week");
+    // Anchor still points at A's applied marathon date (read from the
+    // active plan overview now that race-week tracking is gone).
+    const rw = await request(app).get("/api/plan/overview");
     expect(rw.status).toBe(200);
     expect(rw.body.raceDate).toBe(RACE_DATE_ISO);
 

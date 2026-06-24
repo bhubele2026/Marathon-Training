@@ -25,12 +25,10 @@ import { Activity, CalendarDays, CheckCircle2, TrendingDown, TrendingUp, ArrowRi
 import { useMissionActions } from "@/hooks/use-mission-actions";
 import { QuickLogActivity } from "@/components/quick-log-activity";
 import { RunTargetLine } from "@/components/run-target-line";
-import { RaceWeekBanner, ChecklistNudge } from "@/components/race-week-banner";
 import { TimeOfDayBadge } from "@/components/time-of-day-badge";
 import { phaseColor } from "@/lib/phase-colors";
 import { programColor } from "@/lib/program-colors";
 import { EmptyPlanState } from "@/components/empty-plan-state";
-import { NextScheduledRaceChip } from "@/components/next-scheduled-race-chip";
 import { DashboardTracking } from "@/components/dashboard-tracking";
 import { ProgressDiagnosis } from "@/components/progress-diagnosis";
 import { useFirstRunRedirect } from "@/hooks/use-first-run-redirect";
@@ -323,12 +321,6 @@ export default function Dashboard() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
       <div data-testid="dashboard-header" className="flex flex-col gap-2">
-        {overview?.nextScheduledRace && (
-          <NextScheduledRaceChip
-            race={overview.nextScheduledRace}
-            testId="dashboard-chip-next-scheduled-race"
-          />
-        )}
         <h2
           className="text-4xl font-extrabold tracking-tight text-foreground"
           data-testid="dashboard-header-title"
@@ -336,22 +328,15 @@ export default function Dashboard() {
         >
           {headerTitle}
         </h2>
-        {raceKind !== null ? (
-          <div className="flex flex-wrap items-center gap-3">
-            <p
-              className="text-muted-foreground font-medium tracking-widest text-sm"
-              data-testid="dashboard-header-subtitle"
-            >
-              {summary.daysToRace} Days to Race Day
-            </p>
-            <ChecklistNudge testId="dashboard-checklist-reminder" />
-          </div>
-        ) : (
-          <ChecklistNudge testId="dashboard-checklist-reminder" />
+        {raceKind !== null && (
+          <p
+            className="text-muted-foreground font-medium tracking-widest text-sm"
+            data-testid="dashboard-header-subtitle"
+          >
+            {summary.daysToRace} Days to Race Day
+          </p>
         )}
       </div>
-
-      <RaceWeekBanner raceKind={raceKind} />
 
       {/* Phase 4. Body-recomp hero — the dashboard now LEADS with
           "inches lost" + a muscle/strength proxy. Weight is demoted into
