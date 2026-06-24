@@ -19,6 +19,7 @@ export interface FeatureTileProps {
   className?: string;
   /** Quiet variant: white tile with an azure icon chip instead of the gradient. */
   tone?: "gradient" | "soft";
+  testId?: string;
 }
 
 export function FeatureTile({
@@ -29,6 +30,7 @@ export function FeatureTile({
   onClick,
   className,
   tone = "gradient",
+  testId,
 }: FeatureTileProps) {
   const interactive = typeof onClick === "function";
   const Tag = interactive ? "button" : "div";
@@ -38,6 +40,7 @@ export function FeatureTile({
     <Tag
       type={interactive ? "button" : undefined}
       onClick={onClick}
+      data-testid={testId}
       className={cn(
         "group relative flex w-full flex-col justify-between gap-6 overflow-hidden rounded-3xl p-6 text-left shadow-tile transition-transform duration-150 motion-reduce:transition-none",
         interactive &&
