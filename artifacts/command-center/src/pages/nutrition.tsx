@@ -17,6 +17,7 @@ import { ResetNutritionButton } from "@/components/reset-nutrition-button";
 import { CloseDayButton } from "@/components/close-day-button";
 import { ConsistencyStrip } from "@/components/consistency-strip";
 import { NutritionEntryForm } from "@/components/nutrition-entry-form";
+import { NutritionPlanCard } from "@/components/nutrition-plan-card";
 import { WaterQuickAdd } from "@/components/water-quick-add";
 
 // These routes are intentionally hand-fetched rather than going through the
@@ -594,6 +595,15 @@ export default function Nutrition() {
 
       {/* Close / reopen the day under review (acts on the selected date). */}
       <CloseDayButton date={selectedDate} />
+
+      {/* Phase 15: the viewable personalized nutrition plan, derived from the
+          baseline targets (which trace to the active plan's goal + safe deficit). */}
+      <NutritionPlanCard
+        calorieTarget={baselineGoals?.calorieTarget ?? null}
+        proteinTargetG={baselineGoals?.proteinTargetG ?? null}
+        carbsTargetG={baselineGoals?.carbsTargetG ?? null}
+        fatTargetG={baselineGoals?.fatTargetG ?? null}
+      />
 
       {/* 14-day trend across all four macros, each in its fixed metric color. */}
       <Card>

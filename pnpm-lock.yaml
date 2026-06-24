@@ -365,6 +365,9 @@ importers:
       '@workspace/plan-generator':
         specifier: workspace:*
         version: link:../../lib/plan-generator
+      '@workspace/plan-knowledge':
+        specifier: workspace:*
+        version: link:../../lib/plan-knowledge
       '@workspace/visual-themes':
         specifier: workspace:*
         version: link:../../lib/visual-themes

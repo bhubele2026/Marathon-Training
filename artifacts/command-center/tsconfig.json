@@ -22,6 +22,9 @@
       "path": "../../lib/plan-generator"
     },
     {
+      "path": "../../lib/plan-knowledge"
+    },
+    {
       "path": "../../lib/visual-themes"
     }
   ]

@@ -4,6 +4,7 @@ export * from "./schema";
 export * from "./briefing";
 export * from "./guardrails";
 export * from "./materialize";
+export * from "./nutrition-plan";
 export * from "./buckets";
 export * from "./programs";
 export * from "./persona";
