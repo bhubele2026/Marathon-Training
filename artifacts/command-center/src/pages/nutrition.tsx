@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { motion, useReducedMotion } from "framer-motion";
-import { CountUp } from "@/components/studio/count-up";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Beef, ChevronLeft, ChevronRight, Droplet, Flame, RefreshCw, Sparkles, Wheat } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { NutritionistPanel } from "@/components/nutritionist-panel";
-import { CoachNote } from "@/components/studio/coach-note";
+import {
+  CoachNote,
+  MetricRing,
+  WaterTracker,
+  type MetricRingArc,
+} from "@/components/studio";
 import { NutritionLog } from "@/components/nutrition-log";
 import { ResetNutritionButton } from "@/components/reset-nutrition-button";
 import { CloseDayButton } from "@/components/close-day-button";
@@ -54,6 +57,8 @@ type DayTarget = {
   source: "planned" | "actual";
   needsBaseline?: boolean;
 };
+
+const ML_PER_OZ = 29.5735;
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url, { headers: { accept: "application/json" } });
@@ -119,6 +124,20 @@ function buildTrendAxis(entries: NutritionDay[], days: number): NutritionDay[] {
   return out;
 }
 
+// Average ounces of water over the most-recent `n` days that have water logged.
+// Order-independent (sorts by date desc first) since the recent feed's order
+// isn't contractual. Derived client-side from the per-day `waterMl` already
+// synced from Apple Health — no dedicated water endpoint (Phase 13 adds writes).
+function avgOz(entries: NutritionDay[], n: number): number | null {
+  const withWater = entries
+    .filter((e) => e.waterMl != null && e.waterMl > 0)
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, n);
+  if (withWater.length === 0) return null;
+  const totalMl = withWater.reduce((s, e) => s + (e.waterMl ?? 0), 0);
+  return totalMl / withWater.length / ML_PER_OZ;
+}
+
 function fmt(n: number): string {
   return n.toLocaleString();
 }
@@ -140,126 +159,72 @@ function formatDayLabel(date: string): string {
   return d.toLocaleDateString(undefined, { weekday: "short", day: "numeric" });
 }
 
-// A single macro ring. Monochrome-accent: the progress arc is the teal accent
-// (primary), the track is neutral (muted).
-//
-// R7 dead-state elimination: when a `target` exists we ALWAYS render the
-// target track. If intake hasn't synced (`value` null) we show the target
-// number over an empty fill ("awaiting intake") rather than a bare dash with
-// "No goal set". The "No goal" branch never renders on this page anymore —
-// the caller only mounts rings when targets exist.
-function MacroRing({
+// A compact macro readout chip — the supporting detail beside the hero ring.
+// The colored dot is the macro's fixed metric color (protein=violet,
+// carbs=teal, fat=amber); the line below states what's left / hit / awaiting.
+function MacroChip({
   label,
   Icon,
+  color,
   value,
   target,
   unit,
-  hero = false,
 }: {
   label: string;
   Icon: LucideIcon;
+  color: string;
   value: number | null;
   target: number | null;
   unit: string;
-  hero?: boolean;
 }) {
-  const size = hero ? 168 : 108;
-  const stroke = hero ? 13 : 9;
-  const r = (size - stroke) / 2;
-  const circ = 2 * Math.PI * r;
   const hasGoal = target != null && target > 0;
   const awaiting = value == null;
-  const pct =
-    value != null && hasGoal ? Math.min(1, value / (target as number)) : 0;
-  const hit = hasGoal && value != null && value >= (target as number);
+  const hit = hasGoal && value != null && value >= target;
   const remaining =
-    hasGoal && value != null ? Math.max(0, (target as number) - value) : null;
-  const reduced = useReducedMotion();
-  const dashoffset = circ * (1 - pct);
-
+    hasGoal && value != null ? Math.max(0, target - value) : null;
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="relative" style={{ width: size, height: size }}>
-        <svg width={size} height={size} className="-rotate-90">
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={r}
-            fill="none"
-            strokeWidth={stroke}
-            className="stroke-muted"
-          />
-          {hasGoal && !awaiting && (
-            <motion.circle
-              cx={size / 2}
-              cy={size / 2}
-              r={r}
-              fill="none"
-              strokeWidth={stroke}
-              strokeLinecap="round"
-              className={"stroke-primary" + (hit ? " ring-glow-primary" : "")}
-              strokeDasharray={circ}
-              initial={{ strokeDashoffset: reduced ? dashoffset : circ }}
-              animate={{ strokeDashoffset: dashoffset }}
-              transition={reduced ? { duration: 0 } : { duration: 0.7, ease: "easeOut" }}
-            />
-          )}
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          {/* Awaiting intake: lead with the TARGET number (muted) so the ring
-              still means something before the day's food syncs. The hero
-              (calories) value counts up on mount; smaller rings stay static. */}
-          <span
-            className={
-              "font-mono font-semibold tabular-nums leading-none tracking-[-0.01em] " +
-              (hero ? "text-4xl " : "text-2xl ") +
-              (awaiting
-                ? "text-muted-foreground"
-                : hero
-                  ? "text-primary"
-                  : "text-foreground") +
-              (hit && !awaiting ? " glow-primary" : "")
-            }
-          >
-            {awaiting ? (
-              hasGoal ? fmt(target as number) : "—"
-            ) : hero ? (
-              <CountUp value={value as number} format={fmt} />
-            ) : (
-              fmt(value as number)
-            )}
-          </span>
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">
-            {unit}
-          </span>
-        </div>
-      </div>
-      <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
-        <Icon className="h-3.5 w-3.5 text-primary" />
+    <div className="rounded-xl bg-secondary/60 p-3">
+      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+        <span
+          className="h-2.5 w-2.5 rounded-full"
+          style={{ backgroundColor: color }}
+          aria-hidden
+        />
+        <Icon className="h-3.5 w-3.5" style={{ color }} />
         {label}
       </div>
-      <p className="h-4 text-[11px] text-muted-foreground tabular-nums">
+      <p className="mt-1.5 font-display text-2xl font-extrabold tabular-nums leading-none tracking-tight text-foreground">
+        {awaiting ? (hasGoal ? fmt(target) : "—") : fmt(value)}
+        {hasGoal && (
+          <span className="ml-1 text-xs font-medium text-muted-foreground">
+            / {fmt(target)} {unit}
+          </span>
+        )}
+      </p>
+      <p className="mt-1 h-4 text-[11px] tabular-nums text-muted-foreground">
         {awaiting
           ? hasGoal
-            ? `Target ${fmt(target as number)} · awaiting intake`
-            : "Awaiting intake"
+            ? "awaiting intake"
+            : "—"
           : hit
-            ? "Goal hit"
+            ? "goal hit"
             : remaining != null
               ? `${fmt(remaining)} ${unit} to go`
-              : `${fmt(value as number)} ${unit}`}
+              : `${fmt(value)} ${unit}`}
       </p>
     </div>
   );
 }
 
-// One macro's 14-day trend row: a compact sparkbar strip. The peak across the
-// window scales each bar; a bar that meets/exceeds the per-macro target fills
-// to full accent, the rest to a dimmer accent so the trend reads at a glance.
+// One macro's 14-day trend row: a progress bar toward the daily goal plus a
+// day-by-day strip once there's enough data. Colored to the macro's fixed
+// metric color (azure/violet/teal/amber); a bar within 90–110% of goal reads
+// as on-target in success-green.
 function MacroTrendRow({
   label,
   Icon,
   unit,
+  color,
   entries,
   pick,
   goal,
@@ -267,14 +232,11 @@ function MacroTrendRow({
   label: string;
   Icon: LucideIcon;
   unit: string;
+  color: string;
   entries: NutritionDay[];
   pick: (e: NutritionDay) => number | null;
   goal: number | null;
 }) {
-  // `entries` is the fixed oldest → newest axis (buildTrendAxis); only days with
-  // data count toward the average. The hero is "average per logged day vs goal"
-  // as a single readable progress bar; the day-by-day strip only appears once
-  // there's enough data for it to read as a trend rather than empty cells.
   const values = entries.map((e) => pick(e));
   const logged = values.filter((v): v is number => v != null);
   const loggedCount = logged.length;
@@ -283,7 +245,7 @@ function MacroTrendRow({
     : null;
   const pct =
     goal != null && goal > 0 && avg != null ? Math.round((avg / goal) * 100) : null;
-  // 90–110% of goal reads as "on target" (green); otherwise the brand accent.
+  // 90–110% of goal reads as "on target" (success); otherwise the macro color.
   const onTarget = pct != null && pct >= 90 && pct <= 110;
   const barPct = pct == null ? 0 : Math.max(0, Math.min(100, pct));
   const peak = Math.max(goal ?? 0, 1, ...logged);
@@ -292,12 +254,12 @@ function MacroTrendRow({
   return (
     <div className="space-y-2">
       <div className="flex items-end justify-between gap-3">
-        <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
-          <Icon className="h-3.5 w-3.5 text-primary" />
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          <Icon className="h-3.5 w-3.5" style={{ color }} />
           {label}
         </div>
         <div className="text-right leading-none">
-          <div className="text-lg font-extrabold tabular-nums">
+          <div className="font-display text-lg font-extrabold tabular-nums">
             {avg != null ? fmt(avg) : "—"}
             <span className="text-sm font-bold text-muted-foreground">
               {goal != null ? ` / ${fmt(goal)}` : ""} {unit}
@@ -312,8 +274,11 @@ function MacroTrendRow({
       {/* Progress toward the daily goal — the at-a-glance read. */}
       <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
         <div
-          className={"h-full rounded-full " + (onTarget ? "bg-emerald-500" : "bg-primary")}
-          style={{ width: `${barPct}%` }}
+          className="h-full rounded-full"
+          style={{
+            width: `${barPct}%`,
+            backgroundColor: onTarget ? "hsl(var(--success))" : color,
+          }}
         />
       </div>
       <div className="flex items-center justify-between text-[10px] text-muted-foreground tabular-nums">
@@ -338,8 +303,8 @@ function MacroTrendRow({
               >
                 {v != null && (
                   <div
-                    className={"w-full rounded-sm " + (hitGoal ? "bg-primary" : "bg-primary/45")}
-                    style={{ height: `${h}%` }}
+                    className="w-full rounded-sm"
+                    style={{ backgroundColor: color, opacity: hitGoal ? 1 : 0.45, height: `${h}%` }}
                   />
                 )}
               </div>
@@ -432,58 +397,18 @@ export default function Nutrition() {
         baselineGoals.carbsTargetG == null &&
         baselineGoals.fatTargetG == null));
 
-  // Ring FILL = actual intake (prefer the day-target's actual; fall back to
-  // today's synced row). Each macro degrades to null → "awaiting intake".
-  const actual: Macros | null =
-    day?.actual ??
-    (today &&
-    (today.calories != null ||
-      today.proteinG != null ||
-      today.carbsG != null ||
-      today.fatG != null)
-      ? {
-          cal: today.calories ?? 0,
-          protein: today.proteinG ?? 0,
-          carbs: today.carbsG ?? 0,
-          fat: today.fatG ?? 0,
-        }
-      : null);
+  // Per-macro intake (prefer the day-target's actual; fall back to the synced
+  // row). Each degrades to null → "awaiting intake".
+  const calValue = today?.calories ?? day?.actual?.cal ?? null;
+  const proteinValue = today?.proteinG ?? day?.actual?.protein ?? null;
+  const carbsValue = today?.carbsG ?? day?.actual?.carbs ?? null;
+  const fatValue = today?.fatG ?? day?.actual?.fat ?? null;
 
-  const macros: Array<{
-    label: string;
-    Icon: LucideIcon;
-    value: number | null;
-    target: number | null;
-    unit: string;
-  }> = [
-    {
-      label: "Calories",
-      Icon: Flame,
-      value: today?.calories ?? day?.actual?.cal ?? null,
-      target: target?.cal ?? null,
-      unit: "kcal",
-    },
-    {
-      label: "Protein",
-      Icon: Beef,
-      value: today?.proteinG ?? day?.actual?.protein ?? null,
-      target: target?.protein ?? null,
-      unit: "g",
-    },
-    {
-      label: "Carbs",
-      Icon: Wheat,
-      value: today?.carbsG ?? day?.actual?.carbs ?? null,
-      target: target?.carbs ?? null,
-      unit: "g",
-    },
-    {
-      label: "Fat",
-      Icon: Droplet,
-      value: today?.fatG ?? day?.actual?.fat ?? null,
-      target: target?.fat ?? null,
-      unit: "g",
-    },
+  // Macro arcs step inward from the azure calorie hero (matches the Today page).
+  const macroArcs: MetricRingArc[] = [
+    { value: proteinValue, goal: target?.protein ?? null, color: "hsl(var(--chart-2))", label: "Protein" },
+    { value: carbsValue, goal: target?.carbs ?? null, color: "hsl(var(--chart-3))", label: "Carbs" },
+    { value: fatValue, goal: target?.fat ?? null, color: "hsl(var(--chart-4))", label: "Fat" },
   ];
 
   const entries = recentQuery.data?.entries ?? [];
@@ -492,10 +417,15 @@ export default function Nutrition() {
   const loadingRings =
     todayQuery.isLoading || goalsQuery.isLoading || dayQuery.isLoading;
 
+  // Hydration — derived client-side from the synced `waterMl`. Goal defaults to
+  // a flat 64 oz here (bodyweight isn't fetched on this page); Phase 13 wires
+  // first-class water writes + a bodyweight-scaled goal.
+  const waterOz = today?.waterMl != null ? Math.round(today.waterMl / ML_PER_OZ) : 0;
+
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-[1440px] space-y-6 px-4 md:px-8">
       <div>
-        <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
+        <h1 className="font-display text-4xl font-extrabold tracking-tight text-foreground">
           Nutrition
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
@@ -516,11 +446,12 @@ export default function Nutrition() {
         onSelect={setSelectedDate}
       />
 
-      {/* Per-day review: the selected day's macros + water, a navigator to step
-          to any past day, and the close control for that day. De-boxed. */}
-      <Card className="border-0 bg-transparent shadow-none">
-        <CardHeader className="px-0 pb-3 border-b border-border">
-          <CardTitle className="flex items-center justify-between gap-3 text-sm tracking-wider text-muted-foreground">
+      {/* Per-day review tile: navigator + the calorie hero ring with macro arcs,
+          compact macro chips, a first-class water tracker, and the coach's
+          reactivity note. One tile — no divider rules. */}
+      <Card className="p-6">
+        <CardHeader className="p-0 pb-4">
+          <CardTitle className="flex flex-wrap items-center justify-between gap-3 text-sm tracking-wider text-muted-foreground">
             {/* Day navigator — step back/forward, or jump with the date input. */}
             <div className="flex items-center gap-1 normal-case">
               <Button
@@ -538,7 +469,7 @@ export default function Nutrition() {
                 value={selectedDate}
                 max={todayStr}
                 onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
-                className="rounded-md border border-input bg-transparent px-2 py-1 font-mono text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className="rounded-xl border border-input bg-transparent px-2 py-1 text-xs tabular-nums text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 data-testid="input-review-date"
               />
               <Button
@@ -572,9 +503,9 @@ export default function Nutrition() {
             </span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="px-0 pt-4">
+        <CardContent className="p-0">
           {loadingRings ? (
-            <Skeleton className="h-40 w-full" />
+            <Skeleton className="h-48 w-full rounded-2xl" />
           ) : noTargets ? (
             // R7: one clear CTA when NO targets exist — never four dead rings.
             <div
@@ -595,56 +526,57 @@ export default function Nutrition() {
               </Button>
             </div>
           ) : (
-            <>
-              {/* Calories — the single hero readout (score-first). */}
-              <div className="flex justify-center pb-2">
-                <MacroRing {...macros[0]!} hero />
-              </div>
-              {/* Supporting macros + hydration, equal neutral tiles. */}
-              <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
-                {macros.slice(1).map((m) => (
-                  <MacroRing key={m.label} {...m} />
-                ))}
-                {/* Water — a first-class tile in the same grid (was an orphan
-                    line). Synced from Apple Health Dietary Water. */}
-                <div
-                  className="flex flex-col items-center gap-2 text-center"
-                  data-testid="tile-nutrition-water"
-                >
-                  <div className="flex h-[108px] flex-col items-center justify-center">
-                    <Droplet className="mb-1 h-5 w-5 text-primary" />
-                    <span className="font-mono text-2xl font-semibold tabular-nums leading-none text-foreground">
-                      {today?.waterMl != null ? Math.round(today.waterMl / 29.5735) : "—"}
-                    </span>
-                    <span className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-                      oz
-                    </span>
+            <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+              {/* Calories hero ring + macro arcs + supporting chips. */}
+              <div className="space-y-5">
+                <div className="flex items-center gap-5">
+                  <MetricRing
+                    value={calValue}
+                    goal={target?.cal ?? null}
+                    label="kcal"
+                    hero
+                    macros={macroArcs}
+                  />
+                  <div className="min-w-0">
+                    <p className="font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                      Calories
+                    </p>
+                    <p className="font-display text-3xl font-extrabold tabular-nums tracking-tight text-foreground">
+                      {calValue != null ? fmt(calValue) : fmt(target?.cal ?? 0)}
+                      <span className="ml-1 text-sm font-medium text-muted-foreground">
+                        {target?.cal != null ? `/ ${fmt(target.cal)} kcal` : "kcal"}
+                      </span>
+                    </p>
+                    {adjusted && baseline && (
+                      <p
+                        className="mt-1 text-xs text-muted-foreground tabular-nums"
+                        data-testid="text-nutrition-recomp"
+                      >
+                        baseline {fmt(baseline.cal)} → today{" "}
+                        <span className="font-semibold text-foreground">{fmt(adjusted.cal)}</span> kcal
+                        {day?.source === "actual" ? " · from logged session" : ""}
+                      </p>
+                    )}
                   </div>
-                  <div className="font-display text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
-                    Water
-                  </div>
-                  <p className="h-4 text-[11px] text-muted-foreground tabular-nums">
-                    {today?.waterMl != null
-                      ? `~${(today.waterMl / 236.588).toFixed(1)} cups`
-                      : "Awaiting sync"}
-                  </p>
                 </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <MacroChip label="Protein" Icon={Beef} color="hsl(var(--chart-2))" value={proteinValue} target={target?.protein ?? null} unit="g" />
+                  <MacroChip label="Carbs" Icon={Wheat} color="hsl(var(--chart-3))" value={carbsValue} target={target?.carbs ?? null} unit="g" />
+                  <MacroChip label="Fat" Icon={Droplet} color="hsl(var(--chart-4))" value={fatValue} target={target?.fat ?? null} unit="g" />
+                </div>
+                {day?.rationale && <CoachNote icon={Sparkles}>{day.rationale}</CoachNote>}
               </div>
-              {/* baseline → adjusted reactivity readout + rationale (coach voice). */}
-              {adjusted && baseline && (
-                <div className="mt-6 space-y-2">
-                  <p
-                    className="text-xs text-muted-foreground tabular-nums"
-                    data-testid="text-nutrition-recomp"
-                  >
-                    baseline {fmt(baseline.cal)} → today{" "}
-                    <span className="font-semibold text-foreground">{fmt(adjusted.cal)}</span> kcal
-                    {day?.source === "actual" ? " · from logged session" : ""}
-                  </p>
-                  {day?.rationale && <CoachNote>{day.rationale}</CoachNote>}
-                </div>
-              )}
-            </>
+
+              {/* Hydration — first-class tile (replaces the old orphan line). */}
+              <div data-testid="tile-nutrition-water">
+                <WaterTracker
+                  oz={waterOz}
+                  goalOz={64}
+                  weeklyAvgOz={avgOz(entries, 7)}
+                  monthlyAvgOz={avgOz(entries, 30)}
+                />
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -652,10 +584,10 @@ export default function Nutrition() {
       {/* Close / reopen the day under review (acts on the selected date). */}
       <CloseDayButton date={selectedDate} />
 
-      {/* 14-day trend across all four macros */}
+      {/* 14-day trend across all four macros, each in its fixed metric color. */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm tracking-wider text-muted-foreground">
+          <CardTitle className="font-display text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">
             Last 14 days
           </CardTitle>
           <p className="text-xs text-muted-foreground">
@@ -664,7 +596,7 @@ export default function Nutrition() {
         </CardHeader>
         <CardContent>
           {recentQuery.isLoading ? (
-            <Skeleton className="h-40 w-full" />
+            <Skeleton className="h-40 w-full rounded-2xl" />
           ) : entries.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No nutrition synced yet. Once your Apple Shortcut runs, the days
@@ -676,6 +608,7 @@ export default function Nutrition() {
                 label="Calories"
                 Icon={Flame}
                 unit="kcal"
+                color="hsl(var(--chart-1))"
                 entries={trendAxis}
                 pick={(e) => e.calories}
                 goal={target?.cal ?? null}
@@ -684,6 +617,7 @@ export default function Nutrition() {
                 label="Protein"
                 Icon={Beef}
                 unit="g"
+                color="hsl(var(--chart-2))"
                 entries={trendAxis}
                 pick={(e) => e.proteinG}
                 goal={target?.protein ?? null}
@@ -692,6 +626,7 @@ export default function Nutrition() {
                 label="Carbs"
                 Icon={Wheat}
                 unit="g"
+                color="hsl(var(--chart-3))"
                 entries={trendAxis}
                 pick={(e) => e.carbsG}
                 goal={target?.carbs ?? null}
@@ -700,6 +635,7 @@ export default function Nutrition() {
                 label="Fat"
                 Icon={Droplet}
                 unit="g"
+                color="hsl(var(--chart-4))"
                 entries={trendAxis}
                 pick={(e) => e.fatG}
                 goal={target?.fat ?? null}
