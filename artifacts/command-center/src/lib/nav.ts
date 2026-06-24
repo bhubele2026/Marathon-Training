@@ -9,6 +9,7 @@ import {
   Beef,
   Target,
   ListOrdered,
+  History as HistoryIcon,
   Sparkles,
   CalendarCheck,
   Settings as SettingsIcon,
@@ -38,6 +39,7 @@ export const PRIMARY_NAV: NavDestination[] = [
 // settings.
 export const MORE_NAV: NavDestination[] = [
   { href: "/recap", label: "This week", icon: CalendarCheck },
+  { href: "/history", label: "History", icon: HistoryIcon },
   { href: "/log", label: "Training log", icon: ListOrdered },
   { href: "/goals", label: "Goals", icon: Target },
   { href: "/planner", label: "Planner", icon: Sparkles },
