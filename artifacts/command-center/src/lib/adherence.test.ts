@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { adherenceStatus, adherenceTextClass } from "./adherence";
+import {
+  adherenceStatus,
+  adherenceTextClass,
+  entryLoad,
+  loadFromMinutes,
+  detectSubstitution,
+} from "./adherence";
 
 describe("adherenceStatus", () => {
   it("returns 'met' when actual meets the planned target", () => {
@@ -40,5 +46,53 @@ describe("adherenceTextClass", () => {
 
   it("returns an empty class for neutral so the headline inherits the default color", () => {
     expect(adherenceTextClass("neutral")).toBe("");
+  });
+});
+
+describe("loadFromMinutes / entryLoad", () => {
+  it("weights strength heaviest, run next, cardio lightest", () => {
+    expect(loadFromMinutes({ strengthMin: 10 })).toBeCloseTo(15);
+    expect(loadFromMinutes({ runMin: 10 })).toBeCloseTo(10);
+    expect(loadFromMinutes({ cardioMin: 10 })).toBeCloseTo(8);
+  });
+
+  it("prefers the server-computed totalLoad when present", () => {
+    expect(entryLoad({ totalLoad: 72, strengthMin: 1 })).toBe(72);
+  });
+
+  it("falls back to weighted minute buckets, then to flat total/duration", () => {
+    expect(entryLoad({ strengthMin: 20 })).toBeCloseTo(30);
+    expect(entryLoad({ totalMin: 25 })).toBe(25);
+    expect(entryLoad({ durationMin: 18 })).toBe(18);
+    expect(entryLoad({})).toBe(0);
+  });
+});
+
+describe("detectSubstitution", () => {
+  it("flags a met day done through a different modality mix (cardio plan → lift + run)", () => {
+    expect(
+      detectSubstitution(
+        { cardioMin: 40 },
+        { strengthMin: 10.6, runMin: 30 },
+        45.9 / 32, // met
+      ),
+    ).toBe(true);
+  });
+
+  it("does NOT flag substitution when the day fell short on load", () => {
+    expect(
+      detectSubstitution({ cardioMin: 40 }, { strengthMin: 10 }, 0.4),
+    ).toBe(false);
+  });
+
+  it("does NOT flag substitution when the modality mix matches the plan", () => {
+    expect(
+      detectSubstitution({ strengthMin: 40 }, { strengthMin: 42 }, 1.05),
+    ).toBe(false);
+  });
+
+  it("returns false when either side logged nothing", () => {
+    expect(detectSubstitution({}, { strengthMin: 30 }, 1)).toBe(false);
+    expect(detectSubstitution({ cardioMin: 40 }, {}, 1)).toBe(false);
   });
 });

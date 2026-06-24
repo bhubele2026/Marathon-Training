@@ -46,7 +46,8 @@ import {
   getPrimaryMetricCompare,
 } from "@/lib/primary-metric";
 import { RunTargetLine } from "@/components/run-target-line";
-import { sessionVerdict, type VerdictBucket } from "@/lib/session-verdict";
+import { dayVerdict, type VerdictBucket } from "@/lib/session-verdict";
+import { entryLoad, detectSubstitution } from "@/lib/adherence";
 import { raceDayLabel } from "@/lib/race-day-label";
 import { EmptyPlanState } from "@/components/empty-plan-state";
 import { useFirstRunRedirect } from "@/hooks/use-first-run-redirect";
@@ -105,15 +106,35 @@ export default function Today() {
   }
 
   const sessions = today.loggedWorkouts ?? [];
-  // Day-level verdict inputs: judge the day's TOTAL logged minutes against the
-  // planned total, so a day split across multiple workouts (e.g. a lift + a
-  // run) is credited for the whole thing instead of each piece being graded
-  // short on its own. Planned total = the distinct matched plan days' totals.
+  // Day-level verdict inputs: judge the day as a WHOLE on training LOAD (which
+  // already weights strength/run/cardio), with minutes as a generous secondary
+  // band — never each logged workout graded against the day's total on its own.
+  // So a lift + a run that together cover a conditioning day read as ONE met
+  // day, not two punished fragments; and doing the work via a different
+  // modality mix than the plan asked for is a substitution, not a miss.
   const dayActualMin = sessions.reduce(
     (sum, s) => sum + (s.totalMin ?? s.durationMin ?? 0),
     0,
   );
-  const matchedPlansById = new Map<number, { totalMin?: number | null }>();
+  const dayActualLoad = sessions.reduce((sum, s) => sum + entryLoad(s), 0);
+  type BucketSum = { strengthMin: number; cardioMin: number; runMin: number };
+  const dayActualBuckets = sessions.reduce<BucketSum>(
+    (acc, s) => ({
+      strengthMin: acc.strengthMin + (s.strengthMin ?? 0),
+      cardioMin: acc.cardioMin + (s.cardioMin ?? 0),
+      runMin: acc.runMin + (s.runMin ?? 0),
+    }),
+    { strengthMin: 0, cardioMin: 0, runMin: 0 },
+  );
+  type MatchedPlan = {
+    totalMin?: number | null;
+    totalLoad?: number | null;
+    strengthMin?: number | null;
+    cardioMin?: number | null;
+    runMin?: number | null;
+    isRest?: boolean | null;
+  };
+  const matchedPlansById = new Map<number, MatchedPlan>();
   for (const s of sessions) {
     const mp =
       (s.planDayId != null ? today.plans?.find((p) => p.id === s.planDayId) : null) ??
@@ -121,9 +142,22 @@ export default function Today() {
       null;
     if (mp) matchedPlansById.set(mp.id, mp);
   }
-  const dayPlannedMin = [...matchedPlansById.values()].reduce(
-    (sum, p) => sum + (p.totalMin ?? 0),
-    0,
+  const matchedPlanDays = [...matchedPlansById.values()];
+  const dayPlannedMin = matchedPlanDays.reduce((sum, p) => sum + (p.totalMin ?? 0), 0);
+  const dayPlannedLoad = matchedPlanDays.reduce((sum, p) => sum + entryLoad(p), 0);
+  const dayPlannedBuckets = matchedPlanDays.reduce<BucketSum>(
+    (acc, p) => ({
+      strengthMin: acc.strengthMin + (p.strengthMin ?? 0),
+      cardioMin: acc.cardioMin + (p.cardioMin ?? 0),
+      runMin: acc.runMin + (p.runMin ?? 0),
+    }),
+    { strengthMin: 0, cardioMin: 0, runMin: 0 },
+  );
+  const dayLoadRatio = dayPlannedLoad > 0 ? dayActualLoad / dayPlannedLoad : 0;
+  const daySubstituted = detectSubstitution(
+    dayPlannedBuckets,
+    dayActualBuckets,
+    dayLoadRatio,
   );
   // Pre-launch countdown: when the API tells us today is before the first
   // scheduled session, take over the page with a dedicated countdown card so
@@ -1071,15 +1105,19 @@ export default function Today() {
                   testIdPrefix={`session-today-${session.id}`}
                 />
                 {/* The coach's verdict, on EVERY logged session so each card
-                    keeps its voice — but judged on the DAY's TOTAL minutes vs
-                    the planned total, not this one workout. So a lift + a run
-                    that together hit the plan both read as done, never punished
-                    for being split. The stable per-session seed varies the
-                    phrasing so the cards don't read identically. */}
+                    keeps its voice — but judged on the whole DAY's training
+                    LOAD (minutes as a band), not this one workout. So a lift +
+                    a run that together cover the day both read as done, never
+                    punished for being split, and a different-modality day reads
+                    as a substitution rather than a miss. The stable per-session
+                    seed varies the phrasing so cards don't read identically. */}
                 {(() => {
-                    const v = sessionVerdict({
+                    const v = dayVerdict({
+                      plannedLoad: dayPlannedLoad > 0 ? dayPlannedLoad : entryLoad(matchedPlan ?? {}),
+                      actualLoad: dayActualLoad,
                       plannedMin: dayPlannedMin > 0 ? dayPlannedMin : matchedPlan?.totalMin ?? null,
                       actualMin: dayActualMin,
+                      substituted: daySubstituted,
                       seed: session.id,
                     });
                     if (!v) return null;

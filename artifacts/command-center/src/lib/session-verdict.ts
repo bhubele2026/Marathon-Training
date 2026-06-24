@@ -109,3 +109,76 @@ export function sessionVerdict(input: {
 
   return { bucket, headline: HEADLINES[bucket], line: pick(bucket, seed), ratio };
 }
+
+// When the day's work was met but through a different modality mix than the
+// plan asked for (e.g. a lift + a run instead of the prescribed bike+row), the
+// coach acknowledges the substitution instead of grading it. Same warm/success
+// tone family as "complete"/"over".
+const SUBSTITUTED_HEADLINE = "Did the work";
+const SUBSTITUTED_LINES = [
+  "Not the session on the card, but you matched the work — your way. I'll take graft in any flavour.",
+  "Swapped the plan for your own mix and still hit the load. Resourceful little grafter. Allowed.",
+  "Different shape, same effort banked. The plan's a guide, not a cage — well played.",
+];
+
+/**
+ * The coach's verdict on a whole DAY, judged on training LOAD (which already
+ * weights modalities) as the primary signal, with raw minutes as a generous
+ * secondary band — so meeting EITHER the weighted load OR the minute volume
+ * counts, and a small minute delta with met load is never a shortfall. A lift +
+ * a run that together cover a conditioning day read as ONE met day, not two
+ * punished fragments. When `substituted` is set and the day is met, the verdict
+ * flips to a "you did the work, just your way" acknowledgement.
+ */
+export function dayVerdict(input: {
+  plannedLoad: number | null | undefined;
+  actualLoad: number | null | undefined;
+  plannedMin: number | null | undefined;
+  actualMin: number | null | undefined;
+  substituted?: boolean;
+  seed?: number;
+}): SessionVerdict | null {
+  const plannedLoad = Math.max(0, input.plannedLoad ?? 0);
+  const actualLoad = Math.max(0, input.actualLoad ?? 0);
+  const plannedMin = Math.max(0, input.plannedMin ?? 0);
+  const actualMin = Math.max(0, input.actualMin ?? 0);
+  const seed = input.seed ?? 0;
+
+  // Nothing planned and nothing done.
+  if (plannedLoad <= 0 && plannedMin <= 0 && actualLoad <= 0 && actualMin <= 0) {
+    return null;
+  }
+  // Trained with nothing prescribed → a bonus.
+  if (plannedLoad <= 0 && plannedMin <= 0) {
+    return { bucket: "bonus", headline: HEADLINES.bonus, line: pick("bonus", seed), ratio: null };
+  }
+  // Planned but nothing logged.
+  if (actualLoad <= 0 && actualMin <= 0) {
+    return { bucket: "skipped", headline: HEADLINES.skipped, line: pick("skipped", seed), ratio: 0 };
+  }
+
+  // Load is primary; minutes are the band. Meeting either counts, so a slightly
+  // lighter-weighted-but-equal-volume day isn't dinged.
+  const loadRatio = plannedLoad > 0 ? actualLoad / plannedLoad : 0;
+  const minuteRatio = plannedMin > 0 ? actualMin / plannedMin : 0;
+  const ratio = Math.max(loadRatio, minuteRatio);
+
+  let bucket: VerdictBucket;
+  if (ratio > 1.15) bucket = "over";
+  else if (ratio >= 0.9) bucket = "complete";
+  else if (ratio >= 0.6) bucket = "close";
+  else bucket = "short";
+
+  // Substitution acknowledgement only when the day was actually met (not when
+  // they fell short) — keep the success tone via the "complete" bucket.
+  if (input.substituted && (bucket === "over" || bucket === "complete" || bucket === "close")) {
+    return {
+      bucket: "complete",
+      headline: SUBSTITUTED_HEADLINE,
+      line: SUBSTITUTED_LINES[Math.abs(seed) % SUBSTITUTED_LINES.length]!,
+      ratio,
+    };
+  }
+
+  return { bucket, headline: HEADLINES[bucket], line: pick(bucket, seed), ratio };
+}
