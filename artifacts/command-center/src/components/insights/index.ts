@@ -22,3 +22,4 @@ export { DonutStat } from "./donut-stat";
 export { RecompHero } from "./recomp-hero";
 export { NutritionScorecard, ScorecardTile } from "./nutrition-scorecard";
 export { AlcoholTile, DryDaysTile, isAlcoholInsight } from "./alcohol-tiles";
+export { WeekStructure, buildWeek, type WeekCell } from "./week-structure";
