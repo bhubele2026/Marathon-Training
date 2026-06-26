@@ -15,6 +15,7 @@ import weekReviewRouter from "./week-review";
 import coachRouter from "./coach";
 import progressRouter from "./progress";
 import nutritionistRouter from "./nutritionist";
+import alcoholRouter from "./alcohol";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(weekReviewRouter);
 router.use(coachRouter);
 router.use(progressRouter);
 router.use(nutritionistRouter);
+router.use(alcoholRouter);
 
 export default router;

@@ -679,6 +679,128 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
 
+  /alcohol:
+    get:
+      operationId: listAlcohol
+      tags: [alcohol]
+      description: |
+        Timestamped alcohol entries (standard drinks). `from`/`to` (inclusive
+        local days) return a range; no params returns the most recent entries.
+        A day's total is the sum of its entries' standardDrinks.
+      parameters:
+        - in: query
+          name: from
+          required: false
+          schema: { type: string }
+        - in: query
+          name: to
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AlcoholEntry" }
+    post:
+      operationId: createAlcohol
+      tags: [alcohol]
+      description: |
+        Log a drink. In-app (same-origin) or via the tap-to-log Apple Shortcut
+        with `Authorization: Bearer <ALCOHOL_TOKEN>` (then source = shortcut).
+        `date`/`loggedAt` default to the runner's local day / now.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateAlcoholBody" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlcoholEntry" }
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ValidationError" }
+        "401":
+          description: Bad bearer token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /alcohol/dry:
+    post:
+      operationId: markDryDay
+      tags: [alcohol]
+      description: |
+        Mark a day intentionally dry (stored as a standardDrinks = 0 entry), so
+        TODAY can count as dry before it is past. Defaults to the local day.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MarkDryBody" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlcoholEntry" }
+
+  /alcohol/{id}:
+    patch:
+      operationId: updateAlcohol
+      tags: [alcohol]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateAlcoholBody" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlcoholEntry" }
+        "400":
+          description: Invalid id or request body
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ValidationError"
+        "404":
+          description: Alcohol entry not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      operationId: deleteAlcohol
+      tags: [alcohol]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: No Content }
+        "400":
+          description: Invalid id
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
   /dashboard/bootstrap:
     get:
       operationId: getDashboardBootstrap
@@ -2222,6 +2344,50 @@ components:
         oz: { type: integer }
         date: { type: string }
         loggedAt: { type: string, format: date-time }
+
+    AlcoholEntry:
+      type: object
+      description: |
+        One timestamped alcohol entry. `standardDrinks` 1.0 = one standard
+        drink; 0 = an explicit "dry" mark. `source` is `manual` or `shortcut`.
+      required: [id, date, loggedAt, standardDrinks, source, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        date: { type: string }
+        loggedAt: { type: string, format: date-time }
+        standardDrinks: { type: number }
+        kind: { type: string }
+        source: { type: string, enum: [manual, shortcut] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreateAlcoholBody:
+      type: object
+      required: [standardDrinks]
+      description: |
+        Log a drink. `kind` is beer/wine/spirit/other. `date`/`loggedAt` default
+        to the runner's local day / now. `token`/`secret` carry the bearer for
+        the Shortcut when not sent as an Authorization header.
+      properties:
+        standardDrinks: { type: number }
+        kind: { type: string }
+        date: { type: string }
+        loggedAt: { type: string, format: date-time }
+        token: { type: string }
+        secret: { type: string }
+
+    UpdateAlcoholBody:
+      type: object
+      properties:
+        standardDrinks: { type: number }
+        kind: { type: string }
+        date: { type: string }
+        loggedAt: { type: string, format: date-time }
+
+    MarkDryBody:
+      type: object
+      properties:
+        date: { type: string }
 
     DashboardBootstrap:
       type: object

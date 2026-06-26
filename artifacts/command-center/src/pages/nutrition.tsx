@@ -20,6 +20,8 @@ import { ConsistencyStrip } from "@/components/consistency-strip";
 import { NutritionEntryForm } from "@/components/nutrition-entry-form";
 import { NutritionPlanCard } from "@/components/nutrition-plan-card";
 import { WaterQuickAdd } from "@/components/water-quick-add";
+import { AlcoholQuickAdd } from "@/components/alcohol-quick-add";
+import { AlcoholLogButton } from "@/components/alcohol-log-button";
 
 // These routes are intentionally hand-fetched rather than going through the
 // generated api-client: the nutrition slice isn't in openapi.yaml, so we hit
@@ -509,6 +511,7 @@ export default function Nutrition() {
                 triggerLabel="Log food"
                 triggerClassName="h-8 px-3 text-xs"
               />
+              <AlcoholLogButton date={date} triggerClassName="h-8 px-3 text-xs" />
               <span className="flex items-center gap-1.5 text-xs font-normal">
                 <RefreshCw className="h-3 w-3" />
                 {formatUpdated(today?.updatedAt ?? null)}
@@ -590,6 +593,13 @@ export default function Nutrition() {
                   monthlyAvgOz={avgOz(entries, 30)}
                 />
                 <WaterQuickAdd date={date} />
+                {/* Tap-to-log alcohol — a reduction tool; "Mark dry" is the win. */}
+                <div className="border-t border-card-border pt-3">
+                  <p className="mb-2 font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                    Alcohol
+                  </p>
+                  <AlcoholQuickAdd date={date} />
+                </div>
               </div>
             </div>
           )}

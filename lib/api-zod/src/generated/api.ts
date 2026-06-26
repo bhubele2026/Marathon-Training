@@ -3074,6 +3074,91 @@ export const DeleteWaterLogParams = zod.object({
 });
 
 /**
+ * Timestamped alcohol entries (standard drinks). `from`/`to` (inclusive
+local days) return a range; no params returns the most recent entries.
+A day's total is the sum of its entries' standardDrinks.
+
+ */
+export const ListAlcoholQueryParams = zod.object({
+  from: zod.coerce.string().optional(),
+  to: zod.coerce.string().optional(),
+});
+
+export const ListAlcoholResponseItem = zod
+  .object({
+    id: zod.number(),
+    date: zod.string(),
+    loggedAt: zod.coerce.date(),
+    standardDrinks: zod.number(),
+    kind: zod.string().optional(),
+    source: zod.enum(["manual", "shortcut"]),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .describe(
+    'One timestamped alcohol entry. `standardDrinks` 1.0 = one standard\ndrink; 0 = an explicit \"dry\" mark. `source` is `manual` or `shortcut`.\n',
+  );
+export const ListAlcoholResponse = zod.array(ListAlcoholResponseItem);
+
+/**
+ * Log a drink. In-app (same-origin) or via the tap-to-log Apple Shortcut
+with `Authorization: Bearer <ALCOHOL_TOKEN>` (then source = shortcut).
+`date`/`loggedAt` default to the runner's local day / now.
+
+ */
+export const CreateAlcoholBody = zod
+  .object({
+    standardDrinks: zod.number(),
+    kind: zod.string().optional(),
+    date: zod.string().optional(),
+    loggedAt: zod.coerce.date().optional(),
+    token: zod.string().optional(),
+    secret: zod.string().optional(),
+  })
+  .describe(
+    "Log a drink. `kind` is beer\/wine\/spirit\/other. `date`\/`loggedAt` default\nto the runner's local day \/ now. `token`\/`secret` carry the bearer for\nthe Shortcut when not sent as an Authorization header.\n",
+  );
+
+/**
+ * Mark a day intentionally dry (stored as a standardDrinks = 0 entry), so
+TODAY can count as dry before it is past. Defaults to the local day.
+
+ */
+export const MarkDryDayBody = zod.object({
+  date: zod.string().optional(),
+});
+
+export const UpdateAlcoholParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateAlcoholBody = zod.object({
+  standardDrinks: zod.number().optional(),
+  kind: zod.string().optional(),
+  date: zod.string().optional(),
+  loggedAt: zod.coerce.date().optional(),
+});
+
+export const UpdateAlcoholResponse = zod
+  .object({
+    id: zod.number(),
+    date: zod.string(),
+    loggedAt: zod.coerce.date(),
+    standardDrinks: zod.number(),
+    kind: zod.string().optional(),
+    source: zod.enum(["manual", "shortcut"]),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .describe(
+    'One timestamped alcohol entry. `standardDrinks` 1.0 = one standard\ndrink; 0 = an explicit \"dry\" mark. `source` is `manual` or `shortcut`.\n',
+  );
+
+export const DeleteAlcoholParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * Task #383. Consolidated first-paint bootstrap for the dashboard.
 Returns the union of the 8 per-tile payloads the page needs on
 cold load. Server fans the underlying queries out with

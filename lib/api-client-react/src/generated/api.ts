@@ -17,7 +17,9 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AlcoholEntry,
   ApplyPlannerConfigResponse,
+  CreateAlcoholBody,
   CreateMeasurementBody,
   CreateNutritionEntryBody,
   CreatePlannerConfigBody,
@@ -33,11 +35,13 @@ import type {
   FullResetPlanResponse,
   GetRecentLifestyleActivities200Item,
   HealthStatus,
+  ListAlcoholParams,
   ListNutritionEntriesParams,
   ListPlannerConfigsResponse,
   ListWaterLogsParams,
   ListWorkoutsParams,
   LongRunPoint,
+  MarkDryBody,
   Measurement,
   NutritionEntry,
   PlanDay,
@@ -55,6 +59,7 @@ import type {
   UndoPlanResetBody,
   UndoPlanResetResponse,
   UnlinkedWorkoutsCount,
+  UpdateAlcoholBody,
   UpdateAppliedStartingPaceBody,
   UpdateAppliedStartingPaceResponse,
   UpdateMeasurementBody,
@@ -2396,6 +2401,429 @@ export const useDeleteWaterLog = <
   TContext
 > => {
   return useMutation(getDeleteWaterLogMutationOptions(options));
+};
+
+/**
+ * Timestamped alcohol entries (standard drinks). `from`/`to` (inclusive
+local days) return a range; no params returns the most recent entries.
+A day's total is the sum of its entries' standardDrinks.
+
+ */
+export const getListAlcoholUrl = (params?: ListAlcoholParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/alcohol?${stringifiedParams}`
+    : `/api/alcohol`;
+};
+
+export const listAlcohol = async (
+  params?: ListAlcoholParams,
+  options?: RequestInit,
+): Promise<AlcoholEntry[]> => {
+  return customFetch<AlcoholEntry[]>(getListAlcoholUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListAlcoholQueryKey = (params?: ListAlcoholParams) => {
+  return [`/api/alcohol`, ...(params ? [params] : [])] as const;
+};
+
+export const getListAlcoholQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAlcohol>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListAlcoholParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listAlcohol>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListAlcoholQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listAlcohol>>> = ({
+    signal,
+  }) => listAlcohol(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listAlcohol>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListAlcoholQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAlcohol>>
+>;
+export type ListAlcoholQueryError = ErrorType<unknown>;
+
+export function useListAlcohol<
+  TData = Awaited<ReturnType<typeof listAlcohol>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListAlcoholParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listAlcohol>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListAlcoholQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Log a drink. In-app (same-origin) or via the tap-to-log Apple Shortcut
+with `Authorization: Bearer <ALCOHOL_TOKEN>` (then source = shortcut).
+`date`/`loggedAt` default to the runner's local day / now.
+
+ */
+export const getCreateAlcoholUrl = () => {
+  return `/api/alcohol`;
+};
+
+export const createAlcohol = async (
+  createAlcoholBody: CreateAlcoholBody,
+  options?: RequestInit,
+): Promise<AlcoholEntry> => {
+  return customFetch<AlcoholEntry>(getCreateAlcoholUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createAlcoholBody),
+  });
+};
+
+export const getCreateAlcoholMutationOptions = <
+  TError = ErrorType<ValidationError | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createAlcohol>>,
+    TError,
+    { data: BodyType<CreateAlcoholBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createAlcohol>>,
+  TError,
+  { data: BodyType<CreateAlcoholBody> },
+  TContext
+> => {
+  const mutationKey = ["createAlcohol"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createAlcohol>>,
+    { data: BodyType<CreateAlcoholBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createAlcohol(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateAlcoholMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createAlcohol>>
+>;
+export type CreateAlcoholMutationBody = BodyType<CreateAlcoholBody>;
+export type CreateAlcoholMutationError = ErrorType<ValidationError | Error>;
+
+export const useCreateAlcohol = <
+  TError = ErrorType<ValidationError | Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createAlcohol>>,
+    TError,
+    { data: BodyType<CreateAlcoholBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createAlcohol>>,
+  TError,
+  { data: BodyType<CreateAlcoholBody> },
+  TContext
+> => {
+  return useMutation(getCreateAlcoholMutationOptions(options));
+};
+
+/**
+ * Mark a day intentionally dry (stored as a standardDrinks = 0 entry), so
+TODAY can count as dry before it is past. Defaults to the local day.
+
+ */
+export const getMarkDryDayUrl = () => {
+  return `/api/alcohol/dry`;
+};
+
+export const markDryDay = async (
+  markDryBody?: MarkDryBody,
+  options?: RequestInit,
+): Promise<AlcoholEntry> => {
+  return customFetch<AlcoholEntry>(getMarkDryDayUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(markDryBody),
+  });
+};
+
+export const getMarkDryDayMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof markDryDay>>,
+    TError,
+    { data: BodyType<MarkDryBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof markDryDay>>,
+  TError,
+  { data: BodyType<MarkDryBody> },
+  TContext
+> => {
+  const mutationKey = ["markDryDay"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof markDryDay>>,
+    { data: BodyType<MarkDryBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return markDryDay(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MarkDryDayMutationResult = NonNullable<
+  Awaited<ReturnType<typeof markDryDay>>
+>;
+export type MarkDryDayMutationBody = BodyType<MarkDryBody>;
+export type MarkDryDayMutationError = ErrorType<unknown>;
+
+export const useMarkDryDay = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof markDryDay>>,
+    TError,
+    { data: BodyType<MarkDryBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof markDryDay>>,
+  TError,
+  { data: BodyType<MarkDryBody> },
+  TContext
+> => {
+  return useMutation(getMarkDryDayMutationOptions(options));
+};
+
+export const getUpdateAlcoholUrl = (id: number) => {
+  return `/api/alcohol/${id}`;
+};
+
+export const updateAlcohol = async (
+  id: number,
+  updateAlcoholBody: UpdateAlcoholBody,
+  options?: RequestInit,
+): Promise<AlcoholEntry> => {
+  return customFetch<AlcoholEntry>(getUpdateAlcoholUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateAlcoholBody),
+  });
+};
+
+export const getUpdateAlcoholMutationOptions = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAlcohol>>,
+    TError,
+    { id: number; data: BodyType<UpdateAlcoholBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateAlcohol>>,
+  TError,
+  { id: number; data: BodyType<UpdateAlcoholBody> },
+  TContext
+> => {
+  const mutationKey = ["updateAlcohol"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateAlcohol>>,
+    { id: number; data: BodyType<UpdateAlcoholBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateAlcohol(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateAlcoholMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateAlcohol>>
+>;
+export type UpdateAlcoholMutationBody = BodyType<UpdateAlcoholBody>;
+export type UpdateAlcoholMutationError = ErrorType<Error | ValidationError>;
+
+export const useUpdateAlcohol = <
+  TError = ErrorType<Error | ValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAlcohol>>,
+    TError,
+    { id: number; data: BodyType<UpdateAlcoholBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateAlcohol>>,
+  TError,
+  { id: number; data: BodyType<UpdateAlcoholBody> },
+  TContext
+> => {
+  return useMutation(getUpdateAlcoholMutationOptions(options));
+};
+
+export const getDeleteAlcoholUrl = (id: number) => {
+  return `/api/alcohol/${id}`;
+};
+
+export const deleteAlcohol = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteAlcoholUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteAlcoholMutationOptions = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteAlcohol>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteAlcohol>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteAlcohol"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteAlcohol>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteAlcohol(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteAlcoholMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteAlcohol>>
+>;
+
+export type DeleteAlcoholMutationError = ErrorType<Error>;
+
+export const useDeleteAlcohol = <
+  TError = ErrorType<Error>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteAlcohol>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteAlcohol>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteAlcoholMutationOptions(options));
 };
 
 /**

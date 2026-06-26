@@ -119,6 +119,9 @@ export async function cleanTestData(): Promise<void> {
     sql`DELETE FROM water_logs WHERE date >= ${TEST_YEAR_START} AND date < ${TEST_YEAR_END}`,
   );
   await db.execute(
+    sql`DELETE FROM alcohol_entries WHERE date >= ${TEST_YEAR_START} AND date < ${TEST_YEAR_END}`,
+  );
+  await db.execute(
     sql`DELETE FROM nutrition_days WHERE date >= ${TEST_YEAR_START} AND date < ${TEST_YEAR_END}`,
   );
 }

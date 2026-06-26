@@ -1044,6 +1044,56 @@ export interface UpdateWaterLogBody {
   loggedAt?: string;
 }
 
+export type AlcoholEntrySource =
+  (typeof AlcoholEntrySource)[keyof typeof AlcoholEntrySource];
+
+export const AlcoholEntrySource = {
+  manual: "manual",
+  shortcut: "shortcut",
+} as const;
+
+/**
+ * One timestamped alcohol entry. `standardDrinks` 1.0 = one standard
+drink; 0 = an explicit "dry" mark. `source` is `manual` or `shortcut`.
+
+ */
+export interface AlcoholEntry {
+  id: number;
+  date: string;
+  loggedAt: string;
+  standardDrinks: number;
+  kind?: string;
+  source: AlcoholEntrySource;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Log a drink. `kind` is beer/wine/spirit/other. `date`/`loggedAt` default
+to the runner's local day / now. `token`/`secret` carry the bearer for
+the Shortcut when not sent as an Authorization header.
+
+ */
+export interface CreateAlcoholBody {
+  standardDrinks: number;
+  kind?: string;
+  date?: string;
+  loggedAt?: string;
+  token?: string;
+  secret?: string;
+}
+
+export interface UpdateAlcoholBody {
+  standardDrinks?: number;
+  kind?: string;
+  date?: string;
+  loggedAt?: string;
+}
+
+export interface MarkDryBody {
+  date?: string;
+}
+
 export type RecompSiteKey = (typeof RecompSiteKey)[keyof typeof RecompSiteKey];
 
 export const RecompSiteKey = {
@@ -2071,6 +2121,11 @@ export type ListNutritionEntriesParams = {
 
 export type ListWaterLogsParams = {
   date?: string;
+  from?: string;
+  to?: string;
+};
+
+export type ListAlcoholParams = {
   from?: string;
   to?: string;
 };
