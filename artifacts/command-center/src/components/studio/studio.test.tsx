@@ -126,6 +126,27 @@ describe("studio component kit", () => {
     expect(screen.getByText("+3")).toBeTruthy();
   });
 
+  it("ActivityCalendar reveals a day's workout(s) on tap (focusable button)", () => {
+    render(
+      <ActivityCalendar
+        days={[
+          {
+            date: "2026-06-01",
+            level: 2,
+            workouts: [{ label: "Lower Strength", detail: "Tonal · 42 min" }],
+          },
+          { date: "2026-06-02", level: 0 },
+        ]}
+      />,
+    );
+    // Rest day stays a plain dot; the active day is a focusable button.
+    const trigger = screen.getByTestId("activity-day-2026-06-01");
+    expect(trigger.tagName).toBe("BUTTON");
+    fireEvent.click(trigger);
+    expect(screen.getAllByText("Lower Strength").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Tonal · 42 min/).length).toBeGreaterThan(0);
+  });
+
   it("WaterTracker shows the day total and a goal-met cheer", () => {
     render(<WaterTracker oz={80} goalOz={72} />);
     expect(screen.getByText(/2\.\d{2} L/)).toBeTruthy();

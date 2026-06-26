@@ -71,11 +71,21 @@ function buildActivity(workouts: Workout[]): {
   streak: number;
 } {
   const minutesByDate = new Map<string, number>();
+  // That day's workout(s), compact label + detail, for the hover/tap tooltip.
+  const workoutsByDate = new Map<string, { label: string; detail?: string }[]>();
   for (const w of workouts) {
     const d = (w.date ?? "").slice(0, 10);
     if (!d) continue;
     const mins = w.totalMin ?? w.durationMin ?? 0;
     minutesByDate.set(d, (minutesByDate.get(d) ?? 0) + mins);
+    const label = (w.sessionType || w.modality || w.equipment || "Workout").trim();
+    const bits: string[] = [];
+    if (w.equipment && w.equipment !== label && w.equipment !== "None") bits.push(w.equipment);
+    if (mins > 0) bits.push(`${Math.round(mins)} min`);
+    else if (w.distanceMi) bits.push(`${w.distanceMi} mi`);
+    const list = workoutsByDate.get(d) ?? [];
+    list.push({ label, detail: bits.length ? bits.join(" · ") : undefined });
+    workoutsByDate.set(d, list);
   }
   const today = new Date();
   const days: ActivityDay[] = [];
@@ -87,7 +97,7 @@ function buildActivity(workouts: Workout[]): {
     const mins = minutesByDate.get(key) ?? 0;
     const level: 0 | 1 | 2 = mins === 0 ? 0 : mins >= 30 ? 2 : 1;
     if (level > 0) activeDays++;
-    days.push({ date: key, level });
+    days.push({ date: key, level, workouts: workoutsByDate.get(key) });
   }
   // Prior 30-day window (days 31..60) for the "vs last 30" footer stat.
   for (let i = 59; i >= 30; i--) {
