@@ -19,6 +19,10 @@ export interface BandBarProps {
   ceiling?: number | null;
   status: InsightStatus;
   unit?: string;
+  /** Override the marker/tick/band hue (e.g. a macro colour for the 14-day row). */
+  color?: string;
+  /** Hide the big mono actual/target readout when a caller shows it already. */
+  showReadout?: boolean;
   className?: string;
 }
 
@@ -33,6 +37,8 @@ export function BandBar({
   ceiling,
   status,
   unit = "kcal",
+  color,
+  showReadout = true,
   className,
 }: BandBarProps) {
   const reduced = useReducedMotion();
@@ -52,24 +58,26 @@ export function BandBar({
   const bandX = scaleX(bandStartVal);
   const bandW = Math.max(0, scaleX(bandEndVal) - bandX);
 
-  const markerColor = statusGaugeColor(status);
+  const markerColor = color ?? statusGaugeColor(status);
   const faint = "hsl(var(--muted-foreground))";
 
   return (
     <div className={cn("w-full", className)} data-testid="band-bar">
-      <div className="flex items-baseline gap-2">
-        <span
-          className="font-mono font-bold leading-none text-foreground"
-          style={{ fontSize: 38 }}
-        >
-          {actual != null ? fmt(actual) : "—"}
-        </span>
-        <span className="font-mono text-muted-foreground">
-          / {target != null ? fmt(target) : "—"} {unit}
-        </span>
-      </div>
+      {showReadout && (
+        <div className="flex items-baseline gap-2">
+          <span
+            className="font-mono font-bold leading-none text-foreground"
+            style={{ fontSize: 38 }}
+          >
+            {actual != null ? fmt(actual) : "—"}
+          </span>
+          <span className="font-mono text-muted-foreground">
+            / {target != null ? fmt(target) : "—"} {unit}
+          </span>
+        </div>
+      )}
 
-      {actual == null ? (
+      {actual == null && showReadout ? (
         <div className="mt-2 text-[13px] text-muted-foreground">
           Not logged yet — close a day and I’ll plot it.
         </div>

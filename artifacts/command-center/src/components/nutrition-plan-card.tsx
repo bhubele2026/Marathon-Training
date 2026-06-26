@@ -59,7 +59,7 @@ export function NutritionPlanCard(props: NutritionPlanCardProps) {
     <Card data-testid="nutrition-plan-card">
       <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
         <div className="min-w-0">
-          <CardTitle className="font-display text-lg tracking-tight">
+          <CardTitle className="font-display text-base font-bold tracking-tight text-foreground">
             Your nutrition plan
           </CardTitle>
           <p className="text-xs text-muted-foreground">

@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Beef, ChevronLeft, ChevronRight, Droplet, Flame, RefreshCw, Sparkles, Wheat } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { NutritionistPanel } from "@/components/nutritionist-panel";
+import { GAUGE_TRACK } from "@/components/insights/types";
 import {
   CoachNote,
   MetricRing,
@@ -274,8 +275,12 @@ function MacroTrendRow({
         </div>
       </div>
 
-      {/* Progress toward the daily goal — the at-a-glance read. */}
-      <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
+      {/* Progress toward the daily goal — the at-a-glance read. Track uses the
+          scorecard's GAUGE_TRACK so it stays visible on a white card + dark. */}
+      <div
+        className="h-2.5 w-full overflow-hidden rounded-full"
+        style={{ background: GAUGE_TRACK }}
+      >
         <div
           className="h-full rounded-full"
           style={{
@@ -608,7 +613,7 @@ export default function Nutrition() {
       {/* 14-day trend across all four macros, each in its fixed metric color. */}
       <Card>
         <CardHeader>
-          <CardTitle className="font-display text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          <CardTitle className="font-display text-base font-bold tracking-tight text-foreground">
             Last 14 days
           </CardTitle>
           <p className="text-xs text-muted-foreground">

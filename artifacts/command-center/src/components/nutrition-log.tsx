@@ -24,6 +24,11 @@ type NutritionDay = {
   fatG: number | null;
   sodiumMg: number | null;
   waterMl: number | null;
+  // Optional per-day provenance. /api/nutrition/recent reads the nutrition_days
+  // rollup, which currently does NOT carry a source — so this is omitted in
+  // practice. The column renders only when at least one day reports a source,
+  // so the table degrades gracefully without inventing data.
+  source?: string | null;
 };
 type RecentResponse = { days: number; entries: NutritionDay[] };
 
@@ -31,6 +36,21 @@ const HISTORY_DAYS = 90;
 const ML_PER_FL_OZ = 29.5735;
 const mlToOz = (ml: number | null): string =>
   ml == null ? "—" : `${Math.round(ml / ML_PER_FL_OZ)} oz`;
+
+// Each macro column wears its signature chart token as a tiny dot, matching the
+// rings/trends elsewhere in the nutrition slice (calories=azure, protein=violet,
+// carbs=teal, fat=amber, water=cyan, sodium=warning/amber).
+const MACRO_COLUMNS = [
+  { label: "Calories", color: "hsl(var(--chart-1))" },
+  { label: "Protein", color: "hsl(var(--chart-2))" },
+  { label: "Carbs", color: "hsl(var(--chart-3))" },
+  { label: "Fat", color: "hsl(var(--chart-4))" },
+  { label: "Water", color: "hsl(var(--chart-5))" },
+  { label: "Sodium", color: "hsl(var(--warning))" },
+] as const;
+
+const EYEBROW =
+  "text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground";
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url, { headers: { accept: "application/json" } });
@@ -52,14 +72,56 @@ function fmtDate(iso: string): string {
 
 const num = (n: number | null): string => (n == null ? "—" : Math.round(n).toLocaleString());
 
+// A macro-tinted legend dot rendered before each header label.
+function MacroDot({ color }: { color: string }) {
+  return (
+    <span
+      aria-hidden
+      className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+      style={{ backgroundColor: color }}
+    />
+  );
+}
+
+// Provenance pill. Synced wears an azure tint; manual a neutral one. Both use
+// color-mix against --card so the tint reads in light AND dark.
+function SourceBadge({ source }: { source: string }) {
+  const synced = source !== "manual";
+  const label = synced ? "Synced" : "Manual";
+  const style = synced
+    ? {
+        backgroundColor:
+          "color-mix(in oklab, hsl(var(--chart-1)) 16%, var(--card))",
+        color: "hsl(var(--chart-1))",
+      }
+    : {
+        backgroundColor:
+          "color-mix(in oklab, var(--muted-foreground) 16%, var(--card))",
+        color: "hsl(var(--muted-foreground))",
+      };
+  return (
+    <span
+      className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide"
+      style={style}
+      data-testid={`log-source-${label.toLowerCase()}`}
+    >
+      {label}
+    </span>
+  );
+}
+
 // `onSelectDate` (optional) makes each row a button that jumps the day
 // navigator to that day; `selectedDate` highlights the row under review.
+// `todayDate` (optional) marks "today"; when omitted we treat the most recent
+// logged day as today.
 export function NutritionLog({
   onSelectDate,
   selectedDate,
+  todayDate,
 }: {
   onSelectDate?: (date: string) => void;
   selectedDate?: string;
+  todayDate?: string;
 } = {}) {
   const { data, isLoading } = useQuery({
     queryKey: ["/api/nutrition/recent", HISTORY_DAYS],
@@ -71,10 +133,17 @@ export function NutritionLog({
     (e) => e.calories != null || e.proteinG != null,
   );
 
+  // "Today" = the explicit prop, else the newest logged day (entries are
+  // already newest-first from the endpoint).
+  const today = todayDate ?? logged[0]?.date;
+
+  // Only surface the source column when the data actually carries provenance.
+  const hasSource = logged.some((e) => e.source != null);
+
   return (
     <Card data-testid="card-nutrition-log">
       <CardHeader>
-        <CardTitle className="text-sm tracking-wider text-muted-foreground">
+        <CardTitle className="font-display text-base font-bold tracking-tight text-foreground">
           Nutrition log
         </CardTitle>
         <p className="text-xs text-muted-foreground">
@@ -90,37 +159,79 @@ export function NutritionLog({
           </p>
         ) : (
           <Table>
-            <TableHeader className="bg-muted/50">
-              <TableRow>
-                <TableHead className="text-[10px] font-bold tracking-wider">Date</TableHead>
-                <TableHead className="text-[10px] font-bold tracking-wider text-right">Calories</TableHead>
-                <TableHead className="text-[10px] font-bold tracking-wider text-right">Protein</TableHead>
-                <TableHead className="text-[10px] font-bold tracking-wider text-right">Carbs</TableHead>
-                <TableHead className="text-[10px] font-bold tracking-wider text-right">Fat</TableHead>
-                <TableHead className="text-[10px] font-bold tracking-wider text-right">Water</TableHead>
-                <TableHead className="text-[10px] font-bold tracking-wider text-right">Sodium</TableHead>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className={EYEBROW}>Date</TableHead>
+                {MACRO_COLUMNS.map((col) => (
+                  <TableHead key={col.label} className={cn(EYEBROW, "text-right")}>
+                    <span className="inline-flex items-center justify-end gap-1.5">
+                      <MacroDot color={col.color} />
+                      {col.label}
+                    </span>
+                  </TableHead>
+                ))}
+                {hasSource ? (
+                  <TableHead className={cn(EYEBROW, "text-right")}>Source</TableHead>
+                ) : null}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {logged.map((e) => (
-                <TableRow
-                  key={e.date}
-                  onClick={onSelectDate ? () => onSelectDate(e.date) : undefined}
-                  className={cn(
-                    onSelectDate && "cursor-pointer",
-                    e.date === selectedDate ? "bg-primary/5" : "hover:bg-muted/30",
-                  )}
-                  data-testid={`log-row-${e.date}`}
-                >
-                  <TableCell className="font-medium whitespace-nowrap">{fmtDate(e.date)}</TableCell>
-                  <TableCell className="text-right tabular-nums font-bold text-primary">{num(e.calories)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{num(e.proteinG)}{e.proteinG != null ? " g" : ""}</TableCell>
-                  <TableCell className="text-right tabular-nums">{num(e.carbsG)}{e.carbsG != null ? " g" : ""}</TableCell>
-                  <TableCell className="text-right tabular-nums">{num(e.fatG)}{e.fatG != null ? " g" : ""}</TableCell>
-                  <TableCell className="text-right tabular-nums">{mlToOz(e.waterMl)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{num(e.sodiumMg)}{e.sodiumMg != null ? " mg" : ""}</TableCell>
-                </TableRow>
-              ))}
+              {logged.map((e) => {
+                const isSelected = e.date === selectedDate;
+                const isToday = e.date === today;
+                return (
+                  <TableRow
+                    key={e.date}
+                    onClick={onSelectDate ? () => onSelectDate(e.date) : undefined}
+                    className={cn(
+                      "transition-colors",
+                      onSelectDate && "cursor-pointer",
+                      "hover:bg-muted/40",
+                      isToday && "bg-primary/5",
+                      isSelected && "bg-primary/10 ring-1 ring-inset ring-primary/30",
+                    )}
+                    data-testid={`log-row-${e.date}`}
+                    data-today={isToday ? "" : undefined}
+                  >
+                    <TableCell
+                      className={cn(
+                        "font-medium whitespace-nowrap",
+                        isToday && "border-l-2 border-l-primary",
+                      )}
+                    >
+                      {fmtDate(e.date)}
+                      {isToday ? (
+                        <span className="ml-2 text-[10px] font-semibold uppercase tracking-wider text-primary">
+                          Today
+                        </span>
+                      ) : null}
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums font-bold text-[hsl(var(--chart-1))]">
+                      {num(e.calories)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {num(e.proteinG)}{e.proteinG != null ? " g" : ""}
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {num(e.carbsG)}{e.carbsG != null ? " g" : ""}
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {num(e.fatG)}{e.fatG != null ? " g" : ""}
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {mlToOz(e.waterMl)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {num(e.sodiumMg)}{e.sodiumMg != null ? " mg" : ""}
+                    </TableCell>
+                    {hasSource ? (
+                      <TableCell className="text-right">
+                        {e.source != null ? <SourceBadge source={e.source} /> : null}
+                      </TableCell>
+                    ) : null}
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}
