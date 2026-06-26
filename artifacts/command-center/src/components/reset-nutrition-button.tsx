@@ -48,8 +48,15 @@ export function ResetNutritionButton() {
   const reset = useMutation({
     mutationFn: () => postReset(before),
     onSuccess: (data) => {
-      // Refresh every surface that summarized the now-deleted history.
-      queryClient.invalidateQueries({ queryKey: ["/api/nutritionist/analysis"] });
+      // Refresh every surface that summarized the now-deleted history. A reset
+      // really does change the analysis inputs, but the server regenerates only
+      // on an input-hash change — so mark the report stale and let it refresh in
+      // the background next time the panel is opened rather than forcing a slow
+      // regeneration as part of the reset.
+      queryClient.invalidateQueries({
+        queryKey: ["/api/nutritionist/analysis"],
+        refetchType: "none",
+      });
       queryClient.invalidateQueries({ queryKey: ["/api/nutrition/recent"] });
       queryClient.invalidateQueries({ queryKey: ["/api/nutrition/today"] });
       queryClient.invalidateQueries({ queryKey: ["/api/nutrition/day"] });

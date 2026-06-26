@@ -70,7 +70,15 @@ export function CloseDayButton({ date: dateProp }: { date?: string } = {}) {
     onSuccess: (_res, close) => {
       // Everything that reads "is today final?" needs to re-evaluate.
       qc.invalidateQueries({ queryKey: ["/api/nutrition/today"] });
-      qc.invalidateQueries({ queryKey: ["/api/nutritionist/analysis"] });
+      // Closing the day genuinely changes the nutritionist inputs (today moves
+      // from "open/pace" to a finished day in the averages), so the report must
+      // update — but the server only regenerates on a real input-hash change.
+      // Mark it stale and refresh lazily next time the panel is viewed rather
+      // than blocking the close on a fresh Opus generation.
+      qc.invalidateQueries({
+        queryKey: ["/api/nutritionist/analysis"],
+        refetchType: "none",
+      });
       qc.invalidateQueries({ queryKey: ["/api/coach/daily"] });
       qc.invalidateQueries({ queryKey: ["/api/coach/line"] });
       qc.invalidateQueries({ queryKey: ["/api/nutrition/recent"] });

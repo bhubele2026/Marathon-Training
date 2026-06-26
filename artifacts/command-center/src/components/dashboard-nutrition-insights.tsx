@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { ArrowRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,11 +24,17 @@ export function DashboardNutritionInsights({ weeks = 8 }: { weeks?: number }) {
   const { data, isLoading } = useQuery({
     queryKey: nutritionistQueryKey(weeks),
     queryFn: () => getJson<NutritionistReport>(`/api/nutritionist/analysis?weeks=${weeks}`),
-    staleTime: 45_000,
+    // Shares the cache + key with NutritionistPanel. The server only
+    // regenerates on a real input change, so cache for 5 minutes and keep the
+    // previous report on screen while any refetch runs in the background.
+    staleTime: 5 * 60_000,
     refetchOnWindowFocus: true,
+    placeholderData: keepPreviousData,
   });
 
-  if (isLoading) {
+  // Loader only on the very first load (nothing cached); otherwise render
+  // immediately from cache and refresh in the background.
+  if (isLoading && !data) {
     return (
       <Card data-testid="dashboard-nutrition-insights-loading">
         <CardContent className="p-6">

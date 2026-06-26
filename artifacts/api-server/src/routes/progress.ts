@@ -9,7 +9,7 @@ import {
   progressDiagnosisTable,
 } from "@workspace/db";
 import { and, asc, desc, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
-import { getAnthropic, isConfigured, MODEL } from "@workspace/integrations-anthropic";
+import { getAnthropic, isConfigured, FAST_MODEL } from "@workspace/integrations-anthropic";
 import { COACH_PERSONA } from "@workspace/plan-knowledge";
 import { diagnose, type DiagnosisInput, type Finding } from "../lib/progress-diagnosis";
 import { totalInches } from "../lib/dashboard-tracking";
@@ -184,7 +184,9 @@ async function narrate(findings: Finding[]): Promise<string | null> {
   try {
     const client: any = getAnthropic();
     const resp: any = await client.messages.create({
-      model: MODEL,
+      // Pure narration of an already-computed diagnosis (findings + fixes) —
+      // the faster Sonnet-class model, not Opus.
+      model: FAST_MODEL,
       max_tokens: 500,
       system,
       messages: [{ role: "user", content: user }],

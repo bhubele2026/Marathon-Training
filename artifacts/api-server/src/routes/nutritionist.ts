@@ -13,7 +13,7 @@ import {
   type BodyTrajectoryPoint,
 } from "@workspace/db";
 import { and, asc, desc, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
-import { getAnthropic, isConfigured, MODEL } from "@workspace/integrations-anthropic";
+import { getAnthropic, isConfigured, FAST_MODEL } from "@workspace/integrations-anthropic";
 import { COACH_PERSONA } from "@workspace/plan-knowledge";
 import { diagnose, type DiagnosisInput } from "../lib/progress-diagnosis";
 import { totalInches } from "../lib/dashboard-tracking";
@@ -433,13 +433,18 @@ async function buildReport(input: AnalysisInput): Promise<NutritionistReport> {
   try {
     const client: any = getAnthropic();
     const resp: any = await client.messages.create({
-      model: MODEL,
+      // Narrative-over-deterministic task: every number is computed by the
+      // engine (computeInsights) with the safety rails; the model only writes
+      // the words. So we run it on the faster Sonnet-class model, with NO
+      // adaptive thinking (the single biggest latency driver here, and mostly
+      // wasted on phrasing). Dropping thinking also lets us FORCE the tool —
+      // tool_choice + extended thinking are mutually exclusive — which
+      // guarantees the tool_use block instead of relying on the model to pick
+      // it. max_tokens stays at 4000 (don't oversize). The deterministic
+      // fallback below still covers any API failure.
+      model: FAST_MODEL,
       max_tokens: 4000,
-      // Adaptive thinking for a deeper "why" diagnosis. tool_choice is left at
-      // the default ("auto") on purpose — the API disallows FORCED tool use
-      // together with extended thinking; the strong system instruction plus the
-      // deterministic fallback below cover the rare turn that skips the tool.
-      thinking: { type: "adaptive" } as any,
+      tool_choice: { type: "tool", name: NUTRITIONIST_TOOL_NAME } as any,
       system: buildNutritionistSystem(COACH_PERSONA),
       tools: [NUTRITIONIST_TOOL as any],
       messages: [{ role: "user", content: buildNutritionistUser(input) }],

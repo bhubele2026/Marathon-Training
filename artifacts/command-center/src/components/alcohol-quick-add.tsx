@@ -28,7 +28,14 @@ export function AlcoholQuickAdd({ date, showMarkDry = true }: AlcoholQuickAddPro
     queryClient.invalidateQueries({ queryKey: ["/api/alcohol"] });
     // The dashboard box + tiles read the computed summary under its own key.
     queryClient.invalidateQueries({ queryKey: ["/api/alcohol/summary"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/nutritionist/analysis"] });
+    // A drink DOES change the nutritionist inputs, but the server regenerates
+    // only when the input hash changes — so just mark the report stale and let
+    // it refresh in the background next time the panel is viewed, instead of
+    // forcing an immediate (slow) regeneration on every quick-add.
+    queryClient.invalidateQueries({
+      queryKey: ["/api/nutritionist/analysis"],
+      refetchType: "none",
+    });
   }
 
   function add(standardDrinks: number) {

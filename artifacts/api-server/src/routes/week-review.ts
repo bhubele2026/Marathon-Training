@@ -8,7 +8,7 @@ import {
 } from "@workspace/db";
 import { and, gte, lte, eq, sql } from "drizzle-orm";
 import { addDaysISO, COACH_PERSONA } from "@workspace/plan-knowledge";
-import { getAnthropic, isConfigured, MODEL } from "@workspace/integrations-anthropic";
+import { getAnthropic, isConfigured, FAST_MODEL } from "@workspace/integrations-anthropic";
 import { buildSummaryData } from "../lib/coach-voice";
 import {
   summarizeFood,
@@ -208,7 +208,9 @@ async function generateWeeklySummary(
   try {
     const client: any = getAnthropic();
     const resp: any = await client.messages.create({
-      model: MODEL,
+      // Pure end-of-week recap over deterministically-summarized numbers — the
+      // faster Sonnet-class model (still adaptive thinking at low effort).
+      model: FAST_MODEL,
       max_tokens: 700,
       thinking: { type: "adaptive" },
       output_config: { effort: "low" },

@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -38,23 +38,33 @@ export function NutritionistPanel({
   const { data, isLoading } = useQuery({
     queryKey: nutritionistQueryKey(weeks),
     queryFn: () => getJson<NutritionistReport>(`/api/nutritionist/analysis?weeks=${weeks}`),
-    // Shortish so the read refreshes as the day's food logs in (the server
-    // re-runs the analysis only when the inputs actually changed, so refetching
-    // is cheap when nothing's new). Also refetch when the tab regains focus.
-    staleTime: 45_000,
+    // The server returns the cached report instantly unless the underlying
+    // metrics actually changed (it hashes the inputs), so revisiting the panel
+    // doesn't need to re-ask the model. Keep the report fresh in the client
+    // cache for 5 minutes, and show the PREVIOUS report while a background
+    // refetch runs — the numbers/charts appear instantly from cache; only the
+    // words update. (The Opus-with-thinking generation only ever runs on a real
+    // input change.)
+    staleTime: 5 * 60_000,
     refetchOnWindowFocus: true,
+    placeholderData: keepPreviousData,
   });
 
-  if (isLoading) {
-    return (
-      <Card data-testid={`card-nutritionist-${variant}-loading`}>
-        <CardContent className="p-6">
-          <Skeleton className={variant === "today" ? "h-14 w-full" : "h-48 w-full"} />
-        </CardContent>
-      </Card>
-    );
+  // Full-screen loader ONLY on the very first load, when there's nothing
+  // cached to show. Otherwise render the cached/previous report immediately and
+  // let any refetch happen in the background.
+  if (!data) {
+    if (isLoading) {
+      return (
+        <Card data-testid={`card-nutritionist-${variant}-loading`}>
+          <CardContent className="p-6">
+            <Skeleton className={variant === "today" ? "h-14 w-full" : "h-48 w-full"} />
+          </CardContent>
+        </Card>
+      );
+    }
+    return null;
   }
-  if (!data) return null;
 
   const insights = data.insights ?? [];
   const protein = insights.find((i) => i.id === "protein");
