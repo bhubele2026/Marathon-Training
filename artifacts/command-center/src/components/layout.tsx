@@ -155,7 +155,7 @@ export function Layout({ children }: LayoutProps) {
         </div>
       </header>
 
-      <main className="flex-1 px-4 md:px-6 py-6 md:py-10 pb-24 md:pb-10">
+      <main className="flex-1 px-4 md:px-6 py-4 md:py-6 pb-24 md:pb-8">
         <div className="mx-auto max-w-[1600px]">
           {/* Always-on, dismissible coach presence — sits above the page and
               reacts to the current screen. Outside the route transition so it

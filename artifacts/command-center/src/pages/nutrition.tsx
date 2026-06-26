@@ -189,7 +189,7 @@ function MacroChip({
   const remaining =
     hasGoal && value != null ? Math.max(0, target - value) : null;
   return (
-    <div className="rounded-xl bg-secondary/60 p-3">
+    <div className="rounded-xl bg-secondary/60 p-2.5">
       <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
         <span
           className="h-2.5 w-2.5 rounded-full"
@@ -444,7 +444,7 @@ export default function Nutrition() {
   const waterOz = today?.waterMl != null ? Math.round(today.waterMl / ML_PER_OZ) : 0;
 
   return (
-    <div className="mx-auto max-w-[1440px] space-y-5 px-4 md:px-8">
+    <div className="mx-auto max-w-[1440px] space-y-4 px-4 md:px-8">
       <div>
         <h1 className="font-display text-4xl font-extrabold tracking-tight text-foreground">
           Nutrition
@@ -457,8 +457,8 @@ export default function Nutrition() {
       {/* Per-day review tile: navigator + the calorie hero ring with macro arcs,
           compact macro chips, a first-class water tracker, and the coach's
           reactivity note. One tile — no divider rules. */}
-      <Card className="p-6">
-        <CardHeader className="p-0 pb-4">
+      <Card className="p-4">
+        <CardHeader className="p-0 pb-3">
           <CardTitle className="flex flex-wrap items-center justify-between gap-3 text-sm tracking-wider text-muted-foreground">
             {/* Day navigator — step back/forward, or jump with the date input. */}
             <div className="flex items-center gap-1 normal-case">
@@ -544,8 +544,8 @@ export default function Nutrition() {
           ) : (
             <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
               {/* Calories hero ring + macro arcs + supporting chips. */}
-              <div className="space-y-5">
-                <div className="flex items-center gap-5">
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
                   <MetricRing
                     value={calValue}
                     goal={target?.cal ?? null}

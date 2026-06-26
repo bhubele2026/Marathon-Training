@@ -70,7 +70,7 @@ export function CoachDock() {
 
   return (
     <div
-      className="mb-6 flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-2.5"
+      className="mb-4 flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-2.5"
       data-testid="coach-dock"
       data-coach-context={context}
     >
