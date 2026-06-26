@@ -3,11 +3,17 @@ import {
   db,
   alcoholEntriesTable,
   userPreferencesTable,
+  nutritionDaysTable,
+  workoutsTable,
   type AlcoholEntryRow,
 } from "@workspace/db";
 import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { CreateAlcoholBody, UpdateAlcoholBody, ListAlcoholQueryParams } from "@workspace/api-zod";
 import { localToday } from "../lib/day-state";
+import { computeAlcoholStats } from "../lib/alcohol-analytics";
+import { computePlannedLoad } from "../lib/nutrition-engine";
+
+const DAY_MS = 86_400_000;
 
 // Alcohol logging — timestamped, source-aware entries (standard drinks),
 // mirroring the water store. In-app writes are ungated (same-origin,
@@ -128,6 +134,79 @@ router.post("/alcohol/dry", async (req, res): Promise<void> => {
     .values({ date, loggedAt: new Date(), standardDrinks: 0, kind: null, source: "manual" })
     .returning();
   res.status(201).json(toApi(row!));
+});
+
+// GET /api/alcohol/summary?weeks=8 — the deterministic reduction read for the
+// dashboard alcohol box (dry days vs target, week-over-week, streaks, strip,
+// impact). The same shape the nutritionist embeds in the two scorecard tiles.
+router.get("/alcohol/summary", async (req, res): Promise<void> => {
+  const rawWeeks = Number(req.query.weeks);
+  const weeks = Number.isFinite(rawWeeks) ? Math.min(26, Math.max(2, Math.round(rawWeeks))) : 8;
+
+  const prefRows = await db
+    .select({ timezone: userPreferencesTable.timezone })
+    .from(userPreferencesTable)
+    .where(eq(userPreferencesTable.id, 1))
+    .limit(1);
+  const tz = prefRows[0]?.timezone ?? null;
+  const now = new Date();
+  const to = localToday(tz, now);
+  const from = localToday(tz, new Date(now.getTime() - weeks * 7 * DAY_MS));
+
+  const [alcRows, workouts, nutDays] = await Promise.all([
+    db
+      .select({ date: alcoholEntriesTable.date, standardDrinks: alcoholEntriesTable.standardDrinks })
+      .from(alcoholEntriesTable)
+      .where(and(gte(alcoholEntriesTable.date, from), lte(alcoholEntriesTable.date, to))),
+    db
+      .select({
+        date: workoutsTable.date,
+        strengthMin: workoutsTable.strengthMin,
+        cardioMin: workoutsTable.cardioMin,
+        runMin: workoutsTable.runMin,
+      })
+      .from(workoutsTable)
+      .where(and(gte(workoutsTable.date, from), lte(workoutsTable.date, to))),
+    db
+      .select({
+        date: nutritionDaysTable.date,
+        proteinG: nutritionDaysTable.proteinG,
+        calories: nutritionDaysTable.calories,
+        waterMl: nutritionDaysTable.waterMl,
+      })
+      .from(nutritionDaysTable)
+      .where(and(gte(nutritionDaysTable.date, from), lte(nutritionDaysTable.date, to))),
+  ]);
+
+  const trainingLoadByDate: Record<string, number> = {};
+  for (const w of workouts) {
+    trainingLoadByDate[w.date] =
+      (trainingLoadByDate[w.date] ?? 0) +
+      computePlannedLoad({
+        strengthMin: w.strengthMin ?? 0,
+        cardioMin: w.cardioMin ?? 0,
+        runMin: w.runMin ?? 0,
+      });
+  }
+  const proteinByDate: Record<string, number | null> = {};
+  const caloriesByDate: Record<string, number | null> = {};
+  const waterOzByDate: Record<string, number | null> = {};
+  for (const r of nutDays) {
+    proteinByDate[r.date] = r.proteinG ?? null;
+    caloriesByDate[r.date] = r.calories ?? null;
+    waterOzByDate[r.date] = r.waterMl != null ? Math.round(r.waterMl / 29.5735) : null;
+  }
+
+  res.json(
+    computeAlcoholStats({
+      today: to,
+      entries: alcRows,
+      trainingLoadByDate,
+      proteinByDate,
+      caloriesByDate,
+      waterOzByDate,
+    }),
+  );
 });
 
 // PATCH /api/alcohol/:id — edit an entry.

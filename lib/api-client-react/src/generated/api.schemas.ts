@@ -1094,6 +1094,68 @@ export interface MarkDryBody {
   date?: string;
 }
 
+export interface AlcoholDay {
+  date: string;
+  drinks: number;
+  isDry: boolean;
+  logged: boolean;
+}
+
+export interface AlcoholWeek {
+  weekStart: string;
+  dryDays: number;
+  drinkingDays: number;
+  drinks: number;
+  hitTarget: boolean;
+  inProgress: boolean;
+}
+
+export type AlcoholImpactKey =
+  (typeof AlcoholImpactKey)[keyof typeof AlcoholImpactKey];
+
+export const AlcoholImpactKey = {
+  trainingLoad: "trainingLoad",
+  sessionAdherence: "sessionAdherence",
+  protein: "protein",
+  calories: "calories",
+  hydration: "hydration",
+} as const;
+
+export interface AlcoholImpact {
+  key: AlcoholImpactKey;
+  label: string;
+  drinkingAvg: number | null;
+  dryAvg: number | null;
+  deltaPct: number | null;
+  betterWhenDry: boolean;
+  note: string;
+}
+
+/**
+ * The reduction-tool read: dry days are the positive metric. Within budget
+is neutral, over budget a soft nudge; under ~2 weeks `seedState` is true.
+
+ */
+export interface AlcoholSummary {
+  active: boolean;
+  seedState: boolean;
+  daysTracked: number;
+  dryDaysTarget: number;
+  weekDrinks: number;
+  drinkingDaysThisWeek: number;
+  drinkingBudget: number;
+  dryDaysThisWeek: number;
+  currentDryStreak: number;
+  longestDryStreak: number;
+  dailyStrip: AlcoholDay[];
+  weeklyTrend: AlcoholWeek[];
+  avgDryPerWeek: number | null;
+  weeksOnTarget: number;
+  weeksTracked: number;
+  weeksOnTargetStreak: number;
+  impact: AlcoholImpact[];
+}
+
 export type RecompSiteKey = (typeof RecompSiteKey)[keyof typeof RecompSiteKey];
 
 export const RecompSiteKey = {
@@ -2128,6 +2190,10 @@ export type ListWaterLogsParams = {
 export type ListAlcoholParams = {
   from?: string;
   to?: string;
+};
+
+export type GetAlcoholSummaryParams = {
+  weeks?: number;
 };
 
 export type GetRecentLifestyleActivities200Item = {

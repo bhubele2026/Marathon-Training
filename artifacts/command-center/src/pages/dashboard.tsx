@@ -22,13 +22,13 @@ import {
   StatTile,
   TrendArea,
   ActivityCalendar,
-  GoalArc,
   CoachNote,
   EmptyState,
   type ActivityDay,
   type SegmentedOption,
 } from "@/components/studio";
 import { RecompHero } from "@/components/recomp-hero";
+import { DashboardAlcoholBox } from "@/components/dashboard-alcohol-box";
 import { DashboardFuelTile } from "@/components/dashboard-fuel-tile";
 import { DashboardWaterTile } from "@/components/dashboard-water-tile";
 import { DashboardTracking } from "@/components/dashboard-tracking";
@@ -188,23 +188,6 @@ export default function Dashboard() {
   if (!summary) return <div>Failed to load dashboard</div>;
 
   const headerTitle = summary.activeConfigName?.trim() || "Workout Plan";
-
-  // Goal progress: weight journey toward goal, falling back to plan adherence.
-  const goalPct =
-    summary.weightStart != null &&
-    summary.weightCurrent != null &&
-    summary.weightGoal != null &&
-    summary.weightStart !== summary.weightGoal
-      ? Math.max(
-          0,
-          Math.min(
-            100,
-            ((summary.weightStart - summary.weightCurrent) /
-              (summary.weightStart - summary.weightGoal)) *
-              100,
-          ),
-        )
-      : summary.adherencePct;
 
   // ---- Empty-plan state: no plan applied yet ----------------------------
   if (!summary.hasPlan) {
@@ -402,22 +385,7 @@ export default function Dashboard() {
             />
           }
         />
-        <Card>
-          <CardContent className="p-6 flex flex-col items-center justify-center gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground self-start">
-              Goal progress
-            </p>
-            <GoalArc
-              value={Math.round(goalPct)}
-              label="to goal"
-              caption={
-                summary.weightGoal != null
-                  ? `Goal ${summary.weightGoal.toFixed(0)} lb`
-                  : "Set a goal on Goals"
-              }
-            />
-          </CardContent>
-        </Card>
+        <DashboardAlcoholBox />
         <Card>
           <CardContent className="p-6">
             <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-4">

@@ -18,6 +18,7 @@ import type {
 
 import type {
   AlcoholEntry,
+  AlcoholSummary,
   ApplyPlannerConfigResponse,
   CreateAlcoholBody,
   CreateMeasurementBody,
@@ -33,6 +34,7 @@ import type {
   EquipmentUsage,
   Error,
   FullResetPlanResponse,
+  GetAlcoholSummaryParams,
   GetRecentLifestyleActivities200Item,
   HealthStatus,
   ListAlcoholParams,
@@ -2666,6 +2668,103 @@ export const useMarkDryDay = <
 > => {
   return useMutation(getMarkDryDayMutationOptions(options));
 };
+
+/**
+ * The deterministic alcohol read (reduction tool): dry days vs the weekly
+target, the week-over-week trend, streaks, a 7-day strip, and what
+drinking is costing training/eating. Powers the dashboard alcohol box;
+the same shape rides on the nutritionist scorecard tiles.
+
+ */
+export const getGetAlcoholSummaryUrl = (params?: GetAlcoholSummaryParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/alcohol/summary?${stringifiedParams}`
+    : `/api/alcohol/summary`;
+};
+
+export const getAlcoholSummary = async (
+  params?: GetAlcoholSummaryParams,
+  options?: RequestInit,
+): Promise<AlcoholSummary> => {
+  return customFetch<AlcoholSummary>(getGetAlcoholSummaryUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAlcoholSummaryQueryKey = (
+  params?: GetAlcoholSummaryParams,
+) => {
+  return [`/api/alcohol/summary`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetAlcoholSummaryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAlcoholSummary>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetAlcoholSummaryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAlcoholSummary>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetAlcoholSummaryQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAlcoholSummary>>
+  > = ({ signal }) => getAlcoholSummary(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAlcoholSummary>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAlcoholSummaryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAlcoholSummary>>
+>;
+export type GetAlcoholSummaryQueryError = ErrorType<unknown>;
+
+export function useGetAlcoholSummary<
+  TData = Awaited<ReturnType<typeof getAlcoholSummary>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetAlcoholSummaryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAlcoholSummary>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAlcoholSummaryQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 export const getUpdateAlcoholUrl = (id: number) => {
   return `/api/alcohol/${id}`;

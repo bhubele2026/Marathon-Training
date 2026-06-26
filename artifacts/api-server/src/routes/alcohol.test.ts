@@ -63,6 +63,22 @@ describe("POST /api/alcohol/dry", () => {
   });
 });
 
+describe("GET /api/alcohol/summary", () => {
+  // The summary's window is the REAL local week, so we don't write real-today
+  // entries here (that would race other parallel suites on the shared DB) — the
+  // weekly/streak/impact math is covered exhaustively in alcohol-analytics.test.
+  it("serves the deterministic read shape, inactive with no entries", async () => {
+    const res = await request(app).get("/api/alcohol/summary");
+    expect(res.status).toBe(200);
+    expect(res.body.active).toBe(false);
+    expect(res.body.dryDaysTarget).toBe(4);
+    expect(res.body.drinkingBudget).toBe(3);
+    expect(Array.isArray(res.body.dailyStrip)).toBe(true);
+    expect(res.body.dailyStrip).toHaveLength(7);
+    expect(Array.isArray(res.body.impact)).toBe(true);
+  });
+});
+
 describe("GET /api/alcohol + PATCH + DELETE", () => {
   it("ranges, edits, and deletes entries", async () => {
     const created = await request(app)

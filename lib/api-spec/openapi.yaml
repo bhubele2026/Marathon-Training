@@ -752,6 +752,27 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/AlcoholEntry" }
 
+  /alcohol/summary:
+    get:
+      operationId: getAlcoholSummary
+      tags: [alcohol]
+      description: |
+        The deterministic alcohol read (reduction tool): dry days vs the weekly
+        target, the week-over-week trend, streaks, a 7-day strip, and what
+        drinking is costing training/eating. Powers the dashboard alcohol box;
+        the same shape rides on the nutritionist scorecard tiles.
+      parameters:
+        - in: query
+          name: weeks
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlcoholSummary" }
+
   /alcohol/{id}:
     patch:
       operationId: updateAlcohol
@@ -2388,6 +2409,90 @@ components:
       type: object
       properties:
         date: { type: string }
+
+    AlcoholDay:
+      type: object
+      required: [date, drinks, isDry, logged]
+      properties:
+        date: { type: string }
+        drinks: { type: number }
+        isDry: { type: boolean }
+        logged: { type: boolean }
+
+    AlcoholWeek:
+      type: object
+      required: [weekStart, dryDays, drinkingDays, drinks, hitTarget, inProgress]
+      properties:
+        weekStart: { type: string }
+        dryDays: { type: integer }
+        drinkingDays: { type: integer }
+        drinks: { type: number }
+        hitTarget: { type: boolean }
+        inProgress: { type: boolean }
+
+    AlcoholImpact:
+      type: object
+      required: [key, label, drinkingAvg, dryAvg, deltaPct, betterWhenDry, note]
+      properties:
+        key:
+          type: string
+          enum: [trainingLoad, sessionAdherence, protein, calories, hydration]
+        label: { type: string }
+        drinkingAvg: { type: number, nullable: true }
+        dryAvg: { type: number, nullable: true }
+        deltaPct: { type: number, nullable: true }
+        betterWhenDry: { type: boolean }
+        note: { type: string }
+
+    AlcoholSummary:
+      type: object
+      description: |
+        The reduction-tool read: dry days are the positive metric. Within budget
+        is neutral, over budget a soft nudge; under ~2 weeks `seedState` is true.
+      required:
+        [
+          active,
+          seedState,
+          daysTracked,
+          dryDaysTarget,
+          weekDrinks,
+          drinkingDaysThisWeek,
+          drinkingBudget,
+          dryDaysThisWeek,
+          currentDryStreak,
+          longestDryStreak,
+          dailyStrip,
+          weeklyTrend,
+          avgDryPerWeek,
+          weeksOnTarget,
+          weeksTracked,
+          weeksOnTargetStreak,
+          impact,
+        ]
+      properties:
+        active: { type: boolean }
+        seedState: { type: boolean }
+        daysTracked: { type: integer }
+        dryDaysTarget: { type: integer }
+        weekDrinks: { type: number }
+        drinkingDaysThisWeek: { type: integer }
+        drinkingBudget: { type: integer }
+        dryDaysThisWeek: { type: integer }
+        currentDryStreak: { type: integer }
+        longestDryStreak: { type: integer }
+        dailyStrip:
+          type: array
+          items: { $ref: "#/components/schemas/AlcoholDay" }
+        weeklyTrend:
+          type: array
+          items: { $ref: "#/components/schemas/AlcoholWeek" }
+        avgDryPerWeek: { type: number, nullable: true }
+        weeksOnTarget: { type: integer }
+        weeksTracked: { type: integer }
+        weeksOnTargetStreak: { type: integer }
+        impact:
+          type: array
+          items: { $ref: "#/components/schemas/AlcoholImpact" }
 
     DashboardBootstrap:
       type: object

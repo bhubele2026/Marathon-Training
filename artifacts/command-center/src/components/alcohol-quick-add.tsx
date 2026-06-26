@@ -26,6 +26,8 @@ export function AlcoholQuickAdd({ date, showMarkDry = true }: AlcoholQuickAddPro
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ["/api/alcohol"] });
+    // The dashboard box + tiles read the computed summary under its own key.
+    queryClient.invalidateQueries({ queryKey: ["/api/alcohol/summary"] });
     queryClient.invalidateQueries({ queryKey: ["/api/nutritionist/analysis"] });
   }
 

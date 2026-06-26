@@ -3128,6 +3128,73 @@ export const MarkDryDayBody = zod.object({
   date: zod.string().optional(),
 });
 
+/**
+ * The deterministic alcohol read (reduction tool): dry days vs the weekly
+target, the week-over-week trend, streaks, a 7-day strip, and what
+drinking is costing training/eating. Powers the dashboard alcohol box;
+the same shape rides on the nutritionist scorecard tiles.
+
+ */
+export const GetAlcoholSummaryQueryParams = zod.object({
+  weeks: zod.coerce.number().optional(),
+});
+
+export const GetAlcoholSummaryResponse = zod
+  .object({
+    active: zod.boolean(),
+    seedState: zod.boolean(),
+    daysTracked: zod.number(),
+    dryDaysTarget: zod.number(),
+    weekDrinks: zod.number(),
+    drinkingDaysThisWeek: zod.number(),
+    drinkingBudget: zod.number(),
+    dryDaysThisWeek: zod.number(),
+    currentDryStreak: zod.number(),
+    longestDryStreak: zod.number(),
+    dailyStrip: zod.array(
+      zod.object({
+        date: zod.string(),
+        drinks: zod.number(),
+        isDry: zod.boolean(),
+        logged: zod.boolean(),
+      }),
+    ),
+    weeklyTrend: zod.array(
+      zod.object({
+        weekStart: zod.string(),
+        dryDays: zod.number(),
+        drinkingDays: zod.number(),
+        drinks: zod.number(),
+        hitTarget: zod.boolean(),
+        inProgress: zod.boolean(),
+      }),
+    ),
+    avgDryPerWeek: zod.number().nullable(),
+    weeksOnTarget: zod.number(),
+    weeksTracked: zod.number(),
+    weeksOnTargetStreak: zod.number(),
+    impact: zod.array(
+      zod.object({
+        key: zod.enum([
+          "trainingLoad",
+          "sessionAdherence",
+          "protein",
+          "calories",
+          "hydration",
+        ]),
+        label: zod.string(),
+        drinkingAvg: zod.number().nullable(),
+        dryAvg: zod.number().nullable(),
+        deltaPct: zod.number().nullable(),
+        betterWhenDry: zod.boolean(),
+        note: zod.string(),
+      }),
+    ),
+  })
+  .describe(
+    "The reduction-tool read: dry days are the positive metric. Within budget\nis neutral, over budget a soft nudge; under ~2 weeks `seedState` is true.\n",
+  );
+
 export const UpdateAlcoholParams = zod.object({
   id: zod.coerce.number(),
 });
