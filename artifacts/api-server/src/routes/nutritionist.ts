@@ -424,11 +424,47 @@ async function gather(weeks: number): Promise<AnalysisInput> {
   };
 }
 
-// Build the full report: Claude reasons via the structured-output tool; on any
-// failure we fall back to the deterministic report so the feature never breaks.
-/* eslint-disable @typescript-eslint/no-explicit-any */
-async function buildReport(input: AnalysisInput): Promise<NutritionistReport> {
+// The graceful fallback: ALWAYS the current numbers (computeInsights), with the
+// last-known-good AI words layered on when we have a prior report — so a slow,
+// timed-out, or failed model call degrades to the previous read's phrasing over
+// fresh numbers, never generic boilerplate or a hang.
+function blendLastGood(
+  input: AnalysisInput,
+  lastGood?: NutritionistReport,
+): NutritionistReport {
   const fb = fallbackReport(input);
+  if (!lastGood) return fb;
+  const lgById = new Map((lastGood.insights ?? []).map((i) => [i.id, i]));
+  const insights = fb.insights.map((ins) => {
+    const lg = lgById.get(ins.id);
+    if (!lg) return ins;
+    return {
+      ...ins,
+      caption: lg.caption?.trim() ? lg.caption : ins.caption,
+      detail: lg.detail?.trim() ? lg.detail : ins.detail,
+    };
+  });
+  return {
+    ...fb,
+    headline: lastGood.headline?.trim() ? lastGood.headline : fb.headline,
+    today: lastGood.today ?? fb.today,
+    keyMoves: lastGood.keyMoves?.length ? lastGood.keyMoves : fb.keyMoves,
+    confidence: lastGood.confidence ?? fb.confidence,
+    dataGaps: lastGood.dataGaps ?? fb.dataGaps,
+    narrative: lastGood.narrative?.trim() ? lastGood.narrative : fb.narrative,
+    insights,
+  };
+}
+
+// Build the full report: Claude reasons via the structured-output tool; on any
+// failure (incl. a hard timeout) we fall back to blendLastGood so the feature
+// never hangs and never regresses the numbers.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+async function buildReport(
+  input: AnalysisInput,
+  lastGood?: NutritionistReport,
+): Promise<NutritionistReport> {
+  const fb = blendLastGood(input, lastGood);
   if (!isConfigured()) return fb;
   try {
     const client: any = getAnthropic();
@@ -448,7 +484,10 @@ async function buildReport(input: AnalysisInput): Promise<NutritionistReport> {
       system: buildNutritionistSystem(COACH_PERSONA),
       tools: [NUTRITIONIST_TOOL as any],
       messages: [{ role: "user", content: buildNutritionistUser(input) }],
-    });
+      // Hard server-side cap so a slow generation can't hang the request (the
+      // SDK default is ~10 minutes). On timeout the SDK throws → caught below →
+      // blendLastGood. Sonnet without thinking should land in a few seconds.
+    }, { timeout: 15_000 });
     const tool = (resp.content ?? []).find(
       (b: any) => b?.type === "tool_use" && b.name === NUTRITIONIST_TOOL_NAME,
     );
@@ -506,12 +545,18 @@ router.get("/nutritionist/analysis", async (req, res): Promise<void> => {
     .where(eq(nutritionistReportsTable.id, 1))
     .limit(1);
   const cached = cachedRows[0];
+  // Single-user, private analysis; the body only changes when the input hash
+  // changes, so let the browser/proxy hold it briefly too (client already uses a
+  // 5-min React Query staleTime).
+  res.set("Cache-Control", "private, max-age=300");
   if (cached && cached.inputHash === inputHash) {
     res.json({ ...cached.report, generatedAt: cached.generatedAt, cached: true });
     return;
   }
 
-  const report = await buildReport(input);
+  // Cache miss → regenerate, passing the previous report as last-known-good so a
+  // timeout/failure keeps the old AI words over the fresh numbers.
+  const report = await buildReport(input, cached?.report);
   const now = new Date();
   await db
     .insert(nutritionistReportsTable)
