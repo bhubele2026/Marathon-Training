@@ -251,7 +251,11 @@ function MacroTrendRow({
     goal != null && goal > 0 && avg != null ? Math.round((avg / goal) * 100) : null;
   // 90–110% of goal reads as "on target" (success); otherwise the macro color.
   const onTarget = pct != null && pct >= 90 && pct <= 110;
-  const barPct = pct == null ? 0 : Math.max(0, Math.min(100, pct));
+  // A true bullet: domain has headroom past the goal so the target TICK sits
+  // before the right edge and overshoot is visible (a sibling of the scorecard).
+  const domainMax = Math.max((goal ?? 0) * 1.25, avg ?? 0, 1);
+  const fillPct = avg != null ? Math.max(0, Math.min(100, (avg / domainMax) * 100)) : 0;
+  const tickPct = goal != null && goal > 0 ? (goal / domainMax) * 100 : null;
   const peak = Math.max(goal ?? 0, 1, ...logged);
   const SHOW_STRIP_AT = 5; // enough days that the daily bars read as a trend
 
@@ -278,16 +282,23 @@ function MacroTrendRow({
       {/* Progress toward the daily goal — the at-a-glance read. Track uses the
           scorecard's GAUGE_TRACK so it stays visible on a white card + dark. */}
       <div
-        className="h-2.5 w-full overflow-hidden rounded-full"
+        className="relative h-2.5 w-full rounded-full"
         style={{ background: GAUGE_TRACK }}
       >
         <div
-          className="h-full rounded-full"
+          className="absolute inset-y-0 left-0 rounded-full"
           style={{
-            width: `${barPct}%`,
+            width: `${fillPct}%`,
             backgroundColor: onTarget ? "hsl(var(--success))" : color,
           }}
         />
+        {tickPct != null && (
+          <div
+            className="absolute inset-y-[-2px] w-[2px] rounded-full bg-foreground/60"
+            style={{ left: `calc(${tickPct}% - 1px)` }}
+            aria-hidden="true"
+          />
+        )}
       </div>
       <div className="flex items-center justify-between text-[10px] text-muted-foreground tabular-nums">
         <span>{pct != null ? `${pct}% of goal` : "set a goal to track"}</span>
