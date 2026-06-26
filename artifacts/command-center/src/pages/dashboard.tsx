@@ -32,6 +32,7 @@ import { RecompHero } from "@/components/recomp-hero";
 import { DashboardFuelTile } from "@/components/dashboard-fuel-tile";
 import { DashboardWaterTile } from "@/components/dashboard-water-tile";
 import { DashboardTracking } from "@/components/dashboard-tracking";
+import { DashboardNutritionInsights } from "@/components/dashboard-nutrition-insights";
 import { ProgressDiagnosis } from "@/components/progress-diagnosis";
 import { EmptyPlanState } from "@/components/empty-plan-state";
 import { useFirstRunRedirect } from "@/hooks/use-first-run-redirect";
@@ -456,6 +457,9 @@ export default function Dashboard() {
 
       {/* Body recomposition hero */}
       <RecompHero recomp={summary.recomp} weightGoal={summary.weightGoal} />
+
+      {/* Nutrition "should vs is" insights (owns its own data) */}
+      <DashboardNutritionInsights />
 
       {/* Existing tracking + progress diagnosis hubs (own their own data) */}
       <DashboardTracking />

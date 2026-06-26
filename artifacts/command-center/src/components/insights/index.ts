@@ -9,3 +9,4 @@ export { RecompTrajectory } from "./recomp-trajectory";
 export { TargetGauge, type TargetGaugeProps } from "./target-gauge";
 export { AdherenceDots, type AdherenceDotsProps } from "./adherence-dots";
 export { InsightCard, StatusPill, type InsightCardProps } from "./insight-card";
+export { InsightVisual } from "./insight-visual";

@@ -67,6 +67,9 @@ describe("EatToday block", () => {
     expect(screen.getByTestId("text-eat-today-rationale").textContent).toContain(
       "Lighter day",
     );
+    // time-aware pace marker + its legend on the hero calorie ring.
+    expect(screen.getByTestId("metric-ring-pace-marker")).toBeTruthy();
+    expect(screen.getByText("tick = on-pace by now")).toBeTruthy();
   });
 
   it("shows a Set up nutrition prompt (not a broken number) when needsBaseline", async () => {

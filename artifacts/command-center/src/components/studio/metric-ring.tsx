@@ -27,6 +27,12 @@ export interface MetricRingProps {
   hero?: boolean;
   /** Concentric pastel arcs drawn inside the primary arc (macros over calories). */
   macros?: MetricRingArc[];
+  /**
+   * Optional "expected by now" pace tick on the outer track, as a 0..1 fraction
+   * of the sweep (e.g. share of the eating window elapsed). Purely additive —
+   * when undefined/null the ring renders exactly as before. Static + aria-hidden.
+   */
+  paceMarker?: number | null;
   className?: string;
 }
 
@@ -42,6 +48,7 @@ export function MetricRing({
   label,
   hero = false,
   macros,
+  paceMarker,
   className,
 }: MetricRingProps) {
   const size = hero ? 168 : 108;
@@ -51,6 +58,24 @@ export function MetricRing({
   const outerR = (size - stroke) / 2;
   const outerC = 2 * Math.PI * outerR;
   const progress = clamp01(value, goal);
+
+  // Optional pace tick — same center/radius/start-angle as the progress arc so
+  // it lines up. The SVG starts the arc at 3 o'clock then is `-rotate-90`'d to
+  // 12 o'clock; placing the tick inside the same <svg> inherits that rotation,
+  // so the angle is just `2π · fraction` from the arc's start (clockwise).
+  const markerFrac = paceMarker == null ? null : Math.max(0, Math.min(1, paceMarker));
+  const marker =
+    markerFrac == null
+      ? null
+      : (() => {
+          const a = 2 * Math.PI * markerFrac;
+          const cos = Math.cos(a);
+          const sin = Math.sin(a);
+          const inner = outerR - (stroke / 2 + 1);
+          const outer = outerR + (stroke / 2 + 1);
+          const c = size / 2;
+          return { x1: c + inner * cos, y1: c + inner * sin, x2: c + outer * cos, y2: c + outer * sin };
+        })();
 
   // Macro arcs step inward from the primary arc by a fixed gap.
   const macroStroke = hero ? 6 : 4;
@@ -91,6 +116,23 @@ export function MetricRing({
             initial={{ strokeDashoffset: reduced ? outerC * (1 - progress) : outerC }}
             animate={{ strokeDashoffset: outerC * (1 - progress) }}
             transition={reduced ? { duration: 0 } : { duration: 0.7, ease: "easeOut" }}
+          />
+        ) : null}
+
+        {/* "expected by now" pace tick — a static, subtle foreground/70 radial
+            mark crossing the outer track (decorative). */}
+        {marker ? (
+          <line
+            x1={marker.x1}
+            y1={marker.y1}
+            x2={marker.x2}
+            y2={marker.y2}
+            stroke="hsl(var(--foreground))"
+            strokeWidth={2}
+            strokeLinecap="round"
+            opacity={0.7}
+            aria-hidden="true"
+            data-testid="metric-ring-pace-marker"
           />
         ) : null}
 

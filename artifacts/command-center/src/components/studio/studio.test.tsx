@@ -70,6 +70,18 @@ describe("studio component kit", () => {
     expect(screen.getByText("1430")).toBeTruthy();
   });
 
+  it("MetricRing draws the pace marker only when paceMarker is set", () => {
+    const { rerender } = render(
+      <MetricRing value={1430} goal={2480} unit="kcal" label="Calories" hero />,
+    );
+    // Purely additive: no marker without the prop.
+    expect(screen.queryByTestId("metric-ring-pace-marker")).toBeNull();
+    rerender(
+      <MetricRing value={1430} goal={2480} unit="kcal" label="Calories" hero paceMarker={0.46} />,
+    );
+    expect(screen.getByTestId("metric-ring-pace-marker")).toBeTruthy();
+  });
+
   it("FeatureTile fires onClick and shows label + stat", () => {
     const onClick = vi.fn();
     render(<FeatureTile icon={Activity} label="Nutrition" stat="1,820 kcal" onClick={onClick} />);

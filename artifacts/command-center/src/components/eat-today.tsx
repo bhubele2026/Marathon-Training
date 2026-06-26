@@ -133,6 +133,12 @@ export function EatToday({ date }: { date: string }) {
   const baseline = data.baseline;
   const calDelta = data.delta?.cal ?? 0;
 
+  // Time-aware "on pace" tick: people eat ~7am–10pm, so the share of that
+  // eating window elapsed by now (browser-local) is roughly where intake
+  // *should* sit. At 2pm you're on pace for the day, not behind the whole day.
+  const hour = new Date().getHours();
+  const eatFrac = Math.max(0, Math.min(1, (hour - 7) / 15));
+
   // Calories is the hero ring (azure); macros step inward as fixed pastel arcs.
   const macroArcs: MetricRingArc[] = [
     {
@@ -177,13 +183,19 @@ export function EatToday({ date }: { date: string }) {
         <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
           {/* Calorie hero ring — azure, with the pastel macro arcs inside. */}
           <div className="flex items-center gap-5">
-            <MetricRing
-              value={actual != null ? actual.cal : adjusted.cal}
-              goal={adjusted.cal}
-              label="kcal"
-              hero
-              macros={macroArcs}
-            />
+            <div className="flex flex-col items-center gap-1.5">
+              <MetricRing
+                value={actual != null ? actual.cal : adjusted.cal}
+                goal={adjusted.cal}
+                label="kcal"
+                hero
+                macros={macroArcs}
+                paceMarker={eatFrac}
+              />
+              <span className="text-[10px] leading-none text-muted-foreground">
+                tick = on-pace by now
+              </span>
+            </div>
             <div className="min-w-0">
               <p className="font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 Calories

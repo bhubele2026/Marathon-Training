@@ -1,5 +1,6 @@
 import { type ReactNode, useState } from "react";
-import { ChevronDown, CheckCircle2, AlertTriangle, Info } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
+import { ChevronDown, CheckCircle2, AlertTriangle, Info, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   type NutritionInsight,
@@ -58,17 +59,34 @@ export function StatusPill({ status, className }: { status: InsightStatus; class
 
 export function InsightCard({ insight, children, defaultOpen = false, className }: InsightCardProps) {
   const [open, setOpen] = useState(defaultOpen);
+  const reduced = useReducedMotion();
+  // A small, tasteful celebratory state when a read is in a good place: a soft
+  // success-tinted border + a sparkle by the pill, with a calm one-time fade-in
+  // (instant under reduced motion). No bouncing, no noise.
+  const winning = insight.status === "ahead" || insight.status === "on_track";
   return (
     <section
       className={cn(
-        "rounded-2xl border border-border bg-card p-5 space-y-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)]",
+        "rounded-2xl border bg-card p-5 space-y-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)]",
+        winning ? "border-[hsl(var(--success))]/35" : "border-border",
         className,
       )}
       data-testid={`insight-card-${insight.id}`}
     >
       <div className="flex items-center justify-between gap-3">
-        <span className="font-display text-sm font-semibold tracking-tight text-foreground">
+        <span className="flex items-center gap-1.5 font-display text-sm font-semibold tracking-tight text-foreground">
           {insight.label}
+          {winning && (
+            <motion.span
+              initial={reduced ? { opacity: 1 } : { opacity: 0, scale: 0.6 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={reduced ? { duration: 0 } : { duration: 0.4, ease: "easeOut" }}
+              aria-hidden="true"
+              data-testid={`insight-win-${insight.id}`}
+            >
+              <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--success))]" />
+            </motion.span>
+          )}
         </span>
         <StatusPill status={insight.status} />
       </div>

@@ -42,6 +42,9 @@ vi.mock("@/components/dashboard-tracking", () => ({
 vi.mock("@/components/progress-diagnosis", () => ({
   ProgressDiagnosis: () => <div data-testid="diagnosis-stub" />,
 }));
+vi.mock("@/components/dashboard-nutrition-insights", () => ({
+  DashboardNutritionInsights: () => <div data-testid="nutrition-insights-stub" />,
+}));
 
 vi.mock("recharts", async () => {
   const React = await vi.importActual<typeof import("react")>("react");

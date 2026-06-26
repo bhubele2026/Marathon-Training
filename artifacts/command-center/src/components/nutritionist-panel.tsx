@@ -3,20 +3,14 @@ import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SectionHeader } from "@/components/studio/section-header";
-import { StatReadout } from "@/components/studio/stat-readout";
 import { CoachNote } from "@/components/studio/coach-note";
 import {
   InsightCard,
+  InsightVisual,
   StatusPill,
   BulletMetric,
-  TrendVsGoal,
-  RecompTrajectory,
-  statusTone,
 } from "@/components/insights";
-import type {
-  NutritionistReport,
-  NutritionInsight,
-} from "@/components/insights/types";
+import type { NutritionistReport } from "@/components/insights/types";
 import { Clock, Stethoscope, ArrowRight } from "lucide-react";
 
 // The AI Nutritionist surface — visual-first. One component, two variants:
@@ -37,62 +31,6 @@ async function getJson<T>(url: string): Promise<T> {
 
 export function nutritionistQueryKey(weeks: number): [string, number] {
   return ["/api/nutritionist/analysis", weeks];
-}
-
-// The right visual for an insight: body-comp gets the recomp trajectory + four
-// stat tiles; every other read gets the bullet (+ a trend when there's a window).
-function InsightVisual({ insight: ins }: { insight: NutritionInsight }) {
-  if (ins.id === "bodycomp") {
-    return (
-      <div className="space-y-4">
-        <RecompTrajectory
-          trajectory={ins.bodyTrajectory}
-          expectedBand={ins.expectedBand}
-          tone={statusTone(ins.status)}
-        />
-        {ins.bodyStats && (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-4">
-            {ins.bodyStats.map((s) => {
-              const good =
-                s.change == null || s.change === 0 || s.goodDirection === "either"
-                  ? "neutral"
-                  : (s.goodDirection === "down" ? s.change < 0 : s.change > 0)
-                    ? "success"
-                    : "neutral";
-              return (
-                <StatReadout
-                  key={s.key}
-                  label={s.label}
-                  value={s.value != null ? s.value : "—"}
-                  unit={s.value != null ? s.unit : undefined}
-                  delta={
-                    s.change != null && s.change !== 0
-                      ? { value: `${s.change > 0 ? "+" : ""}${s.change}`, tone: good as "success" | "neutral" }
-                      : undefined
-                  }
-                />
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  const hasWindow = (ins.series?.length ?? 0) >= 2;
-  return (
-    <div className="space-y-3">
-      <BulletMetric insight={ins} />
-      {hasWindow && (
-        <TrendVsGoal
-          series={ins.series}
-          goal={ins.goal}
-          unit={ins.unit}
-          tone={statusTone(ins.status)}
-        />
-      )}
-    </div>
-  );
 }
 
 export function NutritionistPanel({
