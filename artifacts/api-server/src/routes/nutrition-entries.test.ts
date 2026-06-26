@@ -121,6 +121,43 @@ describe("Apple-Shortcut reconciliation (POST /api/nutrition)", () => {
     expect(day?.calories).toBe(2500);
     expect(day?.proteinG).toBe(190);
   });
+
+  it("routes an `alcoholDrinks` field on the same push to the alcohol store", async () => {
+    const res = await request(app)
+      .post("/api/nutrition")
+      .set("Authorization", "Bearer test-token")
+      .send({ date: D, calories: 2000, alcoholDrinks: 2 });
+    expect(res.status).toBe(200);
+
+    const alc = await request(app).get(`/api/alcohol?from=${D}&to=${D}`);
+    expect(alc.body).toHaveLength(1);
+    expect(alc.body[0].source).toBe("shortcut");
+    expect(alc.body[0].standardDrinks).toBe(2);
+  });
+
+  it("re-push REPLACES the day's alcohol total (idempotent automation)", async () => {
+    const send = (n: number) =>
+      request(app)
+        .post("/api/nutrition")
+        .set("Authorization", "Bearer test-token")
+        .send({ date: D, alcoholDrinks: n });
+    await send(1);
+    await send(2);
+    await send(3);
+    const alc = await request(app).get(`/api/alcohol?from=${D}&to=${D}`);
+    expect(alc.body).toHaveLength(1); // not three
+    expect(alc.body[0].standardDrinks).toBe(3); // latest total
+  });
+
+  it("alcoholDrinks=0 logs an explicit dry day", async () => {
+    await request(app)
+      .post("/api/nutrition")
+      .set("Authorization", "Bearer test-token")
+      .send({ date: D, alcoholDrinks: 0 });
+    const alc = await request(app).get(`/api/alcohol?from=${D}&to=${D}`);
+    expect(alc.body).toHaveLength(1);
+    expect(alc.body[0].standardDrinks).toBe(0);
+  });
 });
 
 describe("water logs (POST/GET/PATCH/DELETE /api/water)", () => {

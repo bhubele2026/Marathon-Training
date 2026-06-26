@@ -22,6 +22,7 @@ import {
   upsertHealthSyncEntry,
   upsertHealthSyncWater,
 } from "../lib/nutrition-rollup";
+import { upsertShortcutAlcohol } from "../lib/alcohol-sync";
 
 // Daily calories + protein synced from a food tracker (MyNetDiary → Apple
 // Health → an Apple Shortcut that POSTs here once a day). The ingest route
@@ -51,6 +52,9 @@ const MAX_FAT_G = 1000;
 const MAX_SODIUM_MG = 20000;
 // Water in millilitres. 20 L/day is far past any real intake — reject above it.
 const MAX_WATER_ML = 20000;
+// Standard drinks/day (Apple Health "Number of Alcoholic Beverages" summed). A
+// sanity ceiling — 50 is already absurd.
+const MAX_ALCOHOL_DRINKS = 50;
 const ML_PER_FL_OZ = 29.5735;
 
 type ApiNutritionDay = {
@@ -190,10 +194,15 @@ router.post("/nutrition", async (req, res) => {
   const fatG = parseMetric(rawFat, MAX_FAT_G);
   const sodiumMg = parseMetric(rawSodium, MAX_SODIUM_MG);
   const waterMl = parseMetric(rawWaterMl, MAX_WATER_ML);
-  if (!calories.ok || !proteinG.ok || !carbsG.ok || !fatG.ok || !sodiumMg.ok || !waterMl.ok) {
+  // Alcohol rides on the SAME Shortcut push: `alcoholDrinks` = today's summed
+  // Apple Health "Number of Alcoholic Beverages" (1 = one standard drink). It
+  // doesn't live in nutrition_days — it's routed to the alcohol store below.
+  const rawAlcohol = body.alcoholDrinks ?? body.alcohol ?? body.standardDrinks;
+  const alcoholDrinks = parseMetric(rawAlcohol, MAX_ALCOHOL_DRINKS);
+  if (!calories.ok || !proteinG.ok || !carbsG.ok || !fatG.ok || !sodiumMg.ok || !waterMl.ok || !alcoholDrinks.ok) {
     res.status(400).json({
       error:
-        "calories, proteinG, carbsG, fatG, sodiumMg and water must be non-negative numbers within range.",
+        "calories, proteinG, carbsG, fatG, sodiumMg, water and alcoholDrinks must be non-negative numbers within range.",
     });
     return;
   }
@@ -203,10 +212,11 @@ router.post("/nutrition", async (req, res) => {
     carbsG.value === undefined &&
     fatG.value === undefined &&
     sodiumMg.value === undefined &&
-    waterMl.value === undefined
+    waterMl.value === undefined &&
+    alcoholDrinks.value === undefined
   ) {
     res.status(400).json({
-      error: "Send at least one of calories, proteinG, carbsG, fatG, sodiumMg or water.",
+      error: "Send at least one of calories, proteinG, carbsG, fatG, sodiumMg, water or alcoholDrinks.",
     });
     return;
   }
@@ -241,6 +251,11 @@ router.post("/nutrition", async (req, res) => {
   }
   if (waterMl.value !== undefined) {
     await upsertHealthSyncWater(date, waterMl.value);
+  }
+  // Route alcohol to its own store (idempotent per day, source='shortcut'); a 0
+  // is kept as an explicit dry day. Not part of the nutrition_days rollup.
+  if (alcoholDrinks.value !== undefined) {
+    await upsertShortcutAlcohol(date, alcoholDrinks.value);
   }
   await recomputeDay(date);
 

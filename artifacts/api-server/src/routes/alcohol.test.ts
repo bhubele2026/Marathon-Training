@@ -52,6 +52,35 @@ describe("POST /api/alcohol", () => {
     const res = await request(app).post("/api/alcohol").send({ date: D, standardDrinks: 999 });
     expect(res.status).toBe(400);
   });
+
+  it("upserts ONE shortcut row per day (recurring Health sync is idempotent)", async () => {
+    const auth = "Bearer test-alc-token";
+    // Health automation re-posts today's running total three times.
+    await request(app).post("/api/alcohol").set("Authorization", auth).send({ date: D, standardDrinks: 1 });
+    await request(app).post("/api/alcohol").set("Authorization", auth).send({ date: D, standardDrinks: 2 });
+    const last = await request(app)
+      .post("/api/alcohol")
+      .set("Authorization", auth)
+      .send({ date: D, standardDrinks: 3, kind: "wine" });
+    expect(last.status).toBe(200); // updated, not created
+
+    const list = await request(app).get(`/api/alcohol?from=${D}&to=${D}`);
+    const shortcutRows = (list.body as { source: string; standardDrinks: number }[]).filter(
+      (r) => r.source === "shortcut",
+    );
+    expect(shortcutRows).toHaveLength(1);
+    expect(shortcutRows[0]!.standardDrinks).toBe(3); // latest total wins
+  });
+
+  it("keeps manual drinks separate from the shortcut total", async () => {
+    await request(app).post("/api/alcohol").set("Authorization", "Bearer test-alc-token").send({ date: D, standardDrinks: 2 });
+    await request(app).post("/api/alcohol").send({ date: D, standardDrinks: 1, kind: "beer" });
+    await request(app).post("/api/alcohol").send({ date: D, standardDrinks: 1, kind: "beer" });
+    const list = await request(app).get(`/api/alcohol?from=${D}&to=${D}`);
+    const rows = list.body as { source: string }[];
+    expect(rows.filter((r) => r.source === "shortcut")).toHaveLength(1);
+    expect(rows.filter((r) => r.source === "manual")).toHaveLength(2);
+  });
 });
 
 describe("POST /api/alcohol/dry", () => {

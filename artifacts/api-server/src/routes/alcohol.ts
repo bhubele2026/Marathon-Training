@@ -11,6 +11,7 @@ import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { CreateAlcoholBody, UpdateAlcoholBody, ListAlcoholQueryParams } from "@workspace/api-zod";
 import { localToday } from "../lib/day-state";
 import { computeAlcoholStats } from "../lib/alcohol-analytics";
+import { upsertShortcutAlcohol } from "../lib/alcohol-sync";
 import { computePlannedLoad } from "../lib/nutrition-engine";
 
 const DAY_MS = 86_400_000;
@@ -110,15 +111,22 @@ router.post("/alcohol", async (req, res): Promise<void> => {
   }
 
   const date = d.date && isValidDate(d.date) ? d.date : await localToday_();
+  const drinks = Math.round(d.standardDrinks * 100) / 100;
+  const kind = typeof d.kind === "string" && d.kind.trim() ? d.kind.trim() : null;
+  const loggedAt = d.loggedAt ? new Date(d.loggedAt) : new Date();
+
+  // Apple Health sync (Shortcut) posts a day's RUNNING TOTAL, often on a
+  // recurring automation — so a shortcut write is idempotent per local day
+  // (one row, overwritten). In-app manual writes are individual drinks.
+  if (source === "shortcut") {
+    const { row, created } = await upsertShortcutAlcohol(date, drinks, kind);
+    res.status(created ? 201 : 200).json(toApi(row));
+    return;
+  }
+
   const [row] = await db
     .insert(alcoholEntriesTable)
-    .values({
-      date,
-      loggedAt: d.loggedAt ? new Date(d.loggedAt) : new Date(),
-      standardDrinks: Math.round(d.standardDrinks * 100) / 100,
-      kind: typeof d.kind === "string" && d.kind.trim() ? d.kind.trim() : null,
-      source,
-    })
+    .values({ date, loggedAt, standardDrinks: drinks, kind, source })
     .returning();
   res.status(201).json(toApi(row!));
 });
