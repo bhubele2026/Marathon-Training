@@ -436,19 +436,6 @@ export default function Nutrition() {
         </p>
       </div>
 
-      {/* AI Nutritionist deep-dive — protein adequacy, body-composition
-          diagnosis (where you are, what you should see, why you may not be),
-          fuelling, and concrete next moves. Reads the server-cached analysis. */}
-      <NutritionistPanel variant="full" weeks={8} />
-
-      {/* Logging streak + clickable mini-calendar of recent days. */}
-      <ConsistencyStrip
-        entries={entries}
-        selectedDate={selectedDate}
-        todayStr={todayStr}
-        onSelect={setSelectedDate}
-      />
-
       {/* Per-day review tile: navigator + the calorie hero ring with macro arcs,
           compact macro chips, a first-class water tracker, and the coach's
           reactivity note. One tile — no divider rules. */}
@@ -595,6 +582,19 @@ export default function Nutrition() {
 
       {/* Close / reopen the day under review (acts on the selected date). */}
       <CloseDayButton date={selectedDate} />
+
+      {/* AI Nutritionist deep-dive — protein adequacy, body-composition
+          diagnosis (where you are, what you should see, why you may not be),
+          fuelling, and concrete next moves. Reads the server-cached analysis. */}
+      <NutritionistPanel variant="full" weeks={8} />
+
+      {/* Logging streak + clickable mini-calendar of recent days. */}
+      <ConsistencyStrip
+        entries={entries}
+        selectedDate={selectedDate}
+        todayStr={todayStr}
+        onSelect={setSelectedDate}
+      />
 
       {/* Phase 15: the viewable personalized nutrition plan, derived from the
           baseline targets (which trace to the active plan's goal + safe deficit). */}
