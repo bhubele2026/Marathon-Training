@@ -7,6 +7,7 @@ import {
   workoutsTable,
   planDaysTable,
   nutritionistReportsTable,
+  alcoholEntriesTable,
   type NutritionistReport,
   type NutritionInsight,
   type BodyTrajectoryPoint,
@@ -20,6 +21,7 @@ import { summarizeFood, type FoodDay } from "../lib/week-review";
 import { weeklyWeightStatus } from "../lib/weekly-weight";
 import { calorieFloor, safeWeeklyRateLb, PROTEIN_FLOOR_G_PER_LB } from "../lib/nutrition-safety";
 import { computePlannedLoad } from "../lib/nutrition-engine";
+import { computeAlcoholStats } from "../lib/alcohol-analytics";
 import { dayState, localToday } from "../lib/day-state";
 import {
   type AnalysisInput,
@@ -241,6 +243,7 @@ async function gather(weeks: number): Promise<AnalysisInput> {
   // Training consistency + average load.
   const doneRows = await db
     .select({
+      date: workoutsTable.date,
       strengthMin: workoutsTable.strengthMin,
       cardioMin: workoutsTable.cardioMin,
       runMin: workoutsTable.runMin,
@@ -254,6 +257,16 @@ async function gather(weeks: number): Promise<AnalysisInput> {
       runMin: w.runMin ?? 0,
     }),
   );
+  // Completed training load per local day — feeds the alcohol next-day impact read.
+  const trainingLoadByDate: Record<string, number> = {};
+  for (const w of doneRows) {
+    const load = computePlannedLoad({
+      strengthMin: w.strengthMin ?? 0,
+      cardioMin: w.cardioMin ?? 0,
+      runMin: w.runMin ?? 0,
+    });
+    trainingLoadByDate[w.date] = (trainingLoadByDate[w.date] ?? 0) + load;
+  }
   const avgTrainingLoad =
     loads.length > 0 ? round1(loads.reduce((a, b) => a + b, 0) / loads.length) : null;
   const plannedRows = await db
@@ -326,6 +339,30 @@ async function gather(weeks: number): Promise<AnalysisInput> {
       sodiumMg: r.sodiumMg ?? null,
     }));
 
+  // Alcohol read (reduction tool): entries in the window + per-day training and
+  // nutrition context for the drinking-vs-dry impact comparison. localToday is
+  // the day boundary so dry days derive correctly.
+  const alcRows = await db
+    .select({ date: alcoholEntriesTable.date, standardDrinks: alcoholEntriesTable.standardDrinks })
+    .from(alcoholEntriesTable)
+    .where(and(gte(alcoholEntriesTable.date, from), lte(alcoholEntriesTable.date, to)));
+  const proteinByDate: Record<string, number | null> = {};
+  const caloriesByDate: Record<string, number | null> = {};
+  const waterOzByDate: Record<string, number | null> = {};
+  for (const r of nutRows) {
+    proteinByDate[r.date] = r.proteinG ?? null;
+    caloriesByDate[r.date] = r.calories ?? null;
+    waterOzByDate[r.date] = r.waterMl != null ? Math.round(r.waterMl / 29.5735) : null;
+  }
+  const alcohol = computeAlcoholStats({
+    today: to,
+    entries: alcRows,
+    trainingLoadByDate,
+    proteinByDate,
+    caloriesByDate,
+    waterOzByDate,
+  });
+
   return {
     weeks,
     weeksElapsed,
@@ -383,6 +420,7 @@ async function gather(weeks: number): Promise<AnalysisInput> {
     groundTruthFlags,
     dailyLog,
     bodyLog,
+    alcohol,
   };
 }
 

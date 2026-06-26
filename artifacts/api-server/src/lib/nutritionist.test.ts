@@ -7,6 +7,7 @@ import {
   buildNutritionistSystem,
   type AnalysisInput,
 } from "./nutritionist";
+import type { AlcoholStats } from "@workspace/db";
 
 // A reasonable mid-recomp baseline; tests override only what they exercise.
 function base(over: Partial<AnalysisInput> = {}): AnalysisInput {
@@ -238,5 +239,100 @@ describe("buildNutritionistSystem — sharpened persona", () => {
     // keeps the non-negotiable safety rails intact
     expect(sys).toMatch(/safe floor/i);
     expect(sys).toMatch(/DROP all sarcasm/);
+  });
+
+  it("teaches alcohol as a first-class, woven-in, win-not-shame input", () => {
+    const sys = buildNutritionistSystem("PERSONA");
+    expect(sys).toMatch(/muscle protein synthesis/i);
+    expect(sys).toMatch(/dry days are wins/i);
+    expect(sys).toMatch(/never shame/i);
+    expect(sys).toMatch(/ALONGSIDE/);
+  });
+});
+
+// --- Alcohol insights (reduction tool; win-not-shame guardrails) ------------
+
+function alc(over: Partial<AlcoholStats> = {}): AlcoholStats {
+  return {
+    active: true,
+    seedState: false,
+    daysTracked: 30,
+    dryDaysTarget: 4,
+    weekDrinks: 3,
+    drinkingDaysThisWeek: 2,
+    drinkingBudget: 3,
+    dryDaysThisWeek: 5,
+    currentDryStreak: 2,
+    longestDryStreak: 9,
+    dailyStrip: [],
+    weeklyTrend: [],
+    avgDryPerWeek: 5,
+    weeksOnTarget: 3,
+    weeksTracked: 4,
+    weeksOnTargetStreak: 2,
+    impact: [],
+    ...over,
+  };
+}
+
+describe("computeInsights — alcohol tiles", () => {
+  it("omits both alcohol tiles when there's no alcohol data", () => {
+    const r = fallbackReport(base());
+    expect(r.insights.find((i) => i.id === "alcohol")).toBeUndefined();
+    expect(r.insights.find((i) => i.id === "dryDays")).toBeUndefined();
+  });
+
+  it("emits both tiles, each carrying the shared read, when active", () => {
+    const r = fallbackReport(base({ alcohol: alc() }));
+    const dry = insight(r, "dryDays");
+    const drink = insight(r, "alcohol");
+    expect(dry.alcohol?.dryDaysTarget).toBe(4);
+    expect(drink.alcohol).toBeTruthy();
+    expect(dry.group).toBe("alcohol");
+  });
+
+  it("dry-days tile is a green win when the weekly target is met", () => {
+    const r = fallbackReport(base({ alcohol: alc({ dryDaysThisWeek: 5, dryDaysTarget: 4 }) }));
+    expect(insight(r, "dryDays").status).toBe("ahead");
+  });
+
+  it("dry-days tile nudges with amber (never red) when short of target", () => {
+    const r = fallbackReport(base({ alcohol: alc({ dryDaysThisWeek: 2, dryDaysTarget: 4 }) }));
+    const dry = insight(r, "dryDays");
+    expect(dry.status).toBe("attention");
+    expect(["under", "over"]).not.toContain(dry.status);
+  });
+
+  it("alcohol tile reads NEUTRAL within budget and amber over — never red", () => {
+    const within = insight(
+      fallbackReport(base({ alcohol: alc({ drinkingDaysThisWeek: 2, drinkingBudget: 3 }) })),
+      "alcohol",
+    );
+    expect(within.status).toBe("appropriate");
+    const over = insight(
+      fallbackReport(base({ alcohol: alc({ drinkingDaysThisWeek: 5, drinkingBudget: 3 }) })),
+      "alcohol",
+    );
+    expect(over.status).toBe("attention");
+    for (const ins of [within, over]) expect(["under", "over"]).not.toContain(ins.status);
+  });
+
+  it("shows an early-read seed state under ~2 weeks", () => {
+    const r = fallbackReport(base({ alcohol: alc({ seedState: true }) }));
+    expect(insight(r, "dryDays").status).toBe("early");
+    expect(insight(r, "alcohol").status).toBe("early");
+  });
+});
+
+describe("buildNutritionistUser — alcohol briefing", () => {
+  it("includes the dry-days goal and weaves the cost in", () => {
+    const txt = buildNutritionistUser(base({ alcohol: alc() }));
+    expect(txt).toMatch(/Alcohol \(reduction tool/);
+    expect(txt).toMatch(/dry days\/week/);
+    expect(txt).toMatch(/NEUTRAL/);
+  });
+
+  it("says nothing about alcohol when there's no data", () => {
+    expect(buildNutritionistUser(base())).not.toMatch(/Alcohol \(reduction tool/);
   });
 });

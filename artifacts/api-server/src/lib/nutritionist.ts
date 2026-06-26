@@ -14,6 +14,7 @@ import type {
   InsightSeriesPoint,
   BodyTrajectoryPoint,
   BodyStat,
+  AlcoholStats,
 } from "@workspace/db";
 import { PROTEIN_FLOOR_G_PER_LB } from "./nutrition-safety";
 
@@ -125,6 +126,10 @@ export type AnalysisInput = {
   // Body-composition readings over the window (oldest → newest) for the recomp
   // trajectory chart. lean/fat are derived per reading from its own weight+bf%.
   bodyLog: BodyTrajectoryPoint[];
+  // Alcohol read (reduction tool): dry days vs the weekly target, the week-over-
+  // week trend, and what drinking is costing training/eating. Undefined when the
+  // feature has no data — the coach simply doesn't mention it then.
+  alcohol?: AlcoholStats;
 };
 
 // One final logged day's macro values (null where that metric wasn't logged).
@@ -190,6 +195,13 @@ const REPORT_SCHEMA = {
         hydration: INSIGHT_COPY,
         sodium: INSIGHT_COPY,
         bodycomp: INSIGHT_COPY,
+        // Alcohol tiles (only when there's alcohol data). 'alcohol' = what this
+        // week's drinking is costing training/eating (within budget → neutral,
+        // over → soft nudge, NEVER red/shame). 'dryDays' = the win, dry days vs
+        // target + the week-over-week trend (frame dry days as the score going
+        // up; small samples are an early read).
+        alcohol: INSIGHT_COPY,
+        dryDays: INSIGHT_COPY,
       },
     },
     keyMoves: {
@@ -246,6 +258,23 @@ export function buildNutritionistSystem(persona: string): string {
     `hard-training, muscle-building athlete needs ADEQUATE sodium for performance, blood volume ` +
     `and sweat replacement — too little flattens training and causes cramps — while chronically ` +
     `very high intake warrants reining in for blood pressure.\n\n` +
+    `## Alcohol — weigh it WITH everything else, never as a separate box\n` +
+    `If the brief includes an alcohol read, it is a first-class input you reason about ` +
+    `ALONGSIDE protein, calories, training and recomposition — not a bolt-on. Know the ` +
+    `physiology and let it COMPOUND with the rest: alcohol suppresses muscle protein ` +
+    `synthesis and blunts recovery, degrades sleep (so next-day training quality and ` +
+    `appetite control suffer), adds empty calories straight against a recomp deficit, and ` +
+    `dehydrates — and every one of those hits HARDER when protein is already low, the ` +
+    `deficit is real, or training volume is high. So tie it together: "under protein AND ` +
+    `four drinking nights is a double hit on the recomp," "the 3 next-day load dips line up ` +
+    `with your drinking days." When you talk diet/training, factor alcohol in; when you talk ` +
+    `alcohol, use the bodyweight, protein pace, calorie target and session load to make the ` +
+    `read specific.\n` +
+    `TONE for alcohol (non-negotiable — this is a habit being WORKED DOWN, not a failure to ` +
+    `mock): dry days are WINS — frame them as the score going up. Drinking WITHIN the weekly ` +
+    `budget is NEUTRAL, not a red flag; over budget is a SOFT nudge, never shame, never ` +
+    `"failed". Be honest about real effects but don't catastrophize, and when there are fewer ` +
+    `than ~2 weeks of data say it's an early read. Wry but genuinely supportive here.\n\n` +
     `## Today may still be in progress\n` +
     `If the data says today is OPEN, the runner is STILL EATING — coach today by PACE (where they ` +
     `stand vs target, what to prioritise for the rest of the day) in the 'today' field, and do NOT ` +
@@ -383,6 +412,26 @@ export function buildNutritionistUser(d: AnalysisInput): string {
     `Training: ${d.sessionsDone} of ${d.plannedSessions} planned sessions done, ` +
       `avg training load ${fmt(d.avgTrainingLoad)}.`,
   );
+  if (d.alcohol?.active) {
+    const a = d.alcohol;
+    const impactTxt =
+      a.impact.length > 0
+        ? ` Impact so far — ${a.impact.map((i) => i.note).join(" ")}`
+        : a.seedState
+          ? ` Under ~2 weeks of tracking, so treat impact as an EARLY read, not proof.`
+          : "";
+    lines.push(
+      `\nAlcohol (reduction tool — dry days are the WIN; weave this in WITH protein/calories/` +
+        `training, don't quarantine it): goal ${a.dryDaysTarget} dry days/week. This week ` +
+        `${a.dryDaysThisWeek} dry so far, ${a.drinkingDaysThisWeek} drinking day(s) (budget ` +
+        `${a.drinkingBudget}), ${a.weekDrinks} standard drinks. Current dry streak ` +
+        `${a.currentDryStreak} day(s) (longest ${a.longestDryStreak}). Week-over-week: ` +
+        `${a.weeksOnTarget}/${a.weeksTracked} completed weeks hit target, avg ` +
+        `${fmt(a.avgDryPerWeek)} dry/wk, ${a.weeksOnTargetStreak}-week on-target streak.` +
+        impactTxt +
+        ` Within budget reads NEUTRAL, over budget a SOFT nudge — never shame.`,
+    );
+  }
   if (d.todayOpen) {
     lines.push(
       `IMPORTANT — today is still OPEN (the runner hasn't closed the day, they're ` +
@@ -911,6 +960,86 @@ export function computeInsights(d: AnalysisInput): NutritionInsight[] {
     });
   }
 
+  // ---------- ALCOHOL — only when tracking has started ----------
+  // Two tiles share the same deterministic read (rides on `alcohol`). Tone is
+  // win-not-shame: dry days count UP; drinking within budget is NEUTRAL (status
+  // 'appropriate', the tile renders a grey pill, NOT red); over budget is a soft
+  // 'attention' nudge — we never use 'under'/'over' here (those map to red).
+  if (d.alcohol?.active) {
+    const a = d.alcohol;
+
+    // Dry days — the positive metric (green when the weekly target is met).
+    {
+      let status: InsightStatus;
+      if (a.seedState) status = "early";
+      else if (a.dryDaysThisWeek >= a.dryDaysTarget) status = "ahead";
+      else status = "attention";
+      const toGo = Math.max(0, a.dryDaysTarget - a.dryDaysThisWeek);
+      const caption = a.seedState
+        ? `${a.dryDaysThisWeek} dry days so far — a couple weeks of logging and I can trend it.`
+        : status === "ahead"
+          ? `${a.dryDaysThisWeek} dry days this week — target ${a.dryDaysTarget} hit. 🙌`
+          : `${a.dryDaysThisWeek} of ${a.dryDaysTarget} dry days so far — ${toGo} to go.`;
+      const trendTxt =
+        a.weeksTracked > 0
+          ? `${a.weeksOnTarget} of the last ${a.weeksTracked} completed week(s) hit target, averaging ${a.avgDryPerWeek ?? "—"} dry days/week` +
+            (a.weeksOnTargetStreak > 0 ? `, a ${a.weeksOnTargetStreak}-week on-target streak` : "") +
+            "."
+          : "Not enough completed weeks yet to call a week-over-week trend.";
+      const detail = a.seedState
+        ? `Dry days are the win, and they count up toward ${a.dryDaysTarget}/week. Keep logging drinks (and tap "Mark dry" on the clean days) for a couple of weeks and the streak + trend fill in.`
+        : `Current dry streak ${a.currentDryStreak} day(s) (longest ${a.longestDryStreak}). ${trendTxt}`;
+      out.push({
+        id: "dryDays",
+        label: "Dry days",
+        group: "alcohol",
+        unit: "days",
+        actual: a.dryDaysThisWeek,
+        target: a.dryDaysTarget,
+        direction: "higher_better",
+        status,
+        alcohol: a,
+        subMetric: `${a.dryDaysThisWeek}/${a.dryDaysTarget} this week`,
+        caption,
+        detail,
+      });
+    }
+
+    // Alcohol intake — what this week's drinking is costing (never red).
+    {
+      const overBudget = a.drinkingDaysThisWeek > a.drinkingBudget;
+      const status: InsightStatus = a.seedState
+        ? "early"
+        : overBudget
+          ? "attention"
+          : "appropriate";
+      const caption = a.seedState
+        ? `${a.weekDrinks} drinks this week — early days, keep logging.`
+        : overBudget
+          ? `${a.weekDrinks} drinks across ${a.drinkingDaysThisWeek} days — over your ${a.drinkingBudget}-day budget.`
+          : `${a.weekDrinks} drinks, ${a.drinkingDaysThisWeek}/${a.drinkingBudget} drinking days — inside budget.`;
+      const impactLine = a.impact.length > 0 ? " " + a.impact[0]!.note : "";
+      const detail = a.seedState
+        ? `Once there's ~2 weeks logged I'll compare your drinking days to your dry days — next-day training, protein, calories, hydration — so you can see the real cost. No verdicts on a handful of days.`
+        : `${a.impact.map((i) => i.note).join(" ")}`.trim() ||
+          `Drinking sat ${overBudget ? "over" : "inside"} budget this week. Within budget is fine; the cost shows up next-day in training and recovery, so keep stacking dry days.`;
+      out.push({
+        id: "alcohol",
+        label: "Alcohol",
+        group: "alcohol",
+        unit: "drinks",
+        actual: a.weekDrinks,
+        target: null,
+        direction: "lower_better",
+        status,
+        alcohol: a,
+        subMetric: `${a.drinkingDaysThisWeek}/${a.drinkingBudget} drinking days` + impactLine,
+        caption,
+        detail,
+      });
+    }
+  }
+
   // Significance-rank: float health flags (under/over) to the top, then
   // attention/early, then the steady reads. Stable within each tier by a fixed
   // priority so the order is deterministic.
@@ -924,6 +1053,9 @@ export function computeInsights(d: AnalysisInput): NutritionInsight[] {
     fat: 4,
     hydration: 5,
     sodium: 6,
+    // Alcohol reads sit after the core nutrition reads in the steady tier.
+    dryDays: 7,
+    alcohol: 8,
   };
   return out.sort((a, b) => tier(a.status) - tier(b.status) || priority[a.id] - priority[b.id]);
 }
