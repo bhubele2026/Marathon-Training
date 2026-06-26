@@ -588,11 +588,6 @@ export default function Nutrition() {
       {/* Close / reopen the day under review (acts on the selected date). */}
       <CloseDayButton date={selectedDate} />
 
-      {/* AI Nutritionist deep-dive — protein adequacy, body-composition
-          diagnosis (where you are, what you should see, why you may not be),
-          fuelling, and concrete next moves. Reads the server-cached analysis. */}
-      <NutritionistPanel variant="full" weeks={8} />
-
       {/* Logging streak + clickable mini-calendar of recent days. */}
       <ConsistencyStrip
         entries={entries}
@@ -601,14 +596,9 @@ export default function Nutrition() {
         onSelect={setSelectedDate}
       />
 
-      {/* Phase 15: the viewable personalized nutrition plan, derived from the
-          baseline targets (which trace to the active plan's goal + safe deficit). */}
-      <NutritionPlanCard
-        calorieTarget={baselineGoals?.calorieTarget ?? null}
-        proteinTargetG={baselineGoals?.proteinTargetG ?? null}
-        carbsTargetG={baselineGoals?.carbsTargetG ?? null}
-        fatTargetG={baselineGoals?.fatTargetG ?? null}
-      />
+      {/* AI Nutritionist deep-dive — the compact scorecard: a viz per metric,
+          charts + reasoning a tap away. Reads the server-cached analysis. */}
+      <NutritionistPanel variant="full" weeks={8} />
 
       {/* 14-day trend across all four macros, each in its fixed metric color. */}
       <Card>
@@ -670,6 +660,15 @@ export default function Nutrition() {
           )}
         </CardContent>
       </Card>
+
+      {/* Phase 15: the viewable personalized nutrition plan, derived from the
+          baseline targets (which trace to the active plan's goal + safe deficit). */}
+      <NutritionPlanCard
+        calorieTarget={baselineGoals?.calorieTarget ?? null}
+        proteinTargetG={baselineGoals?.proteinTargetG ?? null}
+        carbsTargetG={baselineGoals?.carbsTargetG ?? null}
+        fatTargetG={baselineGoals?.fatTargetG ?? null}
+      />
 
       {/* Per-day history of every logged day with the actual numbers. */}
       <NutritionLog onSelectDate={setSelectedDate} selectedDate={selectedDate} />

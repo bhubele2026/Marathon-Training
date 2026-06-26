@@ -1,5 +1,6 @@
 import { type ReactNode, useState } from "react";
-import { ChevronRight } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
+import { ChevronRight, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   type InsightStatus,
@@ -59,18 +60,37 @@ export function InsightTile({
   className,
 }: InsightTileProps) {
   const [open, setOpen] = useState(false);
+  const reduced = useReducedMotion();
   const tone = pill?.tone ?? statusToPillTone(status);
   const pillSpec: PillSpec = pill ?? { tone, ...defaultPillLabel(status) };
+  // A small, tasteful win state when a read lands in a good place: a soft
+  // success-tinted border + a sparkle by the name (calm fade, instant under
+  // reduced motion). Suppressed when the pill is overridden to a non-status tone.
+  const winning = !pill && (status === "ahead" || status === "on_track");
   return (
     <section
       className={cn(
-        "rounded-2xl border border-card-border bg-card p-4 shadow-card transition-transform duration-150 hover:-translate-y-0.5",
+        "rounded-2xl border bg-card p-4 shadow-card transition-transform duration-150 hover:-translate-y-0.5",
+        winning ? "border-[hsl(var(--success))]/35" : "border-card-border",
         className,
       )}
       data-testid={`tile-${name.toLowerCase().replace(/[^a-z]+/g, "-")}`}
     >
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="font-display text-[15px] font-bold tracking-tight text-foreground">{name}</h3>
+        <h3 className="flex items-center gap-1.5 font-display text-[15px] font-bold tracking-tight text-foreground">
+          {name}
+          {winning && (
+            <motion.span
+              initial={reduced ? { opacity: 1 } : { opacity: 0, scale: 0.6 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={reduced ? { duration: 0 } : { duration: 0.4, ease: "easeOut" }}
+              aria-hidden="true"
+              data-testid="tile-win"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-[hsl(var(--success))]" />
+            </motion.span>
+          )}
+        </h3>
         <StatusPill {...pillSpec} />
       </div>
 
