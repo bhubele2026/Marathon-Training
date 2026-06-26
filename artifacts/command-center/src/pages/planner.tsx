@@ -2561,7 +2561,7 @@ export default function Planner() {
   // ---- Loading / empty states ------------------------------------------
   if (listQuery.isLoading) {
     return (
-      <div className="space-y-6" data-testid="planner-loading">
+      <div className="space-y-5" data-testid="planner-loading">
         <Skeleton className="h-12 w-1/3" />
         <Skeleton className="h-64 w-full" />
         <Skeleton className="h-64 w-full" />
@@ -2571,7 +2571,7 @@ export default function Planner() {
 
   if (configs.length === 0) {
     return (
-      <div className="space-y-6 pb-12" data-testid="planner-page-empty">
+      <div className="space-y-5 pb-12" data-testid="planner-page-empty">
         <header>
           <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
             Phase Planner
@@ -2603,7 +2603,7 @@ export default function Planner() {
 
   if (selectedId === null || (detailQuery.isLoading && hydratedForId === null)) {
     return (
-      <div className="space-y-6" data-testid="planner-loading">
+      <div className="space-y-5" data-testid="planner-loading">
         <Skeleton className="h-12 w-1/3" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -2611,7 +2611,7 @@ export default function Planner() {
   }
 
   return (
-    <div className="space-y-6 pb-12" data-testid="planner-page">
+    <div className="space-y-5 pb-12" data-testid="planner-page">
       <header>
         <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
           Phase Planner
@@ -3135,7 +3135,7 @@ export default function Planner() {
             Save then Apply to deterministically generate every workout.
           </p>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-5">
           {/* Starter shortcuts: one-click full configs, grouped by
               training style ("Run-only" vs "Hybrid") so the rail stays
               scannable as the catalog grows (task #225). Group order is
@@ -5511,7 +5511,7 @@ export default function Planner() {
             Plan Preview
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-5">
           <MileageCurve
             weeks={mileagePreview}
             blocks={previewBlocks}

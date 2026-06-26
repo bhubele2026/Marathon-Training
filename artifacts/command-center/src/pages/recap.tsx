@@ -82,7 +82,7 @@ export default function Recap() {
   const weekEnd = review?.weekEnd ?? addDays(weekStart, 6);
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1000px] mx-auto">
+    <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1000px] mx-auto">
       <div className="flex items-center justify-between gap-4">
         <div>
           <h2 className="text-4xl font-extrabold tracking-tight text-foreground">

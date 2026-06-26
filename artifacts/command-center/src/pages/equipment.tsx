@@ -252,7 +252,7 @@ export default function Equipment() {
   );
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1600px] mx-auto">
+    <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1600px] mx-auto">
       <div>
         <h2 className="text-4xl font-extrabold tracking-tight text-foreground">Arsenal</h2>
         <p className="text-sm text-muted-foreground mt-1">
@@ -788,7 +788,7 @@ export default function Equipment() {
                       </div>
                     </div>
 
-                    <div className="flex gap-6 text-sm">
+                    <div className="flex gap-4 text-sm">
                       {workout.distanceMi != null && (
                         <div className="text-right">
                           <span className="block text-[10px] font-bold text-muted-foreground">

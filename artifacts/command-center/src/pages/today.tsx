@@ -98,7 +98,7 @@ export default function Today() {
   });
 
   if (isLoading) {
-    return <div className="space-y-6"><Skeleton className="h-64" /></div>;
+    return <div className="space-y-5"><Skeleton className="h-64" /></div>;
   }
 
   if (!today) {
@@ -167,7 +167,7 @@ export default function Today() {
   const showCountdown =
     typeof today.daysUntilStart === "number" && today.daysUntilStart > 0 && !!today.firstSession;
   return (
-    <div className="mx-auto flex max-w-[1440px] flex-col gap-6 px-4 animate-in fade-in slide-in-from-bottom-4 duration-500 md:px-8">
+    <div className="mx-auto flex max-w-[1440px] flex-col gap-4 px-4 animate-in fade-in slide-in-from-bottom-4 duration-500 md:px-8">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <TodayEyebrow raceKind={(today.raceKind ?? null) as RaceDayKind | null} />
@@ -475,7 +475,7 @@ export default function Today() {
       ) : !today.hasPlan ? (
         // Phase 6: tasteful, compact empty state — a quiet line, not a giant
         // dashed panel.
-        <div className="flex items-center gap-3 py-6 text-muted-foreground">
+        <div className="flex items-center gap-3 py-4 text-muted-foreground">
           <Activity className="h-6 w-6 opacity-60" />
           <div>
             <h3 className="text-base font-bold tracking-tight text-foreground">Rest Day</h3>
@@ -487,7 +487,7 @@ export default function Today() {
       <QuickLogActivity testIdSuffix="today" />
 
       {today.hasPlan && !showCountdown && (
-        <div className="grid gap-6">
+        <div className="grid gap-4">
           {/* Task #135 + #143: render one Mission Brief card per concurrent
               program. `plans[]` is ordered by sourceEntryIndex so the
               lowest-index program (typically the legacy run program)
@@ -549,7 +549,7 @@ export default function Today() {
               </CardHeader>
               <CardContent>
                 <div>
-                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                     <div className="space-y-4 flex-1">
                       {/* Task #235: mirror the race-day badge + personalized
                           vs catalog pace chip pair from week-detail.tsx so
@@ -1135,7 +1135,7 @@ export default function Today() {
                 <SessionDetailDisclosure
                   testId={`toggle-today-session-detail-${session.id}`}
                 >
-                  <div className="space-y-6">
+                  <div className="space-y-5">
                     <EquipmentChipRail
                       equipmentList={session.equipmentList}
                       equipment={session.equipment}
@@ -1197,7 +1197,7 @@ export default function Today() {
                       variant="prominent"
                       testIdPrefix={`session-today-${session.id}`}
                     />
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                       {session.distanceMi != null && (
                         <div>
                           <p className="text-xs text-muted-foreground font-bold tracking-wider">Distance</p>

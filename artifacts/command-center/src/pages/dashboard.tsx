@@ -158,14 +158,14 @@ function MiniBar({
 
 function DashboardSkeleton() {
   return (
-    <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 space-y-6">
+    <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-4 space-y-5">
       <Skeleton className="h-10 w-64 rounded-xl" />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[0, 1, 2, 3].map((i) => (
           <Skeleton key={i} className="h-28 rounded-3xl" />
         ))}
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {[0, 1, 2].map((i) => (
           <Skeleton key={i} className="h-64 rounded-3xl" />
         ))}
@@ -202,7 +202,7 @@ export default function Dashboard() {
   // ---- Empty-plan state: no plan applied yet ----------------------------
   if (!summary.hasPlan) {
     return (
-      <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-4 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div data-testid="dashboard-header" className="flex flex-col gap-1">
           <h2
             className="text-4xl font-display font-extrabold tracking-tight text-foreground"
@@ -219,7 +219,7 @@ export default function Dashboard() {
         </div>
         <EmptyPlanState testId="dashboard-empty-plan" />
         <RecompHero recomp={summary.recomp} weightGoal={summary.weightGoal} />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <DashboardFuelTile />
           <DashboardWaterTile weightLb={summary.weightCurrent} />
         </div>
@@ -265,7 +265,7 @@ export default function Dashboard() {
           };
 
   return (
-    <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-4 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Header + scale toggle */}
       <div
         data-testid="dashboard-header"
@@ -338,7 +338,7 @@ export default function Dashboard() {
       </div>
 
       {/* Primary grid: fuel ring, water, training-load */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <DashboardFuelTile />
         <DashboardWaterTile weightLb={summary.weightCurrent} />
         <Card data-testid="dashboard-training-tile">
@@ -371,7 +371,7 @@ export default function Dashboard() {
       </div>
 
       {/* Trends: weight area, goal arc, activity calendar */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <StatTile
           icon={Scale}
           label="Weight"

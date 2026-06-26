@@ -214,7 +214,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-3xl mx-auto">
+    <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-3xl mx-auto">
       <div>
         <h2 className="text-4xl font-extrabold tracking-tight text-foreground">Settings</h2>
         <p className="text-sm text-muted-foreground mt-1">

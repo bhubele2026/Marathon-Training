@@ -159,7 +159,7 @@ export default function Insights() {
   }, [entries, waters, workouts, measurements, targets, scale]);
 
   return (
-    <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 flex flex-col gap-6">
+    <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-4 flex flex-col gap-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-display text-3xl font-extrabold tracking-tight">
@@ -196,7 +196,7 @@ export default function Insights() {
       ) : (
         <>
           {/* Supporting trend tiles */}
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <StatTile
               label="Avg protein"
               value={avgProtein != null ? String(avgProtein) : "—"}

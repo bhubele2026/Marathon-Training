@@ -411,7 +411,7 @@ export default function Plan() {
 
   if (loadingOverview || loadingWeeks) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-5">
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-[400px] w-full" />
       </div>
@@ -428,7 +428,7 @@ export default function Plan() {
   // is hidden because there's nothing to reset.
   if (!overview.hasPlan || weeks.length === 0) {
     return (
-      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1600px] mx-auto">
+      <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1600px] mx-auto">
         <div>
           <h2
             className="text-4xl font-extrabold tracking-tight text-foreground"
@@ -525,7 +525,7 @@ export default function Plan() {
   const includesRunning = overview.includesRunning;
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1600px] mx-auto">
+    <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1600px] mx-auto">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h2

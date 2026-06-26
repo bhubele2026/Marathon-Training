@@ -148,18 +148,19 @@
   --phase-race-specific: hsl(262 70% 62%);
   --phase-taper: hsl(192 78% 50%);
 
-  /* Cool, soft, diffuse elevation — the bulk of the "expensive" jump.
+  /* Flatter, tighter elevation — hairline + a short close shadow instead of a
+     big diffuse glow, so surfaces read crisp, not floating/airy.
      `--shadow-tile` is the lifted feature/nav-tile variant. */
-  --shadow-xs:   0 1px 2px 0 hsl(215 30% 30% / 0.04);
-  --shadow-card: 0 1px 2px hsl(215 30% 30% / 0.04), 0 8px 24px -6px hsl(215 35% 30% / 0.10);
-  --shadow-tile: 0 2px 4px hsl(215 30% 30% / 0.05), 0 18px 40px -10px hsl(218 55% 35% / 0.16);
-  --shadow-pop:  0 8px 32px -8px hsl(218 40% 25% / 0.18);
+  --shadow-xs:   0 1px 1px 0 hsl(215 30% 30% / 0.04);
+  --shadow-card: 0 1px 2px hsl(215 30% 30% / 0.05), 0 3px 8px -4px hsl(215 35% 30% / 0.08);
+  --shadow-tile: 0 1px 2px hsl(215 30% 30% / 0.06), 0 6px 16px -8px hsl(218 55% 35% / 0.12);
+  --shadow-pop:  0 4px 16px -6px hsl(218 40% 25% / 0.16);
 
   --app-font-sans: 'Inter', system-ui, sans-serif;
   --app-font-display: 'Plus Jakarta Sans', 'Inter', sans-serif;
   --app-font-serif: Georgia, serif;
   --app-font-mono: 'JetBrains Mono', ui-monospace, monospace;
-  --radius: 1rem;
+  --radius: 0.875rem;
   
   --tracking-normal: 0em;
   --spacing: 0.25rem;
@@ -238,10 +239,11 @@
   --phase-race-specific: hsl(262 72% 70%);
   --phase-taper: hsl(192 76% 58%);
 
-  /* Dark depth = hairline border + 1px top inset highlight, not drop shadow. */
-  --shadow-card: 0 1px 0 hsl(210 40% 100% / 0.04) inset, 0 8px 24px -8px hsl(0 0% 0% / 0.5);
-  --shadow-tile: 0 1px 0 hsl(210 40% 100% / 0.05) inset, 0 14px 36px -10px hsl(0 0% 0% / 0.55);
-  --shadow-pop:  0 1px 0 hsl(210 40% 100% / 0.04) inset, 0 10px 32px -8px hsl(0 0% 0% / 0.6);
+  /* Dark depth = hairline border + 1px top inset highlight, not drop shadow.
+     Flatter: a short close shadow rather than a tall diffuse one. */
+  --shadow-card: 0 1px 0 hsl(210 40% 100% / 0.04) inset, 0 3px 10px -6px hsl(0 0% 0% / 0.5);
+  --shadow-tile: 0 1px 0 hsl(210 40% 100% / 0.05) inset, 0 6px 18px -10px hsl(0 0% 0% / 0.55);
+  --shadow-pop:  0 1px 0 hsl(210 40% 100% / 0.04) inset, 0 6px 20px -8px hsl(0 0% 0% / 0.6);
 }
 
 @layer base {

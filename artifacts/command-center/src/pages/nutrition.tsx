@@ -444,7 +444,7 @@ export default function Nutrition() {
   const waterOz = today?.waterMl != null ? Math.round(today.waterMl / ML_PER_OZ) : 0;
 
   return (
-    <div className="mx-auto max-w-[1440px] space-y-6 px-4 md:px-8">
+    <div className="mx-auto max-w-[1440px] space-y-5 px-4 md:px-8">
       <div>
         <h1 className="font-display text-4xl font-extrabold tracking-tight text-foreground">
           Nutrition
@@ -525,7 +525,7 @@ export default function Nutrition() {
           ) : noTargets ? (
             // R7: one clear CTA when NO targets exist — never four dead rings.
             <div
-              className="flex flex-col items-center gap-3 py-6 text-center"
+              className="flex flex-col items-center gap-3 py-4 text-center"
               data-testid="nutrition-no-targets"
             >
               <Sparkles className="h-7 w-7 text-primary" />
@@ -542,7 +542,7 @@ export default function Nutrition() {
               </Button>
             </div>
           ) : (
-            <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+            <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
               {/* Calories hero ring + macro arcs + supporting chips. */}
               <div className="space-y-5">
                 <div className="flex items-center gap-5">

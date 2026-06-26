@@ -166,7 +166,7 @@ export default function History() {
   const hasAnything = days.length > 0;
 
   return (
-    <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-6 flex flex-col gap-6">
+    <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-4 flex flex-col gap-4">
       {/* Header + scale toggle + period navigator */}
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
