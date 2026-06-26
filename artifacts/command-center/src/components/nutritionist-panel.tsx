@@ -1,5 +1,11 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
+import type {
+  NutritionistReport,
+  NutritionInsight,
+  InsightStatus,
+} from "@/components/insights/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SectionHeader } from "@/components/studio/section-header";
@@ -12,64 +18,22 @@ import {
   CheckCircle2,
   AlertTriangle,
   Info,
+  ChevronDown,
 } from "lucide-react";
 
 // The AI Nutritionist surface. One component, two variants:
-//   - variant="today": a compact daily verdict (headline + protein chip + the
+//   - variant="today": a compact daily verdict (headline + status chip + the
 //     coach's one-liner) with a link into the full read.
-//   - variant="full":  the deep-dive on the Nutrition page (protein verdict,
-//     body-comp diagnosis, fuelling, hydration, sodium, key moves).
+//   - variant="full":  the deep-dive on the Nutrition page — one card per
+//     structured insight (target-vs-actual + a one-line caption, the longer
+//     reasoning behind a "why"), plus the key moves.
 //
-// Hand-fetched like the rest of the nutrition slice (not in openapi.yaml).
-// Reads GET /api/nutritionist/analysis, which is server-cached by inputHash so
-// both variants hit the same cheap cached row until the metrics actually move.
-
-type ProteinStatus = "too_little" | "on_point" | "too_much";
-type DeficitStatus = "under_floor" | "aggressive" | "appropriate" | "surplus" | "unknown";
-
-export type NutritionistReport = {
-  weeks: number;
-  weeksElapsed: number;
-  headline: string;
-  protein: {
-    status: ProteinStatus;
-    avgProteinG: number | null;
-    targetProteinG: number | null;
-    gPerLb: number | null;
-    hitRate: number | null;
-    detail: string;
-    distributionTip: string;
-  };
-  bodyComp: {
-    currentWeightLb: number | null;
-    bodyFatPct: number | null;
-    leanMassLb: number | null;
-    fatMassLb: number | null;
-    leanMassChangeLb: number | null;
-    fatMassChangeLb: number | null;
-    weightChangeLb: number | null;
-    inchesChange: number | null;
-    trend: string;
-    whatYouShouldSee: string;
-    whyYouMayNotBe: string;
-  };
-  deficit: {
-    status: DeficitStatus;
-    avgCalories: number | null;
-    calorieTarget: number | null;
-    safeFloorKcal: number;
-    detail: string;
-  };
-  today: string;
-  hydration: string;
-  sodium: string;
-  keyMoves: string[];
-  confidence: "low" | "medium" | "high";
-  dataGaps: string[];
-  narrative: string;
-  generatedAt?: string;
-  cached?: boolean;
-};
+// Hand-fetched like the rest of the nutrition slice (not in openapi.yaml). The
+// response shape is the shared @workspace/db NutritionistReport — the engine
+// owns every NUMBER, the AI owns only the caption/detail words.
+//
+// NOTE: this is the Phase-A structural adaptation to the insight model; the
+// fully visual-first rebuild (charts via the insight kit) lands in Phase C.
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url, { headers: { accept: "application/json" } });
@@ -81,37 +45,24 @@ export function nutritionistQueryKey(weeks: number): [string, number] {
   return ["/api/nutritionist/analysis", weeks];
 }
 
-const PROTEIN_LABEL: Record<ProteinStatus, string> = {
-  too_little: "Protein low",
-  on_point: "Protein on point",
-  too_much: "Protein high",
-};
-
-// Semantic status tone. on-track/good = accent; health flags (too little /
-// under floor) = a caution tint; everything else neutral.
-function statusTone(s: ProteinStatus | DeficitStatus): {
-  cls: string;
-  Icon: typeof CheckCircle2;
-} {
+// Semantic status tone. ahead/on_track/appropriate = good; under/over = a health
+// flag; attention/early = caution.
+function statusTone(s: InsightStatus): { cls: string; Icon: typeof CheckCircle2 } {
   switch (s) {
-    case "on_point":
+    case "ahead":
+    case "on_track":
     case "appropriate":
       return { cls: "text-primary border-primary/30 bg-primary/10", Icon: CheckCircle2 };
-    case "too_little":
-    case "under_floor":
-    case "aggressive":
+    case "under":
+    case "over":
       return { cls: "text-destructive border-destructive/30 bg-destructive/10", Icon: AlertTriangle };
     default:
-      return { cls: "text-muted-foreground border-border bg-muted/50", Icon: Info };
+      return { cls: "text-[hsl(var(--warning))] border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/10", Icon: Info };
   }
 }
 
-function Chip({ status }: { status: ProteinStatus | DeficitStatus }) {
+function Chip({ status, label }: { status: InsightStatus; label?: string }) {
   const { cls, Icon } = statusTone(status);
-  const label =
-    status in PROTEIN_LABEL
-      ? PROTEIN_LABEL[status as ProteinStatus]
-      : status.replace(/_/g, " ");
   return (
     <span
       className={
@@ -120,21 +71,16 @@ function Chip({ status }: { status: ProteinStatus | DeficitStatus }) {
       }
     >
       <Icon className="h-3 w-3" />
-      {label}
+      {label ?? status.replace(/_/g, " ")}
     </span>
   );
 }
 
-// A delta string + tone for a body-comp stat. `goodDown` = moving down is the
-// win (weight / fat mass on a cut); for lean mass, up is the win.
-function deltaFor(
-  change: number | null,
-  goodDown: boolean,
-): { value: string; tone: "success" | "neutral" | "destructive" } | undefined {
-  if (change == null || change === 0) return undefined;
-  const good = goodDown ? change < 0 : change > 0;
-  const sign = change > 0 ? "+" : "";
-  return { value: `${sign}${change}`, tone: good ? "success" : "neutral" };
+function fmtActualTarget(ins: NutritionInsight): string | null {
+  if (ins.actual == null) return null;
+  const a = Math.round(ins.actual);
+  const t = ins.target != null ? ` / ${Math.round(ins.target)}` : "";
+  return `${a}${t} ${ins.unit}`;
 }
 
 export function NutritionistPanel({
@@ -165,6 +111,9 @@ export function NutritionistPanel({
   }
   if (!data) return null;
 
+  const insights = data.insights ?? [];
+  const protein = insights.find((i) => i.id === "protein");
+
   // --- Compact daily verdict (Today page) ---------------------------------
   if (variant === "today") {
     return (
@@ -180,7 +129,7 @@ export function NutritionistPanel({
               <span className="font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 Nutritionist
               </span>
-              <Chip status={data.protein.status} />
+              {protein && <Chip status={protein.status} label={`Protein ${protein.status.replace(/_/g, " ")}`} />}
             </div>
             <Link
               href="/nutrition"
@@ -191,7 +140,6 @@ export function NutritionistPanel({
             </Link>
           </div>
           <p className="text-sm font-medium text-foreground">{data.headline}</p>
-          {/* Mid-day pace coaching takes priority when the day's open. */}
           {data.today ? (
             <p className="min-w-0 text-sm leading-relaxed text-muted-foreground">{data.today}</p>
           ) : (
@@ -205,9 +153,6 @@ export function NutritionistPanel({
   }
 
   // --- Full deep-dive (Nutrition page) ------------------------------------
-  const bc = data.bodyComp;
-  const hasLeanFat = bc.leanMassLb != null && bc.fatMassLb != null;
-  const p = data.protein;
   return (
     <Card
       variant="flush"
@@ -238,104 +183,10 @@ export function NutritionistPanel({
           </section>
         )}
 
-        {/* PROTEIN */}
-        <section className="space-y-2" data-testid="section-nutritionist-protein">
-          <SectionHeader eyebrow="Protein" action={<Chip status={p.status} />} />
-          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-            {p.gPerLb != null && (
-              <span className="tabular-nums text-lg font-semibold tabular-nums text-foreground">
-                {p.gPerLb}
-                <span className="ml-1 text-[13px] font-medium text-muted-foreground">g/lb</span>
-              </span>
-            )}
-            {p.avgProteinG != null && p.targetProteinG != null && (
-              <span className="tabular-nums text-[13px] tabular-nums text-muted-foreground">
-                {Math.round(p.avgProteinG)} / {p.targetProteinG} g avg
-                {p.hitRate != null ? ` · hit ${Math.round(p.hitRate * 100)}% of days` : ""}
-              </span>
-            )}
-          </div>
-          <p className="min-w-0 text-sm leading-relaxed text-muted-foreground">{p.detail}</p>
-          <p className="min-w-0 text-[13px] italic leading-relaxed text-muted-foreground/80">
-            {p.distributionTip}
-          </p>
-        </section>
-
-        {/* BODY COMPOSITION */}
-        <section className="space-y-3" data-testid="section-nutritionist-bodycomp">
-          <SectionHeader eyebrow="Body composition" />
-          <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-4">
-            <StatReadout
-              label="Weight"
-              value={bc.currentWeightLb != null ? bc.currentWeightLb : "—"}
-              unit={bc.currentWeightLb != null ? "lb" : undefined}
-              delta={deltaFor(bc.weightChangeLb, true)}
-            />
-            {bc.bodyFatPct != null ? (
-              <StatReadout label="Body fat" value={bc.bodyFatPct} unit="%" />
-            ) : (
-              <div className="flex flex-col gap-1">
-                <span className="font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                  Body fat
-                </span>
-                <Link
-                  href="/measurements"
-                  className="text-[13px] font-medium text-primary hover:underline"
-                >
-                  Log to track →
-                </Link>
-              </div>
-            )}
-            <StatReadout
-              label="Lean mass"
-              value={hasLeanFat ? (bc.leanMassLb as number) : "—"}
-              unit={hasLeanFat ? "lb" : undefined}
-              delta={deltaFor(bc.leanMassChangeLb, false)}
-            />
-            <StatReadout
-              label="Fat mass"
-              value={hasLeanFat ? (bc.fatMassLb as number) : "—"}
-              unit={hasLeanFat ? "lb" : undefined}
-              delta={deltaFor(bc.fatMassChangeLb, true)}
-            />
-          </div>
-          <Read label="Where you are" text={bc.trend} />
-          <Read label="What you should see" text={bc.whatYouShouldSee} />
-          <Read label="Why you may not be" text={bc.whyYouMayNotBe} emphasis />
-        </section>
-
-        {/* FUELLING */}
-        <section className="space-y-2" data-testid="section-nutritionist-deficit">
-          <SectionHeader
-            eyebrow="Fuelling"
-            action={
-              data.deficit.status !== "unknown" ? <Chip status={data.deficit.status} /> : undefined
-            }
-          />
-          {data.deficit.avgCalories != null && (
-            <span className="tabular-nums text-[13px] tabular-nums text-muted-foreground">
-              {Math.round(data.deficit.avgCalories)}
-              {data.deficit.calorieTarget != null ? ` / ${data.deficit.calorieTarget}` : ""} kcal avg
-            </span>
-          )}
-          <p className="min-w-0 text-sm leading-relaxed text-muted-foreground">{data.deficit.detail}</p>
-        </section>
-
-        {/* HYDRATION */}
-        {data.hydration && (
-          <section className="space-y-2" data-testid="section-nutritionist-hydration">
-            <SectionHeader eyebrow="Hydration" />
-            <p className="min-w-0 text-sm leading-relaxed text-muted-foreground">{data.hydration}</p>
-          </section>
-        )}
-
-        {/* SODIUM */}
-        {data.sodium && (
-          <section className="space-y-2" data-testid="section-nutritionist-sodium">
-            <SectionHeader eyebrow="Sodium" />
-            <p className="min-w-0 text-sm leading-relaxed text-muted-foreground">{data.sodium}</p>
-          </section>
-        )}
+        {/* INSIGHTS — one block per structured read. */}
+        {insights.map((ins) => (
+          <InsightBlock key={ins.id} insight={ins} />
+        ))}
 
         {/* DO THIS NEXT */}
         {data.keyMoves.length > 0 && (
@@ -363,20 +214,65 @@ export function NutritionistPanel({
   );
 }
 
-function Read({ label, text, emphasis }: { label: string; text: string; emphasis?: boolean }) {
+function InsightBlock({ insight: ins }: { insight: NutritionInsight }) {
+  const [open, setOpen] = useState(false);
+  const at = fmtActualTarget(ins);
   return (
-    <div className="flex flex-col gap-0.5">
-      <span className="font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-        {label}
-      </span>
-      <p
-        className={
-          "min-w-0 text-sm leading-relaxed " +
-          (emphasis ? "font-medium text-foreground" : "text-muted-foreground")
-        }
-      >
-        {text}
-      </p>
-    </div>
+    <section className="space-y-2" data-testid={`section-nutritionist-${ins.id}`}>
+      <SectionHeader eyebrow={ins.label} action={<Chip status={ins.status} />} />
+
+      {/* Body-comp shows the four stat tiles; everything else shows actual/target. */}
+      {ins.id === "bodycomp" && ins.bodyStats ? (
+        <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-4">
+          {ins.bodyStats.map((s) => {
+            const good =
+              s.change == null || s.change === 0 || s.goodDirection === "either"
+                ? "neutral"
+                : (s.goodDirection === "down" ? s.change < 0 : s.change > 0)
+                  ? "success"
+                  : "neutral";
+            return (
+              <StatReadout
+                key={s.key}
+                label={s.label}
+                value={s.value != null ? s.value : "—"}
+                unit={s.value != null ? s.unit : undefined}
+                delta={
+                  s.change != null && s.change !== 0
+                    ? { value: `${s.change > 0 ? "+" : ""}${s.change}`, tone: good as "success" | "neutral" }
+                    : undefined
+                }
+              />
+            );
+          })}
+        </div>
+      ) : (
+        at && (
+          <span className="tabular-nums text-[13px] text-muted-foreground">
+            {at} avg
+            {ins.daysHit != null && ins.daysLogged ? ` · on target ${ins.daysHit}/${ins.daysLogged} days` : ""}
+          </span>
+        )
+      )}
+
+      <p className="min-w-0 text-sm font-medium leading-relaxed text-foreground">{ins.caption}</p>
+
+      {ins.detail && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="inline-flex items-center gap-1 text-[12px] font-semibold uppercase tracking-wider text-primary hover:underline"
+            data-testid={`button-why-${ins.id}`}
+            aria-expanded={open}
+          >
+            Why <ChevronDown className={"h-3 w-3 transition-transform " + (open ? "rotate-180" : "")} />
+          </button>
+          {open && (
+            <p className="mt-1 min-w-0 text-sm leading-relaxed text-muted-foreground">{ins.detail}</p>
+          )}
+        </div>
+      )}
+    </section>
   );
 }

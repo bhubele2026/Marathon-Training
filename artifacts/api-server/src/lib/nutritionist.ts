@@ -6,10 +6,19 @@
 // floor or lose faster than the safe rate — those flags are computed here and
 // passed in as ground truth).
 
-import type { NutritionistReport } from "@workspace/db";
+import type {
+  NutritionistReport,
+  NutritionInsight,
+  InsightStatus,
+  InsightPerDay,
+  InsightSeriesPoint,
+  BodyTrajectoryPoint,
+  BodyStat,
+} from "@workspace/db";
 import { PROTEIN_FLOOR_G_PER_LB } from "./nutrition-safety";
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
+const oz = (ml: number) => Math.round(ml / 29.5735);
 
 // --- Body-composition math -------------------------------------------------
 
@@ -108,16 +117,56 @@ export type AnalysisInput = {
   proteinFloorGPerLb: number;
   // Deterministic flags surfaced by the diagnosis engine (titles only).
   groundTruthFlags: string[];
+  // Per-day FINAL logged days (oldest → newest, recent window) for the insight
+  // trend sparklines + adherence dots. The engine derives each metric's series,
+  // perDay hit/close/miss, and days-on-target from this — no new analytics, just
+  // the daily values the averages were already built from.
+  dailyLog: DailyLogPoint[];
+  // Body-composition readings over the window (oldest → newest) for the recomp
+  // trajectory chart. lean/fat are derived per reading from its own weight+bf%.
+  bodyLog: BodyTrajectoryPoint[];
+};
+
+// One final logged day's macro values (null where that metric wasn't logged).
+export type DailyLogPoint = {
+  date: string;
+  calories: number | null;
+  proteinG: number | null;
+  carbsG: number | null;
+  fatG: number | null;
+  waterOz: number | null;
+  sodiumMg: number | null;
 };
 
 // --- Structured output tool (Claude returns the report as validated JSON) ---
 
 export const NUTRITIONIST_TOOL_NAME = "emit_nutrition_report";
 
+// Per-insight COPY only — the AI's whole job per insight is a one-liner and an
+// optional longer "why". Every NUMBER that drives a chart is computed server-side
+// and must NOT be supplied here.
+const INSIGHT_COPY = {
+  type: "object",
+  additionalProperties: false,
+  required: ["caption"],
+  properties: {
+    caption: {
+      type: "string",
+      description:
+        "ONE short, punchy line in the coach voice that NAMES THE NUMBER (e.g. 'You're at 0.78 g/lb — one chicken breast short of the floor.'). No hedging, no preamble. Warm (no sarcasm) for any health flag.",
+    },
+    detail: {
+      type: "string",
+      description:
+        "2-3 sentences of the longer reasoning shown behind a 'why' expander: what the trend means, what under/over is doing, and the principle-based fix. Reference the real figures. For body-comp: what the trajectory SHOULD look like for the goal and, if it isn't, the most likely WHY tied to their inputs.",
+    },
+  },
+} as const;
+
 const REPORT_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["headline", "today", "protein", "bodyComp", "deficit", "hydration", "sodium", "keyMoves", "confidence", "dataGaps", "narrative"],
+  required: ["headline", "today", "insights", "keyMoves", "confidence", "dataGaps", "narrative"],
   properties: {
     headline: {
       type: "string",
@@ -128,70 +177,19 @@ const REPORT_SCHEMA = {
       description:
         "If today is OPEN (still eating), 1-2 sentences of PACE coaching: where today stands vs target (calories X of Y, protein X of Y, water), whether they're on pace, and what to prioritise for the REST of the day (e.g. 'protein's ahead, ~1,000 kcal and 50g protein to go — get a solid dinner in'). Never warn it's too low — the day isn't done. If today is closed or there's no today data, return an empty string.",
     },
-    protein: {
+    insights: {
       type: "object",
       additionalProperties: false,
-      required: ["status", "detail", "distributionTip"],
-      properties: {
-        status: {
-          type: "string",
-          enum: ["too_little", "on_point", "too_much"],
-          description: "Verdict vs recomp need. ~0.8-1.0 g/lb is the floor; ~1.0 g/lb is the sweet spot on a recomp/cut. Below ~0.7 g/lb = too_little. Sustained above ~1.3 g/lb with macros suffering = too_much.",
-        },
-        detail: {
-          type: "string",
-          description: "2-3 sentences: is protein enough to hold/build muscle, what the trend shows, and what under/over is doing to muscle + recovery. Reference the real g/lb and hit rate numbers.",
-        },
-        distributionTip: {
-          type: "string",
-          description: "One sentence of timing/distribution guidance. We only have DAILY totals (no per-meal data) — frame it as a principle (e.g. spread across 3-4 meals at ~0.4 g/lb each, anchor one serving near training) and DO NOT claim to see their meal timing.",
-        },
-      },
-    },
-    bodyComp: {
-      type: "object",
-      additionalProperties: false,
-      required: ["trend", "whatYouShouldSee", "whyYouMayNotBe"],
-      properties: {
-        trend: {
-          type: "string",
-          description: "Plain read of the trajectory using the numbers given (weight, body-fat %, lean/fat mass, tape inches). If body-fat % is unlogged, say so and reason from weight + inches + lifts.",
-        },
-        whatYouShouldSee: {
-          type: "string",
-          description: "Given their goal (recomp/cut/lean_bulk) and inputs, what the trajectory SHOULD look like over this window — concrete and realistic (e.g. fat mass down ~X lb, lean mass flat or up, scale slow).",
-        },
-        whyYouMayNotBe: {
-          type: "string",
-          description: "The diagnosis: if the trajectory isn't matching, the most likely WHY, tied to their actual inputs (low protein, over/under calories, missed sessions, too-aggressive deficit, not enough data). Honest and specific. If they ARE on track, say what's working.",
-        },
-      },
-    },
-    deficit: {
-      type: "object",
-      additionalProperties: false,
-      required: ["status", "detail"],
-      properties: {
-        status: {
-          type: "string",
-          enum: ["under_floor", "aggressive", "appropriate", "surplus", "unknown"],
-          description: "Fuelling read vs the safe floor + target. under_floor = avg below the safe floor (a health flag). NEVER endorse eating below the floor or losing faster than the safe rate.",
-        },
-        detail: {
-          type: "string",
-          description: "1-2 sentences on fuelling adequacy. If under the floor or losing too fast, DROP all sarcasm, be warm, and steer UP toward the floor.",
-        },
-      },
-    },
-    hydration: {
-      type: "string",
       description:
-        "One sentence on hydration: how their water intake (given below, with bodyweight + training) is helping or holding back the goal — satiety/appetite control on a deficit, recovery + performance, and the extra fluid a high-protein intake needs. If water isn't logged, say so and give a simple target (~½ oz per lb bodyweight as a rough daily aim, more on training days). If only today's (open-day) water is available, speak to that.",
-    },
-    sodium: {
-      type: "string",
-      description:
-        "One sentence on sodium, tuned to THIS runner: they're heavy (high bodyweight), training hard, and building muscle on a deficit — so they need ADEQUATE sodium (electrolytes support training performance, blood volume, muscle pumps, and offset sweat loss), not a near-zero intake, BUT they also track sodium against a ceiling (given below, default ~2300 mg) for blood-pressure safety. Read their intake vs that balance: too low can flatten training + cause cramps; chronically very high (>~3500-4000 mg without heavy sweat) is worth reining in. Give a concrete steer. If sodium isn't logged, say so and give the balanced target range.",
+        "Per-insight COPY (caption + optional detail) for each read in the brief. Provide each that's relevant. The actual/target/floor/ceiling/series/status are all computed server-side — you supply ONLY the words, never numbers as data.",
+      properties: {
+        protein: INSIGHT_COPY,
+        carbs: INSIGHT_COPY,
+        fuelling: INSIGHT_COPY,
+        hydration: INSIGHT_COPY,
+        sodium: INSIGHT_COPY,
+        bodycomp: INSIGHT_COPY,
+      },
     },
     keyMoves: {
       type: "array",
@@ -268,6 +266,13 @@ export function buildNutritionistSystem(persona: string): string {
     `bed," "1,000 kcal left — that's dinner and a snack," not "log more." Vague, number-free ` +
     `advice ("eat better", "stay consistent", "log more") is a FAIL — the runner can already see ` +
     `their dashboard; your job is to tell them the one number that matters and what to do about it.\n` +
+    `## What you produce (visual-first)\n` +
+    `The app DRAWS every number (actual vs target, the floor/ceiling band, the trend, days-on-target) ` +
+    `from server-computed values — you do NOT supply any numbers as data. For each insight you give ` +
+    `only words: a one-line 'caption' (the punchy read, naming the number) and an optional 'detail' ` +
+    `(2-3 sentences of the deeper why, shown behind a "why"). Keep captions to a single line — the ` +
+    `chart carries the figures, your line carries the meaning. Cover protein, carbs, fuelling ` +
+    `(calories), hydration, sodium, and bodycomp (the recomposition read).\n` +
     `- Output ONLY via the ${NUTRITIONIST_TOOL_NAME} tool. No prose outside it.`
   );
 }
@@ -402,63 +407,19 @@ export function buildNutritionistUser(d: AnalysisInput): string {
 // A useful, safety-correct report built from the numbers alone, so the feature
 // degrades gracefully when ANTHROPIC_API_KEY is missing or the call fails.
 export function fallbackReport(d: AnalysisInput): NutritionistReport {
-  const gPerLb = d.proteinGPerLb;
-  let proteinStatus: NutritionistReport["protein"]["status"] = "on_point";
-  if (gPerLb != null && gPerLb < 0.7) proteinStatus = "too_little";
-  else if (gPerLb != null && gPerLb > 1.3) proteinStatus = "too_much";
-
-  const proteinDetail =
-    gPerLb == null
-      ? "Not enough logged protein to judge adequacy yet."
-      : proteinStatus === "too_little"
-        ? `You're averaging ${gPerLb} g/lb — under the ~${d.proteinFloorGPerLb} g/lb recomp floor. In a deficit that's where muscle starts leaking away.`
-        : proteinStatus === "too_much"
-          ? `You're averaging ${gPerLb} g/lb — plenty for muscle; more isn't buying extra, and it may be crowding out the carbs that fuel training.`
-          : `You're averaging ${gPerLb} g/lb — right in the recomp pocket for holding and building muscle.`;
-
-  let deficitStatus: NutritionistReport["deficit"]["status"] = "unknown";
-  if (d.avgCalories != null) {
-    if (d.avgCalories < d.safeFloorKcal) deficitStatus = "under_floor";
-    else if (d.calorieTarget != null && d.avgCalories > d.calorieTarget + 100) deficitStatus = "surplus";
-    else if (d.calorieTarget != null && d.avgCalories < d.calorieTarget - 100) deficitStatus = "appropriate";
-    else deficitStatus = "appropriate";
-  }
-  const deficitDetail =
-    deficitStatus === "under_floor"
-      ? `Average intake (${d.avgCalories} kcal) is under your safe floor of ${d.safeFloorKcal} kcal. That's too little to recover or hold muscle — bring it up, protein first.`
-      : deficitStatus === "surplus"
-        ? `Intake is running over target, which will slow fat loss.`
-        : deficitStatus === "unknown"
-          ? `Not enough logged days to read your fuelling.`
-          : `Fuelling is in a reasonable place versus your target.`;
-
-  // Hydration: rough daily aim of ~0.5 oz per lb bodyweight (a common, safe
-  // rule of thumb), nudged up by training. Compared against logged water.
-  const targetOz =
-    d.currentWeightLb != null ? Math.round(d.currentWeightLb * 0.5) : null;
-  // Prefer today's water while the day is open, else the logged-day average.
-  const waterSrcMl = d.todayOpen ? d.todayWaterMl : d.avgWaterMl;
-  const waterOz = waterSrcMl != null ? Math.round(waterSrcMl / 29.5735) : null;
-  const hydrationDetail =
-    waterOz == null
-      ? `Water isn't logged yet${targetOz != null ? ` — aim for roughly ${targetOz} oz a day (about ½ oz per lb), more on training days` : ""}. Staying hydrated blunts appetite on a deficit and helps recovery.`
-      : targetOz != null && waterOz < targetOz * 0.8
-        ? `You're averaging ~${waterOz} oz/day, under the ~${targetOz} oz aim for your size. More water curbs hunger on a deficit and supports recovery + protein metabolism.`
-        : `You're averaging ~${waterOz} oz/day — solid. That helps appetite control on a deficit and recovery; keep it up, more on hard training days.`;
-
-  const leanTxt =
-    d.leanMassChangeLb != null
-      ? `lean mass ${d.leanMassChangeLb >= 0 ? "up" : "down"} ${Math.abs(d.leanMassChangeLb)} lb, fat mass ${
-          d.fatMassChangeLb != null && d.fatMassChangeLb <= 0 ? "down" : "up"
-        } ${d.fatMassChangeLb != null ? Math.abs(d.fatMassChangeLb) : "—"} lb`
-      : d.bodyFatPct == null
-        ? "body-fat % isn't logged, so I'm reading the scale and tape only"
-        : "not enough body-fat readings to trend lean vs fat";
+  const insights = computeInsights(d);
+  const find = (id: NutritionInsight["id"]) => insights.find((i) => i.id === id)!;
+  const proteinStatus = find("protein").status;
+  const deficitStatus = find("fuelling").status;
 
   const keyMoves: string[] = [];
-  if (deficitStatus === "under_floor") keyMoves.push(`Eat at least ${d.safeFloorKcal} kcal — protein first.`);
-  if (proteinStatus === "too_little") keyMoves.push(`Get protein to ~${Math.round((d.currentWeightLb ?? 0) * d.proteinFloorGPerLb) || d.proteinTarget || 0} g/day, every day.`);
-  if (d.plannedSessions > 0 && d.sessionsDone / d.plannedSessions < 0.7) keyMoves.push("Get session consistency above ~80%.");
+  if (deficitStatus === "under") keyMoves.push(`Eat at least ${d.safeFloorKcal} kcal — protein first.`);
+  if (proteinStatus === "under")
+    keyMoves.push(
+      `Get protein to ~${Math.round((d.currentWeightLb ?? 0) * d.proteinFloorGPerLb) || d.proteinTarget || 0} g/day, every day.`,
+    );
+  if (d.plannedSessions > 0 && d.sessionsDone / d.plannedSessions < 0.7)
+    keyMoves.push("Get session consistency above ~80%.");
   if (d.bodyFatPct == null) keyMoves.push("Log body-fat % so fat loss and muscle can be tracked apart.");
   if (keyMoves.length === 0) keyMoves.push("Keep doing what's working — protein high, sessions in, weigh in weekly.");
 
@@ -491,22 +452,10 @@ export function fallbackReport(d: AnalysisInput): NutritionistReport {
       `Still eating, so this is pace, not a verdict — get protein in first.`
     : "";
 
-  // Sodium: enough for a hard-training lifter, not chronically over the ceiling.
-  const sodiumNow = d.todayOpen ? d.todaySodiumMg : d.avgSodiumMg;
-  const sodiumLimit = d.sodiumLimitMg ?? 2300;
-  const sodiumDetail =
-    sodiumNow == null
-      ? `Sodium isn't logged. Training hard at your size you want ADEQUATE sodium — roughly ${Math.round(sodiumLimit * 0.65)}–${sodiumLimit} mg most days (electrolytes fuel performance + replace sweat), more around big sweaty sessions; just don't sit chronically high for blood pressure.`
-      : sodiumNow > sodiumLimit + 800
-        ? `Sodium ~${sodiumNow} mg is well over your ${sodiumLimit} mg ceiling — fine around hard, sweaty training, but pull it back on easy/rest days for blood pressure.`
-        : sodiumNow < 1500
-          ? `Sodium ~${sodiumNow} mg is low — too little can flatten training and bring on cramps. A little salt / electrolytes around sessions helps performance and pumps.`
-          : `Sodium ~${sodiumNow} mg sits in a sensible range under your ${sodiumLimit} mg ceiling — enough to fuel training without going overboard.`;
-
   const headline =
-    deficitStatus === "under_floor"
+    deficitStatus === "under"
       ? "You're under-fuelling — that stalls everything."
-      : proteinStatus === "too_little"
+      : proteinStatus === "under"
         ? "Protein's below the recomp floor."
         : d.todayOpen && d.daysLogged === 0
           ? "Day's in progress — here's your pace."
@@ -516,57 +465,395 @@ export function fallbackReport(d: AnalysisInput): NutritionistReport {
     weeks: d.weeks,
     weeksElapsed: d.weeksElapsed,
     headline,
+    insights,
     today: todayLine,
-    protein: {
-      status: proteinStatus,
-      avgProteinG: d.avgProtein,
-      targetProteinG: d.proteinTarget,
-      gPerLb,
-      hitRate: d.proteinHitRate,
-      detail: proteinDetail,
-      distributionTip:
-        "Spread protein across 3-4 meals (~0.4 g/lb each) and anchor one serving near your session — daily totals only here, so this is a principle, not a read of your timing.",
-    },
-    bodyComp: {
-      currentWeightLb: d.currentWeightLb,
-      bodyFatPct: d.bodyFatPct,
-      leanMassLb: d.leanMassLb,
-      fatMassLb: d.fatMassLb,
-      leanMassChangeLb: d.leanMassChangeLb,
-      fatMassChangeLb: d.fatMassChangeLb,
-      weightChangeLb: d.weightChangeLb,
-      inchesChange: d.inchesChange,
-      trend: `Over ${d.weeksElapsed} weeks: weight ${d.weightChangeLb != null ? `${d.weightChangeLb} lb` : "—"}` +
-        `${d.actualWeeklyRateLb != null ? ` (${d.actualWeeklyRateLb} lb/wk${d.weeklyRateLb != null ? ` vs ${d.weeklyRateLb} target` : ""})` : ""}, ${leanTxt}.`,
-      whatYouShouldSee:
-        d.bodyGoal === "recomp"
-          ? "On a recomp the scale should move slowly while the tape and body-fat % drift down and lean mass holds — judge it by those, not the scale."
-          : d.bodyGoal === "cut"
-            ? "On a cut you should see steady fat loss near your safe rate with lean mass largely preserved by protein + lifting."
-            : "On a lean bulk you should see slow weight gain with most of it lean, fat creeping only slightly.",
-      whyYouMayNotBe:
-        proteinStatus === "too_little"
-          ? "Protein under the floor is the most likely culprit — without it a deficit eats muscle and the recomp stalls."
-          : deficitStatus === "surplus"
-            ? "Intake is over target, so the deficit needed for fat loss isn't there."
-            : d.plannedSessions > 0 && d.sessionsDone / d.plannedSessions < 0.7
-              ? "Missed sessions mean the muscle-building stimulus is thin — the plan can't work the days it isn't run."
-              : "Inputs look reasonable; if results are flat it may be early, or a genuine plateau worth a short diet break.",
-    },
-    deficit: {
-      status: deficitStatus,
-      avgCalories: d.avgCalories,
-      calorieTarget: d.calorieTarget,
-      safeFloorKcal: d.safeFloorKcal,
-      detail: deficitDetail,
-    },
-    hydration: hydrationDetail,
-    sodium: sodiumDetail,
     keyMoves,
     confidence,
     dataGaps,
-    narrative: `${headline} ${proteinDetail}`,
+    narrative: `${headline} ${find("protein").detail ?? ""}`.trim(),
   };
+}
+
+// --- Insight assembly: the ENGINE owns every number + status + a deterministic
+// caption/detail. The AI overlay (in the route) replaces only caption/detail.
+// Pure + DB-free so it's unit-testable and identical between the AI and fallback
+// paths — the charts read these numbers, so they are always correct. -----------
+
+function statusColorIsHealthFlag(s: InsightStatus): boolean {
+  return s === "under" || s === "over";
+}
+
+export function computeInsights(d: AnalysisInput): NutritionInsight[] {
+  const log = d.dailyLog;
+  const series = (pick: (p: DailyLogPoint) => number | null): InsightSeriesPoint[] =>
+    log
+      .map((p) => ({ date: p.date, value: pick(p) }))
+      .filter((q): q is InsightSeriesPoint => q.value != null);
+  const perDay = (
+    pick: (p: DailyLogPoint) => number | null,
+    classify: (v: number) => "hit" | "close" | "miss",
+  ): InsightPerDay[] =>
+    log.map((p) => {
+      const v = pick(p);
+      return { date: p.date, hit: v == null ? ("none" as const) : classify(v) };
+    });
+  const hits = (pd: InsightPerDay[]) => pd.filter((x) => x.hit === "hit").length;
+  const logged = (pd: InsightPerDay[]) => pd.filter((x) => x.hit !== "none").length;
+
+  const out: NutritionInsight[] = [];
+
+  // ---------- PROTEIN (higher is better; hard recomp floor) ----------
+  {
+    const gPerLb = d.proteinGPerLb;
+    const floorG = d.currentWeightLb != null ? Math.round(d.currentWeightLb * d.proteinFloorGPerLb) : null;
+    const target = d.proteinTarget;
+    let status: InsightStatus;
+    if (d.avgProtein == null) status = "early";
+    else if (gPerLb != null && gPerLb < 0.7) status = "under";
+    else if (floorG != null && d.avgProtein < floorG) status = "under";
+    else if (target != null && d.avgProtein >= target * 1.05) status = "ahead";
+    else if (target != null && d.avgProtein >= target * 0.95) status = "on_track";
+    else status = "attention";
+    const pd = perDay(
+      (p) => p.proteinG,
+      (v) => (target == null ? "hit" : v >= target * 0.95 ? "hit" : v >= target * 0.8 ? "close" : "miss"),
+    );
+    const caption =
+      gPerLb == null
+        ? "Log a few more days so I can read your protein."
+        : status === "under"
+          ? `${gPerLb} g/lb — under the ${d.proteinFloorGPerLb} floor. Bump it.`
+          : status === "ahead"
+            ? `${gPerLb} g/lb — covered, maybe to spare.`
+            : `${gPerLb} g/lb — right in the recomp pocket.`;
+    const detail =
+      gPerLb == null
+        ? "Not enough logged protein to judge adequacy yet — log meals on more days."
+        : status === "under"
+          ? `Averaging ${gPerLb} g/lb, under the ~${d.proteinFloorGPerLb} g/lb recomp floor. In a deficit that's where muscle starts leaking away — anchor a protein serving at each meal. Spread it across 3-4 meals (~0.4 g/lb each), one near training.`
+          : status === "ahead"
+            ? `Averaging ${gPerLb} g/lb — plenty for muscle; more isn't buying extra and may be crowding out the carbs that fuel training. Daily totals only, so treat distribution as a principle, not a read of your timing.`
+            : `Averaging ${gPerLb} g/lb — right in the recomp pocket for holding and building muscle. Keep spreading it across 3-4 meals, one near your session.`;
+    out.push({
+      id: "protein",
+      label: "Protein",
+      group: "macros",
+      unit: "g",
+      actual: d.avgProtein,
+      target,
+      floor: floorG,
+      direction: "higher_better",
+      series: series((p) => p.proteinG),
+      goal: target,
+      daysLogged: logged(pd),
+      daysHit: hits(pd),
+      perDay: pd,
+      status,
+      caption,
+      detail,
+    });
+  }
+
+  // ---------- FUELLING / calories (band: floor..target) ----------
+  {
+    const target = d.calorieTarget;
+    const floor = d.safeFloorKcal;
+    let status: InsightStatus;
+    if (d.avgCalories == null) status = "early";
+    else if (d.avgCalories < floor) status = "under";
+    else if (target != null && d.avgCalories > target + 100) status = "over";
+    else status = "appropriate";
+    const pd = perDay(
+      (p) => p.calories,
+      (v) =>
+        v < floor
+          ? "miss"
+          : target == null
+            ? "hit"
+            : Math.abs(v - target) <= target * 0.1
+              ? "hit"
+              : Math.abs(v - target) <= target * 0.2
+                ? "close"
+                : "miss",
+    );
+    const caption =
+      d.avgCalories == null
+        ? "Not enough logged days to read your fuelling."
+        : status === "under"
+          ? `~${Math.round(d.avgCalories)} kcal — under your ${floor} floor. Eat up.`
+          : status === "over"
+            ? `~${Math.round(d.avgCalories)} kcal — over target, fat loss will drag.`
+            : `~${Math.round(d.avgCalories)} kcal — fuelling sits in a sensible place.`;
+    const detail =
+      d.avgCalories == null
+        ? "Log meals on more days so I can read your fuelling against the floor and target."
+        : status === "under"
+          ? `Average intake (${Math.round(d.avgCalories)} kcal) is under your safe floor of ${floor} kcal. That's too little to recover or hold muscle — bring it up, protein first.`
+          : status === "over"
+            ? `Intake is running over your ${target} kcal target, which blunts the deficit fat loss needs. Trim from fats/refined carbs, keep protein where it is.`
+            : `Fuelling is in a reasonable place versus your ${target ?? "—"} kcal target and above the ${floor} kcal floor.`;
+    out.push({
+      id: "fuelling",
+      label: "Fuelling",
+      group: "fuelling",
+      unit: "kcal",
+      actual: d.avgCalories,
+      target,
+      floor,
+      ceiling: target,
+      direction: "band",
+      series: series((p) => p.calories),
+      goal: target != null ? { lo: floor, hi: target } : floor,
+      daysLogged: logged(pd),
+      daysHit: hits(pd),
+      perDay: pd,
+      status,
+      caption,
+      detail,
+    });
+  }
+
+  // ---------- CARBS (higher is better — they fuel training) ----------
+  {
+    const target = d.carbsTarget;
+    let status: InsightStatus;
+    if (d.avgCarbs == null) status = "early";
+    else if (target == null) status = "on_track";
+    else if (d.avgCarbs > target * 1.3) status = "over";
+    else if (d.avgCarbs >= target * 0.9) status = "on_track";
+    else if (d.avgCarbs >= target * 0.6) status = "attention";
+    else status = "under";
+    const pd = perDay(
+      (p) => p.carbsG,
+      (v) => (target == null ? "hit" : v >= target * 0.9 ? "hit" : v >= target * 0.6 ? "close" : "miss"),
+    );
+    const caption =
+      d.avgCarbs == null
+        ? "Carbs aren't logged enough to read yet."
+        : status === "under"
+          ? `${Math.round(d.avgCarbs)} g carbs vs ${target} — low fuel for hard sessions.`
+          : status === "over"
+            ? `${Math.round(d.avgCarbs)} g carbs — over target; trim if calories run high.`
+            : `${Math.round(d.avgCarbs)} g carbs — enough to fuel the work.`;
+    const detail =
+      d.avgCarbs == null
+        ? "Log carbs on more days so I can read whether training is fuelled."
+        : status === "under"
+          ? `Averaging ${Math.round(d.avgCarbs)} g vs a ${target} g target — carbs are the lever that fuels hard sessions and spares protein. Put more around training when energy matters most.`
+          : status === "over"
+            ? `Averaging ${Math.round(d.avgCarbs)} g, over the ${target} g target — fine if calories hold, but the first place to trim if fuelling is running surplus.`
+            : `Averaging ${Math.round(d.avgCarbs)} g against a ${target} g target — enough to fuel training and protect performance on a deficit.`;
+    out.push({
+      id: "carbs",
+      label: "Carbs",
+      group: "macros",
+      unit: "g",
+      actual: d.avgCarbs,
+      target,
+      direction: "higher_better",
+      series: series((p) => p.carbsG),
+      goal: target,
+      daysLogged: logged(pd),
+      daysHit: hits(pd),
+      perDay: pd,
+      status,
+      caption,
+      detail,
+    });
+  }
+
+  // ---------- HYDRATION (higher is better; ~½ oz per lb aim) ----------
+  {
+    const targetOz = d.currentWeightLb != null ? Math.round(d.currentWeightLb * 0.5) : null;
+    // Match prior behaviour: prefer today's water on an open day, else the avg.
+    const srcMl = d.todayOpen ? d.todayWaterMl : d.avgWaterMl;
+    const actualOz = srcMl != null ? oz(srcMl) : null;
+    let status: InsightStatus;
+    if (actualOz == null) status = "early";
+    else if (targetOz == null) status = "on_track";
+    else if (actualOz >= targetOz * 1.1) status = "ahead";
+    else if (actualOz >= targetOz * 0.95) status = "on_track";
+    else if (actualOz >= targetOz * 0.7) status = "attention";
+    else status = "under";
+    const pd = perDay(
+      (p) => p.waterOz,
+      (v) => (targetOz == null ? "hit" : v >= targetOz * 0.95 ? "hit" : v >= targetOz * 0.7 ? "close" : "miss"),
+    );
+    const caption =
+      actualOz == null
+        ? `Water's not logged${targetOz != null ? ` — aim ~${targetOz} oz/day` : ""}.`
+        : status === "under"
+          ? `~${actualOz} oz/day — under the ~${targetOz} oz aim. Drink up.`
+          : `~${actualOz} oz/day — hydration's handled.`;
+    const detail =
+      actualOz == null
+        ? `Water isn't logged yet${targetOz != null ? ` — aim for roughly ${targetOz} oz a day (about ½ oz per lb), more on training days` : ""}. Staying hydrated blunts appetite on a deficit and helps recovery.`
+        : targetOz != null && actualOz < targetOz * 0.8
+          ? `Averaging ~${actualOz} oz/day, under the ~${targetOz} oz aim for your size. More water curbs hunger on a deficit and supports recovery + protein metabolism.`
+          : `Averaging ~${actualOz} oz/day — solid. That helps appetite control on a deficit and recovery; keep it up, more on hard training days.`;
+    out.push({
+      id: "hydration",
+      label: "Hydration",
+      group: "hydration",
+      unit: "oz",
+      actual: actualOz,
+      target: targetOz,
+      direction: "higher_better",
+      series: series((p) => p.waterOz),
+      goal: targetOz,
+      daysLogged: logged(pd),
+      daysHit: hits(pd),
+      perDay: pd,
+      status,
+      caption,
+      detail,
+    });
+  }
+
+  // ---------- SODIUM (band: adequacy floor..ceiling) ----------
+  {
+    const ceiling = d.sodiumLimitMg ?? 2300;
+    const floor = Math.round(ceiling * 0.65);
+    const src = d.todayOpen ? d.todaySodiumMg : d.avgSodiumMg;
+    let status: InsightStatus;
+    if (src == null) status = "early";
+    else if (src > ceiling + 800) status = "over";
+    else if (src < 1500) status = "under";
+    else status = "appropriate";
+    const pd = perDay(
+      (p) => p.sodiumMg,
+      (v) => (v >= floor && v <= ceiling ? "hit" : v >= 1500 && v <= ceiling + 800 ? "close" : "miss"),
+    );
+    const caption =
+      src == null
+        ? `Sodium's not logged — aim ~${floor}–${ceiling} mg.`
+        : status === "over"
+          ? `~${src} mg — over your ${ceiling} ceiling. Ease off rest days.`
+          : status === "under"
+            ? `~${src} mg — low; a little salt helps training.`
+            : `~${src} mg — sensible, under your ${ceiling} ceiling.`;
+    const detail =
+      src == null
+        ? `Sodium isn't logged. Training hard at your size you want ADEQUATE sodium — roughly ${floor}–${ceiling} mg most days (electrolytes fuel performance + replace sweat), more around big sweaty sessions; just don't sit chronically high for blood pressure.`
+        : status === "over"
+          ? `Sodium ~${src} mg is well over your ${ceiling} mg ceiling — fine around hard, sweaty training, but pull it back on easy/rest days for blood pressure.`
+          : status === "under"
+            ? `Sodium ~${src} mg is low — too little can flatten training and bring on cramps. A little salt / electrolytes around sessions helps performance and pumps.`
+            : `Sodium ~${src} mg sits in a sensible range under your ${ceiling} mg ceiling — enough to fuel training without going overboard.`;
+    out.push({
+      id: "sodium",
+      label: "Sodium",
+      group: "sodium",
+      unit: "mg",
+      actual: src,
+      target: ceiling,
+      floor,
+      ceiling,
+      direction: "band",
+      series: series((p) => p.sodiumMg),
+      goal: { lo: floor, hi: ceiling },
+      daysLogged: logged(pd),
+      daysHit: hits(pd),
+      perDay: pd,
+      status,
+      caption,
+      detail,
+    });
+  }
+
+  // ---------- BODY COMPOSITION (the recomp trajectory) ----------
+  {
+    const bfChange =
+      d.bodyFatPct != null && d.startBodyFatPct != null ? round1(d.bodyFatPct - d.startBodyFatPct) : null;
+    const weightGood: BodyStat["goodDirection"] =
+      d.goalDirection === "loss" ? "down" : d.goalDirection === "gain" ? "up" : "either";
+    const bodyStats: BodyStat[] = [
+      { key: "weight", label: "Weight", unit: "lb", value: d.currentWeightLb, change: d.weightChangeLb, goodDirection: weightGood },
+      { key: "bodyfat", label: "Body-fat", unit: "%", value: d.bodyFatPct, change: bfChange, goodDirection: "down" },
+      { key: "lean", label: "Lean", unit: "lb", value: d.leanMassLb, change: d.leanMassChangeLb, goodDirection: "up" },
+      { key: "fat", label: "Fat", unit: "lb", value: d.fatMassLb, change: d.fatMassChangeLb, goodDirection: "down" },
+    ];
+    // Expected recomp band: where body-fat % SHOULD sit now given the goal.
+    let expectedBand: { lo: number; hi: number } | null = null;
+    if (d.startBodyFatPct != null && d.weeksElapsed > 0) {
+      const w = d.weeksElapsed;
+      if (d.bodyGoal === "cut")
+        expectedBand = { lo: round1(d.startBodyFatPct - 0.5 * w), hi: round1(d.startBodyFatPct - 0.2 * w) };
+      else if (d.bodyGoal === "recomp")
+        expectedBand = { lo: round1(d.startBodyFatPct - 0.4 * w), hi: round1(d.startBodyFatPct - 0.15 * w) };
+      else expectedBand = { lo: round1(d.startBodyFatPct - 0.1 * w), hi: round1(d.startBodyFatPct + 0.2 * w) };
+    }
+    let status: InsightStatus;
+    if (d.bodyFatPct == null && d.weightChangeLb == null) status = "early";
+    else if (d.onTrack === true) status = "on_track";
+    else if (d.onTrack === false) status = "attention";
+    else if (bfChange != null) status = bfChange <= 0 ? "on_track" : "attention";
+    else status = d.weeksElapsed < 2 ? "early" : "attention";
+
+    const leanTxt =
+      d.leanMassChangeLb != null
+        ? `lean mass ${d.leanMassChangeLb >= 0 ? "up" : "down"} ${Math.abs(d.leanMassChangeLb)} lb, fat mass ${
+            d.fatMassChangeLb != null && d.fatMassChangeLb <= 0 ? "down" : "up"
+          } ${d.fatMassChangeLb != null ? Math.abs(d.fatMassChangeLb) : "—"} lb`
+        : d.bodyFatPct == null
+          ? "body-fat % isn't logged, so I'm reading the scale and tape only"
+          : "not enough body-fat readings to trend lean vs fat";
+    const shouldSee =
+      d.bodyGoal === "recomp"
+        ? "On a recomp the scale moves slowly while body-fat % and the tape drift down and lean mass holds — judge it by those, not the scale."
+        : d.bodyGoal === "cut"
+          ? "On a cut you should see steady fat loss near your safe rate with lean mass largely preserved by protein + lifting."
+          : "On a lean bulk you should see slow weight gain, most of it lean, with fat creeping only slightly.";
+    const whyNot =
+      d.proteinGPerLb != null && d.proteinGPerLb < 0.7
+        ? "Protein under the floor is the most likely culprit — without it a deficit eats muscle and the recomp stalls."
+        : d.avgCalories != null && d.calorieTarget != null && d.avgCalories > d.calorieTarget + 100
+          ? "Intake is over target, so the deficit needed for fat loss isn't there."
+          : d.plannedSessions > 0 && d.sessionsDone / d.plannedSessions < 0.7
+            ? "Missed sessions mean the muscle-building stimulus is thin — the plan can't work the days it isn't run."
+            : "Inputs look reasonable; if results are flat it may be early, or a genuine plateau worth a short diet break.";
+    const caption =
+      status === "early"
+        ? "Log weight + body-fat % so I can trend your recomp."
+        : `Over ${d.weeksElapsed} wk: weight ${d.weightChangeLb != null ? `${d.weightChangeLb} lb` : "—"}${
+            d.actualWeeklyRateLb != null ? ` (${d.actualWeeklyRateLb} lb/wk)` : ""
+          }, ${leanTxt}.`;
+    const detail = `${shouldSee} ${whyNot}`;
+    out.push({
+      id: "bodycomp",
+      label: "Body composition",
+      group: "body",
+      unit: "%",
+      actual: d.bodyFatPct,
+      target: null,
+      direction: "lower_better",
+      bodyTrajectory: d.bodyLog,
+      bodyStats,
+      expectedBand,
+      series:
+        d.bodyLog
+          .filter((b) => b.bodyFatPct != null)
+          .map((b) => ({ date: b.date, value: b.bodyFatPct as number })),
+      status,
+      caption,
+      detail,
+    });
+  }
+
+  // Significance-rank: float health flags (under/over) to the top, then
+  // attention/early, then the steady reads. Stable within each tier by a fixed
+  // priority so the order is deterministic.
+  const tier = (s: InsightStatus) =>
+    statusColorIsHealthFlag(s) ? 0 : s === "attention" || s === "early" ? 1 : 2;
+  const priority: Record<NutritionInsight["id"], number> = {
+    fuelling: 0,
+    protein: 1,
+    bodycomp: 2,
+    carbs: 3,
+    hydration: 4,
+    sodium: 5,
+  };
+  return out.sort((a, b) => tier(a.status) - tier(b.status) || priority[a.id] - priority[b.id]);
 }
 
 export { PROTEIN_FLOOR_G_PER_LB };

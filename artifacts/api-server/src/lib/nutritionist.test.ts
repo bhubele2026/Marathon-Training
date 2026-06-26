@@ -63,8 +63,17 @@ function base(over: Partial<AnalysisInput> = {}): AnalysisInput {
     safeRateLbPerWk: 2,
     proteinFloorGPerLb: 0.8,
     groundTruthFlags: [],
+    dailyLog: [],
+    bodyLog: [],
     ...over,
   };
+}
+
+// Pull one structured insight out of the report by id.
+function insight(r: ReturnType<typeof fallbackReport>, id: string) {
+  const found = r.insights.find((i) => i.id === id);
+  if (!found) throw new Error(`no insight ${id}`);
+  return found;
 }
 
 describe("computeBodyComp", () => {
@@ -92,22 +101,34 @@ describe("proteinGPerLb", () => {
 });
 
 describe("fallbackReport — safety-correct without AI", () => {
+  it("emits the six structured insights, engine-owned numbers intact", () => {
+    const r = fallbackReport(base());
+    expect(r.insights.map((i) => i.id).sort()).toEqual(
+      ["bodycomp", "carbs", "fuelling", "hydration", "protein", "sodium"].sort(),
+    );
+    // The engine owns the numbers: protein insight carries the real avg/target.
+    expect(insight(r, "protein").actual).toBe(220);
+    expect(insight(r, "protein").target).toBe(224);
+    // Every insight gets a one-line caption (engine fallback copy).
+    for (const i of r.insights) expect(i.caption.length).toBeGreaterThan(0);
+  });
+
   it("flags under-floor fuelling as the headline and steers up", () => {
     const r = fallbackReport(base({ avgCalories: 1300, daysUnderFloor: 5 }));
-    expect(r.deficit.status).toBe("under_floor");
+    expect(insight(r, "fuelling").status).toBe("under");
     expect(r.headline).toMatch(/under-fuel/i);
     expect(r.keyMoves[0]).toMatch(/1500/);
   });
 
-  it("calls low protein too_little below ~0.7 g/lb", () => {
+  it("calls low protein 'under' below ~0.7 g/lb and blames it in the body-comp why", () => {
     const r = fallbackReport(base({ proteinGPerLb: 0.6 }));
-    expect(r.protein.status).toBe("too_little");
-    expect(r.bodyComp.whyYouMayNotBe).toMatch(/protein/i);
+    expect(insight(r, "protein").status).toBe("under");
+    expect(insight(r, "bodycomp").detail).toMatch(/protein/i);
   });
 
-  it("calls a solid recomp protein intake on_point", () => {
+  it("calls a solid recomp protein intake on_track", () => {
     const r = fallbackReport(base());
-    expect(r.protein.status).toBe("on_point");
+    expect(insight(r, "protein").status).toBe("on_track");
   });
 
   it("lowers confidence and lists body-fat as a gap when bf% missing", () => {
@@ -116,12 +137,17 @@ describe("fallbackReport — safety-correct without AI", () => {
   });
 
   it("gives a hydration read — a target when water is unlogged, a check-in when it's logged", () => {
-    const noWater = fallbackReport(base({ avgWaterMl: null }));
-    expect(noWater.hydration).toMatch(/water|hydrat/i);
-    expect(noWater.hydration).toMatch(/\d+\s*oz/i); // suggests a target
+    const noWater = insight(fallbackReport(base({ avgWaterMl: null })), "hydration");
+    expect(noWater.detail).toMatch(/water|hydrat/i);
+    expect(noWater.detail).toMatch(/\d+\s*oz/i); // suggests a target
+    expect(noWater.status).toBe("early");
 
-    const lowWater = fallbackReport(base({ avgWaterMl: 1000, currentWeightLb: 240 })); // ~34 oz vs ~120 aim
-    expect(lowWater.hydration).toMatch(/under|more water/i);
+    const lowWater = insight(
+      fallbackReport(base({ avgWaterMl: 1000, currentWeightLb: 240 })), // ~34 oz vs ~120 aim
+      "hydration",
+    );
+    expect(lowWater.detail).toMatch(/under|more water/i);
+    expect(lowWater.status).toBe("under");
   });
 
   it("coaches an open day by pace instead of 'not enough data'", () => {
@@ -144,23 +170,25 @@ describe("fallbackReport — safety-correct without AI", () => {
     expect(r.today).toMatch(/1430|to go|pace/i);
     expect(r.headline).toMatch(/pace|progress/i);
     // Uses today's water (open day), not "not logged".
-    expect(r.hydration).not.toMatch(/isn't logged/i);
+    expect(insight(r, "hydration").detail).not.toMatch(/isn't logged/i);
   });
 
   it("gives sodium advice tuned to a hard-training lifter", () => {
-    const low = fallbackReport(base({ avgSodiumMg: 900 }));
-    expect(low.sodium).toMatch(/low|cramp|flatten/i);
-    const high = fallbackReport(base({ avgSodiumMg: 4200, sodiumLimitMg: 2300 }));
-    expect(high.sodium).toMatch(/over|rein|pull it back/i);
-    const none = fallbackReport(base({ avgSodiumMg: null, todaySodiumMg: null }));
-    expect(none.sodium).toMatch(/adequate|electrolyte|mg/i);
+    const low = insight(fallbackReport(base({ avgSodiumMg: 900 })), "sodium");
+    expect(low.detail).toMatch(/low|cramp|flatten/i);
+    expect(low.status).toBe("under");
+    const high = insight(fallbackReport(base({ avgSodiumMg: 4200, sodiumLimitMg: 2300 })), "sodium");
+    expect(high.detail).toMatch(/over|rein|pull it back/i);
+    expect(high.status).toBe("over");
+    const none = insight(fallbackReport(base({ avgSodiumMg: null, todaySodiumMg: null })), "sodium");
+    expect(none.detail).toMatch(/adequate|electrolyte|mg/i);
   });
 
   it("never recommends eating below the floor", () => {
     const r = fallbackReport(base({ avgCalories: 1200 }));
     const allText = JSON.stringify(r).toLowerCase();
     // The only calorie figure pushed should be the floor (up), never a cut below it.
-    expect(r.deficit.status).toBe("under_floor");
+    expect(insight(r, "fuelling").status).toBe("under");
     expect(allText).not.toMatch(/eat less|cut calories|reduce calories/);
   });
 });

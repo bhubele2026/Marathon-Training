@@ -8,53 +8,106 @@ import { pgTable, integer, text, jsonb, timestamp } from "drizzle-orm/pg-core";
 // metrics change (inputHash mismatch), matching the progress_diagnosis +
 // coach-note caching pattern. Both the Today verdict and the Nutrition-page
 // deep-dive read this same row so they never disagree.
+//
+// VISUAL-FIRST CONTRACT (insights rewire): every read is a structured
+// `NutritionInsight` — a target-vs-actual comparison with a trajectory. The
+// deterministic engine OWNS every numeric field that drives a chart (actual,
+// target, floor/ceiling, series, days-on-target, status), so the charts are
+// always correct regardless of the model. The AI owns ONLY the words: a one-line
+// `caption` per insight and an optional longer `detail` behind a "why", plus the
+// single overall `headline` + `narrative`. Less text, more accurate, cheaper.
 
-// One protein lens.
-export type ProteinVerdict = {
-  // Where the runner sits relative to their recomp protein need.
-  status: "too_little" | "on_point" | "too_much";
-  // Average daily protein over the window, in grams.
-  avgProteinG: number | null;
-  // The runner's protein target (g).
-  targetProteinG: number | null;
-  // Protein per lb of current bodyweight — the recomp-adequacy yardstick.
-  gPerLb: number | null;
-  // Fraction of logged days that hit target (0..1).
-  hitRate: number | null;
-  // The substance: adequacy + trend + what it's doing to muscle/recovery.
-  detail: string;
-  // Timing/distribution guidance (principle-based — we only have daily totals).
-  distributionTip: string;
-};
+// Which insight this is. 'fuelling' is the calorie read; protein + carbs are the
+// macro reads; bodycomp is the recomposition trajectory (richer series).
+export type InsightId =
+  | "protein"
+  | "carbs"
+  | "fuelling"
+  | "hydration"
+  | "sodium"
+  | "bodycomp";
 
-// The body-composition diagnosis the runner asked for: where they are, what
-// they should be seeing for their goal, and why they may not be — traced to
-// their actual inputs (protein, deficit, training, consistency).
-export type BodyCompRead = {
-  currentWeightLb: number | null;
+export type InsightGroup = "macros" | "fuelling" | "hydration" | "sodium" | "body";
+
+// How to read "good": more is better (protein), less is better (—), or stay
+// inside a band (sodium between an adequacy floor and a ceiling).
+export type InsightDirection = "higher_better" | "lower_better" | "band";
+
+// Where the runner sits. Maps to semantic color in the UI:
+//   ahead | on_track | appropriate → success
+//   attention | early             → warning
+//   under | over                  → destructive
+export type InsightStatus =
+  | "ahead"
+  | "on_track"
+  | "attention"
+  | "under"
+  | "over"
+  | "appropriate"
+  | "early";
+
+// Per-day adherence for the streak dots.
+export type AdherenceHit = "hit" | "close" | "miss" | "none";
+
+export type InsightSeriesPoint = { date: string; value: number };
+export type InsightPerDay = { date: string; hit: AdherenceHit };
+
+// A "should-be" overlay: a single goal line, or a goal band (lo..hi).
+export type InsightGoal = number | { lo: number; hi: number };
+
+// Body-composition trajectory row — multiple series share one date axis so the
+// RecompTrajectory chart can toggle between body-fat %, weight, lean and fat.
+export type BodyTrajectoryPoint = {
+  date: string;
+  weightLb: number | null;
   bodyFatPct: number | null;
-  leanMassLb: number | null;
-  fatMassLb: number | null;
-  // Signed change over the window (negative = down). Null when bf% is unlogged.
-  leanMassChangeLb: number | null;
-  fatMassChangeLb: number | null;
-  weightChangeLb: number | null;
-  inchesChange: number | null;
-  // Plain read of the trajectory.
-  trend: string;
-  // What the trajectory SHOULD look like given the goal + inputs.
-  whatYouShouldSee: string;
-  // Diagnosis: why it may not be happening, tied to specific inputs.
-  whyYouMayNotBe: string;
+  leanLb: number | null;
+  fatLb: number | null;
 };
 
-// Fuelling adequacy / deficit safety.
-export type DeficitRead = {
-  status: "under_floor" | "aggressive" | "appropriate" | "surplus" | "unknown";
-  avgCalories: number | null;
-  calorieTarget: number | null;
-  safeFloorKcal: number;
-  detail: string;
+// One of the four body stat tiles (Weight / Body-fat / Lean / Fat).
+export type BodyStat = {
+  key: "weight" | "bodyfat" | "lean" | "fat";
+  label: string;
+  unit: string;
+  value: number | null;
+  // Signed change over the window (negative = down). Null when unmeasurable.
+  change: number | null;
+  // Which direction is the GOOD one for this metric given a recomp/cut, so the
+  // trend arrow can be coloured (fat down = good, lean up = good).
+  goodDirection: "down" | "up" | "either";
+};
+
+// One structured insight: a glanceable target-vs-actual comparison + trajectory.
+// The engine fills every field except `caption`/`detail` (the AI's job).
+export type NutritionInsight = {
+  id: InsightId;
+  label: string;
+  group: InsightGroup;
+  unit: string; // 'g' | 'kcal' | 'oz' | 'mg' | 'lb' | '%'
+  actual: number | null;
+  target: number | null;
+  // Band edges, where they apply (protein floor; sodium adequacy floor/ceiling).
+  floor?: number | null;
+  ceiling?: number | null;
+  direction: InsightDirection;
+  // Trend window (logged days), oldest → newest.
+  series?: InsightSeriesPoint[];
+  // The "should-be" overlay drawn over the series (line or band).
+  goal?: InsightGoal | null;
+  daysLogged?: number | null;
+  daysHit?: number | null; // days on target → feeds the TargetGauge arc
+  perDay?: InsightPerDay[]; // streak dots
+  status: InsightStatus;
+  // --- body-comp only ---
+  bodyTrajectory?: BodyTrajectoryPoint[];
+  bodyStats?: BodyStat[];
+  // The expected recomp end-state band (e.g. body-fat % drifting down) drawn
+  // behind the actual line so the "should vs is" gap is visible.
+  expectedBand?: { lo: number; hi: number } | null;
+  // --- AI-owned words ---
+  caption: string; // ONE short sassy line
+  detail?: string; // the longer reasoning, shown behind a "why" expander
 };
 
 export type NutritionistReport = {
@@ -62,21 +115,13 @@ export type NutritionistReport = {
   weeksElapsed: number;
   // One-line plain-language headline of the most important thing right now.
   headline: string;
-  protein: ProteinVerdict;
-  bodyComp: BodyCompRead;
-  deficit: DeficitRead;
+  // The structured, visual-first reads. Order is significance-ranked (most
+  // important first); the UI draws each as a card.
+  insights: NutritionInsight[];
   // In-progress PACE coaching for an open day: where today stands vs target and
   // what to prioritise for the rest of the day. Empty string when the day is
   // closed / there's no today data (the panel hides it then).
   today: string;
-  // One-line hydration read: how the runner's water intake is helping (or
-  // holding back) their nutrition — satiety on a deficit, recovery, protein
-  // metabolism. Plain guidance when water isn't logged yet.
-  hydration: string;
-  // One-line sodium read tuned to the runner: enough for training/performance &
-  // blood volume on a hard-training, muscle-building program, without blowing
-  // past their ceiling. Plain guidance when sodium isn't logged.
-  sodium: string;
   // 2-4 concrete next moves, most important first.
   keyMoves: string[];
   // How much to trust this read, given how much was actually logged.

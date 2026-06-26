@@ -8,6 +8,8 @@ import {
   planDaysTable,
   nutritionistReportsTable,
   type NutritionistReport,
+  type NutritionInsight,
+  type BodyTrajectoryPoint,
 } from "@workspace/db";
 import { and, asc, desc, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
 import { getAnthropic, isConfigured, MODEL } from "@workspace/integrations-anthropic";
@@ -21,7 +23,9 @@ import { computePlannedLoad } from "../lib/nutrition-engine";
 import { dayState, localToday } from "../lib/day-state";
 import {
   type AnalysisInput,
+  type DailyLogPoint,
   computeBodyComp,
+  computeInsights,
   proteinGPerLb,
   buildNutritionistSystem,
   buildNutritionistUser,
@@ -29,6 +33,10 @@ import {
   NUTRITIONIST_TOOL,
   NUTRITIONIST_TOOL_NAME,
 } from "../lib/nutritionist";
+
+// Bump when the report SHAPE changes so cached rows (keyed by inputHash) are
+// invalidated and regenerated into the new structure.
+const REPORT_VERSION = 2;
 
 const router: IRouter = Router();
 const DAY_MS = 86_400_000;
@@ -136,6 +144,8 @@ async function gather(weeks: number): Promise<AnalysisInput> {
       rArm: measurementsTable.rArm,
       lLeg: measurementsTable.lLeg,
       rLeg: measurementsTable.rLeg,
+      weight: measurementsTable.weight,
+      bodyFatPct: measurementsTable.bodyFatPct,
       date: measurementsTable.date,
     })
     .from(measurementsTable)
@@ -146,6 +156,21 @@ async function gather(weeks: number): Promise<AnalysisInput> {
     .filter((v): v is number => v != null);
   const inchesChange =
     inches.length >= 2 ? round1(inches[inches.length - 1]! - inches[0]!) : null;
+
+  // Body-composition trajectory for the recomp chart: every reading in the
+  // window that has a weight or body-fat %, with lean/fat derived per reading.
+  const bodyLog: BodyTrajectoryPoint[] = measRows
+    .filter((m) => m.weight != null || m.bodyFatPct != null)
+    .map((m) => {
+      const comp = computeBodyComp(m.weight ?? null, m.bodyFatPct ?? null);
+      return {
+        date: m.date,
+        weightLb: m.weight ?? null,
+        bodyFatPct: m.bodyFatPct ?? null,
+        leanLb: comp.leanMassLb,
+        fatLb: comp.fatMassLb,
+      };
+    });
 
   // Nutrition adherence + full macro averages.
   const nutRows = await db
@@ -285,6 +310,22 @@ async function gather(weeks: number): Promise<AnalysisInput> {
       ? round1(weightChangeLb / weeksElapsed)
       : null;
 
+  // Per-day FINAL logged days (oldest → newest, recent window capped to keep the
+  // sparklines + adherence dots glanceable) — the values the averages were built
+  // from, surfaced so the engine can draw each metric's trend + streak.
+  const dailyLog: DailyLogPoint[] = [...finalRows]
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+    .slice(-21)
+    .map((r) => ({
+      date: r.date,
+      calories: r.calories ?? null,
+      proteinG: r.proteinG ?? null,
+      carbsG: r.carbsG ?? null,
+      fatG: r.fatG ?? null,
+      waterOz: r.waterMl != null ? Math.round(r.waterMl / 29.5735) : null,
+      sodiumMg: r.sodiumMg ?? null,
+    }));
+
   return {
     weeks,
     weeksElapsed,
@@ -340,6 +381,8 @@ async function gather(weeks: number): Promise<AnalysisInput> {
     safeRateLbPerWk,
     proteinFloorGPerLb: PROTEIN_FLOOR_G_PER_LB,
     groundTruthFlags,
+    dailyLog,
+    bodyLog,
   };
 }
 
@@ -368,49 +411,30 @@ async function buildReport(input: AnalysisInput): Promise<NutritionistReport> {
     );
     if (!tool) return fb;
     const out = tool.input as Partial<NutritionistReport> & {
-      protein?: any;
-      bodyComp?: any;
-      deficit?: any;
+      insights?: Record<string, { caption?: string; detail?: string }>;
     };
 
-    // Merge Claude's narrative + verdicts with the server-computed numbers
-    // (numbers are ground truth; Claude owns the words). Fall back per-field.
+    // Engine owns every NUMBER (and the deterministic fallback copy); Claude owns
+    // only the words. Overlay its caption/detail per insight by id; everything
+    // numeric (actual/target/floor/series/status) stays exactly as computed, so
+    // the charts are correct regardless of the model.
+    const skeleton: NutritionInsight[] = computeInsights(input);
+    const copy: Record<string, { caption?: string; detail?: string }> = out.insights ?? {};
+    const insights: NutritionInsight[] = skeleton.map((ins) => {
+      const c = copy[ins.id];
+      return {
+        ...ins,
+        caption: typeof c?.caption === "string" && c.caption.trim() ? c.caption.trim() : ins.caption,
+        detail: typeof c?.detail === "string" && c.detail.trim() ? c.detail.trim() : ins.detail,
+      };
+    });
+
     return {
       weeks: input.weeks,
       weeksElapsed: input.weeksElapsed,
       headline: out.headline ?? fb.headline,
+      insights,
       today: out.today ?? fb.today,
-      protein: {
-        status: out.protein?.status ?? fb.protein.status,
-        avgProteinG: input.avgProtein,
-        targetProteinG: input.proteinTarget,
-        gPerLb: input.proteinGPerLb,
-        hitRate: input.proteinHitRate,
-        detail: out.protein?.detail ?? fb.protein.detail,
-        distributionTip: out.protein?.distributionTip ?? fb.protein.distributionTip,
-      },
-      bodyComp: {
-        currentWeightLb: input.currentWeightLb,
-        bodyFatPct: input.bodyFatPct,
-        leanMassLb: input.leanMassLb,
-        fatMassLb: input.fatMassLb,
-        leanMassChangeLb: input.leanMassChangeLb,
-        fatMassChangeLb: input.fatMassChangeLb,
-        weightChangeLb: input.weightChangeLb,
-        inchesChange: input.inchesChange,
-        trend: out.bodyComp?.trend ?? fb.bodyComp.trend,
-        whatYouShouldSee: out.bodyComp?.whatYouShouldSee ?? fb.bodyComp.whatYouShouldSee,
-        whyYouMayNotBe: out.bodyComp?.whyYouMayNotBe ?? fb.bodyComp.whyYouMayNotBe,
-      },
-      deficit: {
-        status: out.deficit?.status ?? fb.deficit.status,
-        avgCalories: input.avgCalories,
-        calorieTarget: input.calorieTarget,
-        safeFloorKcal: input.safeFloorKcal,
-        detail: out.deficit?.detail ?? fb.deficit.detail,
-      },
-      hydration: out.hydration ?? fb.hydration,
-      sodium: out.sodium ?? fb.sodium,
       keyMoves: Array.isArray(out.keyMoves) && out.keyMoves.length ? out.keyMoves.slice(0, 4) : fb.keyMoves,
       confidence: out.confidence ?? fb.confidence,
       dataGaps: Array.isArray(out.dataGaps) ? out.dataGaps.slice(0, 4) : fb.dataGaps,
@@ -429,7 +453,7 @@ router.get("/nutritionist/analysis", async (req, res): Promise<void> => {
   const weeks = Number.isFinite(rawWeeks) ? Math.min(26, Math.max(2, Math.round(rawWeeks))) : 8;
 
   const input = await gather(weeks);
-  const inputHash = hashInputs({ weeks, input });
+  const inputHash = hashInputs({ v: REPORT_VERSION, weeks, input });
 
   const cachedRows = await db
     .select()
