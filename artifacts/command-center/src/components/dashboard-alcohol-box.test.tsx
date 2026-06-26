@@ -44,11 +44,14 @@ describe("DashboardAlcoholBox", () => {
     useGetAlcoholSummary.mockReturnValue({ data: summary(), isLoading: false });
     render(<DashboardAlcoholBox />);
     expect(screen.getByText("Alcohol")).toBeTruthy();
-    expect(screen.getByText("5")).toBeTruthy();
-    expect(screen.getByText("/4 dry")).toBeTruthy();
-    expect(screen.getByText(/3-day streak/)).toBeTruthy();
-    expect(screen.getByText(/2\/3 wk on target/)).toBeTruthy();
-    expect(screen.getByText(/3 drinks this week/)).toBeTruthy();
+    // Donut hero: dry days vs target.
+    expect(screen.getByText("5/4")).toBeTruthy();
+    expect(screen.getByText("dry")).toBeTruthy();
+    // Scannable stat row.
+    expect(screen.getByText("Day streak")).toBeTruthy();
+    expect(screen.getByText("2/3")).toBeTruthy();
+    expect(screen.getByText("Wks on target")).toBeTruthy();
+    expect(screen.getByText("Drinks")).toBeTruthy();
   });
 
   it("celebrates a hit week, never shame", () => {
