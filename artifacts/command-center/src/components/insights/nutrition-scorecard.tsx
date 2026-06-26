@@ -15,6 +15,7 @@ import { StreakDots } from "./streak-dots";
 import { RecompHero } from "./recomp-hero";
 import { TrendVsGoal } from "./trend-vs-goal";
 import { RecompTrajectory } from "./recomp-trajectory";
+import { AlcoholTile, DryDaysTile } from "./alcohol-tiles";
 
 // The compact, varied insights scorecard (mockup parity): a hero body-comp tile
 // + a grid of right-sized per-metric tiles, the 8-week trend chart and the long
@@ -70,6 +71,10 @@ export function ScorecardTile({ insight }: { insight: NutritionInsight }) {
   const whyLabel = (insight.series?.length ?? 0) >= 2 ? "Why + 8-wk chart" : "Why";
   const drawer = <MetricDrawer insight={insight} />;
   const common = { name: insight.label, status: insight.status, caption: insight.caption };
+
+  // Alcohol reads — the two fun, self-contained reduction tiles.
+  if (insight.id === "dryDays") return <DryDaysTile insight={insight} />;
+  if (insight.id === "alcohol") return <AlcoholTile insight={insight} />;
 
   // Body composition — the wide hero.
   if (insight.id === "bodycomp") {
@@ -230,7 +235,18 @@ function ConsistencyTile({ report }: { report: NutritionistReport }) {
 
 // Fixed layout order matching the mockup (not significance-ranked): the hero,
 // then the macro rings, fuelling, hydration, sodium, and consistency.
-const ORDER: NutritionInsight["id"][] = ["protein", "carbs", "fat", "fuelling", "hydration", "sodium"];
+const ORDER: NutritionInsight["id"][] = [
+  "protein",
+  "carbs",
+  "fat",
+  "fuelling",
+  "hydration",
+  "sodium",
+  // Alcohol tiles drop into the grid after the macro reads (only present when
+  // the report carries them — i.e. once alcohol logging has started).
+  "dryDays",
+  "alcohol",
+];
 
 export function NutritionScorecard({ report }: { report: NutritionistReport }): ReactNode {
   const byId = (id: NutritionInsight["id"]) => report.insights.find((i) => i.id === id);

@@ -13,9 +13,13 @@ export type InsightId =
   | "fuelling"
   | "hydration"
   | "sodium"
-  | "bodycomp";
+  | "bodycomp"
+  // Alcohol reads (reduction tool): `alcohol` = what drinking is costing this
+  // week; `dryDays` = the win, dry days vs the weekly target.
+  | "alcohol"
+  | "dryDays";
 
-export type InsightGroup = "macros" | "fuelling" | "hydration" | "sodium" | "body";
+export type InsightGroup = "macros" | "fuelling" | "hydration" | "sodium" | "body" | "alcohol";
 
 export type InsightDirection = "higher_better" | "lower_better" | "band";
 
@@ -51,6 +55,45 @@ export type BodyStat = {
   goodDirection: "down" | "up" | "either";
 };
 
+// --- Alcohol read (mirror of @workspace/db AlcoholStats) --------------------
+export type AlcoholDay = { date: string; drinks: number; isDry: boolean; logged: boolean };
+export type AlcoholWeek = {
+  weekStart: string;
+  dryDays: number;
+  drinkingDays: number;
+  drinks: number;
+  hitTarget: boolean;
+  inProgress: boolean;
+};
+export type AlcoholImpact = {
+  key: "trainingLoad" | "sessionAdherence" | "protein" | "calories" | "hydration";
+  label: string;
+  drinkingAvg: number | null;
+  dryAvg: number | null;
+  deltaPct: number | null;
+  betterWhenDry: boolean;
+  note: string;
+};
+export type AlcoholStats = {
+  active: boolean;
+  seedState: boolean;
+  daysTracked: number;
+  dryDaysTarget: number;
+  weekDrinks: number;
+  drinkingDaysThisWeek: number;
+  drinkingBudget: number;
+  dryDaysThisWeek: number;
+  currentDryStreak: number;
+  longestDryStreak: number;
+  dailyStrip: AlcoholDay[];
+  weeklyTrend: AlcoholWeek[];
+  avgDryPerWeek: number | null;
+  weeksOnTarget: number;
+  weeksTracked: number;
+  weeksOnTargetStreak: number;
+  impact: AlcoholImpact[];
+};
+
 export type NutritionInsight = {
   id: InsightId;
   label: string;
@@ -71,6 +114,8 @@ export type NutritionInsight = {
   bodyStats?: BodyStat[];
   expectedBand?: { lo: number; hi: number } | null;
   subMetric?: string | null;
+  // Present only on the two alcohol tiles — the full reduction read both draw from.
+  alcohol?: AlcoholStats;
   caption: string;
   detail?: string;
 };
