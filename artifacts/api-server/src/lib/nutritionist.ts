@@ -185,6 +185,7 @@ const REPORT_SCHEMA = {
       properties: {
         protein: INSIGHT_COPY,
         carbs: INSIGHT_COPY,
+        fat: INSIGHT_COPY,
         fuelling: INSIGHT_COPY,
         hydration: INSIGHT_COPY,
         sodium: INSIGHT_COPY,
@@ -471,6 +472,8 @@ export function fallbackReport(d: AnalysisInput): NutritionistReport {
     confidence,
     dataGaps,
     narrative: `${headline} ${find("protein").detail ?? ""}`.trim(),
+    sessionsDone: d.sessionsDone,
+    plannedSessions: d.plannedSessions,
   };
 }
 
@@ -549,6 +552,12 @@ export function computeInsights(d: AnalysisInput): NutritionInsight[] {
       daysHit: hits(pd),
       perDay: pd,
       status,
+      subMetric:
+        gPerLb != null
+          ? `${gPerLb} g/lb · floor ${d.proteinFloorGPerLb}`
+          : floorG != null
+            ? `floor ${floorG} g`
+            : null,
       caption,
       detail,
     });
@@ -608,6 +617,7 @@ export function computeInsights(d: AnalysisInput): NutritionInsight[] {
       daysHit: hits(pd),
       perDay: pd,
       status,
+      subMetric: null,
       caption,
       detail,
     });
@@ -657,6 +667,60 @@ export function computeInsights(d: AnalysisInput): NutritionInsight[] {
       daysHit: hits(pd),
       perDay: pd,
       status,
+      subMetric:
+        target != null && d.avgCarbs != null && d.avgCarbs < target
+          ? `−${Math.round(target - d.avgCarbs)} g to target`
+          : null,
+      caption,
+      detail,
+    });
+  }
+
+  // ---------- FAT (target band — hit it, don't overshoot) ----------
+  {
+    const target = d.fatTarget;
+    let status: InsightStatus;
+    if (d.avgFat == null) status = "early";
+    else if (target == null) status = "on_track";
+    else if (d.avgFat > target * 1.25) status = "over";
+    else if (d.avgFat >= target * 0.85) status = "on_track";
+    else if (d.avgFat >= target * 0.6) status = "attention";
+    else status = "under";
+    const pd = perDay(
+      (p) => p.fatG,
+      (v) => (target == null ? "hit" : v >= target * 0.85 && v <= target * 1.25 ? "hit" : v >= target * 0.6 ? "close" : "miss"),
+    );
+    const caption =
+      d.avgFat == null
+        ? "Fat isn't logged enough to read yet."
+        : status === "over"
+          ? `${Math.round(d.avgFat)} g fat — a touch over; trim if calories run high.`
+          : status === "under"
+            ? `${Math.round(d.avgFat)} g fat vs ${target} — a little low for hormones.`
+            : `${Math.round(d.avgFat)} g fat — right where it should be.`;
+    const detail =
+      d.avgFat == null
+        ? "Log fat on more days so I can confirm hormone-supporting intake."
+        : status === "over"
+          ? `Averaging ${Math.round(d.avgFat)} g, over the ${target} g target — fine if calories hold; fat's the easiest lever to trim when fuelling runs surplus.`
+          : status === "under"
+            ? `Averaging ${Math.round(d.avgFat)} g vs ${target} g — enough fat matters for hormones and satiety; don't drive it too low on a long cut.`
+            : `Averaging ${Math.round(d.avgFat)} g against a ${target} g target — sorted. Leave it alone and spend your attention on carbs.`;
+    out.push({
+      id: "fat",
+      label: "Fat",
+      group: "macros",
+      unit: "g",
+      actual: d.avgFat,
+      target,
+      direction: "band",
+      series: series((p) => p.fatG),
+      goal: target,
+      daysLogged: logged(pd),
+      daysHit: hits(pd),
+      perDay: pd,
+      status,
+      subMetric: target != null && d.avgFat != null ? `${Math.round((d.avgFat / target) * 100)}% of target` : null,
       caption,
       detail,
     });
@@ -705,6 +769,12 @@ export function computeInsights(d: AnalysisInput): NutritionInsight[] {
       daysHit: hits(pd),
       perDay: pd,
       status,
+      subMetric:
+        targetOz != null && actualOz != null && actualOz < targetOz
+          ? `+${targetOz - actualOz} oz to go`
+          : targetOz != null
+            ? `½ oz per lb · ${targetOz} oz aim`
+            : null,
       caption,
       detail,
     });
@@ -756,6 +826,7 @@ export function computeInsights(d: AnalysisInput): NutritionInsight[] {
       daysHit: hits(pd),
       perDay: pd,
       status,
+      subMetric: `aim ${(floor / 1000).toFixed(1)}–${(ceiling / 1000).toFixed(1)}k mg`,
       caption,
       detail,
     });
@@ -850,8 +921,9 @@ export function computeInsights(d: AnalysisInput): NutritionInsight[] {
     protein: 1,
     bodycomp: 2,
     carbs: 3,
-    hydration: 4,
-    sodium: 5,
+    fat: 4,
+    hydration: 5,
+    sodium: 6,
   };
   return out.sort((a, b) => tier(a.status) - tier(b.status) || priority[a.id] - priority[b.id]);
 }

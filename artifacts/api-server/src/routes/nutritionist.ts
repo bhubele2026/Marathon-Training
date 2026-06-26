@@ -36,7 +36,7 @@ import {
 
 // Bump when the report SHAPE changes so cached rows (keyed by inputHash) are
 // invalidated and regenerated into the new structure.
-const REPORT_VERSION = 2;
+const REPORT_VERSION = 3;
 
 const router: IRouter = Router();
 const DAY_MS = 86_400_000;
@@ -439,6 +439,8 @@ async function buildReport(input: AnalysisInput): Promise<NutritionistReport> {
       confidence: out.confidence ?? fb.confidence,
       dataGaps: Array.isArray(out.dataGaps) ? out.dataGaps.slice(0, 4) : fb.dataGaps,
       narrative: out.narrative ?? fb.narrative,
+      sessionsDone: input.sessionsDone,
+      plannedSessions: input.plannedSessions,
     };
   } catch {
     return fb;

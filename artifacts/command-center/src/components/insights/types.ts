@@ -9,6 +9,7 @@
 export type InsightId =
   | "protein"
   | "carbs"
+  | "fat"
   | "fuelling"
   | "hydration"
   | "sodium"
@@ -69,6 +70,7 @@ export type NutritionInsight = {
   bodyTrajectory?: BodyTrajectoryPoint[];
   bodyStats?: BodyStat[];
   expectedBand?: { lo: number; hi: number } | null;
+  subMetric?: string | null;
   caption: string;
   detail?: string;
 };
@@ -83,6 +85,8 @@ export type NutritionistReport = {
   confidence: "low" | "medium" | "high";
   dataGaps: string[];
   narrative: string;
+  sessionsDone?: number;
+  plannedSessions?: number;
   generatedAt?: string;
   cached?: boolean;
 };

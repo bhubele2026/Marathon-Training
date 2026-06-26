@@ -4,12 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SectionHeader } from "@/components/studio/section-header";
 import { CoachNote } from "@/components/studio/coach-note";
-import {
-  InsightCard,
-  InsightVisual,
-  StatusPill,
-  BulletMetric,
-} from "@/components/insights";
+import { NutritionScorecard, ScorecardTile } from "@/components/insights";
 import type { NutritionistReport } from "@/components/insights/types";
 import { Clock, Stethoscope, ArrowRight } from "lucide-react";
 
@@ -79,7 +74,6 @@ export function NutritionistPanel({
               <span className="font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 Nutritionist
               </span>
-              {protein && <StatusPill status={protein.status} />}
             </div>
             <Link
               href="/nutrition"
@@ -90,8 +84,8 @@ export function NutritionistPanel({
             </Link>
           </div>
           <p className="text-sm font-medium text-foreground">{data.headline}</p>
-          {/* Hero protein read — the one bar that matters most day to day. */}
-          {protein && <BulletMetric insight={protein} />}
+          {/* Hero protein read — the one tile that matters most day to day. */}
+          {protein && <ScorecardTile insight={protein} />}
           {data.today ? (
             <p className="min-w-0 text-sm leading-relaxed text-muted-foreground">{data.today}</p>
           ) : (
@@ -129,12 +123,8 @@ export function NutritionistPanel({
         </CoachNote>
       )}
 
-      {/* INSIGHTS — one visual-first card per structured read. */}
-      {insights.map((ins) => (
-        <InsightCard key={ins.id} insight={ins}>
-          <InsightVisual insight={ins} />
-        </InsightCard>
-      ))}
+      {/* INSIGHTS — the compact, varied scorecard. */}
+      <NutritionScorecard report={data} />
 
       {/* DO THIS NEXT */}
       {data.keyMoves.length > 0 && (

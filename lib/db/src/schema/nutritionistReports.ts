@@ -22,6 +22,7 @@ import { pgTable, integer, text, jsonb, timestamp } from "drizzle-orm/pg-core";
 export type InsightId =
   | "protein"
   | "carbs"
+  | "fat"
   | "fuelling"
   | "hydration"
   | "sodium"
@@ -105,6 +106,10 @@ export type NutritionInsight = {
   // The expected recomp end-state band (e.g. body-fat % drifting down) drawn
   // behind the actual line so the "should vs is" gap is visible.
   expectedBand?: { lo: number; hi: number } | null;
+  // A short per-metric sub-line for the scorecard tile (engine-computed, where
+  // the numbers live): e.g. protein "0.7 g/lb · floor 0.8", carbs "−131 g to
+  // target", hydration "+96 oz to go", sodium "aim 2.3–3.5k".
+  subMetric?: string | null;
   // --- AI-owned words ---
   caption: string; // ONE short sassy line
   detail?: string; // the longer reasoning, shown behind a "why" expander
@@ -130,6 +135,10 @@ export type NutritionistReport = {
   dataGaps: string[];
   // Coach-voice narration (persona) — the line shown on Today.
   narrative: string;
+  // Training counts over the window — feed the scorecard's consistency tile
+  // ("N sessions / M wk"). Optional/back-compatible.
+  sessionsDone?: number;
+  plannedSessions?: number;
 };
 
 export const nutritionistReportsTable = pgTable("nutritionist_reports", {

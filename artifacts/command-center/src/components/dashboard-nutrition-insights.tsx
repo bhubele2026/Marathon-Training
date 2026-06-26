@@ -4,7 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SectionHeader } from "@/components/studio/section-header";
-import { InsightCard, InsightVisual, TargetGauge } from "@/components/insights";
+import { ScorecardTile, TargetGauge } from "@/components/insights";
 import type { NutritionistReport } from "@/components/insights/types";
 import { nutritionistQueryKey } from "@/components/nutritionist-panel";
 
@@ -73,11 +73,9 @@ export function DashboardNutritionInsights({ weeks = 8 }: { weeks?: number }) {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-3.5 md:grid-cols-2 lg:grid-cols-3">
         {top.map((ins) => (
-          <InsightCard key={ins.id} insight={ins}>
-            <InsightVisual insight={ins} />
-          </InsightCard>
+          <ScorecardTile key={ins.id} insight={ins} />
         ))}
       </div>
     </section>

@@ -104,7 +104,7 @@ describe("fallbackReport — safety-correct without AI", () => {
   it("emits the six structured insights, engine-owned numbers intact", () => {
     const r = fallbackReport(base());
     expect(r.insights.map((i) => i.id).sort()).toEqual(
-      ["bodycomp", "carbs", "fuelling", "hydration", "protein", "sodium"].sort(),
+      ["bodycomp", "carbs", "fat", "fuelling", "hydration", "protein", "sodium"].sort(),
     );
     // The engine owns the numbers: protein insight carries the real avg/target.
     expect(insight(r, "protein").actual).toBe(220);

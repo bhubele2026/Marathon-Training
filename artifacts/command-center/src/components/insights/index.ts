@@ -20,3 +20,4 @@ export { DropletGauge } from "./droplet-gauge";
 export { DialGauge } from "./dial-gauge";
 export { DonutStat } from "./donut-stat";
 export { RecompHero } from "./recomp-hero";
+export { NutritionScorecard, ScorecardTile } from "./nutrition-scorecard";
