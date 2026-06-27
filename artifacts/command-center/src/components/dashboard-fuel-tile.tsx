@@ -42,11 +42,35 @@ export function DashboardFuelTile({ className }: { className?: string }) {
     queryFn: () => getJson<DayTarget>(`/api/nutrition/day/${date}`),
   });
 
+  const macros =
+    data?.adjusted == null
+      ? []
+      : [
+          {
+            label: "Protein",
+            value: data.actual?.protein ?? 0,
+            goal: data.adjusted.protein,
+            color: "hsl(var(--chart-2))",
+          },
+          {
+            label: "Carbs",
+            value: data.actual?.carbs ?? 0,
+            goal: data.adjusted.carbs,
+            color: "hsl(var(--chart-3))",
+          },
+          {
+            label: "Fat",
+            value: data.actual?.fat ?? 0,
+            goal: data.adjusted.fat,
+            color: "hsl(var(--chart-4))",
+          },
+        ];
+
   return (
     <Card className={className} data-testid="dashboard-fuel-tile">
-      <CardContent className="p-6">
+      <CardContent className="p-5">
         <div className="flex items-center justify-between mb-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[hsl(var(--chart-1))]">
             Today's fuel
           </p>
           <Link
@@ -66,33 +90,37 @@ export function DashboardFuelTile({ className }: { className?: string }) {
             hint="Set your calorie + macro baseline on Goals to light up the ring."
           />
         ) : (
-          <MetricRing
-            hero
-            label="Calories"
-            unit="kcal"
-            value={data.actual?.cal ?? 0}
-            goal={data.adjusted.cal}
-            macros={[
-              {
-                label: "Protein",
-                value: data.actual?.protein ?? 0,
-                goal: data.adjusted.protein,
-                color: "hsl(var(--chart-2))",
-              },
-              {
-                label: "Carbs",
-                value: data.actual?.carbs ?? 0,
-                goal: data.adjusted.carbs,
-                color: "hsl(var(--chart-3))",
-              },
-              {
-                label: "Fat",
-                value: data.actual?.fat ?? 0,
-                goal: data.adjusted.fat,
-                color: "hsl(var(--chart-4))",
-              },
-            ]}
-          />
+          // Ring left + macro legend right, so the tile fills its width instead
+          // of leaving the right half empty. The legend names the ring's arcs.
+          <div className="flex items-center gap-5">
+            <MetricRing
+              hero
+              label="Calories"
+              unit="kcal"
+              value={data.actual?.cal ?? 0}
+              goal={data.adjusted.cal}
+              macros={macros}
+            />
+            <ul className="min-w-0 flex-1 space-y-3">
+              {macros.map((m) => (
+                <li key={m.label} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ background: m.color }}
+                    />
+                    <span className="truncate text-muted-foreground">{m.label}</span>
+                  </span>
+                  <span className="font-display font-semibold tabular-nums text-foreground">
+                    {Math.round(m.value)}
+                    <span className="font-normal text-muted-foreground">
+                      /{Math.round(m.goal)} g
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </CardContent>
     </Card>

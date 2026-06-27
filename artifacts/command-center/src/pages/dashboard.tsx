@@ -350,7 +350,7 @@ export default function Dashboard() {
           data-testid="dashboard-training-tile"
           className="border-l-2 border-l-[hsl(var(--chart-4))] bg-[hsl(var(--chart-4)/0.05)]"
         >
-          <CardContent className="p-6 space-y-4">
+          <CardContent className="p-5 flex h-full flex-col">
             <div className="flex items-center justify-between">
               <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[hsl(var(--chart-4))]">
                 Training load
@@ -360,20 +360,24 @@ export default function Dashboard() {
                 {trainingTile.label}
               </span>
             </div>
-            <MiniBar
-              label="Sessions"
-              actual={trainingTile.sessions.actual}
-              planned={trainingTile.sessions.planned}
-              format={(n) => String(n)}
-              testId="dashboard-bar-sessions"
-            />
-            <MiniBar
-              label="Load"
-              actual={trainingTile.load.actual}
-              planned={trainingTile.load.planned}
-              format={(n) => formatLoad(n)}
-              testId="dashboard-bar-load"
-            />
+            {/* Bars vertically centred in the remaining height so the tile fills
+                instead of bunching two bars at the top with a dead lower half. */}
+            <div className="flex flex-1 flex-col justify-center gap-5 pt-4">
+              <MiniBar
+                label="Sessions"
+                actual={trainingTile.sessions.actual}
+                planned={trainingTile.sessions.planned}
+                format={(n) => String(n)}
+                testId="dashboard-bar-sessions"
+              />
+              <MiniBar
+                label="Load"
+                actual={trainingTile.load.actual}
+                planned={trainingTile.load.planned}
+                format={(n) => formatLoad(n)}
+                testId="dashboard-bar-load"
+              />
+            </div>
           </CardContent>
         </Card>
       </div>
