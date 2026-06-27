@@ -95,7 +95,7 @@ export function Layout({ children }: LayoutProps) {
           the semantic `sidebar` tokens, so flipping to dark mode (theme
           toggle) gives the dark-bar option for free. */}
       <header className="sticky top-0 z-40 border-b border-sidebar-border bg-summer-header text-sidebar-foreground">
-        <div className="mx-auto max-w-[1600px] px-4 md:px-6 h-14 flex items-center gap-7">
+        <div className="mx-auto max-w-[1920px] px-4 md:px-8 h-14 flex items-center gap-7">
           <Wordmark />
 
           {/* Primary nav — exactly four destinations (desktop). */}
@@ -182,8 +182,8 @@ export function Layout({ children }: LayoutProps) {
         </div>
       </header>
 
-      <main className="flex-1 px-4 md:px-6 py-4 md:py-6 pb-24 md:pb-8">
-        <div className="mx-auto max-w-[1600px]">
+      <main className="flex-1 px-4 md:px-8 py-4 md:py-6 pb-24 md:pb-8">
+        <div className="mx-auto max-w-[1920px]">
           {/* Always-on, dismissible coach presence — sits above the page and
               reacts to the current screen. Outside the route transition so it
               persists across navigation. */}

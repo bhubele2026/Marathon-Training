@@ -532,6 +532,7 @@ export default function Today() {
             <Card
               key={`today-plan-${plan.id}`}
               variant="elevated"
+              className="border-[hsl(var(--chart-2)/0.35)] bg-[hsl(var(--chart-2)/0.04)]"
               data-testid={`card-mission-brief-${plan.sourceEntryIndex}`}
             >
               <CardHeader>
@@ -979,7 +980,7 @@ export default function Today() {
               ? { date: today.date, plan: matchedPlan, suggestions: null }
               : null;
             return (
-            <Card key={session.id} className="border-border" data-testid={`session-today-${session.id}`}>
+            <Card key={session.id} className="border-[hsl(var(--chart-1)/0.35)] bg-[hsl(var(--chart-1)/0.04)]" data-testid={`session-today-${session.id}`}>
               <CardHeader className="pb-4 flex flex-row items-center justify-between space-y-0">
                 <CardTitle className="font-display text-lg tracking-tight flex items-center gap-2">
                   <CheckCircle2 className="h-5 w-5 text-success" />

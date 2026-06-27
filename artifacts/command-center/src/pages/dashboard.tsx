@@ -158,7 +158,7 @@ function MiniBar({
 
 function DashboardSkeleton() {
   return (
-    <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-4 space-y-5">
+    <div className="mx-auto max-w-[1920px] px-4 md:px-8 py-4 space-y-5">
       <Skeleton className="h-10 w-64 rounded-xl" />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[0, 1, 2, 3].map((i) => (
@@ -346,14 +346,17 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <DashboardFuelTile />
         <DashboardWaterTile weightLb={summary.weightCurrent} />
-        <Card data-testid="dashboard-training-tile">
+        <Card
+          data-testid="dashboard-training-tile"
+          className="border-l-2 border-l-[hsl(var(--chart-4))] bg-[hsl(var(--chart-4)/0.05)]"
+        >
           <CardContent className="p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[hsl(var(--chart-4))]">
                 Training load
               </p>
               <span className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground">
-                <Activity className="h-3.5 w-3.5" />
+                <Activity className="h-3.5 w-3.5 text-[hsl(var(--chart-4))]" />
                 {trainingTile.label}
               </span>
             </div>
@@ -382,7 +385,7 @@ export default function Dashboard() {
           label="Weight"
           value={formatWeight(summary.weightCurrent)}
           tone="foreground"
-          tileClassName="lg:col-span-1"
+          tileClassName="lg:col-span-1 border-l-2 border-l-[hsl(var(--chart-3))] bg-[hsl(var(--chart-3)/0.06)]"
           footer={
             <TrendArea
               data={weightTrend as unknown as Array<Record<string, unknown>>}
@@ -401,9 +404,9 @@ export default function Dashboard() {
           }
         />
         <DashboardAlcoholBox />
-        <Card>
+        <Card className="border-l-2 border-l-[hsl(var(--chart-1))] bg-[hsl(var(--chart-1)/0.05)]">
           <CardContent className="p-6">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[hsl(var(--chart-1))] mb-4">
               Activity
             </p>
             <ActivityCalendar
@@ -420,7 +423,7 @@ export default function Dashboard() {
 
       {/* AI front door */}
       <Card
-        className="border-l-2 border-l-primary"
+        className="border-l-2 border-l-primary bg-[hsl(var(--chart-1)/0.04)]"
         data-testid="dashboard-ai-frontdoor"
       >
         <CardContent className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">

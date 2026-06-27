@@ -446,7 +446,7 @@ export default function Nutrition() {
   return (
     <div className="mx-auto max-w-[1440px] space-y-4 px-4 md:px-8">
       <div>
-        <h1 className="font-display text-4xl font-extrabold tracking-tight text-foreground">
+        <h1 className="font-display text-4xl font-extrabold tracking-tight text-summer-gradient">
           Nutrition
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
@@ -457,7 +457,7 @@ export default function Nutrition() {
       {/* Per-day review tile: navigator + the calorie hero ring with macro arcs,
           compact macro chips, a first-class water tracker, and the coach's
           reactivity note. One tile — no divider rules. */}
-      <Card className="p-4">
+      <Card className="p-4 border-[hsl(var(--chart-1)/0.35)] bg-[hsl(var(--chart-1)/0.04)]">
         <CardHeader className="p-0 pb-3">
           <CardTitle className="flex flex-wrap items-center justify-between gap-3 text-sm tracking-wider text-muted-foreground">
             {/* Day navigator — step back/forward, or jump with the date input. */}
@@ -622,7 +622,7 @@ export default function Nutrition() {
       <NutritionistPanel variant="full" weeks={8} />
 
       {/* 14-day trend across all four macros, each in its fixed metric color. */}
-      <Card>
+      <Card className="border-[hsl(var(--chart-2)/0.35)] bg-[hsl(var(--chart-2)/0.04)]">
         <CardHeader>
           <CardTitle className="font-display text-base font-bold tracking-tight text-foreground">
             Last 14 days

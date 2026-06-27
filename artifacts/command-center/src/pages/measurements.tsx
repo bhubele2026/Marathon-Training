@@ -85,9 +85,11 @@ type WeeklyWeight = {
   onTrack: boolean | null;
 };
 
-// Shared eyebrow label — 11px uppercase, cool-muted (DESIGN LAW typography).
+// Shared eyebrow label — 11px uppercase. Vibrant Summer: grape-tinted (the
+// body-composition hue, --chart-4) instead of cool-muted, so the page's
+// section labels carry colour. Grape is dark enough to hold AA on white.
 const EYEBROW =
-  "font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground";
+  "font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-[hsl(var(--chart-4))]";
 
 export default function Measurements() {
   const { data: measurements, isLoading: loadingMs } = useListMeasurements();
@@ -228,7 +230,7 @@ export default function Measurements() {
       {/* HERO TILE — weight is the single oversized readout, with its change vs
           the last weigh-in as a semantic delta chip, body fat alongside, and the
           soft azure trend area right below it. One hero per surface. */}
-      <Card className="shadow-tile">
+      <Card className="shadow-tile border-[hsl(var(--chart-4)/0.35)] bg-[hsl(var(--chart-4)/0.04)]">
         <CardContent className="p-6 md:p-8 space-y-7">
           <div className="flex flex-wrap items-end justify-between gap-x-12 gap-y-6">
             <div className="flex flex-col gap-2">
@@ -303,7 +305,7 @@ export default function Measurements() {
       {/* Weekly weight goal — quiet target-vs-actual for the current week. Set it
           on Goals; read-only here. */}
       {weekly && (
-        <Card className="shadow-card">
+        <Card className="shadow-card border-[hsl(var(--chart-1)/0.35)] bg-[hsl(var(--chart-1)/0.04)]">
           <CardContent className="p-6">
             <span className={cn(EYEBROW, "block mb-3")}>This week</span>
             <div className="flex flex-wrap items-baseline gap-x-10 gap-y-2">
@@ -353,7 +355,7 @@ export default function Measurements() {
       )}
 
       {/* Since baseline — the recomp deltas per tape site. */}
-      <Card className="shadow-card">
+      <Card className="shadow-card border-[hsl(var(--chart-2)/0.35)] bg-[hsl(var(--chart-2)/0.04)]">
         <CardContent className="p-6 md:p-8">
           <span className={cn(EYEBROW, "block mb-5")}>Since baseline</span>
           {loadingMs ? (
@@ -396,7 +398,7 @@ export default function Measurements() {
 
       {/* Tape measurements — selected site is the azure line, the rest recede
           into the neutral ramp; pill toggles instead of a dotted legend. */}
-      <Card className="shadow-card">
+      <Card className="shadow-card border-[hsl(var(--chart-5)/0.35)] bg-[hsl(var(--chart-5)/0.04)]">
         <CardContent className="p-6 md:p-8">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <span className={EYEBROW}>Tape measurements</span>
@@ -473,7 +475,7 @@ export default function Measurements() {
       </Card>
 
       {/* Full check-in history. */}
-      <Card className="overflow-hidden shadow-card">
+      <Card className="overflow-hidden shadow-card border-[hsl(var(--chart-3)/0.35)] bg-[hsl(var(--chart-3)/0.04)]">
         {loadingMs ? (
           <div className="p-8"><Skeleton className="h-64 w-full" /></div>
         ) : (

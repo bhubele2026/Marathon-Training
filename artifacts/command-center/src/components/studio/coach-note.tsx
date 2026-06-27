@@ -34,7 +34,7 @@ export function CoachNote({
   return (
     <div
       className={cn(
-        "flex items-start gap-2.5 rounded-lg border-l-2 border-primary bg-[hsl(var(--accent)/0.06)] p-3.5 dark:bg-[hsl(var(--accent)/0.10)]",
+        "flex items-start gap-2.5 rounded-lg border-l-2 border-primary bg-[hsl(var(--chart-3)/0.10)] p-3.5 dark:bg-[hsl(var(--chart-3)/0.10)]",
         className,
       )}
     >

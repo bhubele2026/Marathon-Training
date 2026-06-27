@@ -11,12 +11,15 @@ export function EmptyState({
   action,
   icon: Icon,
   className,
+  accent = "hsl(var(--chart-1))",
 }: {
   title: string;
   hint: string;
   action?: ReactNode;
   icon?: LucideIcon;
   className?: string;
+  /** CSS color for the leading icon. Defaults to the ocean brand hue. */
+  accent?: string;
 }) {
   return (
     <div
@@ -25,7 +28,7 @@ export function EmptyState({
         className,
       )}
     >
-      {Icon != null && <Icon className="h-5 w-5 text-muted-foreground" />}
+      {Icon != null && <Icon className="h-5 w-5" style={{ color: accent }} />}
       <p className="text-[15px] font-medium text-foreground">{title}</p>
       <p className="max-w-prose text-[13px] leading-relaxed text-muted-foreground">
         {hint}
