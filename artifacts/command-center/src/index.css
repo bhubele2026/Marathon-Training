@@ -83,37 +83,38 @@
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
 
-  /* BH Studio palette — bright, cool, airy, tiled. Faint cool-gray canvas,
-     bright-white tiles, azure as the ONE loud color; pastel secondaries are
-     semantic. Light token set; kept in sync with the `studio` palette in
-     `@workspace/visual-themes` so first paint matches. (No warm/orange/teal
-     identity — the old warm look is retired.) */
-  --background: 214 32% 97%;
+  /* BH Studio palette — "Vibrant Summer": bright, lively, tiled. Warm sunny
+     cream canvas (with a soft golden/coral/lime corner wash on the body),
+     bright-white tiles, OCEAN BLUE as the brand; coral/gold/grape/lime are the
+     fixed data palette; status pastels stay semantic. Light token set; kept in
+     sync with the `studio` palette in `@workspace/visual-themes` so first paint
+     matches. */
+  --background: 40 44% 97%;
   --foreground: 222 30% 12%;
-  --border: 214 24% 91%;
+  --border: 38 30% 90%;
   --card: 0 0% 100%;
   --card-foreground: 222 30% 12%;
-  --card-border: 214 24% 91%;
+  --card-border: 38 30% 90%;
 
   /* Bright top bar / nav (no longer a dark rail). */
   --sidebar: 0 0% 100%;
   --sidebar-foreground: 222 30% 18%;
-  --sidebar-border: 214 24% 91%;
+  --sidebar-border: 38 30% 90%;
   --sidebar-primary: 205 75% 47%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 214 30% 95%;
+  --sidebar-accent: 40 36% 94%;
   --sidebar-accent-foreground: 222 30% 18%;
   --sidebar-ring: 205 75% 47%;
 
   --popover: 0 0% 100%;
   --popover-foreground: 222 30% 12%;
-  --popover-border: 214 24% 91%;
+  --popover-border: 38 30% 90%;
 
   --primary: 205 75% 47%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 214 30% 95%;
+  --secondary: 40 36% 94%;
   --secondary-foreground: 222 30% 18%;
-  --muted: 214 28% 95%;
+  --muted: 40 32% 94%;
   --muted-foreground: 215 16% 47%;
   --accent: 205 75% 47%;
   --accent-foreground: 0 0% 100%;
@@ -125,7 +126,7 @@
   --warning-foreground: 222 30% 12%;
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
-  --input: 214 24% 89%;
+  --input: 38 28% 88%;
   --ring: 205 75% 47%;
 
   /* Brand: ocean blue (#1E88D2). `brand-orange`/`brand-purple` are legacy
@@ -256,6 +257,26 @@
     /* Tabular lining figures everywhere so stats stay column-aligned — a small
        signal of a considered, premium product. Inherited by the mono readouts. */
     font-feature-settings: "tnum" 1, "lnum" 1, "cv01" 1;
+    /* Vibrant Summer canvas: a soft, sunny multi-color wash bleeds in from the
+       corners over the warm cream base — golden top-left, coral top-right, lime
+       below — so the whole app reads "summer" before a single card loads. Low
+       alpha + fixed attachment keeps it an atmosphere, not a distraction; white
+       tiles still pop crisp on top. Token-driven, so it flips with the theme. */
+    background-image:
+      radial-gradient(1100px 620px at 6% -8%, hsl(var(--chart-3) / 0.16), transparent 60%),
+      radial-gradient(1000px 560px at 100% -4%, hsl(var(--chart-2) / 0.13), transparent 58%),
+      radial-gradient(1200px 720px at 50% 116%, hsl(var(--chart-5) / 0.12), transparent 62%);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+  }
+
+  /* On the deep-navy dark canvas the same washes glow softly instead of
+     washing out — pulled back so text contrast holds. */
+  .dark body {
+    background-image:
+      radial-gradient(1100px 620px at 6% -8%, hsl(var(--chart-3) / 0.10), transparent 60%),
+      radial-gradient(1000px 560px at 100% -4%, hsl(var(--chart-2) / 0.09), transparent 58%),
+      radial-gradient(1200px 720px at 50% 116%, hsl(var(--chart-5) / 0.08), transparent 62%);
   }
 
   /* Premium feel: smooth, restrained transitions on every interactive

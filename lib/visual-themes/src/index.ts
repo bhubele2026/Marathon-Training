@@ -74,8 +74,9 @@ export interface PaletteDefinition {
 }
 
 export const PALETTES: Record<string, PaletteDefinition> = {
-  // BH Studio palette — "Vibrant Summer": bright, lively, tiled. Faint cool-gray
-  // canvas, bright-white tiles, OCEAN BLUE (#1E88D2) as the brand/primary (active
+  // BH Studio palette — "Vibrant Summer": bright, lively, tiled. Warm sunny cream
+  // canvas (with a soft golden/coral/lime corner wash on the body), bright-white
+  // tiles, OCEAN BLUE (#1E88D2) as the brand/primary (active
   // nav, primary buttons, focus rings, hero number). Status secondaries stay
   // SEMANTIC: success=green (ahead/good), warning=amber (heads-up),
   // destructive=red (over/behind). The data-viz ramp is a FIXED, coordinated
@@ -89,28 +90,28 @@ export const PALETTES: Record<string, PaletteDefinition> = {
     number: "01",
     tagline: "Vibrant summer: ocean-blue brand, a coral/gold/lime/grape data palette. Lively and clean.",
     light: {
-      background: "214 32% 97%",
+      background: "40 44% 97%",
       foreground: "222 30% 12%",
-      border: "214 24% 91%",
+      border: "38 30% 90%",
       card: "0 0% 100%",
       cardForeground: "222 30% 12%",
-      cardBorder: "214 24% 91%",
+      cardBorder: "38 30% 90%",
       sidebar: "0 0% 100%",
       sidebarForeground: "222 30% 18%",
-      sidebarBorder: "214 24% 91%",
+      sidebarBorder: "38 30% 90%",
       sidebarPrimary: "205 75% 47%",
       sidebarPrimaryForeground: "0 0% 100%",
-      sidebarAccent: "214 30% 95%",
+      sidebarAccent: "40 36% 94%",
       sidebarAccentForeground: "222 30% 18%",
       sidebarRing: "205 75% 47%",
       popover: "0 0% 100%",
       popoverForeground: "222 30% 12%",
-      popoverBorder: "214 24% 91%",
+      popoverBorder: "38 30% 90%",
       primary: "205 75% 47%",
       primaryForeground: "0 0% 100%",
-      secondary: "214 30% 95%",
+      secondary: "40 36% 94%",
       secondaryForeground: "222 30% 18%",
-      muted: "214 28% 95%",
+      muted: "40 32% 94%",
       mutedForeground: "215 16% 47%",
       accent: "205 75% 47%",
       accentForeground: "0 0% 100%",
@@ -122,7 +123,7 @@ export const PALETTES: Record<string, PaletteDefinition> = {
       warningForeground: "222 30% 12%",
       destructive: "0 72% 51%",
       destructiveForeground: "0 0% 100%",
-      input: "214 24% 89%",
+      input: "38 28% 88%",
       ring: "205 75% 47%",
       // Legacy token NAMES preserved so downstream components keep working;
       // both now map to the ocean-blue brand accent.
