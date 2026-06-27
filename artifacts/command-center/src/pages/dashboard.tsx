@@ -319,7 +319,8 @@ export default function Dashboard() {
               : "Tracking"
           }
           onClick={() => navigate("/measurements")}
-          tone="soft"
+          // Vibrant Summer: coral→golden sunset gradient, white text both themes.
+          className="bg-grad-body [&_*]:!text-white"
         />
         <FeatureTile
           icon={Utensils}
@@ -327,7 +328,8 @@ export default function Dashboard() {
           stat={`${summary.adherencePct}%`}
           caption="Fuel & macros"
           onClick={() => navigate("/nutrition")}
-          tone="soft"
+          // Vibrant Summer: ocean→lime gradient, white text both themes.
+          className="bg-grad-fuel [&_*]:!text-white"
         />
         <FeatureTile
           icon={ClipboardList}
@@ -335,7 +337,8 @@ export default function Dashboard() {
           stat={`Wk ${summary.currentWeek}`}
           caption={summary.currentPhase}
           onClick={() => navigate("/plan")}
-          tone="soft"
+          // Vibrant Summer: grape→coral gradient, white text both themes.
+          className="bg-grad-plan [&_*]:!text-white"
         />
       </div>
 

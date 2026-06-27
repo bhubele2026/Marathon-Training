@@ -263,9 +263,10 @@
        alpha + fixed attachment keeps it an atmosphere, not a distraction; white
        tiles still pop crisp on top. Token-driven, so it flips with the theme. */
     background-image:
-      radial-gradient(1100px 620px at 6% -8%, hsl(var(--chart-3) / 0.16), transparent 60%),
-      radial-gradient(1000px 560px at 100% -4%, hsl(var(--chart-2) / 0.13), transparent 58%),
-      radial-gradient(1200px 720px at 50% 116%, hsl(var(--chart-5) / 0.12), transparent 62%);
+      radial-gradient(1100px 640px at 4% -8%, hsl(var(--chart-3) / 0.26), transparent 60%),
+      radial-gradient(1000px 580px at 100% -4%, hsl(var(--chart-2) / 0.22), transparent 58%),
+      radial-gradient(900px 560px at 96% 104%, hsl(var(--chart-4) / 0.16), transparent 60%),
+      radial-gradient(1200px 740px at 30% 118%, hsl(var(--chart-5) / 0.20), transparent 62%);
     background-attachment: fixed;
     background-repeat: no-repeat;
   }
@@ -274,9 +275,10 @@
      washing out — pulled back so text contrast holds. */
   .dark body {
     background-image:
-      radial-gradient(1100px 620px at 6% -8%, hsl(var(--chart-3) / 0.10), transparent 60%),
-      radial-gradient(1000px 560px at 100% -4%, hsl(var(--chart-2) / 0.09), transparent 58%),
-      radial-gradient(1200px 720px at 50% 116%, hsl(var(--chart-5) / 0.08), transparent 62%);
+      radial-gradient(1100px 640px at 4% -8%, hsl(var(--chart-3) / 0.14), transparent 60%),
+      radial-gradient(1000px 580px at 100% -4%, hsl(var(--chart-2) / 0.12), transparent 58%),
+      radial-gradient(900px 560px at 96% 104%, hsl(var(--chart-4) / 0.12), transparent 60%),
+      radial-gradient(1200px 740px at 30% 118%, hsl(var(--chart-5) / 0.11), transparent 62%);
   }
 
   /* Premium feel: smooth, restrained transitions on every interactive
@@ -352,6 +354,33 @@
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+  }
+  /* Per-tile summer gradients for the dashboard nav row, so the launcher reads
+     as a colourful set instead of one blue hero + plain whites. Angled `to top
+     right` so the DARKER hue lands bottom-left (where the label/stat sit, white
+     text → AA) and the brighter sunny hue glows top-right. Pair with
+     `[&_*]:!text-white`. From the fixed metric palette: ocean / coral / golden /
+     grape / lime. */
+  .bg-grad-body {
+    background-image: linear-gradient(to top right, hsl(var(--chart-2)), hsl(var(--chart-3)));
+  }
+  .bg-grad-fuel {
+    background-image: linear-gradient(to top right, hsl(var(--chart-1)), hsl(var(--chart-5)));
+  }
+  .bg-grad-plan {
+    background-image: linear-gradient(to top right, hsl(var(--chart-4)), hsl(var(--chart-2)));
+  }
+  /* Sunny tinted top bar: keep the near-white sidebar surface but float a faint
+     golden→coral→ocean wash across it so the chrome itself says summer. Text
+     stays the dark sidebar ink (tint is low-alpha → contrast holds). */
+  .bg-summer-header {
+    background-color: hsl(var(--sidebar));
+    background-image: linear-gradient(
+      90deg,
+      hsl(var(--chart-3) / 0.16),
+      hsl(var(--chart-2) / 0.07) 48%,
+      hsl(var(--chart-1) / 0.16)
+    );
   }
   /* Premium accents (opt-in): an azure glow for the single hero number or
      ring on a screen, and a restrained azure gradient for the primary CTA.
