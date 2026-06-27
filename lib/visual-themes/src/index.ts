@@ -74,19 +74,20 @@ export interface PaletteDefinition {
 }
 
 export const PALETTES: Record<string, PaletteDefinition> = {
-  // BH Studio palette: bright, cool, airy, tiled. Faint cool-gray canvas,
-  // bright-white tiles, azure as the ONE loud color (active nav, primary
-  // buttons, focus rings, hero number). Pastel secondaries are SEMANTIC:
-  // success=green (ahead/good), warning=amber (heads-up), destructive=red
-  // (over/behind), navy for tile gradients + active calendar dots. The chart
-  // ramp is FIXED per metric — calories=azure, protein=violet, carbs=teal,
-  // fat=amber, water=cyan — never a neutral gray ramp, never all-blue. (No
-  // orange/teal-as-identity anywhere; the old warm look is gone.)
+  // BH Studio palette — "Vibrant Summer": bright, lively, tiled. Faint cool-gray
+  // canvas, bright-white tiles, OCEAN BLUE (#1E88D2) as the brand/primary (active
+  // nav, primary buttons, focus rings, hero number). Status secondaries stay
+  // SEMANTIC: success=green (ahead/good), warning=amber (heads-up),
+  // destructive=red (over/behind). The data-viz ramp is a FIXED, coordinated
+  // summer palette — calories=ocean blue, protein=coral red (#FF5C5C),
+  // carbs=golden yellow (#FFC93C), fat=grape purple (#6B4E9B), water=lime green
+  // (#8BC53F) — reused so the same metric is always the same colour. `navy` is
+  // an ocean-blue intensity for the activity heatmap (less→more).
   studio: {
     key: "studio",
     name: "Studio",
     number: "01",
-    tagline: "Bright cool tiles, one azure highlight. Clean and confident.",
+    tagline: "Vibrant summer: ocean-blue brand, a coral/gold/lime/grape data palette. Lively and clean.",
     light: {
       background: "214 32% 97%",
       foreground: "222 30% 12%",
@@ -97,23 +98,23 @@ export const PALETTES: Record<string, PaletteDefinition> = {
       sidebar: "0 0% 100%",
       sidebarForeground: "222 30% 18%",
       sidebarBorder: "214 24% 91%",
-      sidebarPrimary: "218 90% 56%",
+      sidebarPrimary: "205 75% 47%",
       sidebarPrimaryForeground: "0 0% 100%",
       sidebarAccent: "214 30% 95%",
       sidebarAccentForeground: "222 30% 18%",
-      sidebarRing: "218 90% 56%",
+      sidebarRing: "205 75% 47%",
       popover: "0 0% 100%",
       popoverForeground: "222 30% 12%",
       popoverBorder: "214 24% 91%",
-      primary: "218 90% 56%",
+      primary: "205 75% 47%",
       primaryForeground: "0 0% 100%",
       secondary: "214 30% 95%",
       secondaryForeground: "222 30% 18%",
       muted: "214 28% 95%",
       mutedForeground: "215 16% 47%",
-      accent: "218 90% 56%",
+      accent: "205 75% 47%",
       accentForeground: "0 0% 100%",
-      navy: "222 47% 26%",
+      navy: "205 78% 38%",
       navyForeground: "0 0% 100%",
       success: "150 58% 40%",
       successForeground: "0 0% 100%",
@@ -122,18 +123,18 @@ export const PALETTES: Record<string, PaletteDefinition> = {
       destructive: "0 72% 51%",
       destructiveForeground: "0 0% 100%",
       input: "214 24% 89%",
-      ring: "218 90% 56%",
+      ring: "205 75% 47%",
       // Legacy token NAMES preserved so downstream components keep working;
-      // both now map to the single azure accent (orange is retired).
-      brandOrange: "218 90% 56%",
-      brandPurple: "218 90% 56%",
-      // Fixed metric palette: calories=azure, protein=violet, carbs=teal,
-      // fat=amber, water=cyan.
-      chart1: "218 90% 56%",
-      chart2: "262 70% 62%",
-      chart3: "168 62% 42%",
-      chart4: "38 92% 56%",
-      chart5: "192 78% 50%",
+      // both now map to the ocean-blue brand accent.
+      brandOrange: "205 75% 47%",
+      brandPurple: "205 75% 47%",
+      // Fixed summer metric palette: calories=ocean blue, protein=coral red,
+      // carbs=golden yellow, fat=grape purple, water=lime green.
+      chart1: "205 75% 47%",
+      chart2: "0 100% 68%",
+      chart3: "43 100% 62%",
+      chart4: "263 33% 46%",
+      chart5: "86 54% 51%",
     },
     dark: {
       background: "222 28% 10%",
@@ -145,23 +146,23 @@ export const PALETTES: Record<string, PaletteDefinition> = {
       sidebar: "222 24% 12%",
       sidebarForeground: "210 30% 90%",
       sidebarBorder: "222 16% 20%",
-      sidebarPrimary: "216 92% 64%",
+      sidebarPrimary: "205 82% 60%",
       sidebarPrimaryForeground: "222 47% 11%",
       sidebarAccent: "222 18% 18%",
       sidebarAccentForeground: "210 30% 92%",
-      sidebarRing: "216 92% 64%",
+      sidebarRing: "205 82% 60%",
       popover: "222 24% 13%",
       popoverForeground: "210 30% 94%",
       popoverBorder: "222 16% 22%",
-      primary: "216 92% 64%",
+      primary: "205 82% 60%",
       primaryForeground: "222 47% 11%",
       secondary: "222 18% 18%",
       secondaryForeground: "210 30% 94%",
       muted: "222 18% 16%",
       mutedForeground: "215 18% 65%",
-      accent: "216 92% 64%",
+      accent: "205 82% 60%",
       accentForeground: "222 47% 11%",
-      navy: "218 60% 72%",
+      navy: "205 75% 66%",
       navyForeground: "222 47% 11%",
       success: "150 56% 52%",
       successForeground: "222 47% 11%",
@@ -170,24 +171,24 @@ export const PALETTES: Record<string, PaletteDefinition> = {
       destructive: "0 70% 58%",
       destructiveForeground: "0 0% 100%",
       input: "222 16% 20%",
-      ring: "216 92% 64%",
-      brandOrange: "216 92% 64%",
-      brandPurple: "216 92% 64%",
-      chart1: "216 92% 64%",
-      chart2: "262 72% 70%",
-      chart3: "168 60% 52%",
-      chart4: "38 92% 62%",
-      chart5: "192 76% 58%",
+      ring: "205 82% 60%",
+      brandOrange: "205 82% 60%",
+      brandPurple: "205 82% 60%",
+      chart1: "205 82% 60%",
+      chart2: "0 95% 72%",
+      chart3: "43 95% 64%",
+      chart4: "263 42% 64%",
+      chart5: "86 56% 58%",
     },
     phaseColors: {
       // Cool, semantic phase markers drawn from the fixed metric palette —
       // no second warm hue, no neutral-gray ramp. Distinct pastels so a
       // plan's phase band reads at a glance.
-      foundation: "hsl(168 62% 42%)",
-      aerobic: "hsl(218 90% 56%)",
-      tempo: "hsl(38 92% 50%)",
-      raceSpecific: "hsl(262 70% 62%)",
-      taper: "hsl(192 78% 50%)",
+      foundation: "hsl(86 54% 51%)",
+      aerobic: "hsl(205 75% 47%)",
+      tempo: "hsl(43 100% 62%)",
+      raceSpecific: "hsl(263 33% 46%)",
+      taper: "hsl(0 100% 68%)",
     },
   },
 };

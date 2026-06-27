@@ -306,6 +306,8 @@ export default function Dashboard() {
           caption={today?.plan?.sessionType ?? "Rest day"}
           onClick={() => navigate("/today")}
           testId="dashboard-tile-today"
+          // Vibrant Summer hero: warm multi-color sweep, white text in both themes.
+          className="bg-summer-gradient [&_*]:!text-white"
         />
         <FeatureTile
           icon={Scale}

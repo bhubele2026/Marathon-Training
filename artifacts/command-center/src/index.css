@@ -99,25 +99,25 @@
   --sidebar: 0 0% 100%;
   --sidebar-foreground: 222 30% 18%;
   --sidebar-border: 214 24% 91%;
-  --sidebar-primary: 218 90% 56%;
+  --sidebar-primary: 205 75% 47%;
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 214 30% 95%;
   --sidebar-accent-foreground: 222 30% 18%;
-  --sidebar-ring: 218 90% 56%;
+  --sidebar-ring: 205 75% 47%;
 
   --popover: 0 0% 100%;
   --popover-foreground: 222 30% 12%;
   --popover-border: 214 24% 91%;
 
-  --primary: 218 90% 56%;
+  --primary: 205 75% 47%;
   --primary-foreground: 0 0% 100%;
   --secondary: 214 30% 95%;
   --secondary-foreground: 222 30% 18%;
   --muted: 214 28% 95%;
   --muted-foreground: 215 16% 47%;
-  --accent: 218 90% 56%;
+  --accent: 205 75% 47%;
   --accent-foreground: 0 0% 100%;
-  --navy: 222 47% 26%;
+  --navy: 205 78% 38%;
   --navy-foreground: 0 0% 100%;
   --success: 150 58% 40%;
   --success-foreground: 0 0% 100%;
@@ -126,27 +126,27 @@
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
   --input: 214 24% 89%;
-  --ring: 218 90% 56%;
+  --ring: 205 75% 47%;
 
-  /* One loud color: azure. `brand-orange`/`brand-purple` are legacy aliases
-     that now both map to azure. Charts use the FIXED metric palette:
-     chart-1=azure(calories), 2=violet(protein), 3=teal(carbs), 4=amber(fat),
-     5=cyan(water) — never all-blue, never a neutral ramp. */
-  --brand-orange: 218 90% 56%;
-  --brand-purple: 218 90% 56%;
-  --chart-1: 218 90% 56%;
-  --chart-2: 262 70% 62%;
-  --chart-3: 168 62% 42%;
-  --chart-4: 38 92% 56%;
-  --chart-5: 192 78% 50%;
+  /* Brand: ocean blue (#1E88D2). `brand-orange`/`brand-purple` are legacy
+     aliases that now both map to the ocean accent. Charts use the FIXED summer
+     metric palette: chart-1=ocean(calories), 2=coral(protein), 3=golden(carbs),
+     4=grape(fat), 5=lime(water) — same metric, same colour, everywhere. */
+  --brand-orange: 205 75% 47%;
+  --brand-purple: 205 75% 47%;
+  --chart-1: 205 75% 47%;
+  --chart-2: 0 100% 68%;
+  --chart-3: 43 100% 62%;
+  --chart-4: 263 33% 46%;
+  --chart-5: 86 54% 51%;
 
   /* Phase colors: cool semantic pastels from the metric palette (no rainbow,
      no warm ramp). */
-  --phase-foundation: hsl(168 62% 42%);
-  --phase-aerobic: hsl(218 90% 56%);
-  --phase-tempo: hsl(38 92% 50%);
-  --phase-race-specific: hsl(262 70% 62%);
-  --phase-taper: hsl(192 78% 50%);
+  --phase-foundation: hsl(86 54% 51%);
+  --phase-aerobic: hsl(205 75% 47%);
+  --phase-tempo: hsl(43 100% 62%);
+  --phase-race-specific: hsl(263 33% 46%);
+  --phase-taper: hsl(0 100% 68%);
 
   /* Flatter, tighter elevation — hairline + a short close shadow instead of a
      big diffuse glow, so surfaces read crisp, not floating/airy.
@@ -196,25 +196,25 @@
   --sidebar: 222 24% 12%;
   --sidebar-foreground: 210 30% 90%;
   --sidebar-border: 222 16% 20%;
-  --sidebar-primary: 216 92% 64%;
+  --sidebar-primary: 205 82% 60%;
   --sidebar-primary-foreground: 222 47% 11%;
   --sidebar-accent: 222 18% 18%;
   --sidebar-accent-foreground: 210 30% 92%;
-  --sidebar-ring: 216 92% 64%;
+  --sidebar-ring: 205 82% 60%;
 
   --popover: 222 24% 13%;
   --popover-foreground: 210 30% 94%;
   --popover-border: 222 16% 22%;
 
-  --primary: 216 92% 64%;
+  --primary: 205 82% 60%;
   --primary-foreground: 222 47% 11%;
   --secondary: 222 18% 18%;
   --secondary-foreground: 210 30% 94%;
   --muted: 222 18% 16%;
   --muted-foreground: 215 18% 65%;
-  --accent: 216 92% 64%;
+  --accent: 205 82% 60%;
   --accent-foreground: 222 47% 11%;
-  --navy: 218 60% 72%;
+  --navy: 205 75% 66%;
   --navy-foreground: 222 47% 11%;
   --success: 150 56% 52%;
   --success-foreground: 222 47% 11%;
@@ -223,21 +223,21 @@
   --destructive: 0 70% 58%;
   --destructive-foreground: 0 0% 100%;
   --input: 222 16% 20%;
-  --ring: 216 92% 64%;
+  --ring: 205 82% 60%;
 
-  --brand-orange: 216 92% 64%;
-  --brand-purple: 216 92% 64%;
-  --chart-1: 216 92% 64%;
-  --chart-2: 262 72% 70%;
-  --chart-3: 168 60% 52%;
-  --chart-4: 38 92% 62%;
-  --chart-5: 192 76% 58%;
+  --brand-orange: 205 82% 60%;
+  --brand-purple: 205 82% 60%;
+  --chart-1: 205 82% 60%;
+  --chart-2: 0 95% 72%;
+  --chart-3: 43 95% 64%;
+  --chart-4: 263 42% 64%;
+  --chart-5: 86 56% 58%;
 
-  --phase-foundation: hsl(168 60% 52%);
-  --phase-aerobic: hsl(216 92% 64%);
+  --phase-foundation: hsl(43 95% 64%);
+  --phase-aerobic: hsl(205 82% 60%);
   --phase-tempo: hsl(38 92% 58%);
-  --phase-race-specific: hsl(262 72% 70%);
-  --phase-taper: hsl(192 76% 58%);
+  --phase-race-specific: hsl(0 95% 72%);
+  --phase-taper: hsl(86 56% 58%);
 
   /* Dark depth = hairline border + 1px top inset highlight, not drop shadow.
      Flatter: a short close shadow rather than a tall diffuse one. */
@@ -306,6 +306,31 @@
   }
   .shadow-tile {
     box-shadow: var(--shadow-tile);
+  }
+  /* Vibrant Summer hero treatment: a warm multi-color sweep across the brand
+     palette for hero/highlight surfaces (dashboard "Today" tile, Eat-Today
+     header, achievement banners). Token-driven so it flips light/dark.
+     `bg-summer-gradient` for a surface; `text-summer-gradient` for a hero
+     number/heading. Use sparingly — energy at a few moments, not everywhere. */
+  .bg-summer-gradient {
+    background-image: linear-gradient(
+      120deg,
+      hsl(var(--chart-1)) 0%,
+      hsl(var(--chart-4)) 38%,
+      hsl(var(--chart-2)) 70%,
+      hsl(var(--chart-3)) 100%
+    );
+  }
+  .text-summer-gradient {
+    background-image: linear-gradient(
+      100deg,
+      hsl(var(--chart-1)),
+      hsl(var(--chart-2)) 55%,
+      hsl(var(--chart-3))
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
   /* Premium accents (opt-in): an azure glow for the single hero number or
      ring on a screen, and a restrained azure gradient for the primary CTA.

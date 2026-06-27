@@ -200,7 +200,7 @@ export function EatToday({ date }: { date: string }) {
               <p className="font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 Calories
               </p>
-              <p className="font-display text-2xl font-extrabold tabular-nums tracking-tight text-foreground">
+              <p className="font-display text-2xl font-extrabold tabular-nums tracking-tight text-summer-gradient">
                 {fmt(actual != null ? actual.cal : adjusted.cal)}
                 <span className="ml-1 text-sm font-medium text-muted-foreground">
                   {actual != null ? `/ ${fmt(adjusted.cal)} kcal` : "kcal"}

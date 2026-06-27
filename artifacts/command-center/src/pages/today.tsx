@@ -171,7 +171,7 @@ export default function Today() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <TodayEyebrow raceKind={(today.raceKind ?? null) as RaceDayKind | null} />
-          <h2 className="font-display text-4xl font-extrabold tracking-tight text-foreground">Today</h2>
+          <h2 className="font-display text-4xl font-extrabold tracking-tight text-summer-gradient">Today</h2>
           <p className="text-sm font-medium text-muted-foreground">{today.date}</p>
         </div>
         <div className="flex items-center gap-2">
