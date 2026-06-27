@@ -126,19 +126,20 @@ describe("DryDaysTile", () => {
 });
 
 describe("AlcoholTile", () => {
-  it("shows the week's drinks and a real bar strip (not a floating number)", () => {
+  it("leads with the hero count, a real bar strip, and the days-budget gauge", () => {
     render(<AlcoholTile insight={insight("alcohol", stats())} />);
-    expect(screen.getByText("3")).toBeTruthy(); // week drinks
+    expect(screen.getByText("3")).toBeTruthy(); // hero: drinks this week
     expect(screen.getByTestId("alcohol-bar-strip")).toBeTruthy();
-    expect(screen.getByText(/2 of 3 free days used/)).toBeTruthy();
+    expect(screen.getByText(/of 3 drinking days/)).toBeTruthy(); // days-budget gauge
+    expect(screen.getByTestId("alcohol-trend")).toBeTruthy(); // 8-wk-style sparkline
   });
 
-  it("reads NEUTRAL on plan, soft amber over — never red", () => {
+  it("flags over budget in RED, on plan in green (owner opted in)", () => {
     render(<AlcoholTile insight={insight("alcohol", stats({ drinkingDaysThisWeek: 2, drinkingBudget: 3 }))} />);
     expect(screen.getByText("on plan")).toBeTruthy();
     cleanup();
     render(<AlcoholTile insight={insight("alcohol", stats({ drinkingDaysThisWeek: 5, drinkingBudget: 3 }))} />);
-    expect(screen.getByText("over plan")).toBeTruthy();
+    expect(screen.getByText("over budget")).toBeTruthy();
   });
 
   it("shows an early-read chip in seed state", () => {

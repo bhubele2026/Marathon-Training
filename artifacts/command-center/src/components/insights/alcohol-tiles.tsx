@@ -1,16 +1,18 @@
 import { motion, useReducedMotion } from "framer-motion";
-import { Bar, BarChart, Cell, XAxis } from "recharts";
+import { Bar, BarChart, Cell, LabelList, Line, LineChart, XAxis } from "recharts";
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
-import type { NutritionInsight } from "./types";
+import type { NutritionInsight, AlcoholWeek } from "./types";
 import { InsightTile, type PillSpec } from "./insight-tile";
 import { buildWeek, WeekStructure, type WeekCell } from "./week-structure";
 
 // The two alcohol scorecard tiles, built around the owner's plan week (Mon–Thu
-// dry, Fri–Sun free). Reduction tool, so the read is win-not-shame: dry days are
-// wins that count UP (azure/success); drinking within plan reads neutral;
-// over-plan is a soft amber nudge. NEVER red, never an X. All colour from tokens
-// → light + dark; every motion respects reduced motion. Presentation only —
-// both tiles draw from the one server read on `insight.alcohol`.
+// dry, Fri–Sun free). The DRY-DAYS tile stays win-not-shame: dry days are wins
+// that count UP (azure/success). The ALCOHOL tile is the prominent, full-width
+// card and — by the owner's explicit choice — uses alarm framing: over the
+// weekly drinking-days budget reads RED, at budget amber, under budget green.
+// All colour from tokens → light + dark; every motion respects reduced motion.
+// Presentation only — both tiles draw from the one server read on
+// `insight.alcohol`.
 
 const TRACK = "color-mix(in oklab, var(--muted-foreground) 20%, var(--card))";
 
@@ -166,14 +168,16 @@ export function DryDaysTile({ insight }: { insight: NutritionInsight }) {
   );
 }
 
-// --- Alcohol tile (a real 7-day strip; what it costs; never red) ------------
+// --- Alcohol tile (full-width, prominent: hero count + budget + bars + trend) -
 
-// Bar colour, no-shame: zero days are a faint baseline tick (never empty), free
-// (weekend) drinks are a calm neutral bar, target-day (Mon–Thu) drinks are a
-// soft amber nudge.
+// Bar colour. The owner opted OUT of no-shame for this card, so over-budget reads
+// in alarm colours: a drink on a Mon–Thu dry-target day is RED (it was meant to
+// be a dry night), a heavy weekend (≥4) is amber, a light weekend drink is a calm
+// neutral bar, and a zero day is a faint baseline tick (never an empty hole).
 function barColor(cell: WeekCell): string {
   if (cell.drinks <= 0) return TRACK;
-  if (cell.isTarget) return "hsl(var(--warning))";
+  if (cell.isTarget) return "hsl(var(--destructive))";
+  if (cell.drinks >= 4) return "hsl(var(--warning))";
   return "color-mix(in oklab, var(--muted-foreground) 55%, var(--card))";
 }
 
@@ -202,16 +206,32 @@ function WeekTick(props: { x?: number; y?: number; index?: number; payload?: { v
   );
 }
 
+// On-bar value label — the drink count, hidden on zero days.
+function BarValue(props: { x?: number; y?: number; width?: number; value?: number }) {
+  const v = props.value ?? 0;
+  if (v <= 0) return null;
+  return (
+    <text
+      x={(props.x ?? 0) + (props.width ?? 0) / 2}
+      y={(props.y ?? 0) - 4}
+      textAnchor="middle"
+      style={{ fontSize: 10, fontWeight: 700, fill: "hsl(var(--foreground))" }}
+    >
+      {v}
+    </text>
+  );
+}
+
 function WeekBars({ week, animate }: { week: WeekCell[]; animate: boolean }) {
   const data = week.map((c) => ({ label: c.label, drinks: c.drinks }));
   return (
     <ChartContainer
       config={ALC_CONFIG}
       className="aspect-auto w-full"
-      style={{ height: 92 }}
+      style={{ height: 132 }}
       data-testid="alcohol-bar-strip"
     >
-      <BarChart data={data} margin={{ top: 6, right: 4, bottom: 0, left: 4 }} barCategoryGap="20%">
+      <BarChart data={data} margin={{ top: 16, right: 6, bottom: 0, left: 6 }} barCategoryGap="22%">
         <XAxis
           dataKey="label"
           interval={0}
@@ -221,6 +241,7 @@ function WeekBars({ week, animate }: { week: WeekCell[]; animate: boolean }) {
           tick={<WeekTick />}
         />
         <Bar dataKey="drinks" radius={[3, 3, 0, 0]} minPointSize={2} isAnimationActive={animate}>
+          <LabelList dataKey="drinks" content={<BarValue />} />
           {week.map((c) => (
             <Cell key={c.index} fill={barColor(c)} />
           ))}
@@ -230,21 +251,87 @@ function WeekBars({ week, animate }: { week: WeekCell[]; animate: boolean }) {
   );
 }
 
+// Drinking days vs the weekly budget — segments fill green up to the budget, then
+// RED for any day over it. Doubles as the "free days used" visual + over-budget
+// gauge (the engine's budget is days, not a drink count).
+function DaysBudget({ used, budget }: { used: number; budget: number }) {
+  const total = Math.max(budget, used, 1);
+  const over = used > budget;
+  return (
+    <div>
+      <div className="flex flex-wrap gap-1" aria-hidden="true">
+        {Array.from({ length: total }, (_, i) => {
+          const filled = i < used;
+          const beyond = i >= budget;
+          const bg = !filled
+            ? "color-mix(in oklab, var(--muted-foreground) 18%, var(--card))"
+            : beyond
+              ? "hsl(var(--destructive))"
+              : "hsl(var(--success))";
+          return <span key={i} className="h-2.5 w-5 rounded-[3px]" style={{ background: bg }} />;
+        })}
+      </div>
+      <p className="mt-1.5 text-[11px] font-medium tabular-nums text-muted-foreground">
+        <span
+          className="font-bold"
+          style={{ color: over ? "hsl(var(--destructive))" : "hsl(var(--foreground))" }}
+        >
+          {used}
+        </span>{" "}
+        of {budget} drinking days
+      </p>
+    </div>
+  );
+}
+
+const TREND_CONFIG = {
+  drinks: { label: "Drinks", color: "hsl(var(--muted-foreground))" },
+} satisfies ChartConfig;
+
+// A small weekly-drink-total trend line (the macro cards' sparkline pattern).
+function WeekSparkline({ weeks, animate }: { weeks: AlcoholWeek[]; animate: boolean }) {
+  if (weeks.length < 2) return null;
+  const data = weeks.map((w) => ({ week: w.weekStart.slice(5), drinks: w.drinks }));
+  return (
+    <div data-testid="alcohol-trend">
+      <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+        {weeks.length}-wk trend
+      </p>
+      <ChartContainer config={TREND_CONFIG} className="aspect-auto w-full" style={{ height: 40 }}>
+        <LineChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+          <Line
+            type="monotone"
+            dataKey="drinks"
+            stroke="hsl(var(--muted-foreground))"
+            strokeWidth={1.5}
+            dot={false}
+            isAnimationActive={animate}
+          />
+        </LineChart>
+      </ChartContainer>
+    </div>
+  );
+}
+
 export function AlcoholTile({ insight }: { insight: NutritionInsight }) {
   const a = insight.alcohol;
   const reduced = useReducedMotion();
   if (!a) return null;
   const animate = !reduced;
   const week = buildWeek(a.dailyStrip);
-  const overPlan = a.drinkingDaysThisWeek > a.drinkingBudget;
+  const overBudget = a.drinkingDaysThisWeek > a.drinkingBudget;
+  const atBudget = a.drinkingDaysThisWeek === a.drinkingBudget;
 
-  // Forced non-status pill so within-plan reads NEUTRAL (not a green win),
-  // over-plan a soft amber nudge — never the red destructive treatment.
+  // Owner opted into the alarm framing for THIS card: over budget reads RED,
+  // at budget amber, under budget green; early read stays neutral. (The dry-days
+  // card keeps the win-not-shame treatment.)
   const pill: PillSpec = a.seedState
     ? { tone: "neutral", label: "early read" }
-    : overPlan
-      ? { tone: "warning", label: "over plan" }
-      : { tone: "neutral", label: "on plan" };
+    : overBudget
+      ? { tone: "destructive", label: "over budget" }
+      : atBudget
+        ? { tone: "warning", label: "at budget" }
+        : { tone: "success", label: "on plan" };
 
   const drawer = (
     <div className="space-y-3">
@@ -298,21 +385,24 @@ export function AlcoholTile({ insight }: { insight: NutritionInsight }) {
       whyLabel="Why + impact"
       drawer={drawer}
     >
-      <div className="space-y-2.5">
-        <div className="flex items-baseline gap-2">
-          <span className="font-display text-[28px] font-extrabold leading-none tabular-nums text-foreground">
-            {a.weekDrinks}
-          </span>
-          <span className="text-[12px] font-semibold text-muted-foreground">
-            {a.weekDrinks === 1 ? "drink" : "drinks"} this week
-          </span>
+      {/* Full-width hero layout: left = the count + days-budget; right = the
+          7-day bars + the weekly trend. Stacks on mobile. */}
+      <div className="grid items-center gap-4 sm:grid-cols-[minmax(0,auto)_1fr]">
+        <div className="space-y-3">
+          <div className="flex items-baseline gap-2">
+            <span className="font-mono text-5xl font-extrabold leading-none tabular-nums tracking-tight text-foreground">
+              {a.weekDrinks}
+            </span>
+            <span className="text-[12px] font-semibold text-muted-foreground">
+              {a.weekDrinks === 1 ? "drink" : "drinks"} this week
+            </span>
+          </div>
+          <DaysBudget used={a.drinkingDaysThisWeek} budget={a.drinkingBudget} />
         </div>
-        <WeekBars week={week} animate={animate} />
-        {/* Context, not pass/fail. NOTE: the engine has no weekly-drinks (~30/wk)
-            target on this read, so we use the days budget it does provide. */}
-        <p className="text-[11px] tabular-nums text-muted-foreground">
-          {a.drinkingDaysThisWeek} of {a.drinkingBudget} free days used this week
-        </p>
+        <div className="min-w-0 space-y-2">
+          <WeekBars week={week} animate={animate} />
+          <WeekSparkline weeks={a.weeklyTrend} animate={animate} />
+        </div>
       </div>
     </InsightTile>
   );
