@@ -1,16 +1,16 @@
 import { motion, useReducedMotion } from "framer-motion";
-import { Bar, BarChart, Cell, LabelList, Line, LineChart, XAxis } from "recharts";
+import { Bar, BarChart, Cell, LabelList, XAxis } from "recharts";
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
-import type { NutritionInsight, AlcoholWeek } from "./types";
+import type { NutritionInsight } from "./types";
 import { InsightTile, type PillSpec } from "./insight-tile";
 import { buildWeek, WeekStructure, type WeekCell } from "./week-structure";
 
 // The two alcohol scorecard tiles, built around the owner's plan week (Mon–Thu
 // dry, Fri–Sun free). The DRY-DAYS tile stays win-not-shame: dry days are wins
-// that count UP (azure/success). The ALCOHOL tile is the prominent, full-width
-// card and — by the owner's explicit choice — uses alarm framing: over the
-// weekly drinking-days budget reads RED, at budget amber, under budget green.
-// All colour from tokens → light + dark; every motion respects reduced motion.
+// that count UP (azure/success). The ALCOHOL tile is a compact tile that — by
+// the owner's explicit choice — uses alarm framing: over the weekly
+// drinking-days budget reads RED, at budget amber, under budget green. All
+// colour from tokens → light + dark; every motion respects reduced motion.
 // Presentation only — both tiles draw from the one server read on
 // `insight.alcohol`.
 
@@ -168,7 +168,7 @@ export function DryDaysTile({ insight }: { insight: NutritionInsight }) {
   );
 }
 
-// --- Alcohol tile (full-width, prominent: hero count + budget + bars + trend) -
+// --- Alcohol tile (compact: hero count + labeled bars + days-budget gauge) ---
 
 // Bar colour. The owner opted OUT of no-shame for this card, so over-budget reads
 // in alarm colours: a drink on a Mon–Thu dry-target day is RED (it was meant to
@@ -228,7 +228,7 @@ function WeekBars({ week, animate }: { week: WeekCell[]; animate: boolean }) {
     <ChartContainer
       config={ALC_CONFIG}
       className="aspect-auto w-full"
-      style={{ height: 132 }}
+      style={{ height: 104 }}
       data-testid="alcohol-bar-strip"
     >
       <BarChart data={data} margin={{ top: 16, right: 6, bottom: 0, left: 6 }} barCategoryGap="22%">
@@ -280,35 +280,6 @@ function DaysBudget({ used, budget }: { used: number; budget: number }) {
         </span>{" "}
         of {budget} drinking days
       </p>
-    </div>
-  );
-}
-
-const TREND_CONFIG = {
-  drinks: { label: "Drinks", color: "hsl(var(--muted-foreground))" },
-} satisfies ChartConfig;
-
-// A small weekly-drink-total trend line (the macro cards' sparkline pattern).
-function WeekSparkline({ weeks, animate }: { weeks: AlcoholWeek[]; animate: boolean }) {
-  if (weeks.length < 2) return null;
-  const data = weeks.map((w) => ({ week: w.weekStart.slice(5), drinks: w.drinks }));
-  return (
-    <div data-testid="alcohol-trend">
-      <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-        {weeks.length}-wk trend
-      </p>
-      <ChartContainer config={TREND_CONFIG} className="aspect-auto w-full" style={{ height: 40 }}>
-        <LineChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
-          <Line
-            type="monotone"
-            dataKey="drinks"
-            stroke="hsl(var(--muted-foreground))"
-            strokeWidth={1.5}
-            dot={false}
-            isAnimationActive={animate}
-          />
-        </LineChart>
-      </ChartContainer>
     </div>
   );
 }
@@ -385,24 +356,18 @@ export function AlcoholTile({ insight }: { insight: NutritionInsight }) {
       whyLabel="Why + impact"
       drawer={drawer}
     >
-      {/* Full-width hero layout: left = the count + days-budget; right = the
-          7-day bars + the weekly trend. Stacks on mobile. */}
-      <div className="grid items-center gap-4 sm:grid-cols-[minmax(0,auto)_1fr]">
-        <div className="space-y-3">
-          <div className="flex items-baseline gap-2">
-            <span className="font-mono text-5xl font-extrabold leading-none tabular-nums tracking-tight text-foreground">
-              {a.weekDrinks}
-            </span>
-            <span className="text-[12px] font-semibold text-muted-foreground">
-              {a.weekDrinks === 1 ? "drink" : "drinks"} this week
-            </span>
-          </div>
-          <DaysBudget used={a.drinkingDaysThisWeek} budget={a.drinkingBudget} />
+      {/* Compact tile: hero count, the 7-day bars, then the days-budget gauge. */}
+      <div className="space-y-2.5">
+        <div className="flex items-baseline gap-2">
+          <span className="font-mono text-[28px] font-extrabold leading-none tabular-nums text-foreground">
+            {a.weekDrinks}
+          </span>
+          <span className="text-[12px] font-semibold text-muted-foreground">
+            {a.weekDrinks === 1 ? "drink" : "drinks"} this week
+          </span>
         </div>
-        <div className="min-w-0 space-y-2">
-          <WeekBars week={week} animate={animate} />
-          <WeekSparkline weeks={a.weeklyTrend} animate={animate} />
-        </div>
+        <WeekBars week={week} animate={animate} />
+        <DaysBudget used={a.drinkingDaysThisWeek} budget={a.drinkingBudget} />
       </div>
     </InsightTile>
   );

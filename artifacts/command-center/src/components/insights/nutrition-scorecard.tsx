@@ -242,27 +242,19 @@ const ORDER: NutritionInsight["id"][] = [
   "fuelling",
   "hydration",
   "sodium",
-  // Dry days stays a standard tile; alcohol is promoted to its own full-width
-  // row (rendered separately below), so it's not in this grid map.
+  // Dry days + alcohol are standard tiles in the grid (compact), after the macros.
   "dryDays",
+  "alcohol",
 ];
 
 export function NutritionScorecard({ report }: { report: NutritionistReport }): ReactNode {
   const byId = (id: NutritionInsight["id"]) => report.insights.find((i) => i.id === id);
   const bodycomp = byId("bodycomp");
-  const alcohol = byId("alcohol");
   return (
     <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 lg:grid-cols-3">
       {bodycomp && (
         <div className="md:col-span-2 lg:col-span-3">
           <ScorecardTile insight={bodycomp} />
-        </div>
-      )}
-      {/* Alcohol is promoted to a prominent full-width card, right under the
-          body-comp hero, so it reads as a primary metric, not a footnote. */}
-      {alcohol && (
-        <div className="md:col-span-2 lg:col-span-3">
-          <ScorecardTile insight={alcohol} />
         </div>
       )}
       {ORDER.map((id) => {

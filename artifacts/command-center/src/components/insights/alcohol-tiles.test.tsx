@@ -131,7 +131,6 @@ describe("AlcoholTile", () => {
     expect(screen.getByText("3")).toBeTruthy(); // hero: drinks this week
     expect(screen.getByTestId("alcohol-bar-strip")).toBeTruthy();
     expect(screen.getByText(/of 3 drinking days/)).toBeTruthy(); // days-budget gauge
-    expect(screen.getByTestId("alcohol-trend")).toBeTruthy(); // 8-wk-style sparkline
   });
 
   it("flags over budget in RED, on plan in green (owner opted in)", () => {
