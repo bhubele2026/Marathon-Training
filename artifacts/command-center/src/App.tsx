@@ -35,18 +35,27 @@ const NotFound = lazyWithReload(() => import("@/pages/not-found"));
 
 // Task #382: cache-friendly React Query defaults. Pre-task #382 every
 // query refetched on every mount / window-focus, which made cross-page
-// navigation flash skeletons even when the cached payload was < 1s old.
-// 30s staleTime covers the typical "navigate dashboard → /plan → back"
-// loop; mutations explicitly invalidate so writes still propagate
-// immediately. 5min gcTime keeps payloads warm across longer detours.
-// refetchOnWindowFocus disabled because Replit's preview iframe loses
-// focus on every chat interaction. retry: 1 caps retry storms when the
-// API server is briefly unavailable.
+// Caching is the navigation-speed lever: revisiting a page should read cache
+// instantly and only revalidate when genuinely stale, not refetch on every mount.
+//   - staleTime 5min: shared/rarely-changing data (preferences, goals, recent
+//     nutrition, the AI analysis) is reused across navigations rather than
+//     refetched per page. Crucially this is LONGER than the slow
+//     /nutritionist/analysis generation, which previously went stale before it
+//     returned and re-triggered itself 5–6× per load — now one fetch is reused.
+//   - gcTime 30min: keeps payloads warm across longer detours so back-nav is
+//     instant even after a while away.
+//   - refetchOnWindowFocus false: Replit's preview iframe loses focus on every
+//     chat interaction (and focus refetch isn't worth the churn here).
+//   - refetchOnMount left at the default (revalidate ONLY if stale): cached
+//     data renders immediately, a background refetch runs only when stale — and
+//     mutation invalidations still take effect on the next mount (which an
+//     explicit `false` would suppress).
+//   - retry 1 caps retry storms when the API server is briefly unavailable.
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 30_000,
-      gcTime: 5 * 60_000,
+      staleTime: 5 * 60_000,
+      gcTime: 30 * 60_000,
       refetchOnWindowFocus: false,
       retry: 1,
     },

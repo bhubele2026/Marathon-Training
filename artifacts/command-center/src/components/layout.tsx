@@ -1,5 +1,7 @@
 import { ReactNode, useCallback, useState } from "react";
 import { Link, useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
+import { nutritionistQueryKey } from "@/components/nutritionist-panel";
 import { motion, AnimatePresence } from "framer-motion";
 import { MoreHorizontal, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -55,9 +57,32 @@ export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [moreSheetOpen, setMoreSheetOpen] = useState(false);
+  const queryClient = useQueryClient();
 
   const togglePalette = useCallback(() => setPaletteOpen((v) => !v), []);
   useCommandPaletteHotkey(togglePalette);
+
+  // Hover/focus prefetch: warm a route's slow primary query before the click so
+  // the page renders from cache. Only the AI Nutritionist read (Today +
+  // Nutrition) is slow enough to matter — everything else returns in <500ms.
+  // prefetchQuery respects staleTime, so repeated hovers don't spam the server.
+  const prefetchRoute = useCallback(
+    (href: string) => {
+      if (href === "/nutrition" || href === "/today") {
+        queryClient.prefetchQuery({
+          queryKey: nutritionistQueryKey(8),
+          queryFn: () =>
+            fetch("/api/nutritionist/analysis?weeks=8", {
+              headers: { accept: "application/json" },
+            }).then((r) => {
+              if (!r.ok) throw new Error(`HTTP ${r.status}`);
+              return r.json();
+            }),
+        });
+      }
+    },
+    [queryClient],
+  );
 
   const isMac =
     typeof navigator !== "undefined" &&
@@ -81,6 +106,8 @@ export function Layout({ children }: LayoutProps) {
                 <Link
                   key={item.href}
                   href={item.href}
+                  onMouseEnter={() => prefetchRoute(item.href)}
+                  onFocus={() => prefetchRoute(item.href)}
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     "rounded-full px-3 py-1.5 text-sm font-medium tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
