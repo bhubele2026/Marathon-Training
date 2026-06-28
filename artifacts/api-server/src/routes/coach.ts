@@ -6,12 +6,14 @@ import {
   planDaysTable,
   workoutsTable,
   userPreferencesTable,
+  alcoholEntriesTable,
 } from "@workspace/db";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, gte, lte, sql } from "drizzle-orm";
 import { getAnthropic, isConfigured, MODEL } from "@workspace/integrations-anthropic";
 import { COACH_PERSONA } from "@workspace/plan-knowledge";
 import { buildDataSummary, type DayInputs } from "../lib/coach-voice";
 import { getDayTarget } from "../lib/nutrition-day-target";
+import { DRY_DAYS_TARGET } from "../lib/alcohol-analytics";
 
 const router: IRouter = Router();
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -25,6 +27,58 @@ function hashInputs(obj: unknown): string {
   return (h >>> 0).toString(16);
 }
 
+
+// Date math on YYYY-MM-DD strings (UTC-noon to dodge DST), local to this route.
+function isoShift(date: string, n: number): string {
+  return new Date(Date.parse(`${date}T12:00:00Z`) + n * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+}
+function mondayOf(date: string): string {
+  const day = new Date(Date.parse(`${date}T12:00:00Z`)).getUTCDay(); // 0 Sun..6 Sat
+  return isoShift(date, -((day + 6) % 7)); // Mon→0, Sun→6
+}
+
+// Turn the trailing-window alcohol rows into the compact TODAY + this-week
+// snapshot the coach voice reads. Returns null when there's no alcohol data in
+// the window (the user isn't tracking) so the brief stays silent. Pure.
+function summarizeAlcohol(
+  today: string,
+  rows: { date: string; drinks: number }[],
+): DayInputs["alcohol"] {
+  if (rows.length === 0) return null;
+  const byDate = new Map<string, number>();
+  for (const r of rows) byDate.set(r.date, (byDate.get(r.date) ?? 0) + (r.drinks ?? 0));
+  const monday = mondayOf(today);
+  let weekDrinks = 0;
+  let drinkingDays = 0;
+  let dryDays = 0;
+  for (const [d, drinks] of byDate) {
+    if (d >= monday && d <= today) {
+      weekDrinks += drinks;
+      if (drinks > 0) drinkingDays++;
+      else dryDays++; // an explicit logged 0 = a dry day
+    }
+  }
+  // Current dry streak: consecutive days back from today that are logged AND dry.
+  let streak = 0;
+  for (let i = 0; ; i++) {
+    const d = isoShift(today, -i);
+    if (!byDate.has(d) || (byDate.get(d) ?? 0) > 0) break;
+    streak++;
+  }
+  const todayDrinks = byDate.get(today) ?? 0;
+  return {
+    todayDrinks: Math.round(todayDrinks * 10) / 10,
+    todayLogged: byDate.has(today),
+    weekDrinks: Math.round(weekDrinks * 10) / 10,
+    drinkingDaysThisWeek: drinkingDays,
+    dryDaysThisWeek: dryDays,
+    dryDaysTarget: DRY_DAYS_TARGET,
+    currentDryStreak: streak,
+    heavyToday: todayDrinks >= 6,
+  };
+}
 
 async function gatherDay(date: string): Promise<DayInputs> {
   const prefsRows = await db
@@ -68,6 +122,15 @@ async function gatherDay(date: string): Promise<DayInputs> {
     FROM workouts WHERE date = ${date}
   `);
 
+  // Trailing 30-day alcohol window → today + this-week drinking snapshot. Empty
+  // when the user isn't tracking alcohol, in which case the brief stays silent.
+  const alcRows = await db
+    .select({ date: alcoholEntriesTable.date, drinks: alcoholEntriesTable.standardDrinks })
+    .from(alcoholEntriesTable)
+    .where(
+      and(gte(alcoholEntriesTable.date, isoShift(date, -29)), lte(alcoholEntriesTable.date, date)),
+    );
+
   return {
     date,
     target: {
@@ -95,6 +158,7 @@ async function gatherDay(date: string): Promise<DayInputs> {
     // days are always final. Drives the pace-not-verdict framing in the voice.
     dayOpen: date === new Date().toISOString().slice(0, 10) && nut?.closedAt == null,
     dayTarget: await readDayTarget(date),
+    alcohol: summarizeAlcohol(date, alcRows),
   };
 }
 

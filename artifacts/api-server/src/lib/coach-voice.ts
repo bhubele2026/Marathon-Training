@@ -29,6 +29,21 @@ export type DayInputs = {
     load: number;
     summary: string | null;
   } | null;
+  // The drinking snapshot for TODAY + this week, when alcohol tracking is
+  // active. The client has explicitly asked to drink LESS, so the coach may rib
+  // a blown dry-day target or a drinking day that'll tax tomorrow's training —
+  // aimed at the choice + pattern, never moralised (see persona). Null when the
+  // user isn't tracking alcohol. `heavyToday` flips the safety nudge.
+  alcohol?: {
+    todayDrinks: number;
+    todayLogged: boolean;
+    weekDrinks: number;
+    drinkingDaysThisWeek: number;
+    dryDaysThisWeek: number;
+    dryDaysTarget: number;
+    currentDryStreak: number;
+    heavyToday: boolean;
+  } | null;
 };
 
 export function buildDataSummary(d: DayInputs): string {
@@ -86,6 +101,25 @@ export function buildDataSummary(d: DayInputs): string {
     }
   } else {
     lines.push(`Food today: nothing synced yet.`);
+  }
+
+  if (d.alcohol) {
+    const al = d.alcohol;
+    lines.push(
+      `ALCOHOL (the client has explicitly asked to drink LESS — this is FAIR GAME; ` +
+        `aim it at the choice + pattern, tie it to the training they care about, never ` +
+        `moralise it as sin): today ${al.todayLogged ? `${al.todayDrinks} drink(s)` : "nothing logged yet"}. ` +
+        `This week so far: ${al.weekDrinks} drink(s) across ${al.drinkingDaysThisWeek} drinking day(s); ` +
+        `${al.dryDaysThisWeek}/${al.dryDaysTarget} dry days; current dry streak ${al.currentDryStreak}. ` +
+        `Fair to rib a blown dry-day target or a drinking day that taxes tomorrow's session.`,
+    );
+    if (al.heavyToday) {
+      lines.push(
+        `SAFETY SIGNAL (alcohol): today's drinking is heavy. Ease right off the jokes — a ` +
+          `light, kind nudge at most. If heavy drinking looks like a pattern they can't ` +
+          `steer, DROP the act entirely and gently suggest real support.`,
+      );
+    }
   }
   return lines.join("\n");
 }
