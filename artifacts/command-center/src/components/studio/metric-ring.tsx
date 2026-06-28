@@ -51,7 +51,11 @@ export function MetricRing({
   paceMarker,
   className,
 }: MetricRingProps) {
-  const size = hero ? 168 : 108;
+  // Hero ring enlarged 168→200 so the four concentric tracks push outward and
+  // leave a clear central "well" for the label: the innermost track's inner edge
+  // now sits at radius ~56 (was ~40), so the centered number no longer collides
+  // with the arcs. Arc thicknesses/gaps are unchanged — only the radii scale.
+  const size = hero ? 200 : 108;
   const stroke = hero ? 11 : 7;
   const reduced = useReducedMotion();
 
@@ -81,6 +85,14 @@ export function MetricRing({
   const macroStroke = hero ? 6 : 4;
   const macroGap = hero ? 5 : 3;
   const arcs = macros ?? [];
+
+  // Length-aware hero font so the number always clears the innermost track's
+  // inner edge (~radius 56). 3 digits ride full size; 4 digits (e.g. "1,490")
+  // and 5+ step down so the half-width stays inside the central well.
+  const displayStr =
+    value == null ? "" : Number.isInteger(value) ? String(Math.round(value)) : String(value);
+  const heroNumberClass =
+    displayStr.length >= 5 ? "text-3xl" : displayStr.length === 4 ? "text-4xl" : "text-5xl";
 
   return (
     <div
@@ -177,7 +189,7 @@ export function MetricRing({
         <span
           className={cn(
             "font-display font-extrabold leading-none tabular-nums tracking-tight",
-            hero ? "text-5xl text-summer-gradient" : "text-xl text-foreground",
+            hero ? `${heroNumberClass} text-summer-gradient` : "text-xl text-foreground",
           )}
         >
           {value == null ? (
