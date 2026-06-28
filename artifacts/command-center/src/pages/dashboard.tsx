@@ -283,7 +283,7 @@ export default function Dashboard() {
             data-testid="dashboard-header-subtitle"
           >
             Week {summary.currentWeek} · {summary.currentPhase} ·{" "}
-            {summary.adherencePct}% on plan
+            {Math.round(summary.adherencePct)}% on plan
           </p>
         </div>
         <SegmentedControl<Scale>
@@ -325,7 +325,7 @@ export default function Dashboard() {
         <FeatureTile
           icon={Utensils}
           label="Nutrition"
-          stat={`${summary.adherencePct}%`}
+          stat={`${Math.round(summary.adherencePct)}%`}
           caption="Fuel & macros"
           onClick={() => navigate("/nutrition")}
           // Vibrant Summer: ocean→lime gradient, white text both themes.
