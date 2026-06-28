@@ -230,7 +230,7 @@ export function DashboardTracking() {
                   </p>
                 )}
                 <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={weightChart} margin={{ top: 5, right: 8, bottom: 0, left: -16 }}>
+                  <LineChart data={weightChart} margin={{ top: 5, right: 8, bottom: 0, left: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
                     <XAxis
                       dataKey="date"

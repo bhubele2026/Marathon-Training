@@ -119,7 +119,10 @@ export function TrendArea({
         />
         <YAxis
           domain={domain}
-          width={40}
+          // Wide enough to fully seat a 3-digit + decimal tick like "285.6"
+          // (~39px of text) inside the reserved gutter; 40px clipped the leading
+          // digit ("?85.6") against the SVG's left edge.
+          width={52}
           tickLine={false}
           axisLine={false}
           tickMargin={6}
