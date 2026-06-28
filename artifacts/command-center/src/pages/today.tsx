@@ -239,7 +239,7 @@ export default function Today() {
               {includesRunning ? (
                 <>
                   <p
-                    className="text-4xl font-black text-primary leading-none tabular-nums"
+                    className="text-6xl font-black text-primary leading-none tabular-nums tracking-tighter"
                     data-testid="text-countdown-days"
                   >
                     {today.daysUntilStart}
@@ -757,7 +757,7 @@ export default function Today() {
                         );
                       })()}
                       <div className="flex flex-wrap items-baseline gap-3">
-                        <span className="font-extrabold text-3xl md:text-4xl tracking-tight leading-none">{plan.sessionType}</span>
+                        <span className="font-extrabold text-4xl md:text-5xl tracking-tight leading-none">{plan.sessionType}</span>
                       </div>
 
                       {/* Phase 7: prominent "what to use today" rail — the

@@ -176,8 +176,8 @@ export function MetricRing({
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 px-2 text-center">
         <span
           className={cn(
-            "font-display font-extrabold leading-none tabular-nums tracking-tight text-foreground",
-            hero ? "text-3xl" : "text-xl",
+            "font-display font-extrabold leading-none tabular-nums tracking-tight",
+            hero ? "text-5xl text-summer-gradient" : "text-xl text-foreground",
           )}
         >
           {value == null ? (

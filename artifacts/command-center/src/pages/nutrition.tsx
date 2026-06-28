@@ -199,7 +199,7 @@ function MacroChip({
         <Icon className="h-3.5 w-3.5" style={{ color }} />
         {label}
       </div>
-      <p className="mt-1.5 font-display text-2xl font-extrabold tabular-nums leading-none tracking-tight text-foreground">
+      <p className="mt-1.5 font-display text-3xl font-extrabold tabular-nums leading-none tracking-tight text-foreground">
         {awaiting ? (hasGoal ? fmt(target) : "—") : fmt(value)}
         {hasGoal && (
           <span className="ml-1 text-xs font-medium text-muted-foreground">
@@ -557,9 +557,9 @@ export default function Nutrition() {
                     <p className="font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                       Calories
                     </p>
-                    <p className="font-display text-3xl font-extrabold tabular-nums tracking-tight text-foreground">
+                    <p className="font-display text-4xl font-extrabold tabular-nums tracking-tighter text-summer-gradient">
                       {calValue != null ? fmt(calValue) : fmt(target?.cal ?? 0)}
-                      <span className="ml-1 text-sm font-medium text-muted-foreground">
+                      <span className="ml-1 text-base font-medium text-muted-foreground">
                         {target?.cal != null ? `/ ${fmt(target.cal)} kcal` : "kcal"}
                       </span>
                     </p>

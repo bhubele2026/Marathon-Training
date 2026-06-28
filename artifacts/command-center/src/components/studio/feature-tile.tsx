@@ -54,11 +54,11 @@ export function FeatureTile({
       <div className="flex items-start justify-between">
         <span
           className={cn(
-            "flex h-11 w-11 items-center justify-center rounded-2xl",
+            "flex h-12 w-12 items-center justify-center rounded-2xl",
             gradient ? "bg-white/15 text-primary-foreground" : "bg-primary/10 text-primary",
           )}
         >
-          <Icon className="h-5 w-5" />
+          <Icon className="h-6 w-6" />
         </span>
         <ChevronRight
           className={cn(
@@ -70,8 +70,8 @@ export function FeatureTile({
       <div className="min-w-0">
         <p
           className={cn(
-            "font-display text-sm font-semibold tracking-tight",
-            gradient ? "text-primary-foreground" : "text-foreground",
+            "font-display text-[15px] font-bold uppercase tracking-wide",
+            gradient ? "text-primary-foreground/90" : "text-foreground",
           )}
         >
           {label}
@@ -79,7 +79,7 @@ export function FeatureTile({
         {stat != null && (
           <p
             className={cn(
-              "mt-1 font-display text-2xl font-extrabold tabular-nums tracking-tight",
+              "mt-1 font-display text-4xl font-extrabold tabular-nums tracking-tight",
               gradient ? "text-primary-foreground" : "text-foreground",
             )}
           >

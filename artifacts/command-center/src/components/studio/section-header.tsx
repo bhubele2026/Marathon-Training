@@ -23,11 +23,11 @@ export function SectionHeader({
       <span className="flex items-center gap-2">
         <span
           aria-hidden
-          className="h-3.5 w-1 shrink-0 rounded-full"
+          className="h-4 w-1.5 shrink-0 rounded-full"
           style={{ backgroundColor: accent }}
         />
         <span
-          className="font-display text-[11px] font-semibold uppercase tracking-[0.08em]"
+          className="font-display text-[13px] font-bold uppercase tracking-[0.09em]"
           style={{ color: accent }}
         >
           {eyebrow}

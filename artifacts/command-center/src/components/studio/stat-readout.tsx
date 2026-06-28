@@ -57,7 +57,7 @@ export function StatReadout({
       <div className="flex items-baseline gap-1.5">
         <span
           className={cn(
-            "font-display text-2xl font-extrabold leading-none tabular-nums tracking-tight",
+            "font-display text-3xl font-extrabold leading-none tabular-nums tracking-tighter",
             tone === "accent" ? "text-primary" : "text-foreground",
           )}
         >
