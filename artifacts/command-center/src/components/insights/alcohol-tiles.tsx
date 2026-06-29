@@ -284,6 +284,41 @@ function DaysBudget({ used, budget }: { used: number; budget: number }) {
   );
 }
 
+// Paired comparison bars for one impact metric — drinking days vs dry days
+// (e.g. next-day training load), so the cost is visible, not just stated.
+// Coral = drinking, green = dry; both scaled to the larger of the two.
+function ImpactBars({
+  drinking,
+  dry,
+}: {
+  drinking: number;
+  dry: number;
+}) {
+  const max = Math.max(drinking, dry, 1);
+  const rows: Array<{ caption: string; value: number; color: string }> = [
+    { caption: "Drinking days", value: drinking, color: "hsl(var(--chart-2))" },
+    { caption: "Dry days", value: dry, color: "hsl(var(--success))" },
+  ];
+  return (
+    <div className="mt-1.5 space-y-1">
+      {rows.map((r) => (
+        <div key={r.caption} className="flex items-center gap-2">
+          <span className="w-[68px] shrink-0 text-[11px] text-muted-foreground">{r.caption}</span>
+          <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full"
+              style={{ width: `${Math.round((Math.max(0, r.value) / max) * 100)}%`, background: r.color }}
+            />
+          </div>
+          <span className="w-9 shrink-0 text-right text-[11.5px] font-semibold tabular-nums text-foreground">
+            {r.value}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function AlcoholTile({ insight }: { insight: NutritionInsight }) {
   const a = insight.alcohol;
   const reduced = useReducedMotion();
@@ -312,29 +347,25 @@ export function AlcoholTile({ insight }: { insight: NutritionInsight }) {
             <li key={im.key} className="text-[12.5px]">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold text-foreground">{im.label}</span>
-                {im.drinkingAvg != null && im.dryAvg != null && (
-                  <span className="tabular-nums text-muted-foreground">
-                    <span>{im.drinkingAvg}</span>
-                    {" vs "}
-                    <span style={{ color: "hsl(var(--success))" }}>{im.dryAvg}</span>
-                    {im.deltaPct != null && (
-                      <span
-                        className="ml-1"
-                        style={{
-                          color:
-                            im.deltaPct < 0 === im.betterWhenDry
-                              ? "hsl(var(--success))"
-                              : "hsl(var(--warning))",
-                        }}
-                      >
-                        ({im.deltaPct > 0 ? "+" : ""}
-                        {im.deltaPct}%)
-                      </span>
-                    )}
+                {im.deltaPct != null && (
+                  <span
+                    className="shrink-0 tabular-nums font-semibold"
+                    style={{
+                      color:
+                        im.deltaPct < 0 === im.betterWhenDry
+                          ? "hsl(var(--success))"
+                          : "hsl(var(--warning))",
+                    }}
+                  >
+                    {im.deltaPct > 0 ? "+" : ""}
+                    {im.deltaPct}% {im.betterWhenDry ? "when dry" : ""}
                   </span>
                 )}
               </div>
-              <p className="mt-0.5 leading-relaxed text-muted-foreground">{im.note}</p>
+              {im.drinkingAvg != null && im.dryAvg != null && (
+                <ImpactBars drinking={im.drinkingAvg} dry={im.dryAvg} />
+              )}
+              <p className="mt-1 leading-relaxed text-muted-foreground">{im.note}</p>
             </li>
           ))}
         </ul>
