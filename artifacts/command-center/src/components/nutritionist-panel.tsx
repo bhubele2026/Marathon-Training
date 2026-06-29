@@ -1,12 +1,27 @@
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SectionHeader } from "@/components/studio/section-header";
 import { CoachNote } from "@/components/studio/coach-note";
+import {
+  SegmentedControl,
+  type SegmentedOption,
+} from "@/components/studio/segmented-control";
 import { NutritionScorecard, ScorecardTile } from "@/components/insights";
 import type { NutritionistReport } from "@/components/insights/types";
 import { Clock, Stethoscope, ArrowRight } from "lucide-react";
+
+// Analysis window options — let the runner widen the lookback so the AI reads
+// EARLY weeks (e.g. what drinking has been doing to training over a couple of
+// months), not just the last few days. Clamped server-side to [2, 26] weeks.
+const WINDOW_OPTIONS: SegmentedOption<string>[] = [
+  { value: "4", label: "4 wk" },
+  { value: "8", label: "8 wk" },
+  { value: "12", label: "12 wk" },
+  { value: "26", label: "26 wk" },
+];
 
 // The AI Nutritionist surface — visual-first. One component, two variants:
 //   - variant="today": a compact daily verdict (headline + a hero protein
@@ -35,9 +50,13 @@ export function NutritionistPanel({
   variant?: "today" | "full";
   weeks?: number;
 }) {
+  // The full panel lets the runner widen the lookback window; the compact
+  // "today" verdict stays pinned to the passed default.
+  const [selWeeks, setSelWeeks] = useState(weeks);
+  const activeWeeks = variant === "full" ? selWeeks : weeks;
   const { data, isLoading } = useQuery({
-    queryKey: nutritionistQueryKey(weeks),
-    queryFn: () => getJson<NutritionistReport>(`/api/nutritionist/analysis?weeks=${weeks}`),
+    queryKey: nutritionistQueryKey(activeWeeks),
+    queryFn: () => getJson<NutritionistReport>(`/api/nutritionist/analysis?weeks=${activeWeeks}`),
     // The server returns the cached report instantly unless the underlying
     // metrics actually changed (it hashes the inputs), so revisiting the panel
     // doesn't need to re-ask the model. Keep the report fresh in the client
@@ -111,16 +130,26 @@ export function NutritionistPanel({
   // --- Full deep-dive (Nutrition page) ------------------------------------
   return (
     <div className="space-y-4" data-testid="card-nutritionist-full">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Stethoscope className="h-5 w-5 text-primary" />
           <span className="font-display text-base font-semibold tracking-tight text-foreground">
             AI Nutritionist
           </span>
         </div>
-        <span className="font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-          last {data.weeksElapsed || data.weeks} wk · confidence {data.confidence}
-        </span>
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Lookback window — widen it to make the AI read prior/early weeks
+              (what the drinking's been doing to training over time). */}
+          <SegmentedControl<string>
+            options={WINDOW_OPTIONS}
+            value={String(selWeeks)}
+            onChange={(v) => setSelWeeks(Number(v))}
+            ariaLabel="Analysis lookback window in weeks"
+          />
+          <span className="font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            last {data.weeksElapsed || data.weeks} wk · confidence {data.confidence}
+          </span>
+        </div>
       </div>
 
       {/* Headline in the coach's voice. */}

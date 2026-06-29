@@ -582,9 +582,14 @@ describe("Week detail — race-day badge on the marathon Sunday (task #199)", ()
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    vi.useRealTimers();
   });
 
   it("renders the race-day badge and amber accent on the Sunday with sessionType=Race", () => {
+    // Pin "today" BEFORE the race day (2026-06-28) so the marathon Sunday reads
+    // as upcoming (amber/warning), not a past race (destructive). Without this
+    // the test silently flips once the wall clock passes the hard-coded date.
+    vi.useFakeTimers({ now: new Date("2026-06-22T12:00:00Z"), toFake: ["Date"] });
     renderWith(makeRaceWeekPayload());
 
     // The pill itself: testid keyed on the day date so the assertion

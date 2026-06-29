@@ -270,6 +270,12 @@ export function buildNutritionistSystem(persona: string): string {
     `with your drinking days." When you talk diet/training, factor alcohol in; when you talk ` +
     `alcohol, use the bodyweight, protein pace, calorie target and session load to make the ` +
     `read specific.\n` +
+    `REQUIRED when the brief carries an alcohol IMPACT read (next-day training load on drinking ` +
+    `vs dry days) or alcohol history beyond this week: include ONE concrete line on what the ` +
+    `drinking is doing to the TRAINING across the whole window — name the next-day load gap and ` +
+    `say whether the pattern is holding, easing, or worsening over the weeks, not just this week. ` +
+    `Read the EARLY weeks too, not only the latest; if the window is long but data is thin in the ` +
+    `early weeks, say so and treat it as a trend forming.\n` +
     `TONE for alcohol (non-negotiable — this is a habit being WORKED DOWN, not a failure to ` +
     `mock): dry days are WINS — frame them as the score going up. Drinking WITHIN the weekly ` +
     `budget is NEUTRAL, not a red flag; over budget is a SOFT nudge, never shame, never ` +
