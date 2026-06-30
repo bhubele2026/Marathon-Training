@@ -438,6 +438,14 @@ function blendLastGood(
   const insights = fb.insights.map((ins) => {
     const lg = lgById.get(ins.id);
     if (!lg) return ins;
+    // Alcohol & dry-days copy is bound to volatile week-specific numbers (dry
+    // days so far, drinks logged, days left in the week). Carrying STALE
+    // last-good phrasing over fresh numbers yields contradictions — e.g. last
+    // week's "10 drinks, 0 dry days, the week's nearly gone" rendered on a week
+    // that is actually Tuesday with 1 dry day and 0 drinks. The deterministic
+    // copy (computeInsights) is already current-state and on-tone, so always
+    // use it for these tiles instead of the previous AI words.
+    if (ins.group === "alcohol") return ins;
     return {
       ...ins,
       caption: lg.caption?.trim() ? lg.caption : ins.caption,
