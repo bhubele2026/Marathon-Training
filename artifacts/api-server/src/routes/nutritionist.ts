@@ -37,8 +37,10 @@ import {
 } from "../lib/nutritionist";
 
 // Bump when the report SHAPE changes so cached rows (keyed by inputHash) are
-// invalidated and regenerated into the new structure.
-const REPORT_VERSION = 3;
+// invalidated and regenerated into the new structure. v4: alcohol/dry-days tile
+// copy is now always engine-deterministic, so old cached rows carrying stale AI
+// alcohol phrasing must be discarded.
+const REPORT_VERSION = 4;
 
 const router: IRouter = Router();
 const DAY_MS = 86_400_000;
@@ -511,6 +513,13 @@ async function buildReport(
     const skeleton: NutritionInsight[] = computeInsights(input);
     const copy: Record<string, { caption?: string; detail?: string }> = out.insights ?? {};
     const insights: NutritionInsight[] = skeleton.map((ins) => {
+      // Alcohol & dry-days tiles are bound to volatile week-specific numbers
+      // (dry days so far, drinks, days left). Let the model NOT touch their
+      // copy — even fresh AI phrasing can drift from the exact counts and read
+      // as a contradiction ("0 dry days" beside a 1/4 tile). The engine's
+      // deterministic copy is always current and on-tone; the model's
+      // alcohol→training reasoning still lands in the narrative + impact bars.
+      if (ins.group === "alcohol") return ins;
       const c = copy[ins.id];
       return {
         ...ins,
