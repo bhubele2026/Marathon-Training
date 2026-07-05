@@ -14,6 +14,7 @@ import {
 import { useParams, useLocation, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
+import { PageContainer } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -473,8 +474,7 @@ export default function WeekDetail() {
   };
 
   return (
-    <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1600px] mx-auto">
-      
+    <PageContainer width="wide">
       <div className="flex items-center justify-between">
         <Button variant="outline" size="sm" onClick={() => setLocation(`/plan/${weekNum - 1}`)} disabled={weekNum <= 1}>
           <ChevronLeft className="h-4 w-4 mr-1" /> Prev Week
@@ -491,8 +491,8 @@ export default function WeekDetail() {
               {weekEyebrow}
             </p>
           )}
-          <h2 className="text-2xl font-black tracking-tight text-foreground">Week {week.week}</h2>
-          <p className="text-xs text-muted-foreground font-bold tracking-widest mt-1">{formatDate(week.startDate)} - {formatDate(week.endDate)}</p>
+          <h2 className="font-display text-3xl font-extrabold tracking-tight text-foreground">Week {week.week}</h2>
+          <p className="mt-1 text-xs font-medium text-muted-foreground">{formatDate(week.startDate)} - {formatDate(week.endDate)}</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => setLocation(`/plan/${weekNum + 1}`)}>
           Next Week <ChevronRight className="h-4 w-4 ml-1" />
@@ -500,13 +500,13 @@ export default function WeekDetail() {
       </div>
 
       <div
-        className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-card border border-border border-l-4 rounded-lg p-4"
+        className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-card border border-card-border border-l-4 rounded-lg p-4 shadow-card"
         style={{ borderLeftColor: phaseColor(week.phase) }}
       >
         <div>
           <p className="text-[10px] font-bold text-muted-foreground">Phase</p>
           <p
-            className="font-black text-lg flex items-center gap-2"
+            className="font-display font-extrabold text-lg flex items-center gap-2"
             data-testid="week-phase-label"
           >
             <span
@@ -521,13 +521,13 @@ export default function WeekDetail() {
           <>
             <div>
               <p className="text-[10px] font-bold text-muted-foreground">Training min</p>
-              <p className="font-black text-lg" data-testid="week-training-min">
+              <p className="font-display font-extrabold text-lg" data-testid="week-training-min">
                 {Math.round((week.plannedStrength ?? 0) + (week.plannedCardio ?? 0))} min
               </p>
             </div>
             <div>
               <p className="text-[10px] font-bold text-muted-foreground">Strength load</p>
-              <p className="font-black text-lg">{Math.round(week.plannedTotalLoad)}</p>
+              <p className="font-display font-extrabold text-lg">{Math.round(week.plannedTotalLoad)}</p>
             </div>
           </>
         ) : (
@@ -560,7 +560,7 @@ export default function WeekDetail() {
               */}
               <p
                 className={cn(
-                  "font-black text-lg",
+                  "font-display font-extrabold text-lg",
                   adherenceTextClass(
                     adherenceStatus(week.actualCardio, week.plannedCardio),
                   ),
@@ -582,7 +582,7 @@ export default function WeekDetail() {
           ) : (
             <p
               className={cn(
-                "font-black text-lg",
+                "font-display font-extrabold text-lg",
                 adherenceTextClass(
                   adherenceStatus(week.actualMiles, week.plannedMiles),
                 ),
@@ -596,7 +596,7 @@ export default function WeekDetail() {
         </div>
         <div>
           <p className="text-[10px] font-bold text-muted-foreground">Long Run</p>
-          <p className="font-black text-lg">{formatDistance(week.longRunMi)}</p>
+          <p className="font-display font-extrabold text-lg">{formatDistance(week.longRunMi)}</p>
         </div>
           </>
         )}
@@ -604,7 +604,7 @@ export default function WeekDetail() {
           <p className="text-[10px] font-bold text-muted-foreground">Sessions</p>
           <p
             className={cn(
-              "font-black text-lg",
+              "font-display font-extrabold text-lg",
               adherenceTextClass(
                 adherenceStatus(week.completedSessions, week.totalSessions),
               ),
@@ -1490,6 +1490,6 @@ export default function WeekDetail() {
       </AlertDialog>
 
       {dialogs}
-    </div>
+    </PageContainer>
   );
 }

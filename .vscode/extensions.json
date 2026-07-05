@@ -1,0 +1,15 @@
+{
+  "// note": "Recommended extensions for this React + Vite + Tailwind + TypeScript workspace. VS Code will offer to install these when the repo is opened.",
+  "recommendations": [
+    "bradlc.vscode-tailwindcss",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "yoavbls.pretty-ts-errors",
+    "naumovs.color-highlight",
+    "usernamehw.errorlens",
+    "eamodio.gitlens",
+    "pkief.material-icon-theme",
+    "kisstkondoros.vscode-gutter-preview",
+    "formulahendry.auto-rename-tag"
+  ]
+}

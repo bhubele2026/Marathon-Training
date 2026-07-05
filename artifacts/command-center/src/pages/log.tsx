@@ -7,12 +7,14 @@ import {
 import { LIFESTYLE_EQUIPMENT } from "@workspace/plan-generator";
 import { invalidateMissionRelatedQueries } from "@/lib/invalidate-mission-queries";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageContainer, PageHeader, EmptyState } from "@/components/studio";
 import { formatDistance, formatLoad, formatDate } from "@/lib/format";
-import { Edit, Trash2, Plus, Sparkles } from "lucide-react";
+import { Edit, Trash2, Plus, Sparkles, ClipboardList } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { customizedFieldLabel, formatDiffValue } from "@/lib/customized-diff";
 import type { Workout } from "@workspace/api-client-react";
@@ -150,36 +152,34 @@ export default function Log() {
     });
   };
 
+  const headerActions = (
+    <div className="flex items-center gap-2">
+      {/* Task #294: surface the count of legacy workouts the
+          retro-link backfill couldn't match to a plan day. Click
+          toggles a client-side filter that isolates the orphaned
+          rows so the runner can reassign them via the existing
+          edit form (or accept they're truly off-plan). */}
+      {unlinkedCount > 0 && (
+        <Button
+          type="button"
+          variant={onlyUnlinked ? "default" : "outline"}
+          onClick={() => setOnlyUnlinked((prev) => !prev)}
+          className="font-bold tracking-wider text-xs"
+          data-testid="badge-unlinked-workouts"
+          title="Legacy workouts not linked to a plan day"
+        >
+          {unlinkedCount} unlinked — {onlyUnlinked ? "show all" : "review"}
+        </Button>
+      )}
+      <Button onClick={handleCreate} className="font-bold tracking-wider">
+        <Plus className="h-4 w-4 mr-2" /> Log New
+      </Button>
+    </div>
+  );
+
   return (
-    <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-4xl font-extrabold tracking-tight text-foreground">Training Log</h2>
-          <p className="text-sm text-muted-foreground mt-1">Activity history</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Task #294: surface the count of legacy workouts the
-              retro-link backfill couldn't match to a plan day. Click
-              toggles a client-side filter that isolates the orphaned
-              rows so the runner can reassign them via the existing
-              edit form (or accept they're truly off-plan). */}
-          {unlinkedCount > 0 && (
-            <Button
-              type="button"
-              variant={onlyUnlinked ? "default" : "outline"}
-              onClick={() => setOnlyUnlinked((prev) => !prev)}
-              className="font-bold tracking-wider text-xs"
-              data-testid="badge-unlinked-workouts"
-              title="Legacy workouts not linked to a plan day"
-            >
-              {unlinkedCount} unlinked — {onlyUnlinked ? "show all" : "review"}
-            </Button>
-          )}
-          <Button onClick={handleCreate} className="font-bold tracking-wider">
-            <Plus className="h-4 w-4 mr-2" /> Log New
-          </Button>
-        </div>
-      </div>
+    <PageContainer>
+      <PageHeader title="Training Log" subtitle="Activity history" action={headerActions} />
 
       <div className="bg-card border border-border rounded-lg p-4 flex flex-col md:flex-row gap-4 items-end">
         <div className="space-y-2 flex-1 w-full md:w-auto">
@@ -224,7 +224,7 @@ export default function Log() {
         </div>
       </div>
 
-      <div className="bg-card border border-border rounded-lg overflow-hidden">
+      <Card className="overflow-hidden">
         {isLoading ? (
           <div className="p-8"><Skeleton className="h-64 w-full" /></div>
         ) : (
@@ -245,9 +245,17 @@ export default function Log() {
             </TableHeader>
             <TableBody>
               {visibleWorkouts?.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
-                    {onlyUnlinked ? "No unlinked workouts" : "No workouts found"}
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={5} className="py-12">
+                    <EmptyState
+                      icon={ClipboardList}
+                      title={onlyUnlinked ? "No unlinked workouts" : "No workouts found"}
+                      hint={
+                        onlyUnlinked
+                          ? "Every logged session is linked to a plan day."
+                          : "Log a session or widen the filters to see your history."
+                      }
+                    />
                   </TableCell>
                 </TableRow>
               ) : (
@@ -374,14 +382,14 @@ export default function Log() {
             </TableBody>
           </Table>
         )}
-      </div>
+      </Card>
 
-      <WorkoutForm 
-        open={formOpen} 
-        onOpenChange={setFormOpen} 
+      <WorkoutForm
+        open={formOpen}
+        onOpenChange={setFormOpen}
         workoutId={editWorkout?.id}
-        initial={editWorkout || undefined} 
+        initial={editWorkout || undefined}
       />
-    </div>
+    </PageContainer>
   );
 }

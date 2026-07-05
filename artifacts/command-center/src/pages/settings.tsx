@@ -12,6 +12,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageContainer, PageHeader } from "@/components/studio";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
@@ -214,13 +215,8 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-3xl mx-auto">
-      <div>
-        <h2 className="text-4xl font-extrabold tracking-tight text-foreground">Settings</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          App-wide preferences
-        </p>
-      </div>
+    <PageContainer className="max-w-3xl">
+      <PageHeader title="Settings" subtitle="App-wide preferences" />
 
       <Card data-testid="card-visual-theme">
         <CardHeader>
@@ -775,6 +771,6 @@ export default function Settings() {
           </p>
         </CardContent>
       </Card>
-    </div>
+    </PageContainer>
   );
 }

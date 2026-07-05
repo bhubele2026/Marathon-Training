@@ -3,8 +3,17 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, MessageSquare, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  PageContainer,
+  PageHeader,
+  SectionHeader,
+  StatReadout,
+  EmptyState,
+} from "@/components/studio";
 import { format, parseISO } from "date-fns";
 
 type WeekReview = {
@@ -50,17 +59,6 @@ function addDays(iso: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
-        {label}
-      </p>
-      <p className="text-lg font-semibold tabular-nums mt-0.5">{value}</p>
-    </div>
-  );
-}
-
 export default function Recap() {
   const todayMonday = mondayOf(new Date().toISOString().slice(0, 10));
   const [weekStart, setWeekStart] = useState(todayMonday);
@@ -81,133 +79,153 @@ export default function Recap() {
   const summary = data?.summary;
   const weekEnd = review?.weekEnd ?? addDays(weekStart, 6);
 
+  const nav = (
+    <div className="flex items-center gap-2">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setWeekStart(addDays(weekStart, -7))}
+        data-testid="recap-prev"
+        aria-label="Previous week"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={isCurrent}
+        onClick={() => setWeekStart(addDays(weekStart, 7))}
+        data-testid="recap-next"
+        aria-label="Next week"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+
+  const dash = (v: string | number | null | undefined, unit?: string) =>
+    v == null || v === "" ? "—" : `${v}${unit ?? ""}`;
+
   return (
-    <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1000px] mx-auto">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h2 className="text-4xl font-extrabold tracking-tight text-foreground">
-            {isCurrent ? "This week" : "Week recap"}
-          </h2>
-          <p className="text-muted-foreground font-medium tracking-widest mt-1">
-            {format(parseISO(weekStart), "MMM d")} – {format(parseISO(weekEnd), "MMM d")}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setWeekStart(addDays(weekStart, -7))}
-            data-testid="recap-prev"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={isCurrent}
-            onClick={() => setWeekStart(addDays(weekStart, 7))}
-            data-testid="recap-next"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+    <PageContainer className="max-w-[1000px]">
+      <PageHeader
+        title={isCurrent ? "This week" : "Week recap"}
+        subtitle={`${format(parseISO(weekStart), "MMM d")} – ${format(parseISO(weekEnd), "MMM d")}`}
+        action={nav}
+      />
 
       {/* The coach's verdict — the hero of this screen. */}
       {isLoading ? (
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Writing your recap…
+        <div className="space-y-5">
+          <Skeleton className="h-20 w-full rounded-lg" />
+          <Card>
+            <CardContent className="grid grid-cols-2 gap-x-8 gap-y-6 p-6 sm:grid-cols-4">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Skeleton key={i} className="h-14 rounded-md" />
+              ))}
+            </CardContent>
+          </Card>
         </div>
       ) : isError ? (
-        <p className="text-sm text-muted-foreground">Couldn't load this week's recap.</p>
+        <EmptyState
+          icon={MessageSquare}
+          title="Couldn't load this week's recap"
+          hint="Something hiccuped fetching the numbers — try again in a moment."
+        />
       ) : (
         <>
           {summary ? (
             <div
-              className="flex items-start gap-3 border-l-2 border-primary pl-4 py-1"
+              className="flex items-start gap-3 border-l-2 border-primary py-1 pl-4"
               data-testid="recap-summary"
             >
-              <MessageSquare className="h-5 w-5 text-primary mt-1 shrink-0" />
-              <p className="text-lg leading-relaxed text-foreground whitespace-pre-line">
+              <MessageSquare className="mt-1 h-5 w-5 shrink-0 text-primary" />
+              <p className="whitespace-pre-line text-lg leading-relaxed text-foreground">
                 {summary}
               </p>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">
-              No recap yet for this week — log some food and workouts and the coach
-              will have something to say.
-            </p>
+            <EmptyState
+              icon={MessageSquare}
+              title="No recap yet for this week"
+              hint="Log some food and workouts and the coach will have plenty to say."
+            />
           )}
 
           {/* The numbers behind the verdict. */}
           {review && (
-            <section className="pt-5 grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-5">
-              <Stat
-                label="Sessions"
-                value={`${review.workouts.done}/${review.workouts.planned} done`}
-              />
-              <Stat
-                label="Lifting days"
-                value={`${review.workouts.liftingDone}/${review.workouts.liftingPlanned}`}
-              />
-              <Stat
-                label="Minutes"
-                value={`${review.workouts.minutesDone}/${review.workouts.minutesPlanned}`}
-              />
-              <Stat
-                label="Avg calories"
-                value={
-                  review.food.avgCalories != null
-                    ? `${review.food.avgCalories}${review.food.target.calories ? ` / ${review.food.target.calories}` : ""}`
-                    : "—"
-                }
-              />
-              <Stat
-                label="Avg protein"
-                value={
-                  review.food.avgProtein != null
-                    ? `${review.food.avgProtein} g`
-                    : "—"
-                }
-              />
-              <Stat
-                label="Days logged"
-                value={`${review.food.daysLogged}/7`}
-              />
-              <Stat
-                label="Weight"
-                value={
-                  review.weight.startLb != null && review.weight.endLb != null
-                    ? `${review.weight.startLb} → ${review.weight.endLb} lb`
-                    : "—"
-                }
-              />
-              <Stat
-                label="Change"
-                value={
-                  review.weight.actualChangeLb != null
-                    ? `${review.weight.actualChangeLb > 0 ? "+" : ""}${review.weight.actualChangeLb} lb`
-                    : "—"
-                }
-              />
-              {review.weight.onTrack != null && (
-                <div className="self-center">
-                  <span
+            <Card>
+              <CardContent className="space-y-5 p-6">
+                <SectionHeader eyebrow="The numbers" />
+                <div className="grid grid-cols-2 gap-x-8 gap-y-6 sm:grid-cols-4">
+                  <StatReadout
+                    label="Sessions"
+                    value={`${review.workouts.done}/${review.workouts.planned}`}
+                    unit="done"
+                  />
+                  <StatReadout
+                    label="Lifting days"
+                    value={`${review.workouts.liftingDone}/${review.workouts.liftingPlanned}`}
+                    unit="days"
+                  />
+                  <StatReadout
+                    label="Minutes"
+                    value={review.workouts.minutesDone}
+                    unit={`/ ${review.workouts.minutesPlanned} min`}
+                  />
+                  <StatReadout
+                    label="Days logged"
+                    value={`${review.food.daysLogged}/7`}
+                    unit="logged"
+                  />
+                  <StatReadout
+                    label="Avg calories"
+                    value={dash(review.food.avgCalories)}
+                    unit={
+                      review.food.target.calories
+                        ? `/ ${review.food.target.calories}`
+                        : "kcal"
+                    }
+                  />
+                  <StatReadout
+                    label="Avg protein"
+                    value={dash(review.food.avgProtein)}
+                    unit="g"
+                  />
+                  <StatReadout
+                    label="Weight"
+                    value={dash(review.weight.endLb)}
+                    unit="lb"
+                    delta={
+                      review.weight.actualChangeLb != null
+                        ? {
+                            value: `${review.weight.actualChangeLb > 0 ? "+" : ""}${review.weight.actualChangeLb} lb`,
+                            tone:
+                              review.weight.onTrack == null
+                                ? "neutral"
+                                : review.weight.onTrack
+                                  ? "success"
+                                  : "neutral",
+                          }
+                        : undefined
+                    }
+                  />
+                </div>
+                {review.weight.onTrack != null && (
+                  <p
                     className={
-                      "text-sm font-bold " +
-                      (review.weight.onTrack
-                        ? "text-success"
-                        : "text-warning")
+                      "text-sm font-semibold " +
+                      (review.weight.onTrack ? "text-success" : "text-warning")
                     }
                   >
                     {review.weight.onTrack ? "On pace" : "Behind pace"}
-                  </span>
-                </div>
-              )}
-            </section>
+                  </p>
+                )}
+              </CardContent>
+            </Card>
           )}
         </>
       )}
-    </div>
+    </PageContainer>
   );
 }

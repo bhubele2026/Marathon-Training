@@ -6,6 +6,8 @@ export { EmptyState } from "./empty-state";
 export { SectionHeader } from "./section-header";
 export { StatReadout, type StatReadoutProps } from "./stat-readout";
 export { StatTile, type StatTileProps } from "./stat-tile";
+export { PageHeader, type PageHeaderProps } from "./page-header";
+export { PageContainer, type PageContainerProps } from "./page-container";
 export { MetricRing, type MetricRingProps, type MetricRingArc } from "./metric-ring";
 export { TrendArea, type TrendAreaProps } from "./trend-area";
 export { FeatureTile, type FeatureTileProps } from "./feature-tile";

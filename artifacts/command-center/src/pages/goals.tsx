@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Beef, Droplet, Dumbbell, Flame, Sparkles, User, Wheat } from "lucide-react";
+import { PageContainer, PageHeader, StatTile } from "@/components/studio";
 
 // Goals page. Hand-fetched against /api/goals (not in openapi.yaml, same
 // approach as nutrition.tsx) — keeps the feature self-contained, no codegen.
@@ -234,15 +235,11 @@ export default function Goals() {
       : 0;
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
-          Goals
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Your stats, AI-calculated nutrition targets, and strength goal.
-        </p>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Goals"
+        subtitle="Your stats, AI-calculated nutrition targets, and strength goal."
+      />
 
       {/* Body stats */}
       <Card>
@@ -456,50 +453,34 @@ export default function Goals() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-md border border-border p-4">
-              <div className="flex items-center gap-2 text-xs tracking-wider text-muted-foreground">
-                <Flame className="h-3.5 w-3.5 text-primary" /> Calories / day
-              </div>
-              <div className="mt-1 text-4xl font-bold text-primary tabular-nums">
-                {calories ?? "—"}
-                {calories != null && (
-                  <span className="ml-1 text-lg text-muted-foreground">kcal</span>
-                )}
-              </div>
-            </div>
-            <div className="rounded-md border border-border p-4">
-              <div className="flex items-center gap-2 text-xs tracking-wider text-muted-foreground">
-                <Beef className="h-3.5 w-3.5 text-primary" /> Protein / day
-              </div>
-              <div className="mt-1 text-4xl font-bold tabular-nums">
-                {protein ?? "—"}
-                {protein != null && (
-                  <span className="ml-1 text-lg text-muted-foreground">g</span>
-                )}
-              </div>
-            </div>
-            <div className="rounded-md border border-border p-4">
-              <div className="flex items-center gap-2 text-xs tracking-wider text-muted-foreground">
-                <Wheat className="h-3.5 w-3.5 text-primary" /> Carbs / day
-              </div>
-              <div className="mt-1 text-4xl font-bold tabular-nums">
-                {carbs ?? "—"}
-                {carbs != null && (
-                  <span className="ml-1 text-lg text-muted-foreground">g</span>
-                )}
-              </div>
-            </div>
-            <div className="rounded-md border border-border p-4">
-              <div className="flex items-center gap-2 text-xs tracking-wider text-muted-foreground">
-                <Droplet className="h-3.5 w-3.5 text-primary" /> Fat / day
-              </div>
-              <div className="mt-1 text-4xl font-bold tabular-nums">
-                {fat ?? "—"}
-                {fat != null && (
-                  <span className="ml-1 text-lg text-muted-foreground">g</span>
-                )}
-              </div>
-            </div>
+            <StatTile
+              icon={Flame}
+              accent="hsl(var(--chart-1))"
+              label="Calories / day"
+              value={calories ?? "—"}
+              unit={calories != null ? "kcal" : undefined}
+            />
+            <StatTile
+              icon={Beef}
+              accent="hsl(var(--chart-2))"
+              label="Protein / day"
+              value={protein ?? "—"}
+              unit={protein != null ? "g" : undefined}
+            />
+            <StatTile
+              icon={Wheat}
+              accent="hsl(var(--chart-3))"
+              label="Carbs / day"
+              value={carbs ?? "—"}
+              unit={carbs != null ? "g" : undefined}
+            />
+            <StatTile
+              icon={Droplet}
+              accent="hsl(var(--chart-4))"
+              label="Fat / day"
+              value={fat ?? "—"}
+              unit={fat != null ? "g" : undefined}
+            />
           </div>
 
           {data?.targetsRationale && (
@@ -600,6 +581,6 @@ export default function Goals() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </PageContainer>
   );
 }

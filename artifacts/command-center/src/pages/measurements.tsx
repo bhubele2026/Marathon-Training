@@ -17,12 +17,13 @@ import {
 } from "recharts";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { Plus, Edit, Trash2 } from "lucide-react";
+import { Plus, Edit, Trash2, Scale } from "lucide-react";
 import { MeasurementForm } from "@/components/measurement-form";
 import { StatReadout } from "@/components/studio/stat-readout";
 import { TrendArea } from "@/components/studio/trend-area";
 import { EmptyState } from "@/components/studio/empty-state";
 import { CountUp } from "@/components/studio/count-up";
+import { PageContainer, PageHeader } from "@/components/studio";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
@@ -210,22 +211,23 @@ export default function Measurements() {
   ];
 
   return (
-    <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1440px] mx-auto px-4 md:px-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="font-display text-4xl font-extrabold tracking-tight text-foreground">Body</h2>
-          <p className="text-muted-foreground font-medium mt-1">Lose inches, gain muscle</p>
-        </div>
-        {/* Fast logging — one prominent primary action opens the check-in form. */}
-        <Button
-          onClick={handleCreate}
-          size="lg"
-          className="font-semibold"
-          data-testid="measurements-log-cta"
-        >
-          <Plus className="h-5 w-5 mr-2" /> Log measurement
-        </Button>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Body"
+        gradient
+        subtitle="Lose inches, gain muscle"
+        action={
+          /* Fast logging — one prominent primary action opens the check-in form. */
+          <Button
+            onClick={handleCreate}
+            size="lg"
+            className="font-semibold"
+            data-testid="measurements-log-cta"
+          >
+            <Plus className="h-5 w-5 mr-2" /> Log measurement
+          </Button>
+        }
+      />
 
       {/* HERO TILE — weight is the single oversized readout, with its change vs
           the last weigh-in as a semantic delta chip, body fat alongside, and the
@@ -495,9 +497,14 @@ export default function Measurements() {
             </TableHeader>
             <TableBody>
               {!hasMeasurements ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
-                    No measurements yet. Log your first check-in to start tracking.
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={9} className="py-12">
+                    <EmptyState
+                      icon={Scale}
+                      accent="hsl(var(--chart-4))"
+                      title="No measurements yet"
+                      hint="Log your first check-in to start tracking inches and body fat."
+                    />
                   </TableCell>
                 </TableRow>
               ) : (
@@ -551,6 +558,6 @@ export default function Measurements() {
         measurementId={editItem?.id}
         initial={editItem || undefined}
       />
-    </div>
+    </PageContainer>
   );
 }

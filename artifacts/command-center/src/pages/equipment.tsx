@@ -5,6 +5,7 @@ import {
   useListWorkouts,
 } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { PageContainer, PageHeader } from "@/components/studio";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -252,13 +253,8 @@ export default function Equipment() {
   );
 
   return (
-    <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1600px] mx-auto">
-      <div>
-        <h2 className="text-4xl font-extrabold tracking-tight text-foreground">Arsenal</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Equipment mileage &amp; usage
-        </p>
-      </div>
+    <PageContainer width="wide">
+      <PageHeader title="Arsenal" subtitle="Equipment mileage & usage" />
 
       {!loadingUsage && usage && usage.length > 0 && (() => {
         const behindMachines = usage.filter(
@@ -827,6 +823,6 @@ export default function Equipment() {
           </div>
         )}
       </div>
-    </div>
+    </PageContainer>
   );
 }

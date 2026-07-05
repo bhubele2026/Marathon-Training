@@ -47,6 +47,7 @@ import { PaceCurveChart } from "@/components/pace-curve-chart";
 import { useFirstRunRedirect } from "@/hooks/use-first-run-redirect";
 import { useListPlannerConfigs } from "@workspace/api-client-react";
 import { formatDistance, formatDate } from "@/lib/format";
+import { PageContainer, PageHeader } from "@/components/studio";
 import { format, parseISO } from "date-fns";
 import { useLocation } from "wouter";
 import {
@@ -428,22 +429,15 @@ export default function Plan() {
   // is hidden because there's nothing to reset.
   if (!overview.hasPlan || weeks.length === 0) {
     return (
-      <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1600px] mx-auto">
-        <div>
-          <h2
-            className="text-4xl font-extrabold tracking-tight text-foreground"
-            data-testid="plan-header-title"
-            data-race-kind=""
-          >
-            {overview.activeConfigName?.trim() || "Workout Plan"}
-          </h2>
-          <p
-            className="text-muted-foreground font-medium tracking-widest mt-1"
-            data-testid="plan-header-subtitle"
-          >
-            No plan applied yet
-          </p>
-        </div>
+      <PageContainer width="wide">
+        <PageHeader
+          title={overview.activeConfigName?.trim() || "Workout Plan"}
+          gradient
+          subtitle="No plan applied yet"
+          titleTestId="plan-header-title"
+          subtitleTestId="plan-header-subtitle"
+          titleData={{ "data-race-kind": "" }}
+        />
         <EmptyPlanState testId="plan-empty-plan" />
         <Card
           className="border-2 border-destructive/40 bg-destructive/5"
@@ -485,7 +479,7 @@ export default function Plan() {
           onConfirm={confirmFullReset}
           isPending={fullResetPlan.isPending}
         />
-      </div>
+      </PageContainer>
     );
   }
 
@@ -525,18 +519,18 @@ export default function Plan() {
   const includesRunning = overview.includesRunning;
 
   return (
-    <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-[1600px] mx-auto">
+    <PageContainer width="wide">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h2
-            className="text-4xl font-extrabold tracking-tight text-foreground"
+            className="font-display text-3xl font-extrabold tracking-tight text-summer-gradient sm:text-4xl"
             data-testid="plan-header-title"
             data-race-kind={raceKind ?? ""}
           >
             {headerTitle}
           </h2>
           <p
-            className="text-muted-foreground font-medium tracking-widest mt-1"
+            className="mt-1 text-sm font-medium text-muted-foreground"
             data-testid="plan-header-subtitle"
           >
             {hasRace
@@ -653,7 +647,7 @@ export default function Plan() {
             <CalendarDays className="h-8 w-8 text-primary shrink-0" />
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Current Week</p>
-              <div className="text-3xl font-extrabold tabular-nums leading-none mt-0.5">Week {overview.currentWeek}</div>
+              <div className="font-display text-3xl font-extrabold tabular-nums leading-none mt-0.5">Week {overview.currentWeek}</div>
             </div>
           </CardContent>
         </Card>
@@ -668,7 +662,7 @@ export default function Plan() {
             />
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Phase</p>
-              <div className="text-2xl font-extrabold leading-tight mt-0.5">{overview.currentPhase}</div>
+              <div className="font-display text-2xl font-extrabold leading-tight mt-0.5">{overview.currentPhase}</div>
             </div>
           </CardContent>
         </Card>
@@ -681,7 +675,7 @@ export default function Plan() {
               <Target className="h-8 w-8 text-muted-foreground shrink-0" />
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Target Miles</p>
-                <div className="text-3xl font-extrabold tabular-nums leading-none mt-0.5">{overview.weeklyMilesTarget ? formatDistance(overview.weeklyMilesTarget) : '-'}</div>
+                <div className="font-display text-3xl font-extrabold tabular-nums leading-none mt-0.5">{overview.weeklyMilesTarget ? formatDistance(overview.weeklyMilesTarget) : '—'}</div>
               </div>
             </CardContent>
           </Card>
@@ -691,7 +685,7 @@ export default function Plan() {
               <Target className="h-8 w-8 text-muted-foreground shrink-0" />
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Sessions this week</p>
-                <div className="text-3xl font-extrabold tabular-nums leading-none mt-0.5">{currentWeekData ? `${currentWeekData.completedSessions || 0} / ${currentWeekData.totalSessions || 0}` : '-'}</div>
+                <div className="font-display text-3xl font-extrabold tabular-nums leading-none mt-0.5">{currentWeekData ? `${currentWeekData.completedSessions || 0} / ${currentWeekData.totalSessions || 0}` : '—'}</div>
               </div>
             </CardContent>
           </Card>
@@ -1409,6 +1403,6 @@ export default function Plan() {
         onConfirm={confirmFullReset}
         isPending={fullResetPlan.isPending}
       />
-    </div>
+    </PageContainer>
   );
 }
