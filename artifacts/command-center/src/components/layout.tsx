@@ -55,6 +55,9 @@ function Wordmark() {
 
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
+  // The front door ("/") owns the whole screen: its four tiles ARE the nav, so
+  // the header + mobile bottom bar are hidden there (matches the H2 Budget model).
+  const isLanding = location === "/";
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [moreSheetOpen, setMoreSheetOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -94,6 +97,7 @@ export function Layout({ children }: LayoutProps) {
           azure accent — a light header that matches the tiled content. Uses
           the semantic `sidebar` tokens, so flipping to dark mode (theme
           toggle) gives the dark-bar option for free. */}
+      {!isLanding && (
       <header className="sticky top-0 z-40 border-b border-sidebar-border bg-summer-header text-sidebar-foreground">
         <div className="mx-auto max-w-[1920px] px-4 md:px-8 h-14 flex items-center gap-7">
           <Wordmark />
@@ -181,13 +185,20 @@ export function Layout({ children }: LayoutProps) {
           </div>
         </div>
       </header>
+      )}
 
-      <main className="flex-1 px-4 md:px-8 py-4 md:py-6 pb-24 md:pb-8">
+      <main
+        className={cn(
+          "flex-1 px-4 md:px-8 py-4 md:py-6 md:pb-8",
+          // No fixed bottom bar to clear on the landing.
+          isLanding ? "pb-8" : "pb-24",
+        )}
+      >
         <div className="mx-auto max-w-[1920px]">
           {/* Always-on, dismissible coach presence — sits above the page and
               reacts to the current screen. Outside the route transition so it
-              persists across navigation. */}
-          <CoachDock />
+              persists across navigation. Hidden on the calm landing front door. */}
+          {!isLanding && <CoachDock />}
           {/* Restrained route-change transition: gentle fade + slide. */}
           <AnimatePresence mode="wait">
             <motion.div
@@ -204,7 +215,9 @@ export function Layout({ children }: LayoutProps) {
       </main>
 
       {/* Mobile bottom tab bar: same primary set + a More entry. Matches the
-          bright chrome of the top bar via the semantic sidebar tokens. */}
+          bright chrome of the top bar via the semantic sidebar tokens. Hidden on
+          the landing front door, where the tiles are the only navigation. */}
+      {!isLanding && (
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-sidebar-border bg-sidebar text-sidebar-foreground flex items-stretch justify-around">
         {PRIMARY_NAV.map((item) => {
           const active = isActivePath(location, item.href);
@@ -269,6 +282,7 @@ export function Layout({ children }: LayoutProps) {
           </SheetContent>
         </Sheet>
       </nav>
+      )}
 
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </div>

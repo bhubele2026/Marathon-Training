@@ -2,7 +2,7 @@
 // the top bar, the More menu, the mobile bottom bar, and the command
 // palette. Sentence case everywhere; no all-caps.
 import {
-  LayoutDashboard,
+  Home,
   Activity,
   CalendarDays,
   Scale,
@@ -25,10 +25,10 @@ export interface NavDestination {
   short?: string;
 }
 
-// The permanent primary destinations. Dashboard is the home/hub and leads
-// the bar (it also renders at "/"); then the four daily surfaces.
+// The permanent primary destinations. Home is the front-door landing at "/"
+// (the four tiles-as-nav); then the four daily surfaces.
 export const PRIMARY_NAV: NavDestination[] = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard, short: "Home" },
+  { href: "/", label: "Home", icon: Home, short: "Home" },
   { href: "/today", label: "Today", icon: Activity, short: "Today" },
   { href: "/plan", label: "Plan", icon: CalendarDays, short: "Plan" },
   { href: "/measurements", label: "Body", icon: Scale, short: "Body" },

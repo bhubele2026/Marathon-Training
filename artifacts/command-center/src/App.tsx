@@ -16,7 +16,7 @@ import { RouteErrorBoundary } from "@/components/route-error-boundary";
 // router shell. Heavyweight per-page dependencies (notably recharts on
 // dashboard / measurements, and the plan generator + zod recipes on
 // planner) load on demand when the runner navigates there.
-const Dashboard = lazyWithReload(() => import("@/pages/dashboard"));
+const Landing = lazyWithReload(() => import("@/pages/landing"));
 const Today = lazyWithReload(() => import("@/pages/today"));
 const Plan = lazyWithReload(() => import("@/pages/plan"));
 const WeekDetail = lazyWithReload(() => import("@/pages/week-detail"));
@@ -84,7 +84,7 @@ function Router() {
       <RouteErrorBoundary>
         <Suspense fallback={<RouteFallback />}>
         <Switch>
-          <Route path="/" component={Dashboard} />
+          <Route path="/" component={Landing} />
           <Route path="/today" component={Today} />
           <Route path="/plan" component={Plan} />
           <Route path="/plan/:week" component={WeekDetail} />
