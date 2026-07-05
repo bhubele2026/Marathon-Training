@@ -40,6 +40,8 @@ export interface ActivityCalendarProps {
     streak: number;
   };
   className?: string;
+  /** Hide the internal "Last 30 days" caption when the surrounding panel already labels the period. */
+  showPeriodLabel?: boolean;
 }
 
 // 3-level ramp. Level 0 is a faint TRACK (visible on white AND dark, never an
@@ -134,7 +136,12 @@ function FootStat({ value, label, tone }: { value: string; label: string; tone?:
   );
 }
 
-export function ActivityCalendar({ days, stats, className }: ActivityCalendarProps) {
+export function ActivityCalendar({
+  days,
+  stats,
+  className,
+  showPeriodLabel = true,
+}: ActivityCalendarProps) {
   // Lay the days out column-by-week with leading blanks, so every column maps to
   // a real weekday (Sun→Sat) instead of wrapping arbitrarily. grid-flow-col with
   // grid-rows-7 fills each week top-to-bottom, then moves to the next column.
@@ -156,8 +163,10 @@ export function ActivityCalendar({ days, stats, className }: ActivityCalendarPro
   return (
     <div className={cn("flex flex-col gap-3", className)}>
       {/* Period label + a tiny less→more legend so the colours mean something. */}
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] text-muted-foreground">Last 30 days</span>
+      <div className={cn("flex items-center", showPeriodLabel ? "justify-between" : "justify-end")}>
+        {showPeriodLabel && (
+          <span className="text-[10px] text-muted-foreground">Last 30 days</span>
+        )}
         <div className="flex items-center gap-1 text-[9px] uppercase tracking-wide text-muted-foreground/80">
           <span>Less</span>
           <span className={cn("h-2.5 w-2.5 rounded-[2px]", LEVEL_CLASS[0])} />
@@ -169,7 +178,7 @@ export function ActivityCalendar({ days, stats, className }: ActivityCalendarPro
 
       {/* Heatmap: weekday axis + week columns. */}
       <TooltipProvider delayDuration={150}>
-        <div className="flex justify-center gap-1.5">
+        <div className="flex justify-start gap-1.5">
           <div className="grid grid-rows-7 gap-1">
             {WEEKDAY_AXIS.map((l, i) => (
               <span

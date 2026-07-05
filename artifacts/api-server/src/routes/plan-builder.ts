@@ -32,15 +32,14 @@ import { computeAndPersistBaselineBestEffort } from "./goals";
 
 const router: IRouter = Router();
 
-// Default machines the runner owns (canonical order). Mirrors the engine's
-// equipment vocabulary; used to brief Claude when we can't infer from data.
-const DEFAULT_EQUIPMENT = [
-  "Tonal",
-  "Peloton Bike",
-  "Peloton Row",
-  "Peloton Tread",
-  "Outdoor",
-];
+// The ONLY machines the runner owns (canonical order): a Tonal 2 (his main tool,
+// for building bulk/muscle) + the three Peloton machines. The AI plans AROUND
+// exactly these — no "Outdoor" here, so it never prescribes off-machine work.
+// ("Tonal" is kept as the engine's canonical string key — it string-matches
+// "Tonal" throughout the generator; the briefing presents it as "Tonal 2".)
+// NOTE: this gates only what the AI PLANS. Manual + synced lifestyle/outdoor
+// logging (mowing, walking, outdoor runs) stays wide open elsewhere.
+const DEFAULT_EQUIPMENT = ["Tonal", "Peloton Bike", "Peloton Row", "Peloton Tread"];
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -306,11 +305,11 @@ router.post("/plan-builder/chat", async (req, res): Promise<void> => {
         model: MODEL,
         max_tokens: 64000,
         thinking: { type: "adaptive" as const },
-        // Interactive use — balance reasoning quality with latency.
-        // Low reasoning effort: the builder now just schedules sessions and maps
-        // them to a Tonal program — it doesn't program individual exercises — so
-        // heavy reasoning isn't needed and low keeps turns fast.
-        output_config: { effort: "low" as const },
+        // MAX POWER for real-plan creation (Fable 5). This is the headline
+        // "smarter than me" moment — from a short free-text ask it must produce a
+        // complete, accurate, personalized plan with no hand-holding. `high`
+        // effort (over `low`) buys deep reasoning + web research; worth the tokens.
+        output_config: { effort: "high" as const },
         system,
         tools: [
           PROPOSE_PLAN_TOOL,

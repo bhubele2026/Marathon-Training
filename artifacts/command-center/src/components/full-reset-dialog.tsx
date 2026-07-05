@@ -58,14 +58,15 @@ export function FullResetDialog({
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Wipe everything and start over?</AlertDialogTitle>
+          <AlertDialogTitle>Reset to Day One?</AlertDialogTitle>
           <AlertDialogDescription>
-            This is a nuclear reset. It permanently deletes every logged
-            workout, every body measurement, and every plan customization,
-            and demotes every applied Phase
-            Planner config back to draft. The plan stays empty until you
-            re-apply a config from the Phase Planner. There is no undo.
-            Type{" "}
+            This is a nuclear reset — a genuine clean slate. It permanently
+            deletes every logged workout, body measurement, and all nutrition,
+            alcohol, and water history, clears saved AI plan drafts and coach
+            notes, and demotes every applied Phase Planner config back to draft.
+            Your profile (height, goal weight, equipment) is kept. The plan
+            stays empty until you re-apply a config from the Phase Planner.
+            There is no undo. Type{" "}
             <span className="tabular-nums font-bold">
               {FULL_RESET_CONFIRM_PHRASE}
             </span>{" "}

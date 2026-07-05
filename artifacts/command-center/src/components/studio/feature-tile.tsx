@@ -46,7 +46,7 @@ export function FeatureTile({
         interactive &&
           "hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:translate-y-0",
         gradient
-          ? "bg-gradient-to-br from-navy to-primary text-primary-foreground"
+          ? "bg-primary text-primary-foreground"
           : "border border-card-border bg-card text-card-foreground",
         className,
       )}

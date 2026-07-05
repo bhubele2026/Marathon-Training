@@ -1766,7 +1766,7 @@ router.post("/plan/full-reset", async (req, res): Promise<void> => {
     // counts. ACCESS EXCLUSIVE matches the lock TRUNCATE itself takes, so
     // this just hoists that lock acquisition earlier in the transaction.
     await tx.execute(
-      sql`LOCK TABLE workouts, plan_days, plan_weeks, measurements, reset_undo_snapshots IN ACCESS EXCLUSIVE MODE`,
+      sql`LOCK TABLE workouts, plan_days, plan_weeks, measurements, reset_undo_snapshots, nutrition_entries, nutrition_days, nutrition_day_targets, nutritionist_reports, alcohol_entries, water_logs, plan_drafts, coach_daily_notes, coach_weekly_summaries, progress_diagnosis IN ACCESS EXCLUSIVE MODE`,
     );
 
     // Snapshot pre-wipe counts so the response can tell the user exactly
@@ -1789,11 +1789,16 @@ router.post("/plan/full-reset", async (req, res): Promise<void> => {
     ).rows;
 
     // Single TRUNCATE so RESTART IDENTITY resets every serial id back to 1
-    // and CASCADE handles any plan_day_id FKs from workouts in one shot.
-    // Listing every table the runner can mutate makes this the canonical
-    // "delete everything I've put in" operation.
+    // and CASCADE handles any FKs in one shot. Listing EVERY user-data table
+    // makes this the canonical "Reset to Day One" wipe: training (workouts /
+    // plan), body (measurements), and — added so the wipe is genuinely complete
+    // — all nutrition (entries/days/targets/reports), alcohol, water, AI plan
+    // drafts, and the coach/progress AI caches. Deliberately NOT truncated:
+    // user_preferences (his profile: height/age/sex/goal weight/owned gear —
+    // identity, not logged data) and planner_configs (demoted to draft just
+    // below, preserving his saved plan templates so he can re-apply one).
     await tx.execute(
-      sql`TRUNCATE TABLE workouts, plan_days, plan_weeks, measurements, reset_undo_snapshots RESTART IDENTITY CASCADE`,
+      sql`TRUNCATE TABLE workouts, plan_days, plan_weeks, measurements, reset_undo_snapshots, nutrition_entries, nutrition_days, nutrition_day_targets, nutritionist_reports, alcohol_entries, water_logs, plan_drafts, coach_daily_notes, coach_weekly_summaries, progress_diagnosis RESTART IDENTITY CASCADE`,
     );
 
     // Task #326: demote every planner_configs row to draft state by

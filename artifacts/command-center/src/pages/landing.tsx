@@ -6,6 +6,7 @@ import {
   Utensils,
   ClipboardList,
   ArrowRight,
+  ArrowUpRight,
   Plus,
 } from "lucide-react";
 import {
@@ -15,33 +16,16 @@ import {
 import { cn } from "@/lib/utils";
 import { formatWeight } from "@/lib/format";
 import { buildActivity } from "@/lib/activity";
-import {
-  ActivityCalendar,
-  TrendArea,
-  GoalArc,
-  MetricRing,
-  EmptyState,
-} from "@/components/studio";
+import { ActivityCalendar } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useFirstRunRedirect } from "@/hooks/use-first-run-redirect";
 
-// The front door — modeled on the H2 Budget app's landing pattern, re-skinned in
-// BH Studio's "Vibrant Summer" theme. A calm time-based greeting, then four big
-// tiles that ARE the navigation (the global nav is hidden here — see layout.tsx),
-// each carrying a headline stat and a small real-data mini-viz drawn from ONE
-// dashboard-bootstrap call. Retires the old dense dashboard; the four section
-// pages (Today / Body / Nutrition / Plan) hold the depth.
-
-// Per-area icon-chip gradient, reusing the same summer sweeps the old dashboard
-// gave each area so color identity stays consistent across the app.
-const CHIP_GRADIENT = {
-  today: "bg-summer-gradient",
-  body: "bg-grad-body",
-  nutrition: "bg-grad-fuel",
-  plan: "bg-grad-plan",
-} as const;
+// The front door — warm editorial (Oura / Levels). A greeting in an editorial
+// serif, ONE real graphic (30-day training consistency, drills into the log),
+// then four identical clean nav tiles. Global nav is hidden here (layout.tsx).
+// Data comes from one dashboard-bootstrap call.
 
 function greetingForHour(hour: number): string {
   if (hour < 12) return "Good morning.";
@@ -49,107 +33,178 @@ function greetingForHour(hour: number): string {
   return "Good evening.";
 }
 
-/** "2026-06-19" → "Jun 19" for the weight sparkline x-axis. */
-function shortDate(iso: unknown): string {
-  const s = String(iso);
-  const d = new Date(`${s}T12:00:00`);
-  return Number.isNaN(d.getTime())
-    ? s
-    : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
+// ── nav tile (identical size, stat-only) ─────────────────────────────────────
 
-// ── tile shell ────────────────────────────────────────────────────────────────
-
-function LandingTile({
+function NavTile({
   icon,
-  area,
   title,
-  blurb,
   href,
   testid,
-  children,
+  stat,
+  statLabel,
+  caption,
 }: {
   icon: React.ReactNode;
-  area: keyof typeof CHIP_GRADIENT;
   title: string;
-  blurb: string;
   href: string;
   testid: string;
-  children?: React.ReactNode;
+  stat: React.ReactNode;
+  statLabel: string;
+  caption?: string;
 }) {
   return (
-    <div className="group relative h-full" data-testid={`landing-tile-${testid}`}>
-      <div className="relative flex h-full flex-col rounded-3xl border border-card-border bg-card p-6 shadow-tile transition-transform duration-200 hover:-translate-y-0.5 motion-reduce:transition-none sm:p-7">
-        {/* Whole-tile click target sits above the (glanceable, non-interactive) viz. */}
-        <Link
-          href={href}
-          className="absolute inset-0 z-20 rounded-3xl focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-          aria-label={title}
-        />
-        <div className="flex items-start justify-between gap-3">
-          <span
-            className={cn(
-              "flex h-12 w-12 items-center justify-center rounded-2xl text-white shadow-sm",
-              CHIP_GRADIENT[area],
-            )}
-          >
-            {icon}
-          </span>
-          <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
-        </div>
-        <div className="mt-4 font-display text-xl font-bold tracking-tight text-foreground">
-          {title}
-        </div>
-        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{blurb}</p>
-        {/* Viz is a glance only — pointer-events-none so clicks fall through to the
-            tile's Link (no fighting the ActivityCalendar's own tooltips). */}
-        {children != null && (
-          <div className="pointer-events-none mt-6 flex-1">{children}</div>
-        )}
+    <Link
+      href={href}
+      data-testid={`landing-tile-${testid}`}
+      aria-label={title}
+      className="group flex h-44 flex-col rounded-xl border border-card-border bg-card p-5 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-tile)] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 motion-reduce:transition-none"
+    >
+      <div className="flex items-center justify-between">
+        <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/12 text-accent">
+          {icon}
+        </span>
+        <ArrowUpRight className="h-4 w-4 text-muted-foreground/60 transition-colors group-hover:text-accent" />
       </div>
-    </div>
+      <div className="mt-3 font-display text-lg font-semibold tracking-tight text-foreground">
+        {title}
+      </div>
+      <div className="mt-auto">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+          {statLabel}
+        </div>
+        <div className="mt-1 flex items-baseline gap-2">
+          <span className="font-num text-2xl font-bold tabular-nums tracking-tight text-foreground">
+            {stat}
+          </span>
+          {caption && (
+            <span className="truncate text-[11px] font-medium text-muted-foreground">
+              {caption}
+            </span>
+          )}
+        </div>
+      </div>
+    </Link>
   );
 }
 
-/** A small eyebrow-label + headline value, shared across tiles. */
-function TileStat({
-  label,
-  children,
-  className,
+// ── the one real graphic — training consistency, drills into the log ──────────
+
+function ConsistencyPanel({
+  days,
+  activeDays,
+  prevActiveDays,
+  streak,
 }: {
-  label: string;
-  children: React.ReactNode;
-  className?: string;
+  days: ReturnType<typeof buildActivity>["days"];
+  activeDays: number;
+  prevActiveDays: number;
+  streak: number;
 }) {
+  const vs = activeDays - prevActiveDays;
   return (
-    <div className={cn("leading-none", className)}>
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-        {label}
+    <Link
+      href="/today"
+      data-testid="landing-consistency"
+      aria-label="Training consistency — open Today"
+      className="group mb-4 flex flex-col gap-8 rounded-xl border border-card-border bg-card p-6 shadow-card transition-all duration-200 hover:shadow-[var(--shadow-tile)] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 sm:flex-row sm:items-center sm:justify-between sm:gap-10"
+    >
+      {/* Left: prominent stat block */}
+      <div className="min-w-0">
+        <div className="flex items-center justify-between gap-4">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Training · last 30 days
+          </div>
+          <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground transition-colors group-hover:text-accent sm:hidden">
+            Open <ArrowRight className="h-3.5 w-3.5" />
+          </span>
+        </div>
+        <div className="mt-2 flex items-baseline gap-1.5">
+          <span className="font-num text-5xl font-bold tabular-nums tracking-tight text-foreground">
+            {activeDays}
+          </span>
+          <span className="font-num text-xl font-semibold tabular-nums text-muted-foreground">
+            /30
+          </span>
+          <span className="ml-1 text-sm font-medium text-muted-foreground">active days</span>
+        </div>
+        <div className="mt-4 flex items-center gap-8">
+          <div>
+            <div className="font-num text-2xl font-bold tabular-nums text-foreground">{streak}</div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+              Day streak
+            </div>
+          </div>
+          <div>
+            <div
+              className={cn(
+                "font-num text-2xl font-bold tabular-nums",
+                vs >= 0 ? "text-accent" : "text-foreground",
+              )}
+            >
+              {vs >= 0 ? "+" : ""}
+              {vs}
+            </div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+              vs prev 30
+            </div>
+          </div>
+        </div>
+        <span className="mt-5 hidden items-center gap-1 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground transition-colors group-hover:text-accent sm:inline-flex">
+          Open training log
+          <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+        </span>
       </div>
-      <div className="mt-1 font-display text-2xl font-extrabold tabular-nums tracking-tight text-foreground">
-        {children}
+      {/* Right: the heatmap */}
+      <div className="pointer-events-none shrink-0">
+        <ActivityCalendar days={days} showPeriodLabel={false} />
       </div>
-    </div>
+    </Link>
   );
 }
 
 // ── page ────────────────────────────────────────────────────────────────────
 
-function LandingSkeleton({ greeting }: { greeting: string }) {
+function LandingHeader({ greeting }: { greeting: string }) {
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 sm:py-10">
-      <div className="mb-8">
+    <div className="mb-5 flex items-end justify-between gap-4">
+      <div>
+        <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+          BH Studio
+        </div>
         <h1
-          className="font-display text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl"
+          className="font-display text-4xl font-semibold tracking-tight text-foreground sm:text-5xl"
           data-testid="landing-greeting"
         >
           {greeting}
         </h1>
-        <p className="mt-1 text-base text-muted-foreground">Where do you want to go?</p>
+        <p className="mt-2 text-base text-muted-foreground">
+          Where do you want to go?
+        </p>
       </div>
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:auto-rows-fr">
+      <div className="flex shrink-0 items-center gap-2">
+        <Button asChild size="sm" className="h-9 gap-1.5 rounded-lg font-semibold" data-testid="landing-log">
+          <Link href="/log">
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Log</span>
+          </Link>
+        </Button>
+        <div className="text-muted-foreground">
+          <ThemeToggle />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LandingSkeleton({ greeting }: { greeting: string }) {
+  return (
+    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
+      <LandingHeader greeting={greeting} />
+      <div className="mb-6 h-px bg-border" />
+      <Skeleton className="mb-4 h-56 rounded-xl" />
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[0, 1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-64 rounded-3xl" />
+          <Skeleton key={i} className="h-44 rounded-xl" />
         ))}
       </div>
     </div>
@@ -163,12 +218,9 @@ export default function Landing() {
   const plannerConfigsQuery = useListPlannerConfigs();
 
   const summary = bootstrap?.summary;
-  const weightTrend = bootstrap?.weightTrend ?? [];
   const recentActivity = bootstrap?.recentActivity ?? [];
   const today = bootstrap?.today;
 
-  // Preserve the new-runner → planner nudge that used to live on the dashboard:
-  // repointing "/" here would otherwise silently drop it.
   useFirstRunRedirect({
     hasPlan: summary?.hasPlan ?? false,
     hasDrafts: (plannerConfigsQuery.data?.configs?.length ?? 0) > 0,
@@ -189,138 +241,58 @@ export default function Landing() {
   const adherence = Math.round(summary?.adherencePct ?? 0);
   const currentWeek = summary?.currentWeek ?? 0;
   const currentPhase = summary?.currentPhase?.trim() || "No plan yet";
-  const sessionsDone = summary?.weeklySessionsCompleted ?? 0;
-  const sessionsPlanned = summary?.weeklySessionsPlanned ?? 0;
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 sm:py-10">
-      {/* Greeting + theme/quick-action controls */}
-      <div className="mb-8 flex items-start justify-between gap-4">
-        <div>
-          <h1
-            className="font-display text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl"
-            data-testid="landing-greeting"
-          >
-            {greeting}
-          </h1>
-          <p className="mt-1 text-base text-muted-foreground">
-            Where do you want to go?
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <Button
-            asChild
-            size="sm"
-            className="h-8 gap-1.5 font-semibold gradient-primary shadow-sm hover:brightness-110"
-            data-testid="landing-log"
-          >
-            <Link href="/log">
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Log</span>
-            </Link>
-          </Button>
-          <div className="text-muted-foreground">
-            <ThemeToggle />
-          </div>
-        </div>
-      </div>
+    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
+      <LandingHeader greeting={greeting} />
+      <div className="mb-6 h-px bg-border" />
 
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:auto-rows-fr">
-        {/* TODAY — recent-activity heatmap */}
-        <LandingTile
+      {/* The one real graphic — drills into the log. */}
+      <ConsistencyPanel
+        days={activity.days}
+        activeDays={activity.activeDays}
+        prevActiveDays={activity.prevActiveDays}
+        streak={activity.streak}
+      />
+
+      {/* Four identical nav tiles. */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <NavTile
           testid="today"
           href="/today"
-          area="today"
-          icon={<CalendarDays className="h-6 w-6" strokeWidth={1.75} />}
+          icon={<CalendarDays className="h-5 w-5" strokeWidth={2} />}
           title="Today"
-          blurb="What's on for today, and how consistent you've been."
-        >
-          <div className="flex items-center justify-between gap-3">
-            <TileStat label="Logged today">{loggedToday}</TileStat>
-            <span className="text-xs font-medium text-muted-foreground">{todayCaption}</span>
-          </div>
-          <div className="mt-4">
-            <ActivityCalendar
-              days={activity.days}
-              stats={{
-                activeDays: activity.activeDays,
-                vsLast30: activity.activeDays - activity.prevActiveDays,
-                streak: activity.streak,
-              }}
-            />
-          </div>
-        </LandingTile>
-
-        {/* BODY — weight trend sparkline */}
-        <LandingTile
+          statLabel="Logged today"
+          stat={loggedToday}
+          caption={todayCaption}
+        />
+        <NavTile
           testid="body"
           href="/measurements"
-          area="body"
-          icon={<Scale className="h-6 w-6" strokeWidth={1.75} />}
+          icon={<Scale className="h-5 w-5" strokeWidth={2} />}
           title="Body"
-          blurb="Weight & measurements — the recomp trend at a glance."
-        >
-          <TileStat label="Current weight">{formatWeight(weightCurrent)}</TileStat>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {weightToGoal > 0 ? `${weightToGoal.toFixed(0)} lb to goal` : "Tracking"}
-          </p>
-          <div className="mt-3">
-            <TrendArea
-              data={weightTrend as unknown as Array<Record<string, unknown>>}
-              xKey="date"
-              yKey="weight"
-              unit="lb"
-              height={112}
-              valueFormatter={(n) => n.toFixed(0)}
-              xTickFormatter={shortDate}
-              sparseFallback={
-                <EmptyState
-                  icon={Scale}
-                  title="Not much logged yet"
-                  hint="Log a few weigh-ins to see your trend."
-                />
-              }
-            />
-          </div>
-        </LandingTile>
-
-        {/* NUTRITION — plan-adherence arc */}
-        <LandingTile
+          statLabel="Current weight"
+          stat={formatWeight(weightCurrent)}
+          caption={weightToGoal > 0 ? `${weightToGoal.toFixed(0)} to goal` : "Tracking"}
+        />
+        <NavTile
           testid="nutrition"
           href="/nutrition"
-          area="nutrition"
-          icon={<Utensils className="h-6 w-6" strokeWidth={1.75} />}
+          icon={<Utensils className="h-5 w-5" strokeWidth={2} />}
           title="Nutrition"
-          blurb="Fuel & macros — how close you're eating to the plan."
-        >
-          <div className="mt-2 flex items-center justify-center">
-            <GoalArc value={adherence / 100} label="On plan" size={132} />
-          </div>
-        </LandingTile>
-
-        {/* PLAN — weekly sessions ring */}
-        <LandingTile
+          statLabel="On plan"
+          stat={`${adherence}%`}
+          caption="Fuel & macros"
+        />
+        <NavTile
           testid="plan"
           href="/plan"
-          area="plan"
-          icon={<ClipboardList className="h-6 w-6" strokeWidth={1.75} />}
+          icon={<ClipboardList className="h-5 w-5" strokeWidth={2} />}
           title="Plan"
-          blurb="Where you are in the block, and this week's sessions."
-        >
-          <div className="flex items-center justify-between gap-3">
-            <TileStat label="Current week">Wk {currentWeek}</TileStat>
-            <span className="max-w-[9rem] truncate text-xs font-medium text-muted-foreground">
-              {currentPhase}
-            </span>
-          </div>
-          <div className="mt-4 flex items-center justify-center">
-            <MetricRing
-              value={sessionsDone}
-              goal={sessionsPlanned > 0 ? sessionsPlanned : null}
-              label="Sessions"
-            />
-          </div>
-        </LandingTile>
+          statLabel="Current week"
+          stat={`Wk ${currentWeek}`}
+          caption={currentPhase}
+        />
       </div>
     </div>
   );

@@ -204,9 +204,11 @@ async function generateDailyNote(d: DayInputs): Promise<string | null> {
     const client: any = getAnthropic();
     const resp: any = await client.messages.create({
       model: MODEL,
-      max_tokens: 400,
+      // Ceiling raised with effort so Fable 5's thinking has headroom and the
+      // short note itself never truncates (the note stays brief regardless).
+      max_tokens: 1200,
       thinking: { type: "adaptive" },
-      output_config: { effort: "low" },
+      output_config: { effort: "medium" },
       system,
       messages: [{ role: "user", content: buildDataSummary(d) }],
     });

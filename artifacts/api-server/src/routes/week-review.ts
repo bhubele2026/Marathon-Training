@@ -208,12 +208,13 @@ async function generateWeeklySummary(
   try {
     const client: any = getAnthropic();
     const resp: any = await client.messages.create({
-      // Pure end-of-week recap over deterministically-summarized numbers — the
-      // faster Sonnet-class model (still adaptive thinking at low effort).
+      // End-of-week recap over deterministically-summarized numbers — now on the
+      // Fable 5 brain with adaptive thinking; ceiling raised alongside effort so
+      // the recap has headroom and never truncates.
       model: FAST_MODEL,
-      max_tokens: 700,
+      max_tokens: 1400,
       thinking: { type: "adaptive" },
-      output_config: { effort: "low" },
+      output_config: { effort: "medium" },
       system,
       messages: [{ role: "user", content: userContent }],
     });

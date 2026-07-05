@@ -70,10 +70,15 @@
   --font-serif: var(--app-font-serif);
   --font-mono: var(--app-font-mono);
 
+  /* Soft, refined radius scale (Oura/Levels) — gentle rounding, keyed off
+     --radius so it stays cohesive. 2xl/3xl overridden (stock Tailwind fixes
+     them at 1rem/1.5rem) so hardcoded rounded-2xl/3xl match the system. */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 6px);
+  --radius-3xl: calc(var(--radius) + 10px);
 }
 
 :root {
@@ -83,85 +88,80 @@
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
 
-  /* BH Studio palette — "Vibrant Summer": bright, lively, tiled. Warm sunny
-     cream canvas (with a soft golden/coral/lime corner wash on the body),
-     bright-white tiles, OCEAN BLUE as the brand; coral/gold/grape/lime are the
-     fixed data palette; status pastels stay semantic. Light token set; kept in
-     sync with the `studio` palette in `@workspace/visual-themes` so first paint
-     matches. */
-  --background: 40 44% 97%;
-  --foreground: 222 30% 12%;
-  --border: 38 30% 90%;
-  --card: 0 0% 100%;
-  --card-foreground: 222 30% 12%;
-  --card-border: 38 30% 90%;
+  /* BH Studio palette — BRIGHT + MATTE BLACK (the objective). A clean, cool
+     near-white canvas (NO warm/cream), matte-black ink as the prominent color,
+     neutral greys for support, soft depth. Editorial serif headings (Fraunces)
+     carry the premium; the accent is matte black itself (mono). */
+  --background: 0 0% 98%;       /* bright neutral near-white */
+  --foreground: 0 0% 11%;       /* matte black ink (prominent) */
+  --border: 0 0% 90%;           /* neutral hairline */
+  --card: 0 0% 100%;            /* clean white surface */
+  --card-foreground: 0 0% 11%;
+  --card-border: 0 0% 91%;
 
-  /* Bright top bar / nav (no longer a dark rail). */
   --sidebar: 0 0% 100%;
-  --sidebar-foreground: 222 30% 18%;
-  --sidebar-border: 38 30% 90%;
-  --sidebar-primary: 205 75% 47%;
+  --sidebar-foreground: 0 0% 13%;
+  --sidebar-border: 0 0% 90%;
+  --sidebar-primary: 0 0% 11%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 40 36% 94%;
-  --sidebar-accent-foreground: 222 30% 18%;
-  --sidebar-ring: 205 75% 47%;
+  --sidebar-accent: 0 0% 96%;
+  --sidebar-accent-foreground: 0 0% 13%;
+  --sidebar-ring: 0 0% 11%;
 
   --popover: 0 0% 100%;
-  --popover-foreground: 222 30% 12%;
-  --popover-border: 38 30% 90%;
+  --popover-foreground: 0 0% 11%;
+  --popover-border: 0 0% 91%;
 
-  --primary: 205 75% 47%;
+  /* Primary + accent = matte black (bright + matte black, monochrome). */
+  --primary: 0 0% 11%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 40 36% 94%;
-  --secondary-foreground: 222 30% 18%;
-  --muted: 40 32% 94%;
-  --muted-foreground: 215 16% 47%;
-  --accent: 205 75% 47%;
+  --secondary: 0 0% 95%;
+  --secondary-foreground: 0 0% 20%;
+  --muted: 0 0% 95%;
+  --muted-foreground: 0 0% 44%;
+  --accent: 0 0% 11%;
   --accent-foreground: 0 0% 100%;
-  --navy: 205 78% 38%;
+  --navy: 0 0% 11%;
   --navy-foreground: 0 0% 100%;
-  --success: 150 58% 40%;
+  --success: 152 42% 36%;
   --success-foreground: 0 0% 100%;
-  --warning: 38 92% 50%;
-  --warning-foreground: 222 30% 12%;
-  --destructive: 0 72% 51%;
+  --warning: 36 74% 44%;
+  --warning-foreground: 0 0% 100%;
+  --destructive: 6 62% 48%;
   --destructive-foreground: 0 0% 100%;
-  --input: 38 28% 88%;
-  --ring: 205 75% 47%;
+  --input: 0 0% 88%;
+  --ring: 0 0% 11%;
 
-  /* Brand: ocean blue (#1E88D2). `brand-orange`/`brand-purple` are legacy
-     aliases that now both map to the ocean accent. Charts use the FIXED summer
-     metric palette: chart-1=ocean(calories), 2=coral(protein), 3=golden(carbs),
-     4=grape(fat), 5=lime(water) — same metric, same colour, everywhere. */
-  --brand-orange: 205 75% 47%;
-  --brand-purple: 205 75% 47%;
-  --chart-1: 205 75% 47%;
-  --chart-2: 0 100% 68%;
-  --chart-3: 43 100% 62%;
-  --chart-4: 263 33% 46%;
-  --chart-5: 86 54% 51%;
+  /* Data palette = matte black + a neutral charcoal→light-grey ramp. */
+  --brand-orange: 0 0% 11%;
+  --brand-purple: 0 0% 11%;
+  --chart-1: 0 0% 11%;         /* matte black — primary series */
+  --chart-2: 0 0% 34%;
+  --chart-3: 0 0% 52%;
+  --chart-4: 0 0% 68%;
+  --chart-5: 0 0% 82%;
 
-  /* Phase colors: cool semantic pastels from the metric palette (no rainbow,
-     no warm ramp). */
-  --phase-foundation: hsl(86 54% 51%);
-  --phase-aerobic: hsl(205 75% 47%);
-  --phase-tempo: hsl(43 100% 62%);
-  --phase-race-specific: hsl(263 33% 46%);
-  --phase-taper: hsl(0 100% 68%);
+  /* Phase colors: matte black for the lead phase, greys for the rest. */
+  --phase-foundation: hsl(0 0% 68%);
+  --phase-aerobic: hsl(0 0% 11%);
+  --phase-tempo: hsl(0 0% 52%);
+  --phase-race-specific: hsl(0 0% 34%);
+  --phase-taper: hsl(0 0% 82%);
 
-  /* Flatter, tighter elevation — hairline + a short close shadow instead of a
-     big diffuse glow, so surfaces read crisp, not floating/airy.
-     `--shadow-tile` is the lifted feature/nav-tile variant. */
-  --shadow-xs:   0 1px 1px 0 hsl(215 30% 30% / 0.04);
-  --shadow-card: 0 1px 2px hsl(215 30% 30% / 0.06);
-  --shadow-tile: 0 1px 2px hsl(215 30% 30% / 0.06), 0 2px 6px -3px hsl(218 55% 35% / 0.10);
-  --shadow-pop:  0 2px 10px -4px hsl(218 40% 25% / 0.14);
+  /* Soft, refined neutral elevation — gentle depth, not flat. */
+  --shadow-xs:   0 1px 2px 0 hsl(0 0% 0% / 0.04);
+  --shadow-card: 0 1px 2px hsl(0 0% 0% / 0.05), 0 1px 3px hsl(0 0% 0% / 0.04);
+  --shadow-tile: 0 1px 2px hsl(0 0% 0% / 0.05), 0 4px 12px -6px hsl(0 0% 0% / 0.09);
+  --shadow-pop:  0 2px 6px -2px hsl(0 0% 0% / 0.07), 0 12px 28px -10px hsl(0 0% 0% / 0.14);
 
   --app-font-sans: 'Inter', system-ui, sans-serif;
-  --app-font-display: 'Plus Jakarta Sans', 'Inter', sans-serif;
-  --app-font-serif: Georgia, serif;
+  /* Editorial serif for headings + hero numbers (Oura/Levels feel). */
+  --app-font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --app-font-serif: 'Fraunces', Georgia, serif;
+  /* Clean tabular sans for dense numeric readouts where a serif reads busy. */
+  --app-font-num: 'Plus Jakarta Sans', 'Inter', sans-serif;
   --app-font-mono: 'JetBrains Mono', ui-monospace, monospace;
-  --radius: 0.875rem;
+  --radius: 0.75rem;   /* soft, refined rounding */
   
   --tracking-normal: 0em;
   --spacing: 0.25rem;
@@ -182,69 +182,67 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
 
-  /* BH Studio dark — cool deep-navy canvas, cards a clear step above for
-     layered depth, hairline borders, off-white text, azure accent. Depth
-     comes from the hairline border + a 1px top inset highlight, not heavy
-     drop shadow. Mirrors the `studio.dark` token set. */
-  --background: 222 28% 10%;
-  --foreground: 210 30% 94%;
-  --border: 222 16% 22%;
+  /* BH Studio dark — NEUTRAL matte black. Near-black canvas, cards a step above,
+     hairline borders, off-white ink; primary inverts to off-white. Soft depth. */
+  --background: 0 0% 8%;
+  --foreground: 0 0% 92%;
+  --border: 0 0% 20%;
 
-  --card: 222 24% 13%;
-  --card-foreground: 210 30% 94%;
-  --card-border: 222 16% 22%;
+  --card: 0 0% 12%;
+  --card-foreground: 0 0% 92%;
+  --card-border: 0 0% 20%;
 
-  --sidebar: 222 24% 12%;
-  --sidebar-foreground: 210 30% 90%;
-  --sidebar-border: 222 16% 20%;
-  --sidebar-primary: 205 82% 60%;
-  --sidebar-primary-foreground: 222 47% 11%;
-  --sidebar-accent: 222 18% 18%;
-  --sidebar-accent-foreground: 210 30% 92%;
-  --sidebar-ring: 205 82% 60%;
+  --sidebar: 0 0% 10%;
+  --sidebar-foreground: 0 0% 88%;
+  --sidebar-border: 0 0% 18%;
+  --sidebar-primary: 0 0% 92%;
+  --sidebar-primary-foreground: 0 0% 10%;
+  --sidebar-accent: 0 0% 16%;
+  --sidebar-accent-foreground: 0 0% 90%;
+  --sidebar-ring: 0 0% 80%;
 
-  --popover: 222 24% 13%;
-  --popover-foreground: 210 30% 94%;
-  --popover-border: 222 16% 22%;
+  --popover: 0 0% 12%;
+  --popover-foreground: 0 0% 92%;
+  --popover-border: 0 0% 20%;
 
-  --primary: 205 82% 60%;
-  --primary-foreground: 222 47% 11%;
-  --secondary: 222 18% 18%;
-  --secondary-foreground: 210 30% 94%;
-  --muted: 222 18% 16%;
-  --muted-foreground: 215 18% 65%;
-  --accent: 205 82% 60%;
-  --accent-foreground: 222 47% 11%;
-  --navy: 205 75% 66%;
-  --navy-foreground: 222 47% 11%;
-  --success: 150 56% 52%;
-  --success-foreground: 222 47% 11%;
-  --warning: 38 92% 58%;
-  --warning-foreground: 222 47% 11%;
-  --destructive: 0 70% 58%;
+  /* Primary + accent invert to off-white on the near-black canvas. */
+  --primary: 0 0% 92%;
+  --primary-foreground: 0 0% 10%;
+  --secondary: 0 0% 17%;
+  --secondary-foreground: 0 0% 92%;
+  --muted: 0 0% 16%;
+  --muted-foreground: 0 0% 62%;
+  --accent: 0 0% 92%;
+  --accent-foreground: 0 0% 10%;
+  --navy: 0 0% 92%;
+  --navy-foreground: 0 0% 10%;
+  --success: 152 44% 50%;
+  --success-foreground: 0 0% 10%;
+  --warning: 36 76% 56%;
+  --warning-foreground: 0 0% 10%;
+  --destructive: 6 64% 56%;
   --destructive-foreground: 0 0% 100%;
-  --input: 222 16% 20%;
-  --ring: 205 82% 60%;
+  --input: 0 0% 20%;
+  --ring: 0 0% 80%;
 
-  --brand-orange: 205 82% 60%;
-  --brand-purple: 205 82% 60%;
-  --chart-1: 205 82% 60%;
-  --chart-2: 0 95% 72%;
-  --chart-3: 43 95% 64%;
-  --chart-4: 263 42% 64%;
-  --chart-5: 86 56% 58%;
+  --brand-orange: 0 0% 92%;
+  --brand-purple: 0 0% 92%;
+  --chart-1: 0 0% 92%;         /* off-white — primary series */
+  --chart-2: 0 0% 70%;
+  --chart-3: 0 0% 54%;
+  --chart-4: 0 0% 40%;
+  --chart-5: 0 0% 30%;
 
-  --phase-foundation: hsl(43 95% 64%);
-  --phase-aerobic: hsl(205 82% 60%);
-  --phase-tempo: hsl(38 92% 58%);
-  --phase-race-specific: hsl(0 95% 72%);
-  --phase-taper: hsl(86 56% 58%);
+  --phase-foundation: hsl(0 0% 40%);
+  --phase-aerobic: hsl(0 0% 92%);
+  --phase-tempo: hsl(0 0% 54%);
+  --phase-race-specific: hsl(0 0% 70%);
+  --phase-taper: hsl(0 0% 30%);
 
-  /* Dark depth = hairline border + 1px top inset highlight, not drop shadow.
-     Flatter: a short close shadow rather than a tall diffuse one. */
-  --shadow-card: 0 1px 0 hsl(210 40% 100% / 0.04) inset, 0 1px 4px -2px hsl(0 0% 0% / 0.45);
-  --shadow-tile: 0 1px 0 hsl(210 40% 100% / 0.05) inset, 0 3px 10px -6px hsl(0 0% 0% / 0.5);
-  --shadow-pop:  0 1px 0 hsl(210 40% 100% / 0.04) inset, 0 4px 14px -6px hsl(0 0% 0% / 0.55);
+  /* Neutral soft depth. */
+  --shadow-card: 0 1px 2px hsl(0 0% 0% / 0.4);
+  --shadow-tile: 0 2px 8px -4px hsl(0 0% 0% / 0.5);
+  --shadow-pop:  0 8px 24px -10px hsl(0 0% 0% / 0.6);
 }
 
 @layer base {
@@ -257,28 +255,8 @@
     /* Tabular lining figures everywhere so stats stay column-aligned — a small
        signal of a considered, premium product. Inherited by the mono readouts. */
     font-feature-settings: "tnum" 1, "lnum" 1, "cv01" 1;
-    /* Vibrant Summer canvas: a soft, sunny multi-color wash bleeds in from the
-       corners over the warm cream base — golden top-left, coral top-right, lime
-       below — so the whole app reads "summer" before a single card loads. Low
-       alpha + fixed attachment keeps it an atmosphere, not a distraction; white
-       tiles still pop crisp on top. Token-driven, so it flips with the theme. */
-    background-image:
-      radial-gradient(1100px 640px at 4% -8%, hsl(var(--chart-3) / 0.26), transparent 60%),
-      radial-gradient(1000px 580px at 100% -4%, hsl(var(--chart-2) / 0.22), transparent 58%),
-      radial-gradient(900px 560px at 96% 104%, hsl(var(--chart-4) / 0.16), transparent 60%),
-      radial-gradient(1200px 740px at 30% 118%, hsl(var(--chart-5) / 0.20), transparent 62%);
-    background-attachment: fixed;
-    background-repeat: no-repeat;
-  }
-
-  /* On the deep-navy dark canvas the same washes glow softly instead of
-     washing out — pulled back so text contrast holds. */
-  .dark body {
-    background-image:
-      radial-gradient(1100px 640px at 4% -8%, hsl(var(--chart-3) / 0.14), transparent 60%),
-      radial-gradient(1000px 580px at 100% -4%, hsl(var(--chart-2) / 0.12), transparent 58%),
-      radial-gradient(900px 560px at 96% 104%, hsl(var(--chart-4) / 0.12), transparent 60%),
-      radial-gradient(1200px 740px at 30% 118%, hsl(var(--chart-5) / 0.11), transparent 62%);
+    /* Flat, bright, engineered canvas — no wash. Per-page brand backsplash +
+       strength watermarks are added by the PageBackdrop component (Phase 2). */
   }
 
   /* Premium feel: smooth, restrained transitions on every interactive
@@ -330,76 +308,50 @@
   .shadow-tile {
     box-shadow: var(--shadow-tile);
   }
-  /* Vibrant Summer hero treatment: a warm multi-color sweep across the brand
-     palette for hero/highlight surfaces (dashboard "Today" tile, Eat-Today
-     header, achievement banners). Token-driven so it flips light/dark.
-     `bg-summer-gradient` for a surface; `text-summer-gradient` for a hero
-     number/heading. Use sparingly — energy at a few moments, not everywhere. */
+  /* Clean tabular sans for dense numeric readouts (Fraunces serif is the
+     editorial heading face; numbers stay crisp in Plus Jakarta). */
+  .font-num {
+    font-family: var(--app-font-num);
+  }
+  /* FLAT monochrome heritage classes. The old "summer" gradient/glow utilities
+     are retained by NAME so existing consumers keep working, but they now render
+     flat + strong: solid matte-black surfaces, solid-ink hero text, no glow.
+     `bg-summer-gradient` → a solid matte-black hero surface (pair with white text);
+     `text-summer-gradient` → solid matte-black ink for a hero number/heading. */
   .bg-summer-gradient {
-    background-image: linear-gradient(
-      120deg,
-      hsl(var(--chart-1)) 0%,
-      hsl(var(--chart-4)) 38%,
-      hsl(var(--chart-2)) 70%,
-      hsl(var(--chart-3)) 100%
-    );
+    background-color: hsl(var(--foreground));
   }
   .text-summer-gradient {
-    background-image: linear-gradient(
-      100deg,
-      hsl(var(--chart-1)),
-      hsl(var(--chart-2)) 55%,
-      hsl(var(--chart-3))
-    );
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    background-image: none;
+    -webkit-background-clip: border-box;
+    background-clip: border-box;
+    color: hsl(var(--foreground));
   }
-  /* Per-tile summer gradients for the dashboard nav row, so the launcher reads
-     as a colourful set instead of one blue hero + plain whites. Angled `to top
-     right` so the DARKER hue lands bottom-left (where the label/stat sit, white
-     text → AA) and the brighter sunny hue glows top-right. Pair with
-     `[&_*]:!text-white`. From the fixed metric palette: ocean / coral / golden /
-     grape / lime. */
-  .bg-grad-body {
-    background-image: linear-gradient(to top right, hsl(var(--chart-2)), hsl(var(--chart-3)));
-  }
-  .bg-grad-fuel {
-    background-image: linear-gradient(to top right, hsl(var(--chart-1)), hsl(var(--chart-5)));
-  }
+  /* Per-area chips/tiles: flat matte-black (white icon/text on top). */
+  .bg-grad-body,
+  .bg-grad-fuel,
   .bg-grad-plan {
-    background-image: linear-gradient(to top right, hsl(var(--chart-4)), hsl(var(--chart-2)));
+    background-image: none;
+    background-color: hsl(var(--foreground));
   }
-  /* Sunny tinted top bar: keep the near-white sidebar surface but float a faint
-     golden→coral→ocean wash across it so the chrome itself says summer. Text
-     stays the dark sidebar ink (tint is low-alpha → contrast holds). */
+  /* Flat bright top bar — just the sidebar surface, no wash. */
   .bg-summer-header {
     background-color: hsl(var(--sidebar));
-    background-image: linear-gradient(
-      90deg,
-      hsl(var(--chart-3) / 0.16),
-      hsl(var(--chart-2) / 0.07) 48%,
-      hsl(var(--chart-1) / 0.16)
-    );
+    background-image: none;
   }
-  /* Premium accents (opt-in): an azure glow for the single hero number or
-     ring on a screen, and a restrained azure gradient for the primary CTA.
-     Used sparingly — premium = a few hero moments, not effects everywhere. */
-  .glow-primary {
-    text-shadow: 0 0 16px hsl(var(--primary) / 0.4);
-  }
+  /* Glow utilities are no-ops in the flat system (kept for consumer safety). */
+  .glow-primary,
   .dark .glow-primary {
-    text-shadow: 0 0 22px hsl(var(--primary) / 0.55);
+    text-shadow: none;
   }
   .ring-glow-primary {
-    filter: drop-shadow(0 0 5px hsl(var(--primary) / 0.45));
+    filter: none;
   }
+  /* Primary CTA fill: flat matte black (the prominent action color). */
   .gradient-primary {
-    background-image: linear-gradient(
-      135deg,
-      hsl(var(--primary)) 0%,
-      hsl(from hsl(var(--primary)) h s calc(l - 9)) 100%
-    );
+    background-image: none;
+    background-color: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
   }
   /* Thicker, confident accent progress fill on a muted track. */
   input[type="search"]::-webkit-search-cancel-button {

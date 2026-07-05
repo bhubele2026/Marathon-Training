@@ -8,6 +8,8 @@ export { StatReadout, type StatReadoutProps } from "./stat-readout";
 export { StatTile, type StatTileProps } from "./stat-tile";
 export { PageHeader, type PageHeaderProps } from "./page-header";
 export { PageContainer, type PageContainerProps } from "./page-container";
+export { PageBackdrop, type PageBackdropProps } from "./page-backdrop";
+export { MOTIFS, type MotifName } from "./motifs";
 export { MetricRing, type MetricRingProps, type MetricRingArc } from "./metric-ring";
 export { TrendArea, type TrendAreaProps } from "./trend-area";
 export { FeatureTile, type FeatureTileProps } from "./feature-tile";
