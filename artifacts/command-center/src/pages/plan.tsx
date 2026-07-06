@@ -516,6 +516,14 @@ export default function Plan() {
   // miles. Gate every mi / pace / Long-Run tile on this so a recomp plan
   // never headlines "Target Miles" or per-week mileage tiles.
   const includesRunning = overview.includesRunning;
+  // A plan can be flagged as "running" yet carry zero planned mileage (e.g. a
+  // pure strength / bulk plan). For run-only DISPLAY tiles (Target Miles,
+  // per-week Long Run) require actual planned miles too, so a bulk plan never
+  // headlines empty "0.00 mi". The raw `includesRunning` flag still governs the
+  // run-only pace controls.
+  const showRunMetrics =
+    includesRunning &&
+    weeks.some((w) => (w.plannedMiles ?? 0) > 0 || (w.longRunMi ?? 0) > 0);
 
   return (
     <PageContainer width="wide" motif="target">
@@ -668,7 +676,7 @@ export default function Plan() {
         {/* R2: Target Miles is run-only. On the default recomp plan we
             swap in a strength-relevant "Sessions this week" tile so the
             header never headlines miles a recomp runner isn't chasing. */}
-        {includesRunning ? (
+        {showRunMetrics ? (
           <Card>
             <CardContent className="p-6 flex items-center gap-4">
               <Target className="h-8 w-8 text-muted-foreground shrink-0" />
@@ -1018,10 +1026,17 @@ export default function Plan() {
                             </div>
                           )}
                         </div>
-                        <div>
-                          <p className="text-[10px] font-bold text-muted-foreground">Long Run</p>
-                          <p className="tabular-nums font-medium">{formatDistance(week.longRunMi)}</p>
-                        </div>
+                        {(week.longRunMi ?? 0) > 0 ? (
+                          <div>
+                            <p className="text-[10px] font-bold text-muted-foreground">Long Run</p>
+                            <p className="tabular-nums font-medium">{formatDistance(week.longRunMi)}</p>
+                          </div>
+                        ) : (
+                          <div>
+                            <p className="text-[10px] font-bold text-muted-foreground">Strength load</p>
+                            <p className="tabular-nums font-medium">{Math.round(week.plannedTotalLoad)}</p>
+                          </div>
+                        )}
                       </div>
                       )}
 

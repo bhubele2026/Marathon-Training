@@ -594,10 +594,17 @@ export default function WeekDetail() {
             </p>
           )}
         </div>
-        <div>
-          <p className="text-[10px] font-bold text-muted-foreground">Long Run</p>
-          <p className="font-display font-extrabold text-lg">{formatDistance(week.longRunMi)}</p>
-        </div>
+        {(week.longRunMi ?? 0) > 0 ? (
+          <div>
+            <p className="text-[10px] font-bold text-muted-foreground">Long Run</p>
+            <p className="font-display font-extrabold text-lg">{formatDistance(week.longRunMi)}</p>
+          </div>
+        ) : (
+          <div>
+            <p className="text-[10px] font-bold text-muted-foreground">Strength load</p>
+            <p className="font-display font-extrabold text-lg">{Math.round(week.plannedTotalLoad)}</p>
+          </div>
+        )}
           </>
         )}
         <div>
