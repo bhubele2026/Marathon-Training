@@ -235,7 +235,7 @@ export default function Goals() {
       : 0;
 
   return (
-    <PageContainer>
+    <PageContainer motif="target">
       <PageHeader
         title="Goals"
         subtitle="Your stats, AI-calculated nutrition targets, and strength goal."

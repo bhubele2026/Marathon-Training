@@ -215,7 +215,7 @@ export default function Settings() {
   }
 
   return (
-    <PageContainer className="max-w-3xl">
+    <PageContainer className="max-w-3xl" motif="kettlebell">
       <PageHeader title="Settings" subtitle="App-wide preferences" />
 
       <Card data-testid="card-visual-theme">

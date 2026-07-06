@@ -10,6 +10,7 @@ import { GAUGE_TRACK } from "@/components/insights/types";
 import {
   CoachNote,
   MetricRing,
+  PageBackdrop,
   WaterTracker,
   type MetricRingArc,
 } from "@/components/studio";
@@ -444,9 +445,11 @@ export default function Nutrition() {
   const waterOz = today?.waterMl != null ? Math.round(today.waterMl / ML_PER_OZ) : 0;
 
   return (
-    <div className="mx-auto max-w-[1440px] space-y-4 px-4 md:px-8">
-      <div>
-        <h1 className="font-display text-4xl font-extrabold tracking-tight text-summer-gradient">
+    <div className="relative overflow-hidden">
+      <PageBackdrop motif="protein" />
+      <div className="relative z-10 mx-auto max-w-[1440px] space-y-4 px-4 md:px-8">
+      <div className="border-b border-border pb-4">
+        <h1 className="font-display text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
           Nutrition
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
@@ -557,7 +560,7 @@ export default function Nutrition() {
                     <p className="font-display text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                       Calories
                     </p>
-                    <p className="font-display text-4xl font-extrabold tabular-nums tracking-tighter text-summer-gradient">
+                    <p className="font-display text-4xl font-extrabold tabular-nums tracking-tighter text-foreground">
                       {calValue != null ? fmt(calValue) : fmt(target?.cal ?? 0)}
                       <span className="ml-1 text-base font-medium text-muted-foreground">
                         {target?.cal != null ? `/ ${fmt(target.cal)} kcal` : "kcal"}
@@ -697,6 +700,7 @@ export default function Nutrition() {
       {/* Maintenance: start nutrition tracking fresh from a chosen date
           (clears earlier logs + rebuilds the AI read; plan/body/workouts kept). */}
       <ResetNutritionButton />
+      </div>
     </div>
   );
 }

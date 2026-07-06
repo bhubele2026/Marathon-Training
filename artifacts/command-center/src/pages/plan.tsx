@@ -429,10 +429,9 @@ export default function Plan() {
   // is hidden because there's nothing to reset.
   if (!overview.hasPlan || weeks.length === 0) {
     return (
-      <PageContainer width="wide">
+      <PageContainer width="wide" motif="target">
         <PageHeader
           title={overview.activeConfigName?.trim() || "Workout Plan"}
-          gradient
           subtitle="No plan applied yet"
           titleTestId="plan-header-title"
           subtitleTestId="plan-header-subtitle"
@@ -519,11 +518,11 @@ export default function Plan() {
   const includesRunning = overview.includesRunning;
 
   return (
-    <PageContainer width="wide">
+    <PageContainer width="wide" motif="target">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h2
-            className="font-display text-3xl font-extrabold tracking-tight text-summer-gradient sm:text-4xl"
+            className="font-display text-4xl font-semibold tracking-tight text-foreground sm:text-5xl"
             data-testid="plan-header-title"
             data-race-kind={raceKind ?? ""}
           >

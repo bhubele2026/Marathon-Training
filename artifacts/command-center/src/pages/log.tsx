@@ -178,7 +178,7 @@ export default function Log() {
   );
 
   return (
-    <PageContainer>
+    <PageContainer motif="stopwatch">
       <PageHeader title="Training Log" subtitle="Activity history" action={headerActions} />
 
       <div className="bg-card border border-border rounded-lg p-4 flex flex-col md:flex-row gap-4 items-end">

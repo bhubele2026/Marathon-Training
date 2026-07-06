@@ -53,6 +53,7 @@ import { EmptyPlanState } from "@/components/empty-plan-state";
 import { useFirstRunRedirect } from "@/hooks/use-first-run-redirect";
 import { useListPlannerConfigs } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
+import { PageBackdrop } from "@/components/studio";
 import { format, parseISO } from "date-fns";
 
 export default function Today() {
@@ -167,12 +168,14 @@ export default function Today() {
   const showCountdown =
     typeof today.daysUntilStart === "number" && today.daysUntilStart > 0 && !!today.firstSession;
   return (
-    <div className="mx-auto flex max-w-[1440px] flex-col gap-4 px-4 animate-in fade-in slide-in-from-bottom-4 duration-500 md:px-8">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
+    <div className="relative overflow-hidden">
+      <PageBackdrop motif="dumbbell" />
+      <div className="relative z-10 mx-auto flex max-w-[1440px] flex-col gap-4 px-4 animate-in fade-in slide-in-from-bottom-4 duration-500 md:px-8">
+      <div className="flex items-end justify-between gap-3 flex-wrap border-b border-border pb-4">
         <div>
           <TodayEyebrow raceKind={(today.raceKind ?? null) as RaceDayKind | null} />
-          <h2 className="font-display text-4xl font-extrabold tracking-tight text-summer-gradient">Today</h2>
-          <p className="text-sm font-medium text-muted-foreground">{today.date}</p>
+          <h2 className="font-display text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">Today</h2>
+          <p className="mt-1 text-sm font-medium text-muted-foreground">{today.date}</p>
         </div>
         <div className="flex items-center gap-2">
           {campaignHasPlan && (
@@ -1251,6 +1254,7 @@ export default function Today() {
 
       {dialogs}
 
+      </div>
     </div>
   );
 }

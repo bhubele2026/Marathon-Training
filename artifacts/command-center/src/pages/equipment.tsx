@@ -253,7 +253,7 @@ export default function Equipment() {
   );
 
   return (
-    <PageContainer width="wide">
+    <PageContainer width="wide" motif="rack">
       <PageHeader title="Arsenal" subtitle="Equipment mileage & usage" />
 
       {!loadingUsage && usage && usage.length > 0 && (() => {

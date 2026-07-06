@@ -16,7 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { formatWeight } from "@/lib/format";
 import { buildActivity } from "@/lib/activity";
-import { ActivityCalendar } from "@/components/studio";
+import { ActivityCalendar, PageBackdrop } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -243,7 +243,11 @@ export default function Landing() {
   const currentPhase = summary?.currentPhase?.trim() || "No plan yet";
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
+    <div className="relative min-h-[100dvh] overflow-hidden">
+      {/* Brand backsplash — barbell + BH STUDIO wordmark filling the lower
+          empty half of the front door. Behind content, never overlapping. */}
+      <PageBackdrop motif="barbell" hero />
+      <div className="relative z-10 mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
       <LandingHeader greeting={greeting} />
       <div className="mb-6 h-px bg-border" />
 
@@ -293,6 +297,7 @@ export default function Landing() {
           stat={`Wk ${currentWeek}`}
           caption={currentPhase}
         />
+      </div>
       </div>
     </div>
   );

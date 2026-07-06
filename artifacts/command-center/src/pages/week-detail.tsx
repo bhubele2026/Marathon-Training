@@ -474,7 +474,7 @@ export default function WeekDetail() {
   };
 
   return (
-    <PageContainer width="wide">
+    <PageContainer width="wide" motif="dumbbell">
       <div className="flex items-center justify-between">
         <Button variant="outline" size="sm" onClick={() => setLocation(`/plan/${weekNum - 1}`)} disabled={weekNum <= 1}>
           <ChevronLeft className="h-4 w-4 mr-1" /> Prev Week

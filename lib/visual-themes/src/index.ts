@@ -88,7 +88,7 @@ export const PALETTES: Record<string, PaletteDefinition> = {
     key: "studio",
     name: "Studio",
     number: "01",
-    tagline: "Vibrant summer: ocean-blue brand, a coral/gold/lime/grape data palette. Lively and clean.",
+    tagline: "Bright + matte black: editorial serif, mono ink, neutral greys. Clean and strong.",
     light: {
       background: "0 0% 98%",
       foreground: "0 0% 11%",

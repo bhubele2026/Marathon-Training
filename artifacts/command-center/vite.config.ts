@@ -77,6 +77,18 @@ export default defineConfig({
     fs: {
       strict: true,
     },
+    // DEV-ONLY, opt-in: when DEV_API_PROXY is set (local design/QA), forward
+    // /api to a live backend so data-driven pages render with real data.
+    // Unset in prod / on Replit, so this is a no-op there.
+    proxy: process.env.DEV_API_PROXY
+      ? {
+          "/api": {
+            target: process.env.DEV_API_PROXY,
+            changeOrigin: true,
+            secure: true,
+          },
+        }
+      : undefined,
   },
   preview: {
     port,

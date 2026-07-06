@@ -211,10 +211,9 @@ export default function Measurements() {
   ];
 
   return (
-    <PageContainer>
+    <PageContainer motif="plate">
       <PageHeader
         title="Body"
-        gradient
         subtitle="Lose inches, gain muscle"
         action={
           /* Fast logging — one prominent primary action opens the check-in form. */

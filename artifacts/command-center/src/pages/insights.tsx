@@ -31,6 +31,7 @@ import {
   SectionHeader,
   type CoachTone,
 } from "@/components/studio";
+import { PageBackdrop } from "@/components/studio";
 import {
   computeInsights,
   type Insight,
@@ -159,10 +160,12 @@ export default function Insights() {
   }, [entries, waters, workouts, measurements, targets, scale]);
 
   return (
-    <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-4 flex flex-col gap-4">
+    <div className="relative overflow-hidden">
+      <PageBackdrop motif="barbell" />
+      <div className="relative z-10 mx-auto max-w-[1440px] px-4 md:px-8 py-4 flex flex-col gap-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-display text-3xl font-extrabold tracking-tight">
+          <h1 className="font-display text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
             Insights
           </h1>
           <p className="text-sm text-muted-foreground">
@@ -243,6 +246,7 @@ export default function Insights() {
           </div>
         </>
       )}
+      </div>
     </div>
   );
 }

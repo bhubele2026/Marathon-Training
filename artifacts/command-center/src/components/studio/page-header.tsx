@@ -2,8 +2,8 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 // PageHeader — the one shared page title block, so every route reads the same:
-// an optional colored kicker eyebrow, a big Plus-Jakarta display title (with an
-// opt-in summer-gradient for the primary daily surfaces), a muted subtitle, and
+// an optional colored kicker eyebrow, a big editorial serif (Fraunces) display
+// title in matte ink, a muted subtitle, and
 // a right-aligned action slot (toggle / button / link). Replaces the per-page
 // hand-rolled h1/h2 soup. Layout mirrors the dashboard header:
 // stacks on mobile, title-left / action-right and baseline-aligned on desktop.
@@ -18,8 +18,6 @@ export interface PageHeaderProps {
   subtitle?: ReactNode;
   /** Right-aligned controls (SegmentedControl, button, link…). */
   action?: ReactNode;
-  /** Opt-in summer-gradient title — reserved for the primary daily surfaces. */
-  gradient?: boolean;
   className?: string;
   /** Override the title's test id (defaults to "page-header-title"). */
   titleTestId?: string;
@@ -35,7 +33,6 @@ export function PageHeader({
   eyebrowAccent = "hsl(var(--chart-1))",
   subtitle,
   action,
-  gradient = false,
   className,
   titleTestId = "page-header-title",
   subtitleTestId,
@@ -67,8 +64,10 @@ export function PageHeader({
         )}
         <h1
           className={cn(
-            "font-display text-3xl font-extrabold tracking-tight sm:text-4xl",
-            gradient ? "text-summer-gradient" : "text-foreground",
+            // Editorial serif title, matte ink. `gradient` is retained as a
+            // prop for API compat but no longer applies a color wash — the
+            // whole app is mono matte-black now.
+            "font-display text-3xl font-semibold tracking-tight text-foreground sm:text-4xl",
           )}
           data-testid={titleTestId}
           {...titleData}

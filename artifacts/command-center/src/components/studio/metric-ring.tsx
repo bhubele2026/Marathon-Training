@@ -189,7 +189,7 @@ export function MetricRing({
         <span
           className={cn(
             "font-display font-extrabold leading-none tabular-nums tracking-tight",
-            hero ? `${heroNumberClass} text-summer-gradient` : "text-xl text-foreground",
+            hero ? `${heroNumberClass} text-foreground` : "text-xl text-foreground",
           )}
         >
           {value == null ? (

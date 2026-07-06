@@ -21,6 +21,7 @@ import {
   EmptyState,
   SectionHeader,
 } from "@/components/studio";
+import { PageBackdrop } from "@/components/studio";
 
 type Granularity = "day" | "week" | "month";
 
@@ -166,11 +167,13 @@ export default function History() {
   const hasAnything = days.length > 0;
 
   return (
-    <div className="mx-auto max-w-[1440px] px-4 md:px-8 py-4 flex flex-col gap-4">
+    <div className="relative overflow-hidden">
+      <PageBackdrop motif="stopwatch" />
+      <div className="relative z-10 mx-auto max-w-[1440px] px-4 md:px-8 py-4 flex flex-col gap-4">
       {/* Header + scale toggle + period navigator */}
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="font-display text-3xl font-extrabold tracking-tight text-foreground">
+          <h1 className="font-display text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
             History
           </h1>
           <p className="text-[15px] text-muted-foreground">
@@ -296,6 +299,7 @@ export default function History() {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

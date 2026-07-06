@@ -107,7 +107,7 @@ export default function Recap() {
     v == null || v === "" ? "—" : `${v}${unit ?? ""}`;
 
   return (
-    <PageContainer className="max-w-[1000px]">
+    <PageContainer className="max-w-[1000px]" motif="dumbbell">
       <PageHeader
         title={isCurrent ? "This week" : "Week recap"}
         subtitle={`${format(parseISO(weekStart), "MMM d")} – ${format(parseISO(weekEnd), "MMM d")}`}

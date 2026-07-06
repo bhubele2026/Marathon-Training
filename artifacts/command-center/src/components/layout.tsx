@@ -98,7 +98,7 @@ export function Layout({ children }: LayoutProps) {
           the semantic `sidebar` tokens, so flipping to dark mode (theme
           toggle) gives the dark-bar option for free. */}
       {!isLanding && (
-      <header className="sticky top-0 z-40 border-b border-sidebar-border bg-summer-header text-sidebar-foreground">
+      <header className="sticky top-0 z-40 border-b border-sidebar-border bg-sidebar text-sidebar-foreground">
         <div className="mx-auto max-w-[1920px] px-4 md:px-8 h-14 flex items-center gap-7">
           <Wordmark />
 
@@ -161,7 +161,7 @@ export function Layout({ children }: LayoutProps) {
             <Button
               asChild
               size="sm"
-              className="h-8 gap-1.5 font-semibold gradient-primary shadow-sm hover:brightness-110"
+              className="h-8 gap-1.5 font-semibold bg-primary text-primary-foreground shadow-sm hover:brightness-110"
               data-testid="button-log"
             >
               <Link href="/log">

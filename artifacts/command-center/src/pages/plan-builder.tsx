@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
+import { PageBackdrop } from "@/components/studio";
 import { Send, Loader2, Check, AlertTriangle, Info, SlidersHorizontal, RotateCcw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -371,10 +372,12 @@ export default function PlanBuilder() {
   const infos = guardrails.filter((g) => g.level === "info");
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="relative overflow-hidden">
+      <PageBackdrop motif="barbell" />
+      <div className="relative z-10 space-y-4 p-4">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Build with Claude</h1>
+          <h1 className="font-display text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">Build with Claude</h1>
           <p className="text-sm text-muted-foreground">
             Describe the plan you want. Keep chatting to adjust it until it's
             right — then apply. You can re-apply as you refine.
@@ -689,6 +692,7 @@ export default function PlanBuilder() {
             )}
           </CardContent>
         </Card>
+      </div>
       </div>
     </div>
   );

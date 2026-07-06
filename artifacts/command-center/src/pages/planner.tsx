@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
+import { PageBackdrop } from "@/components/studio";
 import {
   useListPlannerConfigs,
   useGetPlannerConfig,
@@ -2611,9 +2612,11 @@ export default function Planner() {
   }
 
   return (
-    <div className="space-y-5 pb-12" data-testid="planner-page">
+    <div className="relative overflow-hidden">
+      <PageBackdrop motif="barbell" />
+      <div className="relative z-10 space-y-5 pb-12" data-testid="planner-page">
       <header>
-        <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
+        <h1 className="font-display text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
           Phase Planner
         </h1>
         <p className="text-muted-foreground mt-1">
@@ -5875,6 +5878,7 @@ export default function Planner() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
     </div>
   );
 }
