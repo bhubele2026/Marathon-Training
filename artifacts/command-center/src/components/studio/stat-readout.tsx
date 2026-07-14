@@ -57,7 +57,9 @@ export function StatReadout({
       <div className="flex items-baseline gap-1.5">
         <span
           className={cn(
-            "font-display text-3xl font-extrabold leading-none tabular-nums tracking-tighter",
+            // Cockpit signature: JetBrains Mono, tabular, so every readout
+            // aligns like an instrument panel.
+            "font-num text-3xl font-bold leading-none tabular-nums tracking-tight",
             tone === "accent" ? "text-primary" : "text-foreground",
           )}
         >
@@ -76,7 +78,7 @@ export function StatReadout({
         {delta ? (
           <span
             className={cn(
-              "ml-1 inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 font-display text-[11px] font-bold tabular-nums",
+              "ml-1 inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 font-num text-[11px] font-bold tabular-nums",
               DELTA_TONE[delta.tone ?? "neutral"],
             )}
           >
