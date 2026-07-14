@@ -92,12 +92,12 @@
      near-white canvas (NO warm/cream), matte-black ink as the prominent color,
      neutral greys for support, soft depth. Editorial serif headings (Fraunces)
      carry the premium; the accent is matte black itself (mono). */
-  --background: 0 0% 98%;       /* bright neutral near-white */
-  --foreground: 0 0% 11%;       /* matte black ink (prominent) */
-  --border: 0 0% 90%;           /* neutral hairline */
+  --background: 220 33% 98%;    /* cool near-white canvas */
+  --foreground: 222 47% 11%;    /* deep slate ink */
+  --border: 220 20% 90%;        /* cool hairline */
   --card: 0 0% 100%;            /* clean white surface */
-  --card-foreground: 0 0% 11%;
-  --card-border: 0 0% 91%;
+  --card-foreground: 222 47% 11%;
+  --card-border: 220 22% 92%;
 
   --sidebar: 0 0% 100%;
   --sidebar-foreground: 0 0% 13%;
@@ -112,34 +112,34 @@
   --popover-foreground: 0 0% 11%;
   --popover-border: 0 0% 91%;
 
-  /* Primary + accent = matte black (bright + matte black, monochrome). */
-  --primary: 0 0% 11%;
+  /* Primary + accent = electric cobalt (the Tempo signature). */
+  --primary: 226 72% 56%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 0 0% 95%;
-  --secondary-foreground: 0 0% 20%;
-  --muted: 0 0% 95%;
-  --muted-foreground: 0 0% 44%;
-  --accent: 0 0% 11%;
+  --secondary: 220 30% 95%;
+  --secondary-foreground: 222 40% 22%;
+  --muted: 220 26% 95%;
+  --muted-foreground: 220 12% 46%;
+  --accent: 226 72% 56%;
   --accent-foreground: 0 0% 100%;
-  --navy: 0 0% 11%;
+  --navy: 226 72% 56%;
   --navy-foreground: 0 0% 100%;
-  --success: 152 42% 36%;
+  --success: 152 55% 40%;
   --success-foreground: 0 0% 100%;
-  --warning: 36 74% 44%;
+  --warning: 36 92% 46%;
   --warning-foreground: 0 0% 100%;
-  --destructive: 6 62% 48%;
+  --destructive: 356 70% 54%;
   --destructive-foreground: 0 0% 100%;
-  --input: 0 0% 88%;
-  --ring: 0 0% 11%;
+  --input: 220 20% 88%;
+  --ring: 226 72% 56%;
 
-  /* Data palette = matte black + a neutral charcoal→light-grey ramp. */
-  --brand-orange: 0 0% 11%;
-  --brand-purple: 0 0% 11%;
-  --chart-1: 0 0% 11%;         /* matte black — primary series */
-  --chart-2: 0 0% 34%;
-  --chart-3: 0 0% 52%;
-  --chart-4: 0 0% 68%;
-  --chart-5: 0 0% 82%;
+  /* Data palette = full categorical ramp: cobalt / teal / violet / amber / rose. */
+  --brand-orange: 36 92% 50%;
+  --brand-purple: 265 60% 60%;
+  --chart-1: 226 72% 56%;      /* cobalt — primary series */
+  --chart-2: 178 60% 40%;      /* teal */
+  --chart-3: 265 60% 60%;      /* violet */
+  --chart-4: 36 92% 50%;       /* amber */
+  --chart-5: 340 70% 58%;      /* rose */
 
   /* Phase colors: matte black for the lead phase, greys for the rest. */
   --phase-foundation: hsl(0 0% 68%);
@@ -154,14 +154,15 @@
   --shadow-tile: 0 1px 2px hsl(0 0% 0% / 0.05), 0 4px 12px -6px hsl(0 0% 0% / 0.09);
   --shadow-pop:  0 2px 6px -2px hsl(0 0% 0% / 0.07), 0 12px 28px -10px hsl(0 0% 0% / 0.14);
 
+  /* Tempo type system: Inter for UI, Space Grotesk as the geometric display
+     face for headings + hero numbers, and JetBrains Mono for every numeric
+     readout — mono numerals are the signature of the new look. */
   --app-font-sans: 'Inter', system-ui, sans-serif;
-  /* Editorial serif for headings + hero numbers (Oura/Levels feel). */
-  --app-font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
-  --app-font-serif: 'Fraunces', Georgia, serif;
-  /* Clean tabular sans for dense numeric readouts where a serif reads busy. */
-  --app-font-num: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  --app-font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --app-font-serif: 'Space Grotesk', 'Inter', sans-serif;
+  --app-font-num: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
   --app-font-mono: 'JetBrains Mono', ui-monospace, monospace;
-  --radius: 0.75rem;   /* soft, refined rounding */
+  --radius: 0.875rem;   /* slightly softer, roomier cards */
   
   --tracking-normal: 0em;
   --spacing: 0.25rem;

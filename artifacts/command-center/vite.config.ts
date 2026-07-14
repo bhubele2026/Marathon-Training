@@ -2,11 +2,10 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
-import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
-// PORT only matters for the dev/preview server. Static production builds
-// (e.g. the Replit deploy build container) do not need it, so fall back
-// to a sentinel that's only consulted when vite serves traffic.
+// PORT only matters for the dev/preview server. Static production builds (the
+// Render build step just runs `vite build`) never serve traffic, so fall back
+// to a sentinel that's only consulted when vite actually serves.
 const rawPort = process.env.PORT;
 const port = rawPort ? Number(rawPort) : 5173;
 
@@ -14,31 +13,14 @@ if (rawPort !== undefined && (Number.isNaN(port) || port <= 0)) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-// BASE_PATH is set by the dev workflow and the production serve runtime.
-// At build time in the deploy container it's not set, so default to "/"
-// which matches the artifact's previewPath for this app.
+// In the single-service Render deploy Express serves the built SPA from "/",
+// so the app is always mounted at the root. BASE_PATH stays overridable for
+// local experiments but defaults to "/".
 const basePath = process.env.BASE_PATH ?? "/";
 
 export default defineConfig({
   base: basePath,
-  plugins: [
-    react(),
-    tailwindcss(),
-    runtimeErrorOverlay(),
-    ...(process.env.NODE_ENV !== "production" &&
-    process.env.REPL_ID !== undefined
-      ? [
-          await import("@replit/vite-plugin-cartographer").then((m) =>
-            m.cartographer({
-              root: path.resolve(import.meta.dirname, ".."),
-            }),
-          ),
-          await import("@replit/vite-plugin-dev-banner").then((m) =>
-            m.devBanner(),
-          ),
-        ]
-      : []),
-  ],
+  plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),
@@ -48,16 +30,11 @@ export default defineConfig({
   },
   root: path.resolve(import.meta.dirname),
   build: {
+    // Express serves this directory (see api-server/src/app.ts + CLIENT_DIR).
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
-    // Task #382: split vendor chunks so deploy-cache hits survive
-    // small app changes and heavyweight libs (recharts) only download
-    // when a page that uses them is opened. Pairs with the lazyWithReload
-    // route splits in App.tsx — lazy pages already pull recharts on
-    // demand, the manual chunk just keeps the long-cache filename
-    // stable across unrelated app edits. React itself is intentionally
-    // left in the entry chunk (a dedicated react-vendor chunk came out
-    // empty because the entry already imports React eagerly).
+    // Split heavyweight vendors so a page that never opens a chart doesn't pay
+    // for recharts, and long-cache filenames stay stable across app-only edits.
     rollupOptions: {
       output: {
         manualChunks: {
@@ -74,12 +51,8 @@ export default defineConfig({
     strictPort: true,
     host: "0.0.0.0",
     allowedHosts: true,
-    fs: {
-      strict: true,
-    },
-    // DEV-ONLY, opt-in: when DEV_API_PROXY is set (local design/QA), forward
-    // /api to a live backend so data-driven pages render with real data.
-    // Unset in prod / on Replit, so this is a no-op there.
+    fs: { strict: true },
+    // DEV-ONLY, opt-in: point /api at a live backend for local design/QA.
     proxy: process.env.DEV_API_PROXY
       ? {
           "/api": {
