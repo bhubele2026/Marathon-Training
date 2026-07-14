@@ -456,7 +456,7 @@ export async function computeBaselineTargets(
       ok: false,
       reason: "ai_unavailable",
       message:
-        "AI is not configured. Add ANTHROPIC_API_KEY as a Replit secret (Tools → Secrets) to calculate targets.",
+        "AI is not configured. Set ANTHROPIC_API_KEY in the environment to calculate targets.",
     };
   }
 

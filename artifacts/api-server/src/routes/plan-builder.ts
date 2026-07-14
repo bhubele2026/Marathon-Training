@@ -247,7 +247,7 @@ router.post("/plan-builder/chat", async (req, res): Promise<void> => {
   if (!isConfigured()) {
     res.status(400).json({
       error:
-        "ANTHROPIC_API_KEY is not set. Add it as a Replit secret (Tools → Secrets) to use the Claude plan builder.",
+        "ANTHROPIC_API_KEY is not set. Set it in the environment to use the Claude plan builder.",
     });
     return;
   }

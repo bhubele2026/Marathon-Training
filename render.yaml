@@ -1,0 +1,59 @@
+# Render Blueprint — single-service deploy for the Marathon Training app.
+#
+# One Node web service serves BOTH the JSON API (/api) and the built React SPA
+# (see artifacts/api-server/src/app.ts), backed by one managed Postgres. This
+# replaces Replit's multi-artifact "application router" model — same origin, so
+# the frontend's relative /api fetches work with zero rewiring.
+#
+# First-time setup: apply this Blueprint, then set the three secret env vars
+# (ANTHROPIC_API_KEY, NUTRITION_TOKEN, ALCOHOL_TOKEN) in the Render dashboard.
+
+services:
+  - type: web
+    name: marathon-training
+    runtime: node
+    region: oregon
+    plan: starter
+    branch: render-rebuild
+    healthCheckPath: /api/healthz
+
+    # Install with the pinned pnpm (via corepack + the root "packageManager"
+    # field), build the SPA then the API bundle, then push the Drizzle schema.
+    # The schema push lives here (not in preDeployCommand) so it runs on every
+    # plan tier — preDeployCommand is a paid-only feature, and a silently
+    # skipped migration against a clean DB would crash the boot. run-backfills.sh
+    # is idempotent + fail-loud, so re-running it every build is safe.
+    buildCommand: >-
+      corepack enable &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @workspace/command-center build &&
+      pnpm --filter @workspace/api-server build &&
+      bash scripts/run-backfills.sh
+
+    startCommand: node --enable-source-maps artifacts/api-server/dist/index.mjs
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Absolute path to the built SPA so Express serves it regardless of cwd.
+      # /opt/render/project/src is Render's checkout root.
+      - key: CLIENT_DIR
+        value: /opt/render/project/src/artifacts/command-center/dist/public
+      - key: DATABASE_URL
+        fromDatabase:
+          name: marathon-db
+          property: connectionString
+      # Secrets — set these values in the Render dashboard (sync:false keeps
+      # them out of source control and out of the Blueprint diff).
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: NUTRITION_TOKEN
+        sync: false
+      - key: ALCOHOL_TOKEN
+        sync: false
+
+databases:
+  - name: marathon-db
+    databaseName: marathon
+    plan: basic-256mb
+    postgresMajorVersion: "16"

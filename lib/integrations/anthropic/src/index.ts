@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 
 // Thin wrapper around the official Anthropic SDK. Keeps key handling + model
 // choice in one place so routes don't each reconstruct a client. The key lives
-// in ANTHROPIC_API_KEY (a Replit secret) and never reaches the browser — all
+// in the ANTHROPIC_API_KEY env var and never reaches the browser — all
 // calls happen server-side.
 
 /** THE BRAIN. Fable 5 — Anthropic's most capable model — everywhere, so every
@@ -41,7 +41,7 @@ let cached: Anthropic | null = null;
 export function getAnthropic(): Anthropic {
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new Error(
-      "ANTHROPIC_API_KEY is not set. Add it as a Replit secret (Tools → Secrets) " +
+      "ANTHROPIC_API_KEY is not set. Set it in the environment " +
         "to enable the Claude plan builder.",
     );
   }
