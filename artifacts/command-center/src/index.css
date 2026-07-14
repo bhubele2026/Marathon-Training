@@ -112,41 +112,41 @@
   --popover-foreground: 0 0% 11%;
   --popover-border: 0 0% 91%;
 
-  /* Primary + accent = electric cobalt (the Tempo signature). */
-  --primary: 226 72% 56%;
+  /* Light mirror of the Cockpit: deepened lime for legibility, calm accent. */
+  --primary: 90 62% 36%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 220 30% 95%;
-  --secondary-foreground: 222 40% 22%;
-  --muted: 220 26% 95%;
-  --muted-foreground: 220 12% 46%;
-  --accent: 226 72% 56%;
-  --accent-foreground: 0 0% 100%;
-  --navy: 226 72% 56%;
+  --secondary: 210 20% 94%;
+  --secondary-foreground: 222 25% 20%;
+  --muted: 210 20% 95%;
+  --muted-foreground: 220 10% 42%;
+  --accent: 210 20% 94%;
+  --accent-foreground: 222 25% 20%;
+  --navy: 90 62% 36%;
   --navy-foreground: 0 0% 100%;
-  --success: 152 55% 40%;
+  --success: 152 55% 38%;
   --success-foreground: 0 0% 100%;
-  --warning: 36 92% 46%;
+  --warning: 38 92% 45%;
   --warning-foreground: 0 0% 100%;
-  --destructive: 356 70% 54%;
+  --destructive: 2 72% 50%;
   --destructive-foreground: 0 0% 100%;
-  --input: 220 20% 88%;
-  --ring: 226 72% 56%;
+  --input: 220 16% 86%;
+  --ring: 90 60% 40%;
 
-  /* Data palette = full categorical ramp: cobalt / teal / violet / amber / rose. */
-  --brand-orange: 36 92% 50%;
-  --brand-purple: 265 60% 60%;
-  --chart-1: 226 72% 56%;      /* cobalt — primary series */
-  --chart-2: 178 60% 40%;      /* teal */
-  --chart-3: 265 60% 60%;      /* violet */
-  --chart-4: 36 92% 50%;       /* amber */
-  --chart-5: 340 70% 58%;      /* rose */
+  /* Data palette = neon categorical ramp: lime / cyan / violet / amber / rose. */
+  --brand-orange: 38 92% 48%;
+  --brand-purple: 265 55% 55%;
+  --chart-1: 90 55% 40%;       /* lime — primary series */
+  --chart-2: 190 80% 38%;      /* cyan */
+  --chart-3: 265 55% 55%;      /* violet */
+  --chart-4: 38 92% 48%;       /* amber */
+  --chart-5: 330 70% 52%;      /* rose */
 
-  /* Phase colors: matte black for the lead phase, greys for the rest. */
-  --phase-foundation: hsl(0 0% 68%);
-  --phase-aerobic: hsl(0 0% 11%);
-  --phase-tempo: hsl(0 0% 52%);
-  --phase-race-specific: hsl(0 0% 34%);
-  --phase-taper: hsl(0 0% 82%);
+  /* Phase colors: the neon arc, deepened for light-mode legibility. */
+  --phase-foundation: hsl(190 80% 38%);
+  --phase-aerobic: hsl(90 55% 38%);
+  --phase-tempo: hsl(38 92% 45%);
+  --phase-race-specific: hsl(330 70% 50%);
+  --phase-taper: hsl(265 55% 52%);
 
   /* Soft, refined neutral elevation — gentle depth, not flat. */
   --shadow-xs:   0 1px 2px 0 hsl(0 0% 0% / 0.04);
@@ -183,62 +183,63 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
 
-  /* BH Studio dark — NEUTRAL matte black. Near-black canvas, cards a step above,
-     hairline borders, off-white ink; primary inverts to off-white. Soft depth. */
-  --background: 0 0% 8%;
-  --foreground: 0 0% 92%;
-  --border: 0 0% 20%;
+  /* Cockpit dark (the hero) — cool near-black canvas, cards a step above,
+     hairline borders, off-white ink, NEON LIME as the signal accent; hover
+     surfaces stay a calm elevated tone so lime always reads as "the signal". */
+  --background: 222 24% 7%;
+  --foreground: 210 22% 92%;
+  --border: 220 14% 20%;
 
-  --card: 0 0% 12%;
-  --card-foreground: 0 0% 92%;
-  --card-border: 0 0% 20%;
+  --card: 222 20% 11%;
+  --card-foreground: 210 22% 92%;
+  --card-border: 220 14% 20%;
 
-  --sidebar: 0 0% 10%;
-  --sidebar-foreground: 0 0% 88%;
-  --sidebar-border: 0 0% 18%;
-  --sidebar-primary: 0 0% 92%;
-  --sidebar-primary-foreground: 0 0% 10%;
-  --sidebar-accent: 0 0% 16%;
-  --sidebar-accent-foreground: 0 0% 90%;
-  --sidebar-ring: 0 0% 80%;
+  --sidebar: 222 24% 9%;
+  --sidebar-foreground: 210 18% 84%;
+  --sidebar-border: 220 14% 18%;
+  --sidebar-primary: 84 80% 58%;
+  --sidebar-primary-foreground: 222 30% 8%;
+  --sidebar-accent: 222 18% 15%;
+  --sidebar-accent-foreground: 210 18% 88%;
+  --sidebar-ring: 84 80% 58%;
 
-  --popover: 0 0% 12%;
-  --popover-foreground: 0 0% 92%;
-  --popover-border: 0 0% 20%;
+  --popover: 222 20% 11%;
+  --popover-foreground: 210 22% 92%;
+  --popover-border: 220 14% 20%;
 
-  /* Primary + accent invert to off-white on the near-black canvas. */
-  --primary: 0 0% 92%;
-  --primary-foreground: 0 0% 10%;
-  --secondary: 0 0% 17%;
-  --secondary-foreground: 0 0% 92%;
-  --muted: 0 0% 16%;
-  --muted-foreground: 0 0% 62%;
-  --accent: 0 0% 92%;
-  --accent-foreground: 0 0% 10%;
-  --navy: 0 0% 92%;
-  --navy-foreground: 0 0% 10%;
-  --success: 152 44% 50%;
-  --success-foreground: 0 0% 10%;
-  --warning: 36 76% 56%;
-  --warning-foreground: 0 0% 10%;
-  --destructive: 6 64% 56%;
+  /* Neon-lime primary; accent is a calm elevated surface (not lime). */
+  --primary: 84 80% 58%;
+  --primary-foreground: 222 30% 8%;
+  --secondary: 222 16% 16%;
+  --secondary-foreground: 210 20% 90%;
+  --muted: 222 14% 15%;
+  --muted-foreground: 215 14% 60%;
+  --accent: 222 18% 16%;
+  --accent-foreground: 210 20% 90%;
+  --navy: 84 80% 58%;
+  --navy-foreground: 222 30% 8%;
+  --success: 152 60% 50%;
+  --success-foreground: 222 30% 8%;
+  --warning: 40 95% 58%;
+  --warning-foreground: 222 30% 8%;
+  --destructive: 2 78% 62%;
   --destructive-foreground: 0 0% 100%;
-  --input: 0 0% 20%;
-  --ring: 0 0% 80%;
+  --input: 220 14% 22%;
+  --ring: 84 80% 58%;
 
-  --brand-orange: 0 0% 92%;
-  --brand-purple: 0 0% 92%;
-  --chart-1: 0 0% 92%;         /* off-white — primary series */
-  --chart-2: 0 0% 70%;
-  --chart-3: 0 0% 54%;
-  --chart-4: 0 0% 40%;
-  --chart-5: 0 0% 30%;
+  --brand-orange: 40 95% 58%;
+  --brand-purple: 265 85% 72%;
+  --chart-1: 84 80% 60%;       /* lime — primary series */
+  --chart-2: 188 90% 56%;      /* cyan */
+  --chart-3: 265 85% 72%;      /* violet */
+  --chart-4: 40 95% 60%;       /* amber */
+  --chart-5: 330 88% 68%;      /* rose */
 
-  --phase-foundation: hsl(0 0% 40%);
-  --phase-aerobic: hsl(0 0% 92%);
-  --phase-tempo: hsl(0 0% 54%);
-  --phase-race-specific: hsl(0 0% 70%);
-  --phase-taper: hsl(0 0% 30%);
+  --phase-foundation: hsl(188 85% 52%);
+  --phase-aerobic: hsl(84 80% 58%);
+  --phase-tempo: hsl(40 95% 58%);
+  --phase-race-specific: hsl(330 85% 65%);
+  --phase-taper: hsl(265 82% 70%);
 
   /* Neutral soft depth. */
   --shadow-card: 0 1px 2px hsl(0 0% 0% / 0.4);
